@@ -60,4 +60,7 @@ func init() {
 	// file
 	rootCmd.AddCommand(fileCmd)          // file parent
 	fileCmd.AddCommand(fileUploadCmd)
+
+	// whoami
+	rootCmd.AddCommand(whoamiCmd)
 }

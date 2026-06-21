@@ -1,4 +1,4 @@
-﻿// Package client_test 包含 nazhi-cli SDK 的全量测试。
+// Package client_test 包含 nazhi-cli SDK 的全量测试。
 package client_test
 
 import (
@@ -173,11 +173,14 @@ func TestLogin(t *testing.T) {
 			if body["username"] != "TEST2025001" {
 				t.Errorf("期望 username=TEST2025001, 得到 %s", body["username"])
 			}
-			if body["captcha"] != "AB12" {
-				t.Errorf("期望 captcha=AB12, 得到 %s", body["captcha"])
+			// HAR 验证：登录请求体无 captcha 字段
+			if _, exists := body["captcha"]; exists {
+				t.Errorf("登录请求体不应包含 captcha 字段（HAR 对齐）")
 			}
-			w.Header().Set("Location", "/homepage?token=eyJhbGciOiJIUzI1NiJ9.test-token-123")
-			w.WriteHeader(http.StatusFound)
+			// HAR 验证：登录响应 200 JSON（而非 302 redirect）
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"code":1,"returnData":{"token":"eyJhbGciOiJIUzI1NiJ9.test-token-123","expires_at":1888888888}}`))
 		}
 	}))
 	defer sso.Close()
@@ -216,6 +219,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "验证码校验成功", nil, nil)))
 		case "/teacher/auth/studentLogin/validate":
+			// 200 OK 但 code=0 表示凭证错误
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(0, "用户名或密码错误", nil, nil)))
@@ -238,11 +242,20 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 // ─── 测试: ActivateSession ───
 
+// TestActivateSession 验证 4 步 HAR 对齐的 Session 激活流程：
+//  1. GET /
+//  2. GET /api/studentInfo/getMenu (Referer: /homepage?token=xxx)
+//  3. GET /api/studentInfo/getMenu (Referer: /home)
+//  4. GET /api/studentInfo/getMyInfo
 func TestActivateSession(t *testing.T) {
 	callOrder := 0
+	getMenuCount := 0
 	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/":
+			if callOrder != 0 {
+				t.Errorf("首页必须在最前, 当前 callOrder=%d", callOrder)
+			}
 			callOrder = 1
 			if r.Header.Get("X-Auth-Token") != "test-token" {
 				t.Errorf("期望 X-Auth-Token=test-token")
@@ -250,17 +263,44 @@ func TestActivateSession(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<html>home</html>"))
 		case "/api/studentInfo/getMenu":
-			if callOrder != 1 {
-				t.Errorf("getMenu 应在首页之后")
+			getMenuCount++
+			if callOrder == 0 {
+				t.Errorf("getMenu 必须在首页之后")
+			}
+			if getMenuCount == 1 {
+				// 步骤 2：Referer 应包含 /homepage?token=
+				ref := r.Header.Get("Referer")
+				if !strings.Contains(ref, "/homepage?token=") {
+					t.Errorf("步骤 2 getMenu Referer 应包含 /homepage?token=, 得到 %s", ref)
+				}
+			} else if getMenuCount == 2 {
+				// 步骤 3：Referer 应是 /home
+				ref := r.Header.Get("Referer")
+				if !strings.Contains(ref, "/home") {
+					t.Errorf("步骤 3 getMenu Referer 应包含 /home, 得到 %s", ref)
+				}
 			}
 			callOrder = 2
-			if r.Header.Get("Referer") == "" {
-				t.Errorf("期望 Referer 不为空")
-			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
 				"name": "张三", "studentNumber": "TEST2025001",
+			}, nil)))
+		case "/api/studentInfo/getMyInfo":
+			// 步骤 4：getMyInfo 在 getMenu 之后
+			if getMenuCount != 2 {
+				t.Errorf("getMyInfo 应在两次 getMenu 之后, 当前 getMenuCount=%d", getMenuCount)
+			}
+			callOrder = 3
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
+				"name":          "张三",
+				"studentNumber": "S1234567890",
+				"schoolName":    "福清一中",
+				"gradeName":     "高一",
+				"className":     "八班",
+				"seat":          45,
 			}, nil)))
 		}
 	}))
@@ -276,6 +316,12 @@ func TestActivateSession(t *testing.T) {
 	}
 	if info.Name != "张三" {
 		t.Errorf("期望 Name=张三, 得到 %s", info.Name)
+	}
+	if getMenuCount != 2 {
+		t.Errorf("期望 getMenu 被调用 2 次 (HAR 4 步激活), 得到 %d", getMenuCount)
+	}
+	if callOrder != 3 {
+		t.Errorf("期望 callOrder=3 (4 步全部完成), 得到 %d", callOrder)
 	}
 }
 
@@ -315,6 +361,9 @@ func TestGetMyInfo(t *testing.T) {
 	}
 	if info.ClassName != "八班" {
 		t.Errorf("期望 ClassName=八班, 得到 %s", info.ClassName)
+	}
+	if info.Seat != 45 {
+		t.Errorf("期望 Seat=45, 得到 %d", info.Seat)
 	}
 }
 
@@ -529,8 +578,10 @@ func TestConcurrentLoginIsolation(t *testing.T) {
 			counter++
 			token := "token-" + string(rune('A'+counter-1))
 			mu.Unlock()
-			w.Header().Set("Location", "/homepage?token="+token)
-			w.WriteHeader(http.StatusFound)
+			// 200 JSON 响应（HAR 对齐）
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"code":1,"returnData":{"token":"` + token + `","expires_at":1888888888}}`))
 		}
 	}))
 	defer sso.Close()
