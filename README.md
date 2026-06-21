@@ -27,14 +27,8 @@ go install github.com/Wenaixi/nazhi-cli/cmd/nazhi@latest
 ## 快速开始
 
 ```bash
-# 全自动登录（OCR 自动识别验证码，默认开启）
+# 全自动登录（OCR 自动识别验证码，默认启用）
 nazhi login -u S1234567890 -p TestPass123
-
-# 指定验证码
-nazhi login -u S1234567890 -p TestPass123 -c AB12
-
-# 交互式输入验证码（禁用 OCR）
-nazhi login -u S1234567890 -p TestPass123 --ocr=false
 
 # 查询学校 ID
 nazhi school -u S1234567890
@@ -61,23 +55,17 @@ nazhi file upload -f ./photo.jpg
 
 ### OCR 验证码模式
 
-| 模式 | 命令 | 场景 |
-|---|---|---|
-| **自动 OCR**（默认） | `nazhi login -u xxx -p xxx` | 自动化脚本、无人值守 |
-| **指定验证码** | `nazhi login -u xxx -p xxx -c AB12` | 测试、调试 |
-| **交互式** | `nazhi login -u xxx -p xxx --ocr=false` | 临时使用、手动确认 |
+验证码由内置 OCR 全自动识别（模型已通过 `go:embed` 内嵌在二进制中）。首次调用时自动解压到临时目录，无需网络下载。整个过程完全自动化，无需人工干预。
 
-OCR 引擎基于 ddddocr（ONNX Runtime），模型文件已通过 `go:embed` 内嵌在二进制中。首次调用时自动解压到临时目录，无需网络下载。
+OCR 引擎基于 ddddocr（ONNX Runtime），对同一张图片最多重试 99 次以提高准确率。
 
 ## 命令参考
 
 ```
 nazhi
-├── login                          SSO 登录
+├── login                          SSO 登录（全自动 OCR）
 │   ├── -u/--username       必填   学号
 │   ├── -p/--password       必填   密码
-│   ├── -c/--code           选填   验证码文本
-│   ├── --ocr               选填   启用 OCR（默认 true）
 │   ├── --sso-base          选填   SSO 根地址（默认 https://www.nazhisoft.com）
 │   └── --timeout           选填   HTTP 超时秒数（默认 15）
 ├── school                          查询学校 ID
@@ -112,18 +100,17 @@ import (
     "github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// 创建客户端（带 OCR 自动识别验证码）
+// 创建客户端（OCR 验证码识别器默认启用，模型已内嵌）
 c := client.New(
     client.WithSSOBase("https://www.nazhisoft.com"),
     client.WithTimeout(15*time.Second),
-    client.WithOCR(),   // 启用内置 OCR
 )
 
-// 全自动登录
+// 全自动登录（OCR 自动识别验证码）
 resp, err := c.Login(ctx, types.LoginRequest{
     Username: "S1234567890",
     Password: "TestPass123",
-    // Captcha 留空 → OCR 自动识别
+    // 无需 Captcha 字段，OCR 自动处理
 })
 if err != nil { panic(err) }
 fmt.Println("Token:", resp.Token)

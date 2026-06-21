@@ -10,7 +10,6 @@ type LoginRequest struct {
 	SchoolID string // 学校 ID（可为空，服务端自学号推断）
 	Username string // 学号
 	Password string // 密码
-	Captcha  string // 验证码文本
 }
 
 // LoginResponse 是 SSO 登录成功后的响应。

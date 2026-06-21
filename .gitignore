@@ -1,6 +1,6 @@
 # 构建产物
 bin/
-nazhi.exe
+*.exe
 /nazhi
 *.test
 *.out
