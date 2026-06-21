@@ -1,10 +1,24 @@
-# 构建产物
+# ─── 构建产物 ─────────────────────────────
+# Go 编译产物
 bin/
-*.exe
 /nazhi
+*.exe
 *.test
 *.out
 
+# 覆盖率 / profile
+coverage.out
+coverage.html
+*.cover
+*.prof
+
+# 第三方 vendor（项目用 go module，不用 vendor）
+/vendor/
+
+# 分发包
+/dist/
+
+# ─── 临时文件 / 下载 ──────────────────────
 # OCR 原生库下载临时目录
 tmp_onnx_download/
 tmp_dl2/
@@ -14,7 +28,9 @@ captcha.jpg
 *.png
 *.jpeg
 debug-*
+*.log
 
+# ─── 工具 / 状态 ──────────────────────────
 # OMC 多智能体编排状态
 .omc/
 .omc.*
@@ -22,15 +38,18 @@ debug-*
 # 本地开发笔记（含敏感信息，绝不提交）
 CLAUDE.md
 
-# 编辑器 / IDE
+# ─── 编辑器 / IDE ─────────────────────────
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
 *.orig
+*.bak
 
-# 系统元数据
+# ─── 系统元数据 ───────────────────────────
 .DS_Store
 Thumbs.db
 Desktop.ini
+ehthumbs.db
+$RECYCLE.BIN/
