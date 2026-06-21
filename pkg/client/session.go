@@ -11,41 +11,68 @@ import (
 )
 
 // ActivateSession 初始化目标平台业务 Session。
-// HAR 验证：必须先 GET / + GET /api/studentInfo/getMenu，否则后续接口返回空数据。
-// 返回用户基本信息。
+// HAR 验证（登录.har + 首页访问.har）：必须按以下 4 步顺序激活，否则后续接口返回空数据：
+//   1. GET /（首页）
+//   2. GET /api/studentInfo/getMenu（Referer: /homepage?token=xxx）
+//   3. GET /api/studentInfo/getMenu（Referer: /home）
+//   4. GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
+//
+// 返回用户基本信息（含座号）。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
 
-	// 步骤1：GET /（首页）
+	// 步骤1：GET /（首页，建立业务域 session）
 	resp, err := c.doRequestWithResp(ctx, http.MethodGet, c.baseURL+"/", nil, headers, "")
 	if err != nil {
-		return nil, fmt.Errorf("ActivateSession 首页访问失败: %w", err)
+		return nil, fmt.Errorf("ActivateSession 步骤1（首页）失败: %w", err)
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
 	resp.Body.Close()
 
-	// 步骤2：GET /api/studentInfo/getMenu（激活 session）
+	// 步骤2：GET /api/studentInfo/getMenu（Referer: /homepage?token=xxx）
 	menuURL := c.bizURL("/api/studentInfo/getMenu")
-	menuHeaders := copyMap(headers)
-	menuHeaders["Referer"] = c.baseURL + "/home"
+	step2Headers := copyMap(headers)
+	step2Headers["Referer"] = c.baseURL + "/homepage?token=" + token
 
-	menuResp, err := c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, menuHeaders, "")
+	_, err = c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, step2Headers, "")
 	if err != nil {
-		return nil, fmt.Errorf("ActivateSession getMenu 失败: %w", err)
+		return nil, fmt.Errorf("ActivateSession 步骤2（getMenu）失败: %w", err)
+	}
+	// 不关闭 Body，doRequest 已处理
+
+	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
+	step3Headers := copyMap(headers)
+	step3Headers["Referer"] = c.baseURL + "/home"
+
+	menuResp, err := c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, step3Headers, "")
+	if err != nil {
+		return nil, fmt.Errorf("ActivateSession 步骤3（getMenu）失败: %w", err)
 	}
 	defer menuResp.Body.Close()
 
-	// 尝试从 getMenu 响应中解析用户信息
+	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
+	userInfo, err := c.GetMyInfo(ctx, token)
+	if err != nil {
+		// 最佳努力：getMyInfo 失败不中断，仅 warn
+		c.logDebug("ActivateSession 步骤4（getMyInfo）失败: %v", err)
+	}
+
+	if userInfo != nil && userInfo.Name != "" {
+		return userInfo, nil
+	}
+
+	// 尝试从步骤3的 getMenu 响应中兜底解析
 	bodyBytes, _ := io.ReadAll(menuResp.Body)
 	var unified types.UnifiedResponse
 	if json.Unmarshal(bodyBytes, &unified) == nil && unified.Code == 1 {
-		userInfo, err := types.DecodeReturnData[types.UserInfo](unified)
-		if err == nil && userInfo != nil {
-			return userInfo, nil
+		info, err := types.DecodeReturnData[types.UserInfo](unified)
+		if err == nil && info != nil {
+			info.Raw = parseRawData(*unified.ReturnData)
+			return info, nil
 		}
 	}
 
-	// 如果 getMenu 没有返回完整的 UserInfo，返回基础信息
+	// 最坏情况：返回最少信息
 	return &types.UserInfo{
 		Raw: parseRawData(bodyBytes),
 	}, nil

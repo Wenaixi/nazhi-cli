@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"time"
 
@@ -106,12 +108,11 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return nil, fmt.Errorf("Login 验证码预校验未通过: %w", err)
 	}
 
-	// 4. POST 登录
+	// 4. POST 登录（HAR 验证：请求体无 captcha 字段，captcha 已由 validateCaptcha 单独完成）
 	loginBody := map[string]string{
 		"schoolId": schoolID,
 		"username": req.Username,
 		"password": req.Password,
-		"captcha":  captcha,
 	}
 
 	httpResp, err := c.doRequestWithResp(ctx, http.MethodPost,
@@ -123,25 +124,16 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 	defer httpResp.Body.Close()
 
-	// 5. 从 302 Location 头提取 token
-	if httpResp.StatusCode != http.StatusFound && httpResp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(httpResp.Body)
-		var errResp types.UnifiedResponse
-		if json.Unmarshal(bodyBytes, &errResp) == nil {
-			if errResp.Code != 1 {
-				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, stringPtrOr(errResp.Msg, "登录失败"))
-			}
-		}
-		return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
-	}
+	bodyBytes, _ := io.ReadAll(httpResp.Body)
 
-	location := httpResp.Header.Get("Location")
-	if location == "" {
-		bodyBytes, _ := io.ReadAll(httpResp.Body)
+	// 5. 优先解析 200 JSON 响应（HAR 验证：登录响应 HTTP 200，body 含 returnData.token）
+	if httpResp.StatusCode == http.StatusOK {
 		var loginResp types.UnifiedResponse
 		if json.Unmarshal(bodyBytes, &loginResp) == nil && loginResp.Code == 1 {
 			token, expiresAt, err := extractTokenFromReturnData(loginResp)
 			if err == nil {
+				// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
+				c.syncCookieToken(token)
 				return &types.LoginResponse{
 					Token:     token,
 					ExpiresAt: expiresAt,
@@ -149,21 +141,36 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 				}, nil
 			}
 		}
-		return nil, fmt.Errorf("%w: 响应中未找到 Location 头", ErrLoginRejected)
+		return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
 	}
 
-	token := extractTokenFromLocation(location)
-	if token == "" {
-		return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
+	// 6. Fallback：302 Location 头提取 token
+	if httpResp.StatusCode == http.StatusFound {
+		location := httpResp.Header.Get("Location")
+		if location == "" {
+			return nil, fmt.Errorf("%w: 302 响应中未找到 Location 头", ErrLoginRejected)
+		}
+		token := extractTokenFromLocation(location)
+		if token == "" {
+			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
+		}
+		// Cookie 同步
+		c.syncCookieToken(token)
+		return &types.LoginResponse{
+			Token:     token,
+			ExpiresAt: time.Now().Add(24 * time.Hour),
+			RawData:   parseRawData(bodyBytes),
+		}, nil
 	}
 
-	bodyBytes, _ := io.ReadAll(httpResp.Body)
-
-	return &types.LoginResponse{
-		Token:     token,
-		ExpiresAt: time.Now().Add(24 * time.Hour),
-		RawData:   parseRawData(bodyBytes),
-	}, nil
+	// 非预期状态码
+	var errResp types.UnifiedResponse
+	if json.Unmarshal(bodyBytes, &errResp) == nil {
+		if errResp.Code != 1 {
+			return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, stringPtrOr(errResp.Msg, "登录失败"))
+		}
+	}
+	return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
 }
 
 // ─── 验证码内部辅助 ───
@@ -279,4 +286,25 @@ func stringPtrOr(s *string, def string) string {
 		return def
 	}
 	return *s
+}
+
+// syncCookieToken 将 X-Auth-Token 同步写入 cookie jar，
+// 使其在业务 API 请求中自动携带（参考 v1 session.cookies.set 模式）。
+func (c *Client) syncCookieToken(token string) {
+	jar, ok := c.http.Jar.(*cookiejar.Jar)
+	if !ok {
+		return
+	}
+	for _, raw := range []string{c.ssoBaseURL, c.baseURL} {
+		u, err := url.Parse(raw)
+		if err != nil {
+			continue
+		}
+		jar.SetCookies(u, []*http.Cookie{{
+			Name:  "X-Auth-Token",
+			Value: token,
+			Path:  "/",
+		}})
+	}
+	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", len([]string{c.ssoBaseURL, c.baseURL}))
 }
