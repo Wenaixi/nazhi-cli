@@ -25,7 +25,7 @@ type Client struct {
 	uploadURL  string       // 文件上传服务器地址
 	http       *http.Client // 独立 cookie jar
 	logger     *slog.Logger
-	ocr        captchaRecognizer // 验证码识别器（默认启用内置 OCR）
+	ocr        captchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 }
 
 // ─── Option 模式 ───
@@ -82,7 +82,7 @@ func WithCustomOCR(r captchaRecognizer) Option {
 //	    nazhicli.WithSSOBase("https://www.nazhisoft.com"),
 //	    nazhicli.WithTimeout(15*time.Second),
 //	)
-// OCR 验证码识别器默认启用（模型已内嵌在二进制中）。
+// OCR 验证码识别器默认启用进程级单例（模型只解压一次）。
 func New(opts ...Option) *Client {
 	c := &Client{
 		ssoBaseURL: defaultSSOBase,
@@ -90,7 +90,7 @@ func New(opts ...Option) *Client {
 		uploadURL:  defaultUploadURL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:        ocr.New(),
+		ocr:        ocr.GetDefault(),
 	}
 	for _, opt := range opts {
 		opt(c)

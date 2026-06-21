@@ -50,37 +50,45 @@ jobs:
         run: go test -count=1 -race -v ./...
 
   # ─── 跨平台构建 ──────────────────────────────
+  # 关键：每个平台用 native runner，因为 onnxruntime_go 在 Linux/macOS 强制 CGO，
+  # 无法从其他 OS 交叉编译。
   build:
     name: "编译 ${{ matrix.name }}"
     needs: [check]
-    runs-on: ubuntu-latest
     strategy:
       matrix:
         include:
           - name: Linux (amd64)
+            runner: ubuntu-latest
             goos: linux
             goarch: amd64
             ext: ""
+            cgo: "1"
           - name: Linux (arm64)
+            runner: ubuntu-22.04-arm64
             goos: linux
             goarch: arm64
             ext: ""
-          - name: macOS (amd64)
-            goos: darwin
-            goarch: amd64
-            ext: ""
+            cgo: "1"
           - name: macOS (arm64)
+            runner: macos-latest
             goos: darwin
             goarch: arm64
             ext: ""
+            cgo: "1"
           - name: Windows (amd64)
+            runner: windows-latest
             goos: windows
             goarch: amd64
             ext: ".exe"
+            cgo: "0"
           - name: Windows (arm64)
+            runner: windows-11-arm
             goos: windows
             goarch: arm64
             ext: ".exe"
+            cgo: "0"
+    runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
 
@@ -97,8 +105,11 @@ jobs:
           echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
 
       - name: 编译
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: ${{ matrix.cgo }}
         run: |
-          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
           go build -ldflags="-s -w" \
             -o "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
             ./cmd/nazhi
