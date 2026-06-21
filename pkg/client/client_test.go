@@ -344,6 +344,8 @@ func TestGetMyInfo(t *testing.T) {
 			"gradeName":     "高一",
 			"className":     "八班",
 			"seat":          45,
+			"birthday":      []int{2009, 12, 11},
+			"birthdayStr":   "2009-12-11 00:00:00",
 		}, nil)))
 	}))
 	defer biz.Close()
@@ -364,6 +366,14 @@ func TestGetMyInfo(t *testing.T) {
 	}
 	if info.Seat != 45 {
 		t.Errorf("期望 Seat=45, 得到 %d", info.Seat)
+	}
+	// 验证生日解析（HAR 实测 birthday 为 JSON 数组）
+	if info.Birthday.Year != 2009 || info.Birthday.Month != 12 || info.Birthday.Day != 11 {
+		t.Errorf("生日解析错误: 期望 2009-12-11, 得到 %d-%d-%d",
+			info.Birthday.Year, info.Birthday.Month, info.Birthday.Day)
+	}
+	if info.Birthday.YMD() != "2009-12-11" {
+		t.Errorf("生日 YMD 格式错误: 期望 2009-12-11, 得到 %s", info.Birthday.YMD())
 	}
 }
 
