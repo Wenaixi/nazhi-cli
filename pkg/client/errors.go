@@ -30,9 +30,6 @@ var (
 	// ErrInvalidPayload 任务请求体格式错误。
 	ErrInvalidPayload = errors.New("invalid task payload")
 
-	// ErrCaptchaRequired 需要验证码校验。
-	ErrCaptchaRequired = errors.New("captcha verification required")
-
 	// ErrIncompleteResponse 响应缺少必要字段。
 	ErrIncompleteResponse = errors.New("incomplete response from server")
 

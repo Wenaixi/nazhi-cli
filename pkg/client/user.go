@@ -54,29 +54,3 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 
 	return nil, nil
 }
-
-// extractSeatFromMyInfo 从 getMyInfo 的原始响应中提取座号（seat）。
-// getMyInfo 响应格式: {"code":1, "returnData": {"studentId":..., "seat":...}}
-// seat 字段可能嵌套在 extra_json 或 profile 中。
-func extractSeatFromMyInfo(raw map[string]any) int {
-	if raw == nil {
-		return 0
-	}
-
-	// 直接顶层 seat
-	if seat, ok := raw["seat"].(float64); ok {
-		return int(seat)
-	}
-
-	// 嵌套在 extra_json.profile.seat
-	if extra, ok := raw["extra_json"].(map[string]any); ok {
-		if profile, ok := extra["profile"].(map[string]any); ok {
-			if seat, ok := profile["seat"].(float64); ok {
-				return int(seat)
-			}
-		}
-	}
-
-	return 0
-}
-

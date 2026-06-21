@@ -9,6 +9,12 @@ import (
 	"github.com/Wenaixi/nazhi-cli/internal/ocr"
 )
 
+// captchaRecognizer 是验证码识别器接口。
+// *ocr.OCR 实现了该接口，测试时可注入 mock。
+type captchaRecognizer interface {
+	Recognize([]byte) (string, error)
+}
+
 // ─── Client ───
 
 // Client 是目标平台 API 的完整 Go SDK。
@@ -19,7 +25,7 @@ type Client struct {
 	uploadURL  string       // 文件上传服务器地址
 	http       *http.Client // 独立 cookie jar
 	logger     *slog.Logger
-	ocr        *ocr.OCR     // 验证码识别器（可选，WithOCR 启用）
+	ocr        captchaRecognizer // 验证码识别器（默认启用内置 OCR）
 }
 
 // ─── Option 模式 ───
@@ -62,13 +68,10 @@ func WithHTTPClient(hc *http.Client) Option {
 	return func(c *Client) { c.http = hc }
 }
 
-// WithOCR 启用内置 OCR 验证码识别。
-// 模型文件已内嵌在二进制中，无需额外下载。
-// 启用后 Login 方法在未提供 captcha 时将自动识别验证码图片。
-func WithOCR() Option {
-	return func(c *Client) {
-		c.ocr = ocr.New()
-	}
+// WithCustomOCR 是测试用 Option，注入自定义验证码识别器。
+// 仅在测试中使用。
+func WithCustomOCR(r captchaRecognizer) Option {
+	return func(c *Client) { c.ocr = r }
 }
 
 // ─── 构造 ───
@@ -79,6 +82,7 @@ func WithOCR() Option {
 //	    nazhicli.WithSSOBase("https://www.nazhisoft.com"),
 //	    nazhicli.WithTimeout(15*time.Second),
 //	)
+// OCR 验证码识别器默认启用（模型已内嵌在二进制中）。
 func New(opts ...Option) *Client {
 	c := &Client{
 		ssoBaseURL: defaultSSOBase,
@@ -86,6 +90,7 @@ func New(opts ...Option) *Client {
 		uploadURL:  defaultUploadURL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
+		ocr:        ocr.New(),
 	}
 	for _, opt := range opts {
 		opt(c)

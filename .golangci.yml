@@ -1,0 +1,29 @@
+run:
+  timeout: 3m
+
+linters:
+  enable:
+    - errcheck
+    - govet
+    - unused
+
+issues:
+  # 排除整个 cmd/ 目录的 errcheck（调试/工具代码）
+  exclude-rules:
+    - path: cmd/
+      linters:
+        - errcheck
+
+    # 测试文件豁免 errcheck 和 unused
+    - path: _test\.go
+      linters:
+        - errcheck
+        - unused
+
+  # 显式排除通常不检查的返回值
+  exclude-functions:
+    - io.Copy
+    - "encoding/json.Unmarshal"
+    - "(*encoding/json.Encoder).Encode"
+    - "(*encoding/json.Decoder).Decode"
+    - fmt.Scanf
