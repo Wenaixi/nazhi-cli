@@ -15,8 +15,8 @@ var schoolCmd = &cobra.Command{
 	Use:   "school",
 	Short: "查询学校 ID（不登录）",
 	Long:  `根据学号查询对应的学校 ID 和学校名称。不需要登录，只需建立 SSO Session。`,
-	Example: `  nazhi school -u S1234567890
-  nazhi school -u S1234567890 --sso-base https://www.nazhisoft.com`,
+	Example: `  nazhi school -u 学号
+  nazhi school -u 学号 --sso-base https://www.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
 		username, _ := cmd.Flags().GetString("username")
 		ssoBase, _ := cmd.Flags().GetString("sso-base")

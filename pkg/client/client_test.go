@@ -115,7 +115,7 @@ func TestGetSchoolID(t *testing.T) {
 	defer sso.Close()
 
 	c := newTestClient(sso, nil, nil)
-	schoolID, schoolName, err := c.GetSchoolID(context.Background(), "S1234567890")
+	schoolID, schoolName, err := c.GetSchoolID(context.Background(), "TEST2025001")
 	if err != nil {
 		t.Fatalf("GetSchoolID 失败: %v", err)
 	}
@@ -170,8 +170,8 @@ func TestLogin(t *testing.T) {
 			callStep = 5
 			var body map[string]string
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			if body["username"] != "S1234567890" {
-				t.Errorf("期望 username=S1234567890, 得到 %s", body["username"])
+			if body["username"] != "TEST2025001" {
+				t.Errorf("期望 username=TEST2025001, 得到 %s", body["username"])
 			}
 			if body["captcha"] != "AB12" {
 				t.Errorf("期望 captcha=AB12, 得到 %s", body["captcha"])
@@ -184,7 +184,7 @@ func TestLogin(t *testing.T) {
 
 	c := newTestClientWithOCR(sso, "AB12", nil)
 	resp, err := c.Login(context.Background(), types.LoginRequest{
-		Username: "S1234567890",
+		Username: "TEST2025001",
 		Password: "TestPass123",
 	})
 	if err != nil {
@@ -225,7 +225,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 
 	c := newTestClientWithOCR(sso, "AB12", nil)
 	_, err := c.Login(context.Background(), types.LoginRequest{
-		Username: "S1234567890",
+		Username: "TEST2025001",
 		Password: "wrong",
 	})
 	if err == nil {
@@ -260,7 +260,7 @@ func TestActivateSession(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
-				"name": "张三", "studentNumber": "S1234567890",
+				"name": "张三", "studentNumber": "TEST2025001",
 			}, nil)))
 		}
 	}))
@@ -293,7 +293,7 @@ func TestGetMyInfo(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
 			"name":          "张三",
-			"studentNumber": "S1234567890",
+			"studentNumber": "TEST2025001",
 			"schoolName":    "福清一中",
 			"gradeName":     "高一",
 			"className":     "八班",
@@ -540,7 +540,7 @@ func TestConcurrentLoginIsolation(t *testing.T) {
 		go func() {
 			c := newTestClientWithOCR(sso, "AB12", nil)
 			_, err := c.Login(context.Background(), types.LoginRequest{
-				Username: "S1234567890",
+				Username: "TEST2025001",
 				Password: "TestPass123",
 			})
 			errs <- err
@@ -552,3 +552,4 @@ func TestConcurrentLoginIsolation(t *testing.T) {
 		}
 	}
 }
+
