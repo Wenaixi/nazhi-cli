@@ -1,0 +1,15 @@
+# 统一行尾为 LF（Go 生态系统标准）
+* text=auto eol=lf
+
+# Go 源文件
+*.go text diff=golang
+
+# 二进制文件（不进行 diff）
+*.onnx binary
+*.dll binary
+*.exe binary
+
+# 图片
+*.jpg binary
+*.png binary
+*.jpeg binary

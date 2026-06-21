@@ -1,0 +1,377 @@
+package client
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"strings"
+	"time"
+
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
+)
+
+// ─── InitSession ───
+
+// InitSession 访问登录页建立 JSESSIONID Cookie。
+// 内部流程中自动调用，一般不需要外部显式调用。
+func (c *Client) InitSession(ctx context.Context) error {
+	url := c.ssoURL("/uiStudentLogin/login")
+	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, c.ssoHeaders(), "")
+	if err != nil {
+		return fmt.Errorf("InitSession 失败: %w", err)
+	}
+	defer resp.Body.Close()
+	// 只需确保请求成功，cookie jar 自动保存 Set-Cookie
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("InitSession 返回非 200: %d", resp.StatusCode)
+	}
+	// 读取并丢弃 body 以复用连接
+	_, _ = io.Copy(io.Discard, resp.Body)
+	return nil
+}
+
+// ─── GetSchoolID ───
+
+// GetSchoolID 根据学号查询学校 ID 和学校名称。
+func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID string, schoolName string, err error) {
+	url := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?userName=" + username)
+
+	headers := c.ssoHeaders()
+	// 这个接口比较特殊，Content-Type 是 application/json 但 Referer 带 query
+	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?userName=" + username
+
+	bodyBytes, err := c.doRequest(ctx, http.MethodPost, url, map[string]string{"key": ""}, headers, "application/json")
+	if err != nil {
+		return "", "", fmt.Errorf("GetSchoolID 请求失败: %w", err)
+	}
+
+	resp, err := types.DecodeResponse(bodyBytes)
+	if err != nil {
+		return "", "", fmt.Errorf("GetSchoolID 响应解析失败: %w", err)
+	}
+
+	if err := types.CheckCode(resp); err != nil {
+		return "", "", fmt.Errorf("GetSchoolID 业务错误: %w", err)
+	}
+
+	schools, err := types.DecodeDataList[map[string]any](resp)
+	if err != nil {
+		return "", "", fmt.Errorf("GetSchoolID dataList 解析失败: %w", err)
+	}
+
+	if len(schools) == 0 {
+		return "", "", fmt.Errorf("GetSchoolID: 未找到学校信息")
+	}
+
+	// 取第一个学校的字段
+	school := schools[0]
+	schoolID = fmt.Sprintf("%v", school["school_id"])
+	if v, ok := school["NAME"]; ok {
+		schoolName = fmt.Sprintf("%v", v)
+	} else if v, ok := school["school_name"]; ok {
+		schoolName = fmt.Sprintf("%v", v)
+	}
+
+	return schoolID, schoolName, nil
+}
+
+// ─── FetchCaptcha ───
+
+// FetchCaptcha 获取验证码 Base64 图片 + 学校 ID。
+// 内部流程：InitSession → GetSchoolID → GET kaptcha.jpg
+// 返回 Base64 编码的 JPEG 图片数据。
+func (c *Client) FetchCaptcha(ctx context.Context, username string) (captchaBase64 string, schoolID string, err error) {
+	// 1. 建立 session
+	if err := c.InitSession(ctx); err != nil {
+		return "", "", fmt.Errorf("FetchCaptcha InitSession 失败: %w", err)
+	}
+
+	// 2. 获取学校 ID
+	schoolID, _, err = c.GetSchoolID(ctx, username)
+	if err != nil {
+		return "", "", fmt.Errorf("FetchCaptcha GetSchoolID 失败: %w", err)
+	}
+
+	// 3. GET kaptcha.jpg（让服务端生成验证码状态）
+	url := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
+	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, c.ssoHeaders(), "")
+	if err != nil {
+		return "", "", fmt.Errorf("FetchCaptcha 获取图片失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	imgBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", "", fmt.Errorf("FetchCaptcha 读取图片失败: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK || len(imgBytes) == 0 {
+		return "", "", fmt.Errorf("FetchCaptcha 响应异常 status=%d len=%d", resp.StatusCode, len(imgBytes))
+	}
+
+	captchaBase64 = base64.StdEncoding.EncodeToString(imgBytes)
+	return captchaBase64, schoolID, nil
+}
+
+// ─── ValidateCaptcha ───
+
+// ValidateCaptcha 预校验验证码。
+func (c *Client) ValidateCaptcha(ctx context.Context, captcha string) error {
+	bodyBytes, err := c.doRequest(ctx, http.MethodPost,
+		c.ssoURL("/uiStudentLogin/validateCaptcha"),
+		map[string]string{"captcha": captcha},
+		c.ssoHeaders(), "",
+	)
+	if err != nil {
+		return fmt.Errorf("ValidateCaptcha 请求失败: %w", err)
+	}
+
+	resp, err := types.DecodeResponse(bodyBytes)
+	if err != nil {
+		return fmt.Errorf("ValidateCaptcha 响应解析失败: %w", err)
+	}
+
+	if err := types.CheckCode(resp); err != nil {
+		return fmt.Errorf("%w: %v", ErrCaptchaRequired, err)
+	}
+
+	return nil
+}
+
+// ─── Login ───
+
+// Login 完成 SSO 登录并返回 Token。
+// 内部流程：InitSession → GetSchoolID → 验证码处理 → Login
+//
+// 验证码处理有 3 种模式：
+//  1. req.Captcha != "" — 直接使用提供的验证码
+//  2. req.Captcha == "" 且已通过 WithOCR() 启用 OCR — 自动识别验证码（OCR 内部重试最多 9 次，同一张图片）
+//  3. req.Captcha == "" 且无 OCR — 跳过验证码（期望服务端不要求）
+func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
+	// 1. 建立 session
+	if err := c.InitSession(ctx); err != nil {
+		return nil, fmt.Errorf("Login InitSession 失败: %w", err)
+	}
+
+	// 2. 获取学校 ID（如果未提供）
+	schoolID := req.SchoolID
+	if schoolID == "" {
+		var err error
+		schoolID, _, err = c.GetSchoolID(ctx, req.Username)
+		if err != nil {
+			return nil, fmt.Errorf("Login GetSchoolID 失败: %w", err)
+		}
+	}
+
+	// 3. 验证码处理：3种模式
+	switch {
+	case req.Captcha != "":
+		// 3a. 显式提供了验证码：先获取验证码图片（让服务端生成状态）再校验
+		if err := c.fetchAndValidateCaptcha(ctx, req.Captcha); err != nil {
+			return nil, err
+		}
+
+	case c.ocr != nil:
+		// 3b. 自动 OCR 模式：获取一次验证码图片，OCR 识别最多重试 9 次（同一张图片）
+		const maxOCRRetries = 99
+		ocrCaptcha, err := c.ocrRecognizeWithRetry(ctx, maxOCRRetries)
+		if err != nil {
+			return nil, fmt.Errorf("Login OCR 自动识别验证码失败（已重试 %d 次）: %w", maxOCRRetries, err)
+		}
+		req.Captcha = ocrCaptcha
+		c.logDebug("OCR 识别结果: %s", ocrCaptcha)
+
+		// 预校验验证码 — 必须通过，否则直接失败
+		if err := c.ValidateCaptcha(ctx, ocrCaptcha); err != nil {
+			return nil, fmt.Errorf("Login 验证码预校验未通过: %w", err)
+		}
+	}
+
+	// 4. POST 登录
+	loginBody := map[string]string{
+		"schoolId": schoolID,
+		"username": req.Username,
+		"password": req.Password,
+	}
+
+	// 如果调用者已提供验证码，追加到请求体
+	if req.Captcha != "" {
+		loginBody["captcha"] = req.Captcha
+	}
+
+	httpResp, err := c.doRequestWithResp(ctx, http.MethodPost,
+		c.ssoURL("/teacher/auth/studentLogin/validate"),
+		loginBody, c.ssoHeaders(), "",
+	)
+	if err != nil {
+		return nil, fmt.Errorf("Login 请求失败: %w", err)
+	}
+	defer httpResp.Body.Close()
+
+	// 5. 从 302 Location 头提取 token
+	if httpResp.StatusCode != http.StatusFound && httpResp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(httpResp.Body)
+		// 尝试解析响应体判断错误类型
+		var errResp types.UnifiedResponse
+		if json.Unmarshal(bodyBytes, &errResp) == nil {
+			if errResp.Code != 1 {
+				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, stringPtrOr(errResp.Msg, "登录失败"))
+			}
+		}
+		return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
+	}
+
+	location := httpResp.Header.Get("Location")
+	if location == "" {
+		// 可能直接返回了 JSON（某些情况）
+		bodyBytes, _ := io.ReadAll(httpResp.Body)
+		var loginResp types.UnifiedResponse
+		if json.Unmarshal(bodyBytes, &loginResp) == nil && loginResp.Code == 1 {
+			// 尝试从 returnData 中提取 token
+			token, expiresAt, err := extractTokenFromReturnData(loginResp)
+			if err == nil {
+				return &types.LoginResponse{
+					Token:     token,
+					ExpiresAt: expiresAt,
+					RawData:   parseRawData(bodyBytes),
+				}, nil
+			}
+		}
+		return nil, fmt.Errorf("%w: 响应中未找到 Location 头", ErrLoginRejected)
+	}
+
+	// 从 Location 提取 token 查询参数
+	// Location 格式: /homepage?token=<JWT>
+	token := extractTokenFromLocation(location)
+	if token == "" {
+		return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
+	}
+
+	// 读取响应体（可能包含用户信息）
+	bodyBytes, _ := io.ReadAll(httpResp.Body)
+
+	return &types.LoginResponse{
+		Token:     token,
+		ExpiresAt: time.Now().Add(24 * time.Hour), // 默认 24h，后续可通过 getMyInfo 等接口获取精确过期时间
+		RawData:   parseRawData(bodyBytes),
+	}, nil
+}
+
+// ─── 验证码辅助 ───
+
+// fetchAndValidateCaptcha 获取验证码图片（让服务端生成状态）并校验。
+func (c *Client) fetchAndValidateCaptcha(ctx context.Context, captcha string) error {
+	// GET kaptcha.jpg 让服务端生成 captcha 状态
+	url := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
+	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, c.ssoHeaders(), "")
+	if err != nil {
+		return fmt.Errorf("获取验证码图片失败: %w", err)
+	}
+	_, _ = io.Copy(io.Discard, resp.Body)
+	resp.Body.Close()
+
+	// 校验验证码
+	if err := c.ValidateCaptcha(ctx, captcha); err != nil {
+		return fmt.Errorf("验证码校验失败: %w", err)
+	}
+	return nil
+}
+
+// ocrRecognizeWithRetry 获取一次验证码图片，然后对同一张图片重复 OCR 识别最多 retries 次。
+// 同一张 kaptcha 图片的 OCR 识别可能因模型抖动输出不同结果，重试可提高成功率。
+func (c *Client) ocrRecognizeWithRetry(ctx context.Context, retries int) (string, error) {
+	// 只获取一次验证码图片
+	url := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
+	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, c.ssoHeaders(), "")
+	if err != nil {
+		return "", fmt.Errorf("获取验证码图片失败: %w", err)
+	}
+	defer resp.Body.Close()
+
+	imgBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("读取验证码图片失败: %w", err)
+	}
+
+	if resp.StatusCode != http.StatusOK || len(imgBytes) == 0 {
+		return "", fmt.Errorf("获取验证码图片响应异常 status=%d len=%d", resp.StatusCode, len(imgBytes))
+	}
+
+	// 对同一张图片多次 OCR 识别
+	var lastErr error
+	for i := range retries {
+		captchaText, err := c.ocr.Recognize(imgBytes)
+		if err != nil {
+			lastErr = err
+			c.logDebug("OCR 第 %d 次识别失败: %v", i+1, err)
+			continue
+		}
+		if captchaText == "" {
+			lastErr = fmt.Errorf("空白结果")
+			c.logDebug("OCR 第 %d 次结果为空白", i+1)
+			continue
+		}
+
+		// 识别成功
+		return captchaText, nil
+	}
+
+	return "", fmt.Errorf("OCR 识别重试 %d 次均失败，最后错误: %w", retries, lastErr)
+}
+
+// ─── 内部辅助 ───
+
+// extractTokenFromLocation 从 302 Location 头中提取 token 查询参数。
+// 格式示例：/homepage?token=eyJhbGciOiJIUzI1NiJ9.xxx
+func extractTokenFromLocation(location string) string {
+	// 查找 token= 参数
+	idx := strings.Index(location, "token=")
+	if idx == -1 {
+		return ""
+	}
+	token := location[idx+6:]
+	// 如果后面还有 & 参数，截断
+	if ampIdx := strings.Index(token, "&"); ampIdx != -1 {
+		token = token[:ampIdx]
+	}
+	return token
+}
+
+// extractTokenFromReturnData 尝试从统一响应的 returnData 中提取 token。
+func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, error) {
+	if resp.ReturnData == nil {
+		return "", time.Time{}, fmt.Errorf("returnData 为空")
+	}
+	var data map[string]any
+	if err := json.Unmarshal(*resp.ReturnData, &data); err != nil {
+		return "", time.Time{}, err
+	}
+	token, _ := data["token"].(string)
+	if token == "" {
+		return "", time.Time{}, fmt.Errorf("returnData 中无 token 字段")
+	}
+	return token, time.Time{}, nil
+}
+
+// parseRawData 将原始 JSON 字节解析为 map 用于保留完整数据。
+func parseRawData(data []byte) map[string]any {
+	if len(data) == 0 {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
+// stringPtrOr 返回字符串指针的值，如果为 nil 则返回默认值。
+func stringPtrOr(s *string, def string) string {
+	if s == nil {
+		return def
+	}
+	return *s
+}

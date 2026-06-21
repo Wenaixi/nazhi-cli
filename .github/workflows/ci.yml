@@ -1,0 +1,145 @@
+# nazhi-cli CI 工作流
+#
+# 触发条件:
+#   - push / PR → main 分支: 测试 + 跨平台构建
+#   - tag v*: 测试 + 跨平台构建 + GitHub Release 发布
+#   - 手动触发 (workflow_dispatch)
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GO_VERSION: "1.26"
+
+jobs:
+  # ─── 代码质量 + 测试 ──────────────────────────
+  check:
+    name: "检测 & 测试"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 缓存 golangci-lint
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/golangci-lint
+          key: golangci-lint-${{ runner.os }}
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          args: --timeout=5m ./...
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: 测试（race 检测）
+        run: go test -count=1 -race -v ./...
+
+  # ─── 跨平台构建 ──────────────────────────────
+  build:
+    name: "编译 ${{ matrix.name }}"
+    needs: [check]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - name: Linux (amd64)
+            goos: linux
+            goarch: amd64
+            ext: ""
+          - name: Linux (arm64)
+            goos: linux
+            goarch: arm64
+            ext: ""
+          - name: macOS (amd64)
+            goos: darwin
+            goarch: amd64
+            ext: ""
+          - name: macOS (arm64)
+            goos: darwin
+            goarch: arm64
+            ext: ""
+          - name: Windows (amd64)
+            goos: windows
+            goarch: amd64
+            ext: ".exe"
+          - name: Windows (arm64)
+            goos: windows
+            goarch: arm64
+            ext: ".exe"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 读取版本号
+        id: version
+        run: |
+          VER=$(grep 'Version' internal/version/version.go | head -1 | sed 's/.*"\(.*\)"/\1/')
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
+
+      - name: 编译
+        run: |
+          GOOS=${{ matrix.goos }} GOARCH=${{ matrix.goarch }} \
+          go build -ldflags="-s -w" \
+            -o "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
+            ./cmd/nazhi
+
+      - name: 压缩产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: nazhi-${{ steps.version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          if-no-files-found: error
+
+  # ─── Release (仅 tag v*) ────────────────────
+  release:
+    name: "发布 Release"
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 下载所有构建产物
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 准备发布文件
+        run: |
+          mkdir -p release
+          for dir in artifacts/*/; do
+            name=$(basename "$dir")
+            file=$(ls "$dir")
+            cp "$dir/$file" "release/$file"
+          done
+          ls -lh release/
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: nazhi ${{ github.ref_name }}
+          body: "请查看 [CHANGELOG.md](./CHANGELOG.md) 了解更新详情。"
+          fail_on_unmatched_files: false
+          files: release/*
