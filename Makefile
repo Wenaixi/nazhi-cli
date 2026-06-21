@@ -16,8 +16,8 @@ build-linux:
 	@echo "✅ Linux amd64: bin/nazhi-linux-amd64"
 
 build-darwin:
-	GOOS=darwin GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-darwin-amd64 ./cmd/nazhi
-	@echo "✅ macOS amd64: bin/nazhi-darwin-amd64"
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
+	@echo "✅ macOS arm64: bin/nazhi-darwin-arm64"
 
 build-windows:
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
@@ -82,7 +82,7 @@ help:
 	@echo "═══════════════════════════════════════"
 	@echo "  make build        编译 CLI → bin/nazhi.exe"
 	@echo "  make build-linux  交叉编译 Linux amd64"
-	@echo "  make build-darwin 交叉编译 macOS amd64"
+	@echo "  make build-darwin 交叉编译 macOS arm64"
 	@echo "  make build-windows交叉编译 Windows amd64"
 	@echo "  make test         全量测试（race 检测）"
 	@echo "  make vet          go vet 静态分析"
