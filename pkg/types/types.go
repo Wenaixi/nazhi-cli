@@ -25,25 +25,92 @@ type LoginResponse struct {
 
 // UserInfo 是用户个人资料。
 //
-// 注意：birthday 字段从 birthdayStr JSON 标签读取（字符串形式），
-// 因为目标平台同时返回 `birthday: [2009,12,11]` 数组和
-// `birthdayStr: "2009-12-11 00:00:00"` 字符串，后者更易使用。
+// 字段命名策略：
+//   - 平台返回的所有字段都已暴露（30+ 字段），便于脚本直接访问
+//   - 生日使用 birthdayStr（字符串版），避开 birthday 数组的类型不匹配问题
+//   - 时间戳同时暴露数组（如 creationTime [y,m,d,h,m,s]）和字符串（*TimeStr）两种形式
+//   - nullable 字段（null）解析为零值（int=0, string=""），调用方用 if 判断即可
 type UserInfo struct {
-	ID            int64          `json:"id"`
-	Name          string         `json:"name"`
-	StudentNumber string         `json:"studentNumber"`
-	StudentID     int64          `json:"studentId"`
-	SchoolID      int64          `json:"schoolId"`
-	SchoolName    string         `json:"schoolName"`
-	GradeName     string         `json:"gradeName"`
-	ClassName     string         `json:"className"`
-	Seat          int            `json:"seat"`
-	Gender        int            `json:"gender"`
-	GenderName    string         `json:"genderName"`
-	IDCard        string         `json:"idCard"`
-	Birthday      string         `json:"birthdayStr"`
-	StudyNumber   string         `json:"studyNumber"`
-	Raw           map[string]any `json:"-"` // 完整原始数据
+	// 基础身份
+	ID            int64  `json:"id"`
+	Name          string `json:"name"`
+	Initials      string `json:"initials"`      // 姓名首字母（如 "gNAME_INITIALS_REDACTED"）
+	Pinyin        string `json:"pinyin"`        // 姓名全拼
+	StudentNumber string `json:"studentNumber"` // 学号
+	StudentID     int64  `json:"studentId"`     // 学生 ID
+	StudyNumber   string `json:"studyNumber"`   // 校内短学号
+	NationalStudentNumber string `json:"nationalStudentNumber"` // 全国学号
+
+	// 学校 / 班级 / 年级
+	SchoolID   int64  `json:"schoolId"`
+	SchoolName string `json:"schoolName"` // 平台返回 null 时为空字符串
+	GradeID    int64  `json:"gradeId"`
+	GradeName  string `json:"gradeName"`
+	ClassID    int64  `json:"classId"`
+	ClassName  string `json:"className"`
+	Level      int    `json:"level"` // 年级代码
+
+	// 座号
+	Seat     int `json:"seat"`
+	SeatSort int `json:"seatSort"`
+
+	// 性别
+	Gender     int    `json:"gender"`
+	GenderName string `json:"genderName"`
+
+	// 民族 / 证件
+	Nation int    `json:"nation"` // 民族代码（1=汉族）
+	IDType int    `json:"idType"` // 证件类型
+	IDCard string `json:"idCard"`
+
+	// 生日（使用字符串版，避开 birthday 数组类型冲突）
+	Birthday string `json:"birthdayStr"`
+
+	// 联系方式
+	Telephone      string `json:"telephone"`      // 电话
+	Email          string `json:"email"`          // 邮箱
+	CurrentAddress string `json:"currentAddress"` // 现地址
+	ContactAddress string `json:"contactAddress"` // 联系地址
+	FamilyAddress  string `json:"familyAddress"`  // 家庭地址
+	NativePlace    string `json:"nativePlace"`    // 籍贯
+
+	// 学籍状态
+	Status        int    `json:"status"`        // 学籍状态码
+	StatusName    string `json:"statusName"`    // 学籍状态名（如 "在籍"）
+	PositionID    int    `json:"positionId"`    // 职位 ID
+	PositionName  string `json:"positionName"`  // 职位名（常为 null）
+	YouthLeagueFlag    int `json:"youthLeagueFlag"`    // 团员标志（1=团员）
+	CriminalRecordFlag int `json:"criminalRecordFlag"` // 犯罪记录标志
+
+	// 爱好
+	Hobbies string `json:"hobbies"`
+
+	// 入学时间（数组 + 字符串两种形式）
+	AdmissionDate    []int  `json:"admissionDate"`    // [2025,9,1]
+	AdmissionDateStr string `json:"admissionDateStr"` // 常为 null
+
+	// 创建时间（数组 + 字符串）
+	CreationTime    []int  `json:"creationTime"`    // [2025,10,9,10,32,6]
+	CreationTimeStr string `json:"creationTimeStr"` // "2025-10-09 10:32:06"
+
+	// 修改时间（数组 + 字符串）
+	ModifyTime    []int  `json:"modifyTime"`    // [2026,2,6,10,16,15]
+	ModifyTimeStr string `json:"modifyTimeStr"` // "2026-02-06 10:16:15"
+
+	// 创建/修改人
+	Creator  int `json:"creator"`
+	Modifier int `json:"modifier"`
+
+	// 照片附件
+	PhotoAttachmentID int64 `json:"photoAttachmentId"` // 平台返回 null → 0
+
+	// 积分
+	TotalPoints int `json:"totalPoints"`
+	UsedPoints  int `json:"usedPoints"`
+
+	// 其他
+	StudentUUID string `json:"studentUuid"` // 平台返回 null → ""
+	Raw         map[string]any `json:"-"`    // 完整原始数据
 }
 
 // ─── 学校 ───

@@ -367,6 +367,165 @@ func TestGetMyInfo(t *testing.T) {
 	}
 }
 
+// ─── 测试: GetMyInfo 完整字段（HAR 实测响应）───
+
+// TestGetMyInfo_FullFields 用真实 HAR 抓包的完整响应验证 30+ 字段全部正确解析。
+func TestGetMyInfo_FullFields(t *testing.T) {
+	// 完整 mock 响应模拟真实账号（张三）的 getMyInfo 返回
+	mockResponse := map[string]any{
+		"id":                    32USER_ID_REDACTED,
+		"name":                  "张三",
+		"initials":              "gNAME_INITIALS_REDACTED",
+		"pinyin":                "gaNAME_PINYIN_REDACTED",
+		"studentNumber":         "S1234567890",
+		"studentId":             38STUDENT_ID_REDACTED,
+		"schoolId":              173,
+		"positionId":            0,
+		"positionName":          nil,
+		"email":                 "",
+		"status":                1,
+		"statusName":            "在籍",
+		"nativePlace":           "",
+		"idType":                1,
+		"idCard":                "ID_CARD_REDACTED",
+		"birthday":              []int{2009, 12, 11},
+		"birthdayStr":           "2009-12-11 00:00:00",
+		"nation":                1,
+		"seat":                  29,
+		"seatSort":              -1,
+		"gender":                1,
+		"genderName":            "男",
+		"creator":               28,
+		"creationTime":          []int{2025, 10, 9, 10, 32, 6},
+		"creationTimeStr":       "2025-10-09 10:32:06",
+		"modifier":              28,
+		"modifyTime":            []int{2026, 2, 6, 10, 16, 15},
+		"modifyTimeStr":         "2026-02-06 10:16:15",
+		"admissionDate":         []int{2025, 9, 1},
+		"admissionDateStr":      nil,
+		"currentAddress":        "",
+		"contactAddress":        "",
+		"familyAddress":         "",
+		"youthLeagueFlag":       1,
+		"hobbies":               "",
+		"criminalRecordFlag":    0,
+		"nationalStudentNumber": "S1234567890",
+		"registrationNumber":    "",
+		"studyNumber":           "STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED",
+		"photoAttachmentId":     nil,
+		"telephone":             "",
+		"level":                 0,
+		"gradeId":               27900,
+		"gradeName":             "高一",
+		"classId":               162647,
+		"className":             "高一八班",
+		"studentUuid":           nil,
+		"schoolName":            nil,
+	}
+
+	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(unifiedJSON(1, "成功", mockResponse, nil)))
+	}))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	info, err := c.GetMyInfo(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("GetMyInfo 失败: %v", err)
+	}
+	if info == nil {
+		t.Fatal("期望非 nil UserInfo")
+	}
+
+	// 基础身份
+	if info.ID != 32USER_ID_REDACTED || info.Name != "张三" || info.StudentNumber != "S1234567890" {
+		t.Errorf("基础身份字段错误: id=%d name=%s studentNumber=%s", info.ID, info.Name, info.StudentNumber)
+	}
+	if info.Initials != "gNAME_INITIALS_REDACTED" || info.Pinyin != "gaNAME_PINYIN_REDACTED" {
+		t.Errorf("姓名辅助字段错误: initials=%s pinyin=%s", info.Initials, info.Pinyin)
+	}
+	if info.StudentID != 38STUDENT_ID_REDACTED || info.StudyNumber != "STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED" {
+		t.Errorf("学生 ID 错误: studentId=%d studyNumber=%s", info.StudentID, info.StudyNumber)
+	}
+	if info.NationalStudentNumber != "S1234567890" {
+		t.Errorf("全国学号错误: %s", info.NationalStudentNumber)
+	}
+
+	// 学校 / 班级
+	if info.SchoolID != 173 || info.GradeID != 27900 || info.GradeName != "高一" {
+		t.Errorf("学校年级错误: schoolId=%d gradeId=%d gradeName=%s", info.SchoolID, info.GradeID, info.GradeName)
+	}
+	if info.ClassID != 162647 || info.ClassName != "高一八班" {
+		t.Errorf("班级错误: classId=%d className=%s", info.ClassID, info.ClassName)
+	}
+	if info.SchoolName != "" {
+		t.Errorf("schoolName 应该是空字符串（平台返回 null）, 得到 %q", info.SchoolName)
+	}
+
+	// 座号
+	if info.Seat != 29 || info.SeatSort != -1 {
+		t.Errorf("座号错误: seat=%d seatSort=%d", info.Seat, info.SeatSort)
+	}
+
+	// 性别
+	if info.Gender != 1 || info.GenderName != "男" {
+		t.Errorf("性别错误: gender=%d genderName=%s", info.Gender, info.GenderName)
+	}
+
+	// 民族 / 证件
+	if info.Nation != 1 || info.IDCard != "ID_CARD_REDACTED" || info.IDType != 1 {
+		t.Errorf("民族证件错误: nation=%d idCard=%s idType=%d", info.Nation, info.IDCard, info.IDType)
+	}
+
+	// 生日
+	if info.Birthday != "2009-12-11 00:00:00" {
+		t.Errorf("生日错误: %q", info.Birthday)
+	}
+
+	// 学籍状态
+	if info.Status != 1 || info.StatusName != "在籍" {
+		t.Errorf("学籍错误: status=%d statusName=%s", info.Status, info.StatusName)
+	}
+	if info.YouthLeagueFlag != 1 || info.CriminalRecordFlag != 0 {
+		t.Errorf("标志位错误: youthLeagueFlag=%d criminalRecordFlag=%d", info.YouthLeagueFlag, info.CriminalRecordFlag)
+	}
+
+	// 时间戳（数组）
+	if len(info.CreationTime) != 6 || info.CreationTime[0] != 2025 {
+		t.Errorf("creationTime 错误: %v", info.CreationTime)
+	}
+	if len(info.ModifyTime) != 6 || info.ModifyTime[5] != 15 {
+		t.Errorf("modifyTime 错误: %v", info.ModifyTime)
+	}
+	if len(info.AdmissionDate) != 3 || info.AdmissionDate[1] != 9 {
+		t.Errorf("admissionDate 错误: %v", info.AdmissionDate)
+	}
+
+	// 时间戳（字符串）
+	if info.CreationTimeStr != "2025-10-09 10:32:06" {
+		t.Errorf("creationTimeStr 错误: %s", info.CreationTimeStr)
+	}
+	if info.ModifyTimeStr != "2026-02-06 10:16:15" {
+		t.Errorf("modifyTimeStr 错误: %s", info.ModifyTimeStr)
+	}
+	if info.AdmissionDateStr != "" {
+		t.Errorf("admissionDateStr 应为空（平台返回 null）, 得到 %q", info.AdmissionDateStr)
+	}
+
+	// nullable 字段
+	if info.PhotoAttachmentID != 0 {
+		t.Errorf("photoAttachmentId 应为 0（平台返回 null）, 得到 %d", info.PhotoAttachmentID)
+	}
+	if info.StudentUUID != "" {
+		t.Errorf("studentUuid 应为空（平台返回 null）, 得到 %q", info.StudentUUID)
+	}
+	if info.PositionID != 0 || info.PositionName != "" {
+		t.Errorf("职位应为零值, 得到 positionId=%d positionName=%q", info.PositionID, info.PositionName)
+	}
+}
+
 // ─── 测试: FetchTasks ───
 
 func TestFetchTasks(t *testing.T) {
