@@ -1,0 +1,32 @@
+# 构建产物
+bin/
+nazhi.exe
+/nazhi
+*.test
+*.out
+
+# 测试 / 调试临时文件
+captcha.jpg
+*.png
+*.jpeg
+debug-*
+
+# OMC 多智能体编排状态
+.omc/
+.omc.*
+
+# 本地开发笔记（含敏感信息，绝不提交）
+CLAUDE.md
+
+# 编辑器 / IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+*.orig
+
+# 系统元数据
+.DS_Store
+Thumbs.db
+Desktop.ini
