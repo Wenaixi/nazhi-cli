@@ -22,7 +22,7 @@ var rootCmd = &cobra.Command{
 提供登录、任务管理、自我评价、文件上传等完整功能。
 所有命令输出 JSON 格式，便于脚本解析。`,
 	Run: func(cmd *cobra.Command, args []string) {
-		cmd.Help()
+		_ = cmd.Help()
 	},
 }
 

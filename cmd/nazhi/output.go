@@ -23,7 +23,7 @@ func printError(err error) {
 	}
 	enc := json.NewEncoder(os.Stderr)
 	enc.SetIndent("", "  ")
-	enc.Encode(errOutput{Error: true, Message: err.Error()})
+	_ = enc.Encode(errOutput{Error: true, Message: err.Error()})
 	os.Exit(1)
 }
 

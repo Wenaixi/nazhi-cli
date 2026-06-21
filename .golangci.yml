@@ -8,13 +8,8 @@ linters:
     - unused
 
 issues:
-  # 排除整个 cmd/ 目录的 errcheck（调试/工具代码）
+  # 测试文件豁免 errcheck 和 unused
   exclude-rules:
-    - path: cmd/
-      linters:
-        - errcheck
-
-    # 测试文件豁免 errcheck 和 unused
     - path: _test\.go
       linters:
         - errcheck
