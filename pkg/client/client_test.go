@@ -4,6 +4,9 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -674,7 +677,8 @@ func TestQuerySelfEvaluation(t *testing.T) {
 
 // ─── 文件上传 ───
 
-func TestUploadFile(t *testing.T) {
+// TestUploadFile_RealImage 验证 UploadFile 集成路径：PNG → 压缩 → 上传。
+func TestUploadFile_RealImage(t *testing.T) {
 	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/common/upload/uploadImage" {
 			t.Errorf("期望路径 uploadImage, 得到 %s", r.URL.Path)
@@ -695,10 +699,25 @@ func TestUploadFile(t *testing.T) {
 	defer upload.Close()
 
 	c := newTestClient(nil, nil, upload)
-	tmpfile := t.TempDir() + "/test-upload.jpg"
-	if err := os.WriteFile(tmpfile, []byte{0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10}, 0644); err != nil {
+	// 创建一个真实的 100×100 红色 PNG（PNG → JPG 转换路径）
+	tmpfile := t.TempDir() + "/test-upload.png"
+	img := image.NewRGBA(image.Rect(0, 0, 100, 100))
+	red := color.RGBA{255, 0, 0, 255}
+	for y := 0; y < 100; y++ {
+		for x := 0; x < 100; x++ {
+			img.Set(x, y, red)
+		}
+	}
+	f, err := os.Create(tmpfile)
+	if err != nil {
 		t.Fatalf("创建测试文件失败: %v", err)
 	}
+	if err := png.Encode(f, img); err != nil {
+		f.Close()
+		t.Fatalf("编码 PNG 失败: %v", err)
+	}
+	f.Close()
+
 	id, err := c.UploadFile(context.Background(), tmpfile)
 	if err != nil {
 		t.Fatalf("UploadFile 失败: %v", err)
