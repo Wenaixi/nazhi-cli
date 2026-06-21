@@ -1,12 +1,7 @@
 // Package types 定义 nazhi-cli SDK 的全部公共类型。
 package types
 
-import (
-	"encoding/json"
-	"fmt"
-	"strings"
-	"time"
-)
+import "time"
 
 // ─── 认证 ───
 
@@ -29,6 +24,10 @@ type LoginResponse struct {
 // ─── 用户 ───
 
 // UserInfo 是用户个人资料。
+//
+// 注意：birthday 字段从 birthdayStr JSON 标签读取（字符串形式），
+// 因为目标平台同时返回 `birthday: [2009,12,11]` 数组和
+// `birthdayStr: "2009-12-11 00:00:00"` 字符串，后者更易使用。
 type UserInfo struct {
 	ID            int64          `json:"id"`
 	Name          string         `json:"name"`
@@ -42,94 +41,9 @@ type UserInfo struct {
 	Gender        int            `json:"gender"`
 	GenderName    string         `json:"genderName"`
 	IDCard        string         `json:"idCard"`
-	Birthday      Birthday       `json:"birthday"`
+	Birthday      string         `json:"birthdayStr"`
 	StudyNumber   string         `json:"studyNumber"`
 	Raw           map[string]any `json:"-"` // 完整原始数据
-}
-
-// Birthday 表示用户生日。
-//
-// 目标平台 birthday 字段存在两种 JSON 形态：
-//   - 数组形式：`[2009, 12, 11]`
-//   - 字符串形式：`"2009-12-11 00:00:00"`（即 birthdayStr 字段）
-//
-// UnmarshalJSON 自动识别两种形式并填充 Year/Month/Day 三个字段；
-// 若输入是字符串且能解析，则同时填充。
-type Birthday struct {
-	Year  int    // 年
-	Month int    // 月（1-12）
-	Day   int    // 日（1-31）
-	Str   string // 原始字符串（如 "2009-12-11 00:00:00"），无法解析为日期时保留
-}
-
-// UnmarshalJSON 实现自定义 JSON 解析，兼容数组和字符串两种形态。
-func (b *Birthday) UnmarshalJSON(data []byte) error {
-	// 形式 1：[year, month, day] 数组
-	var arr []int
-	if err := json.Unmarshal(data, &arr); err == nil {
-		switch len(arr) {
-		case 3:
-			b.Year, b.Month, b.Day = arr[0], arr[1], arr[2]
-			b.Str = fmt.Sprintf("%04d-%02d-%02d", b.Year, b.Month, b.Day)
-			return nil
-		case 6:
-			// [year, month, day, hour, min, sec] — 也兼容
-			b.Year, b.Month, b.Day = arr[0], arr[1], arr[2]
-			b.Str = fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d", arr[0], arr[1], arr[2], arr[3], arr[4], arr[5])
-			return nil
-		}
-	}
-
-	// 形式 2：字符串
-	var s string
-	if err := json.Unmarshal(data, &s); err == nil {
-		b.Str = s
-		// 尝试解析为日期
-		for _, layout := range []string{
-			"2006-01-02 15:04:05",
-			"2006-01-02T15:04:05",
-			"2006-01-02",
-		} {
-			if t, err := time.Parse(layout, s); err == nil {
-				b.Year = t.Year()
-				b.Month = int(t.Month())
-				b.Day = t.Day()
-				return nil
-			}
-		}
-		// 字符串但不是日期格式
-		return nil
-	}
-
-	// null 或其他：清零不报错
-	return nil
-}
-
-// MarshalJSON 输出标准数组形式 [year, month, day]，便于回传平台。
-func (b Birthday) MarshalJSON() ([]byte, error) {
-	if b.Year == 0 && b.Month == 0 && b.Day == 0 {
-		return []byte("null"), nil
-	}
-	return json.Marshal([]int{b.Year, b.Month, b.Day})
-}
-
-// YMD 返回 "YYYY-MM-DD" 格式生日字符串。
-// 当 Year/Month/Day 都为 0 时回退到原始字符串。
-func (b Birthday) YMD() string {
-	if b.Year > 0 && b.Month > 0 && b.Day > 0 {
-		return fmt.Sprintf("%04d-%02d-%02d", b.Year, b.Month, b.Day)
-	}
-	return b.Str
-}
-
-// String 实现 fmt.Stringer，输出 YMD 格式。
-func (b Birthday) String() string {
-	return b.YMD()
-}
-
-// IsZero 判断生日是否为空。
-func (b Birthday) IsZero() bool {
-	return b.Year == 0 && b.Month == 0 && b.Day == 0 && strings.TrimSpace(b.Str) == ""
 }
 
 // ─── 学校 ───
