@@ -48,19 +48,24 @@ jobs:
       - name: 缓存 golangci-lint
         uses: actions/cache@v4
         with:
-          path: ~/.cache/golangci-lint
-          key: golangci-lint-${{ runner.os }}
+          path: $(go env GOPATH)/bin/golangci-lint
+          key: golangci-lint-${{ runner.os }}-v1.64.8-built
+
+      - name: 安装 golangci-lint
+        # GitHub release 的 v1.64.8 binary 用 go1.24 构建，解析不了 go.mod 的 1.26.1 语法。
+        # 改用 `go install` 让当前 toolchain 现场编译，保证 ABI 完全一致。
+        run: |
+          if [ ! -x "$(go env GOPATH)/bin/golangci-lint" ]; then
+            go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.64.8
+          fi
+          "$(go env GOPATH)/bin/golangci-lint" --version
 
       - name: 验证 go.mod 整洁
         run: go mod tidy && git diff --exit-code go.mod go.sum
 
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          # v1.64.8 用 Go 1.24 构建，无法解析 go.mod 的 1.26.1 语法；
-          # v2.x 系列用 Go 1.23+ 构建并支持 Go 1.26 target。
-          version: v2.1.6
-          args: --timeout=5m ./...
+        run: |
+          "$(go env GOPATH)/bin/golangci-lint" run --timeout=5m ./...
 
       - name: go vet
         run: go vet ./...
@@ -129,6 +134,8 @@ jobs:
 
       - name: 读取版本号
         id: version
+        # Windows runner 默认 shell 是 PowerShell，bash 脚本需要显式声明
+        shell: bash
         run: |
           # 仅匹配 var Version = "x.y.z" 定义行（排除注释里的 Version 字样）
           VER=$(grep -E '^\s*var\s+Version\s*=' internal/version/version.go \
@@ -142,6 +149,7 @@ jobs:
           echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
 
       - name: 编译
+        shell: bash
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
@@ -153,6 +161,7 @@ jobs:
             ./cmd/nazhi
 
       - name: 验证二进制可执行
+        shell: bash
         run: |
           if [ "${{ matrix.goos }}" = "windows" ]; then
             ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} --version
@@ -183,6 +192,7 @@ jobs:
           cache: true
 
       - name: 真实环境集成测试
+        shell: bash
         env:
           NAZHI_USERNAME: ${{ secrets.NAZHI_USERNAME }}
           NAZHI_PASSWORD: ${{ secrets.NAZHI_PASSWORD }}
@@ -210,6 +220,7 @@ jobs:
           path: artifacts
 
       - name: 准备发布文件
+        shell: bash
         run: |
           mkdir -p release
           for dir in artifacts/*/; do
@@ -220,6 +231,7 @@ jobs:
           ls -lh release/
 
       - name: 生成 SHA256 校验和
+        shell: bash
         run: |
           cd release
           sha256sum * > SHA256SUMS
