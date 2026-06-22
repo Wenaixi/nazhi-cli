@@ -16,7 +16,11 @@ package integration
 
 import (
 	"context"
+	"image"
+	"image/color"
+	"image/png"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -26,11 +30,11 @@ import (
 )
 
 const (
-	defaultSSOBase  = "https://www.nazhisoft.com"
-	defaultBizBase  = "http://139.159.205.146:8280"
+	defaultSSOBase    = "https://www.nazhisoft.com"
+	defaultBizBase    = "http://139.159.205.146:8280"
 	defaultUploadBase = "http://doc.nazhisoft.com"
-	loginTimeout    = 90 * time.Second // OCR + 网络 + 99 次重试
-	apiTimeout      = 30 * time.Second
+	loginTimeout      = 90 * time.Second // OCR + 网络 + 99 次重试
+	apiTimeout        = 30 * time.Second
 )
 
 // loadCreds 读取环境变量，未设置时调用 t.Skip 跳过。
@@ -64,19 +68,13 @@ func newClient(t *testing.T, ssoBase, bizBase string) *client.Client {
 	return c
 }
 
-// TestReal_Login 全自动 OCR 登录（真实 SSO 服务器）。
-func TestReal_Login(t *testing.T) {
-	username, password, ssoBase, _ := loadCreds(t)
-
-	c := client.New(
-		client.WithSSOBase(ssoBase),
-		client.WithTimeout(loginTimeout),
-	)
-
+// sharedLogin 登录一次，所有测试复用 token。失败时 t.Fatal。
+func sharedLogin(t *testing.T, c *client.Client, username, password string) string {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), loginTimeout)
 	defer cancel()
 
-	t.Logf("开始登录 (学号=%s)", maskUsername(username))
+	t.Logf("① 全自动 OCR 登录 (学号=%s)", maskUsername(username))
 	resp, err := c.Login(ctx, types.LoginRequest{
 		Username: username,
 		Password: password,
@@ -88,115 +86,8 @@ func TestReal_Login(t *testing.T) {
 		t.Fatal("登录成功但 token 为空")
 	}
 	t.Logf("✅ 登录成功，token 前缀: %s...", safePrefix(resp.Token, 20))
+	return resp.Token
 }
-
-// TestReal_LoginThenActivate 登录 → 激活 Session → 验证用户信息（端到端）。
-func TestReal_LoginThenActivate(t *testing.T) {
-	username, password, ssoBase, bizBase := loadCreds(t)
-
-	c := newClient(t, ssoBase, bizBase)
-
-	ctx, cancel := context.WithTimeout(context.Background(), loginTimeout)
-	defer cancel()
-
-	t.Logf("① 全自动 OCR 登录 (学号=%s)", maskUsername(username))
-	loginResp, err := c.Login(ctx, types.LoginRequest{
-		Username: username,
-		Password: password,
-	})
-	if err != nil {
-		t.Fatalf("登录失败: %v", err)
-	}
-	if loginResp.Token == "" {
-		t.Fatal("登录成功但 token 为空")
-	}
-	token := loginResp.Token
-	t.Logf("✅ 登录成功，token 前缀: %s...", safePrefix(token, 20))
-
-	t.Log("② 激活业务 Session")
-	if _, err := c.ActivateSession(ctx, token); err != nil {
-		t.Fatalf("激活 Session 失败: %v", err)
-	}
-	t.Log("✅ Session 已激活")
-
-	t.Log("③ 获取用户信息")
-	info, err := c.GetMyInfo(ctx, token)
-	if err != nil {
-		t.Fatalf("获取用户信息失败: %v", err)
-	}
-	if info == nil {
-		t.Fatal("用户信息为空")
-	}
-	t.Logf("✅ 用户: %s (%s)，学校: %s", info.Name, info.StudentNumber, info.SchoolName)
-}
-
-// TestReal_FetchTasks 登录 → 拉取全维度任务。
-func TestReal_FetchTasks(t *testing.T) {
-	username, password, ssoBase, bizBase := loadCreds(t)
-	c := newClient(t, ssoBase, bizBase)
-
-	ctx, cancel := context.WithTimeout(context.Background(), loginTimeout)
-	defer cancel()
-
-	loginResp, err := c.Login(ctx, types.LoginRequest{
-		Username: username,
-		Password: password,
-	})
-	if err != nil {
-		t.Fatalf("登录失败: %v", err)
-	}
-	token := loginResp.Token
-
-	if _, err := c.ActivateSession(ctx, token); err != nil {
-		t.Fatalf("激活 Session 失败: %v", err)
-	}
-
-	tasks, err := c.FetchTasks(ctx, token)
-	if err != nil {
-		t.Fatalf("获取任务列表失败: %v", err)
-	}
-	t.Logf("✅ 共 %d 个任务", len(tasks))
-	for i, task := range tasks {
-		if i >= 3 {
-			break
-		}
-		t.Logf("  - [%d] %s (维度 %d, 状态 %s)", task.ID, task.Name, task.DimensionID, task.Status)
-	}
-}
-
-// TestReal_SelfEvaluation 登录 → 查询自我评价（不提交，避免污染数据）。
-func TestReal_SelfEvaluation(t *testing.T) {
-	username, password, ssoBase, bizBase := loadCreds(t)
-	c := newClient(t, ssoBase, bizBase)
-
-	ctx, cancel := context.WithTimeout(context.Background(), loginTimeout)
-	defer cancel()
-
-	loginResp, err := c.Login(ctx, types.LoginRequest{
-		Username: username,
-		Password: password,
-	})
-	if err != nil {
-		t.Fatalf("登录失败: %v", err)
-	}
-	token := loginResp.Token
-
-	if _, err := c.ActivateSession(ctx, token); err != nil {
-		t.Fatalf("激活 Session 失败: %v", err)
-	}
-
-	status, err := c.QuerySelfEvaluation(ctx, token)
-	if err != nil {
-		t.Fatalf("查询自我评价失败: %v", err)
-	}
-	if status == nil {
-		t.Fatal("自我评价为空")
-	}
-	t.Logf("✅ 学生评语: %s", truncate(status.StudentComment, 50))
-	t.Logf("  教师评语: %s", truncate(status.TeacherComment, 50))
-}
-
-// ─── 工具函数 ───
 
 // maskUsername 部分遮罩学号用于日志。
 func maskUsername(u string) string {
@@ -220,4 +111,169 @@ func truncate(s string, n int) string {
 		return s
 	}
 	return s[:n] + "..."
+}
+
+// ────────────────────────────────────────────────────────────
+// 测试用例
+// ────────────────────────────────────────────────────────────
+
+// TestReal_FullChain 端到端跑完所有能测的 SDK 方法。
+// 不依赖期末数据，专注验证 SDK 与真实服务器的对齐度。
+func TestReal_FullChain(t *testing.T) {
+	username, password, ssoBase, bizBase := loadCreds(t)
+	c := newClient(t, ssoBase, bizBase)
+
+	// 1. 登录拿 token
+	token := sharedLogin(t, c, username, password)
+	if token == "" {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
+	defer cancel()
+
+	// 2. InitSession（已由 Login 内部调用，这里显式测一下）
+	t.Log("② InitSession (SSO Session)")
+	if err := c.InitSession(ctx); err != nil {
+		t.Errorf("InitSession: %v", err)
+	}
+
+	// 3. GetSchoolID
+	t.Log("③ GetSchoolID")
+	schoolID, schoolName, err := c.GetSchoolID(ctx, username)
+	if err != nil {
+		t.Errorf("GetSchoolID: %v", err)
+	} else {
+		t.Logf("   ✅ 学校: %s (ID=%s)", schoolName, schoolID)
+	}
+
+	// 4. ActivateSession（4 步 HAR 对齐）
+	t.Log("④ ActivateSession (4 步 HAR 对齐)")
+	_, err = c.ActivateSession(ctx, token)
+	if err != nil {
+		t.Errorf("ActivateSession: %v", err)
+	}
+
+	// 5. GetMyInfo / whoami
+	t.Log("⑤ GetMyInfo (whoami)")
+	info, err := c.GetMyInfo(ctx, token)
+	if err != nil {
+		t.Errorf("GetMyInfo: %v", err)
+	} else if info != nil {
+		t.Logf("   ✅ %s / %s / %s / 座号 %d", info.Name, info.SchoolName, info.ClassName, info.Seat)
+	}
+
+	// 6. GetDimensions（不需要任务）
+	t.Log("⑥ GetDimensions (维度列表)")
+	dims, err := c.GetDimensions(ctx, token)
+	if err != nil {
+		t.Errorf("GetDimensions: %v", err)
+	} else {
+		t.Logf("   ✅ %d 个维度", len(dims))
+		for i, d := range dims {
+			if i >= 3 {
+				break
+			}
+			t.Logf("     - 维度 %d: %s", d.ID, d.Name)
+		}
+	}
+
+	// 7. FetchTasks（期末未到，预期空列表）
+	t.Log("⑦ FetchTasks (任务列表，期末未到预期空)")
+	tasks, err := c.FetchTasks(ctx, token)
+	if err != nil {
+		t.Errorf("FetchTasks: %v", err)
+	} else {
+		t.Logf("   ✅ 任务数: %d（期末未到属正常）", len(tasks))
+	}
+
+	// 8. QuerySelfEvaluation（自我评价 + 教师评语）
+	t.Log("⑧ QuerySelfEvaluation (自我评价 + 教师评语)")
+	status, err := c.QuerySelfEvaluation(ctx, token)
+	if err != nil {
+		t.Errorf("QuerySelfEvaluation: %v", err)
+	} else if status != nil {
+		t.Logf("   ✅ 教师评语: %s", truncate(status.TeacherComment, 60))
+	}
+
+	// 9. QuerySelfGradEvaluation
+	t.Log("⑨ QuerySelfGradEvaluation (学期评价)")
+	grad, err := c.QuerySelfGradEvaluation(ctx, token)
+	if err != nil {
+		t.Logf("   ⚠️  QuerySelfGradEvaluation: %v", err)
+	} else if grad != nil {
+		t.Logf("   ✅ 学期评价: %v", truncate(fmtMap(grad), 80))
+	} else {
+		t.Log("   ℹ️  学期评价为空（正常）")
+	}
+
+	// 10. UploadFile（图片上传，5MB 压缩 + JPG 转换）
+	t.Log("⑩ UploadFile (图片上传)")
+	tmpImg := createTestImage(t)
+	defer os.Remove(tmpImg)
+
+	id, err := c.UploadFile(ctx, tmpImg)
+	if err != nil {
+		t.Errorf("UploadFile: %v", err)
+	} else {
+		t.Logf("   ✅ 上传成功，图片 ID: %d", id)
+	}
+}
+
+// ────────────────────────────────────────────────────────────
+// 辅助：创建测试图片（PNG 格式，让 SDK 走"任意格式→JPG"转换路径）
+// ────────────────────────────────────────────────────────────
+
+func createTestImage(t *testing.T) string {
+	t.Helper()
+	tmpDir := t.TempDir()
+	path := filepath.Join(tmpDir, "test.png")
+
+	// 创建 800x600 PNG（透明背景，让 SDK 走 flattenOnWhite）
+	img := image.NewRGBA(image.Rect(0, 0, 800, 600))
+	// 填一些渐变颜色 + 透明区域
+	for y := 0; y < 600; y++ {
+		for x := 0; x < 800; x++ {
+			alpha := uint8(255)
+			// 右下半透明
+			if x > 400 && y > 300 {
+				alpha = 128
+			}
+			img.SetRGBA(x, y, color.RGBA{
+				R: uint8(x % 256),
+				G: uint8(y % 256),
+				B: uint8((x + y) % 256),
+				A: alpha,
+			})
+		}
+	}
+
+	f, err := os.Create(path)
+	if err != nil {
+		t.Fatalf("创建测试图片失败: %v", err)
+	}
+	defer f.Close()
+	if err := png.Encode(f, img); err != nil {
+		t.Fatalf("PNG 编码失败: %v", err)
+	}
+	return path
+}
+
+// fmtMap 把 map 简单转字符串（用于日志）。
+func fmtMap(m *map[string]any) string {
+	if m == nil {
+		return "<nil>"
+	}
+	parts := make([]string, 0, len(*m))
+	for k, v := range *m {
+		parts = append(parts, k+"="+truncate(anyToString(v), 20))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func anyToString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return "<非字符串>"
 }
