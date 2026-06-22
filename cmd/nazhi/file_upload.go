@@ -32,7 +32,7 @@ SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。
 		if uploadURL == "" {
 			uploadURL = envString("NAZHI_UPLOAD_URL", "")
 		}
-		if timeoutSec == 30 {
+		if !flagChanged(cmd, "timeout") {
 			timeoutSec = envInt("NAZHI_TIMEOUT", 30)
 		}
 

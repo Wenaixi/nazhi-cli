@@ -29,7 +29,7 @@ var schoolCmd = &cobra.Command{
 		if ssoBase == "" {
 			ssoBase = envString("NAZHI_SSO_BASE", "")
 		}
-		if timeoutSec == 15 {
+		if !flagChanged(cmd, "timeout") {
 			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
 		}
 

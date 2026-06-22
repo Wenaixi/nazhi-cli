@@ -26,19 +26,22 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤1（首页）失败: %w", err)
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	// 步骤2：GET /api/studentInfo/getMenu（Referer: /homepage?token=xxx）
 	menuURL := c.bizURL("/api/studentInfo/getMenu")
 	step2Headers := copyMap(headers)
 	step2Headers["Referer"] = c.baseURL + "/homepage?token=" + token
 
-	_, err = c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, step2Headers, "")
+	step2Resp, err := c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, step2Headers, "")
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤2（getMenu）失败: %w", err)
 	}
-	// 不关闭 Body，doRequest 已处理
+	_, _ = io.Copy(io.Discard, step2Resp.Body)
+	step2Resp.Body.Close()
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
 	step3Headers := copyMap(headers)

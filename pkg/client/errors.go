@@ -12,12 +12,6 @@ var (
 	// ErrLoginRejected 登录被拒绝（凭证无效或验证码错误）。
 	ErrLoginRejected = errors.New("login rejected: invalid credentials or captcha")
 
-	// ErrTokenExpired token 已过期。
-	ErrTokenExpired = errors.New("token expired")
-
-	// ErrSessionExpired session 已过期。
-	ErrSessionExpired = errors.New("session expired")
-
 	// ErrNetwork 网络错误（连接超时、DNS 解析失败等）。
 	ErrNetwork = errors.New("network error")
 
@@ -29,10 +23,4 @@ var (
 
 	// ErrInvalidPayload 任务请求体格式错误。
 	ErrInvalidPayload = errors.New("invalid task payload")
-
-	// ErrIncompleteResponse 响应缺少必要字段。
-	ErrIncompleteResponse = errors.New("incomplete response from server")
-
-	// ErrUnexpectedStatus 响应状态不符合预期。
-	ErrUnexpectedStatus = errors.New("unexpected response status")
 )

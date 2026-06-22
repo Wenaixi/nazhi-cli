@@ -727,9 +727,12 @@ func TestUploadFile_RealImage(t *testing.T) {
 	}
 }
 
-// ─── 并发隔离 ───
+// ─── 并发 ───
 
-func TestConcurrentLoginIsolation(t *testing.T) {
+// TestConcurrentLoginsSucceed 验证 5 个 goroutine 并发 Login 各自成功。
+// 注：仅验证并发安全不崩溃，不验证 cookie jar 隔离（jar 隔离需额外断言，
+// 见 TestCookieJarIsolation 相关文档）。
+func TestConcurrentLoginsSucceed(t *testing.T) {
 	var mu sync.Mutex
 	counter := 0
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

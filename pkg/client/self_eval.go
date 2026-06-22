@@ -99,17 +99,25 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("查询毕业状态失败: %w", err)
+		return nil, fmt.Errorf("查询学期评价失败: %w", err)
 	}
 
-	result, err := types.DecodeReturnData[map[string]any](resp)
-	if err != nil || result == nil {
-		// 尝试 dataMap
-		result, err = types.DecodeDataMap[map[string]any](resp)
-		if err != nil {
-			return nil, nil
+	// 优先尝试 returnData
+	if resp.ReturnData != nil {
+		result, err := types.DecodeReturnData[map[string]any](resp)
+		if err == nil && result != nil {
+			return result, nil
 		}
 	}
 
-	return result, nil
+	// 兜底尝试 dataMap
+	if resp.DataMap != nil {
+		result, err := types.DecodeDataMap[map[string]any](resp)
+		if err == nil && result != nil {
+			return result, nil
+		}
+	}
+
+	// 所有路径都为空是合法的"无学期评价"，但有 body 解析不了就是 bug
+	return nil, fmt.Errorf("QuerySelfGradEvaluation: 响应中既无 returnData 也无 dataMap（code=1 但无数据）")
 }

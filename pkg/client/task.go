@@ -11,6 +11,9 @@ import (
 
 // FetchTasks 拉取目标平台全部维度的任务列表。
 // 内部流程：ActivateSession → getDimensions → 遍历维度 getCircleStatistics → 聚合。
+//
+// 单个维度失败时通过 c.logDebug() 记录（不会中断整体拉取），
+// 调用方可通过 client.WithLogger() 注入自定义 logger 捕获详细错误。
 func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, error) {
 	headers := c.bizHeaders(token)
 
@@ -53,17 +56,20 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
 		statBody, err := c.doRequest(ctx, http.MethodGet, statURL, nil, headers, "")
 		if err != nil {
-			// 单个维度失败不影响其他维度
+			// 单个维度失败不中断，记录到 logger 供诊断
+			c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
 			continue
 		}
 
 		statResp, err := types.DecodeResponse(statBody)
 		if err != nil || statResp.Code != 1 {
+			c.logDebug("FetchTasks 维度 %d(%s) 响应异常: parseErr=%v code=%d", dim.ID, dim.Name, err, statResp.Code)
 			continue
 		}
 
 		tasks, err := types.DecodeDataList[types.Task](statResp)
 		if err != nil {
+			c.logDebug("FetchTasks 维度 %d(%s) 任务解析失败: %v", dim.ID, dim.Name, err)
 			continue
 		}
 

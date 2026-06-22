@@ -37,7 +37,9 @@ func init() {
 	// 全局标志
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "详细日志输出到 stderr")
 	rootCmd.PersistentFlags().BoolVar(&quiet, "quiet", false, "静默模式，关闭所有 stderr 输出")
-	rootCmd.PersistentFlags().StringVar(&output, "output", "json", "输出格式（默认 json）")
+	// --output 当前仅支持 json（未来扩展 yaml/text 时再实现）
+	rootCmd.PersistentFlags().StringVar(&output, "output", "json", "输出格式（当前仅支持 json）")
+	rootCmd.PersistentFlags().Lookup("output").NoOptDefVal = "json"
 
 	// 一级命令
 	rootCmd.AddCommand(loginCmd)

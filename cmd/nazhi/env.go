@@ -5,6 +5,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/spf13/cobra"
 )
 
 // ─── 环境变量约定 ───────────────────────────────────────────
@@ -61,4 +63,23 @@ func requireEnv(keys ...string) error {
 		return fmt.Errorf("缺少环境变量: %v（可通过 --flag 或 .env 注入）", missing)
 	}
 	return nil
+}
+
+// flagChanged 检查用户是否通过命令行显式设置了某个 flag。
+// 用于避免"哨兵默认值"反模式：用户传 --timeout 15 时不应被环境变量覆盖。
+func flagChanged(cmd *cobra.Command, name string) bool {
+	if cmd == nil {
+		return false
+	}
+	return cmd.Flags().Changed(name)
+}
+
+// isTerminalStdin 检查 stdin 是否连接到真实终端（而非管道或重定向）。
+// 用于 stdin 交互提示：CI 环境是管道，直接读取不阻塞。
+func isTerminalStdin() bool {
+	fi, err := os.Stdin.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeCharDevice) != 0
 }

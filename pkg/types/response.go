@@ -82,21 +82,3 @@ func DecodeDataMap[T any](resp UnifiedResponse) (*T, error) {
 	return &v, nil
 }
 
-// EnforceCode 确保 code == 1，否则返回 error。同 CheckCode 但直接操作原始响应。
-func EnforceCode(data []byte) error {
-	aux := struct {
-		Code int `json:"code"`
-	}{}
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return fmt.Errorf("解析响应 code 失败: %w", err)
-	}
-	if aux.Code != 1 {
-		var msg string
-		var resp UnifiedResponse
-		if err := json.Unmarshal(data, &resp); err == nil && resp.Msg != nil {
-			msg = *resp.Msg
-		}
-		return fmt.Errorf("业务错误 (code=%d): %s", aux.Code, msg)
-	}
-	return nil
-}
