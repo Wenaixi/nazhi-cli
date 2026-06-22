@@ -191,7 +191,7 @@ func TestLogin(t *testing.T) {
 	c := newTestClientWithOCR(sso, "AB12", nil)
 	resp, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "TEST2025001",
-		Password: "689050",
+		Password: "TestPass123",
 	})
 	if err != nil {
 		t.Fatalf("Login 失败: %v", err)
@@ -770,7 +770,7 @@ func TestConcurrentLoginIsolation(t *testing.T) {
 			c := newTestClientWithOCR(sso, "AB12", nil)
 			_, err := c.Login(context.Background(), types.LoginRequest{
 				Username: "TEST2025001",
-				Password: "689050",
+				Password: "TestPass123",
 			})
 			errs <- err
 		}()
