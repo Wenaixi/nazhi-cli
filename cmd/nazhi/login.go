@@ -20,16 +20,30 @@ var loginCmd = &cobra.Command{
 	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → OCR 自动识别验证码 → Login。
 
 验证码由内置 OCR 全自动识别（模型已内嵌在二进制中，无需下载），无需人工干预。`,
-	Example: `  nazhi login -u TEST2025001 -p 689050                       # 全自动 OCR
-  nazhi login -u TEST2025001 -p 689050 --sso-base https://www.nazhisoft.com --timeout 30`,
+	Example: `  nazhi login -u 学号 -p 密码                       # 全自动 OCR
+  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
 		username, _ := cmd.Flags().GetString("username")
 		password, _ := cmd.Flags().GetString("password")
 		ssoBase, _ := cmd.Flags().GetString("sso-base")
 		timeoutSec, _ := cmd.Flags().GetInt("timeout")
 
+		// 环境变量 fallback（命令行标志优先）
+		if username == "" {
+			username = envString("NAZHI_USERNAME", "")
+		}
+		if password == "" {
+			password = envString("NAZHI_PASSWORD", "")
+		}
+		if ssoBase == "" {
+			ssoBase = envString("NAZHI_SSO_BASE", "")
+		}
+		if timeoutSec == 15 {
+			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
+		}
+
 		if username == "" || password == "" {
-			printError(fmt.Errorf("--username 和 --password 为必填"))
+			printError(fmt.Errorf("--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
 			return
 		}
 

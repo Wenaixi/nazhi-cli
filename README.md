@@ -28,26 +28,32 @@ go install github.com/Wenaixi/nazhi-cli/cmd/nazhi@latest
 
 ```bash
 # 全自动登录（OCR 自动识别验证码，默认启用）
-nazhi login -u TEST2025001 -p 689050
+nazhi login -u 学号 -p 密码
+
+# 通过环境变量登录（推荐用于 CI/脚本）
+export NAZHI_USERNAME=学号
+export NAZHI_PASSWORD=密码
+nazhi login
 
 # 查询学校 ID
-nazhi school -u TEST2025001
+nazhi school -u 学号
 
 # 激活业务 Session
-nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx
+export NAZHI_TOKEN=$(nazhi login | jq -r .token)
+nazhi session activate
 
 # 查看用户信息
-nazhi whoami --token eyJhbGciOiJIUzI1NiJ9.xxx
+nazhi whoami
 
 # 列出任务
-nazhi task list --token eyJhbGciOiJIUzI1NiJ9.xxx
+nazhi task list
 
 # 提交任务
-nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"circleTaskId":1001}'
-nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json
+nazhi task submit --payload '{"circleTaskId":1001}'
+nazhi task submit --payload @task.json
 
 # 自我评价
-nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "很好的学期"
+nazhi self-eval submit --comment "很好的学期"
 
 # 文件上传
 nazhi file upload -f ./photo.jpg
@@ -58,6 +64,59 @@ nazhi file upload -f ./photo.jpg
 验证码由内置 OCR 全自动识别（模型已通过 `go:embed` 内嵌在二进制中）。首次调用时自动解压到临时目录，无需网络下载。整个过程完全自动化，无需人工干预。
 
 OCR 引擎基于 ddddocr（ONNX Runtime），对同一张图片最多重试 99 次以提高准确率。
+
+## 环境变量
+
+所有 CLI 命令都支持通过环境变量注入凭据和配置，**命令行标志始终优先于环境变量**。
+
+### 支持的变量
+
+| 变量 | 作用 | 适用命令 |
+|------|------|----------|
+| `NAZHI_USERNAME` | 学号 | `login`、`school` |
+| `NAZHI_PASSWORD` | 密码 | `login` |
+| `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval` |
+| `NAZHI_SSO_BASE` | SSO 根地址 | `login`、`school` |
+| `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval` |
+| `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` |
+| `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 |
+
+### 三种使用方式
+
+**方式 1：临时环境变量**
+
+```bash
+export NAZHI_USERNAME=学号
+export NAZHI_PASSWORD=密码
+nazhi login                              # 不需要再传 -u/-p
+```
+
+**方式 2：.env 文件（推荐用于本地开发）**
+
+```bash
+cp .env.example .env
+# 编辑 .env 填入真实凭据
+make test-integration                    # 集成测试自动读取 .env
+```
+
+`.env` 已在 `.gitignore` 中，不会被提交。CI 中使用 GitHub Secrets 注入即可。
+
+**方式 3：CI 注入**
+
+```yaml
+# .github/workflows/ci.yml
+- name: 集成测试
+  env:
+    NAZHI_USERNAME: ${{ secrets.NAZHI_USERNAME }}
+    NAZHI_PASSWORD: ${{ secrets.NAZHI_PASSWORD }}
+  run: go test -tags=integration -v ./test/integration/...
+```
+
+### 优先级
+
+```
+命令行标志 > 环境变量 > SDK 默认值
+```
 
 ## 命令参考
 
@@ -108,8 +167,8 @@ c := client.New(
 
 // 全自动登录（OCR 自动识别验证码）
 resp, err := c.Login(ctx, types.LoginRequest{
-    Username: "TEST2025001",
-    Password: "689050",
+    Username: os.Getenv("NAZHI_USERNAME"),
+    Password: os.Getenv("NAZHI_PASSWORD"),
     // 无需 Captcha 字段，OCR 自动处理
 })
 if err != nil { panic(err) }
