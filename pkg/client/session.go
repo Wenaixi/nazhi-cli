@@ -12,10 +12,10 @@ import (
 
 // ActivateSession 初始化目标平台业务 Session。
 // HAR 验证（登录.har + 首页访问.har）：必须按以下 4 步顺序激活，否则后续接口返回空数据：
-//   1. GET /（首页）
-//   2. GET /api/studentInfo/getMenu（Referer: /homepage?token=xxx）
-//   3. GET /api/studentInfo/getMenu（Referer: /home）
-//   4. GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
+//  1. GET /（首页）
+//  2. GET /api/studentInfo/getMenu（Referer: /homepage?token=xxx）
+//  3. GET /api/studentInfo/getMenu（Referer: /home）
+//  4. GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 //
 // 返回用户基本信息（含座号）。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {

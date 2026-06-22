@@ -9,18 +9,18 @@ import (
 // UnifiedResponse 是目标平台的标准响应体结构。
 // 使用 json.RawMessage 延迟解析，先解外层 code，再根据 code 走对应路径。
 type UnifiedResponse struct {
-	Code        int              `json:"code"`
-	Msg         *string          `json:"msg"`
-	ReturnData  *json.RawMessage `json:"returnData"`
-	DataList    *json.RawMessage `json:"dataList"`
-	DataMap     *json.RawMessage `json:"dataMap"`
-	DataInt     int              `json:"dataInt"`
-	DataString  *string          `json:"dataString"`
-	PageBean    *json.RawMessage `json:"pageBean"`
-	Note        *string          `json:"note"`
-	InsertID    int64            `json:"insertID"`
-	UpdateCount int              `json:"updateCount"`
-	IsAttendance int             `json:"isAttendance"`
+	Code         int              `json:"code"`
+	Msg          *string          `json:"msg"`
+	ReturnData   *json.RawMessage `json:"returnData"`
+	DataList     *json.RawMessage `json:"dataList"`
+	DataMap      *json.RawMessage `json:"dataMap"`
+	DataInt      int              `json:"dataInt"`
+	DataString   *string          `json:"dataString"`
+	PageBean     *json.RawMessage `json:"pageBean"`
+	Note         *string          `json:"note"`
+	InsertID     int64            `json:"insertID"`
+	UpdateCount  int              `json:"updateCount"`
+	IsAttendance int              `json:"isAttendance"`
 }
 
 // DecodeResponse 解码目标平台统一响应体。
@@ -81,4 +81,3 @@ func DecodeDataMap[T any](resp UnifiedResponse) (*T, error) {
 	}
 	return &v, nil
 }
-

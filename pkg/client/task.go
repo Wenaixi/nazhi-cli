@@ -177,4 +177,3 @@ func (c *Client) GetCircleTypeByTaskId(ctx context.Context, token string, taskID
 
 	return result, nil
 }
-

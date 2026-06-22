@@ -32,13 +32,13 @@ type LoginResponse struct {
 //   - nullable 字段（null）解析为零值（int=0, string=""），调用方用 if 判断即可
 type UserInfo struct {
 	// 基础身份
-	ID            int64  `json:"id"`
-	Name          string `json:"name"`
-	Initials      string `json:"initials"`      // 姓名首字母（如 "gNAME_INITIALS_REDACTED"）
-	Pinyin        string `json:"pinyin"`        // 姓名全拼
-	StudentNumber string `json:"studentNumber"` // 学号
-	StudentID     int64  `json:"studentId"`     // 学生 ID
-	StudyNumber   string `json:"studyNumber"`   // 校内短学号
+	ID                    int64  `json:"id"`
+	Name                  string `json:"name"`
+	Initials              string `json:"initials"`              // 姓名首字母（如 "gNAME_INITIALS_REDACTED"）
+	Pinyin                string `json:"pinyin"`                // 姓名全拼
+	StudentNumber         string `json:"studentNumber"`         // 学号
+	StudentID             int64  `json:"studentId"`             // 学生 ID
+	StudyNumber           string `json:"studyNumber"`           // 校内短学号
 	NationalStudentNumber string `json:"nationalStudentNumber"` // 全国学号
 
 	// 学校 / 班级 / 年级
@@ -75,12 +75,12 @@ type UserInfo struct {
 	NativePlace    string `json:"nativePlace"`    // 籍贯
 
 	// 学籍状态
-	Status        int    `json:"status"`        // 学籍状态码
-	StatusName    string `json:"statusName"`    // 学籍状态名（如 "在籍"）
-	PositionID    int    `json:"positionId"`    // 职位 ID
-	PositionName  string `json:"positionName"`  // 职位名（常为 null）
-	YouthLeagueFlag    int `json:"youthLeagueFlag"`    // 团员标志（1=团员）
-	CriminalRecordFlag int `json:"criminalRecordFlag"` // 犯罪记录标志
+	Status             int    `json:"status"`             // 学籍状态码
+	StatusName         string `json:"statusName"`         // 学籍状态名（如 "在籍"）
+	PositionID         int    `json:"positionId"`         // 职位 ID
+	PositionName       string `json:"positionName"`       // 职位名（常为 null）
+	YouthLeagueFlag    int    `json:"youthLeagueFlag"`    // 团员标志（1=团员）
+	CriminalRecordFlag int    `json:"criminalRecordFlag"` // 犯罪记录标志
 
 	// 爱好
 	Hobbies string `json:"hobbies"`
@@ -109,27 +109,27 @@ type UserInfo struct {
 	UsedPoints  int `json:"usedPoints"`
 
 	// 其他
-	StudentUUID string `json:"studentUuid"` // 平台返回 null → ""
-	Raw         map[string]any `json:"-"`    // 完整原始数据
+	StudentUUID string         `json:"studentUuid"` // 平台返回 null → ""
+	Raw         map[string]any `json:"-"`           // 完整原始数据
 }
 
 // ─── 任务 ───
 
 // Task 是目标平台的一个任务条目。
 type Task struct {
-	ID            int64   `json:"id"`            // 任务 ID（即 circleTaskId）
-	Name          string  `json:"name"`           // 任务名称
-	CircleTypeID  int64   `json:"circleTypeId"`   // 圈子类型 ID
-	TypeName      string  `json:"typeName"`       // 类型名称
-	DimensionID   int64   `json:"dimensionId"`    // 维度 ID
-	DimensionName string  `json:"dimensionName"`  // 维度名称
-	Hours         float64 `json:"hours"`          // 学时
+	ID            int64   `json:"id"`               // 任务 ID（即 circleTaskId）
+	Name          string  `json:"name"`             // 任务名称
+	CircleTypeID  int64   `json:"circleTypeId"`     // 圈子类型 ID
+	TypeName      string  `json:"typeName"`         // 类型名称
+	DimensionID   int64   `json:"dimensionId"`      // 维度 ID
+	DimensionName string  `json:"dimensionName"`    // 维度名称
+	Hours         float64 `json:"hours"`            // 学时
 	Status        string  `json:"circleTaskStatus"` // 任务状态
-	PushNum       int     `json:"pushNum"`        // 推送次数
-	UpPic         int     `json:"upPic"`          // 1=需要图片
+	PushNum       int     `json:"pushNum"`          // 推送次数
+	UpPic         int     `json:"upPic"`            // 1=需要图片
 	Score         float64 `json:"score"`
-	StartDate     string  `json:"startDateStr"`    // 平台返回 "2026-01-12"（注意是 *Str 后缀，原始 startDate 是数组）
-	EndDate       string  `json:"endDateStr"`      // 平台返回 "2026-02-10"
+	StartDate     string  `json:"startDateStr"` // 平台返回 "2026-01-12"（注意是 *Str 后缀，原始 startDate 是数组）
+	EndDate       string  `json:"endDateStr"`   // 平台返回 "2026-02-10"
 	CreatorName   string  `json:"creatorName"`
 	RoleName      string  `json:"roleName"`
 	TermID        int64   `json:"termId"`
@@ -139,44 +139,44 @@ type Task struct {
 
 // TaskSubmitPayload 是 addCircle 接口的完整请求体（29 字段透传）。
 type TaskSubmitPayload struct {
-	ID                 *int64   `json:"id"`
-	Name               string   `json:"name"`
-	HostName           string   `json:"hostName"`
-	CircleDate         string   `json:"circleDate"`
-	Rank               string   `json:"rank"`
-	Level              string   `json:"level"`
-	Content            string   `json:"content"`
-	PictureList        []int64  `json:"pictureList"`
-	CircleTaskID       int64    `json:"circleTaskId"`
-	CircleTypeID       int64    `json:"circleTypeId"`
-	DimensionID        int64    `json:"dimensionId"`
-	Hours              float64  `json:"hours"`
-	CircleBeginDate    string   `json:"circleBeginDate"`
-	CircleEndDate      string   `json:"circleEndDate"`
-	CheckResult        string   `json:"checkResult"`
-	PatentType         string   `json:"patentType"`
-	PatentNum          string   `json:"patentNum"`
-	Address            string   `json:"address"`
-	TermName           string   `json:"termName"`
-	ActivityName       string   `json:"activityName"`
-	SportsName         string   `json:"sportsName"`
-	TeamName           string   `json:"teamName"`
-	OrgName            string   `json:"orgName"`
-	ResultsName        string   `json:"resultsName"`
-	ObtainTime         string   `json:"obtainTime"`
+	ID                  *int64  `json:"id"`
+	Name                string  `json:"name"`
+	HostName            string  `json:"hostName"`
+	CircleDate          string  `json:"circleDate"`
+	Rank                string  `json:"rank"`
+	Level               string  `json:"level"`
+	Content             string  `json:"content"`
+	PictureList         []int64 `json:"pictureList"`
+	CircleTaskID        int64   `json:"circleTaskId"`
+	CircleTypeID        int64   `json:"circleTypeId"`
+	DimensionID         int64   `json:"dimensionId"`
+	Hours               float64 `json:"hours"`
+	CircleBeginDate     string  `json:"circleBeginDate"`
+	CircleEndDate       string  `json:"circleEndDate"`
+	CheckResult         string  `json:"checkResult"`
+	PatentType          string  `json:"patentType"`
+	PatentNum           string  `json:"patentNum"`
+	Address             string  `json:"address"`
+	TermName            string  `json:"termName"`
+	ActivityName        string  `json:"activityName"`
+	SportsName          string  `json:"sportsName"`
+	TeamName            string  `json:"teamName"`
+	OrgName             string  `json:"orgName"`
+	ResultsName         string  `json:"resultsName"`
+	ObtainTime          string  `json:"obtainTime"`
 	SpecialtyTechnology string  `json:"specialtyTechnology"`
-	PlayRole           string   `json:"playRole"`
-	LikeSpecialty1     string   `json:"likeSpecialty1"`
-	LikeSpecialty2     string   `json:"likeSpecialty2"`
-	LikeSpecialty3     string   `json:"likeSpecialty3"`
+	PlayRole            string  `json:"playRole"`
+	LikeSpecialty1      string  `json:"likeSpecialty1"`
+	LikeSpecialty2      string  `json:"likeSpecialty2"`
+	LikeSpecialty3      string  `json:"likeSpecialty3"`
 }
 
 // ─── 任务提交结果 ───
 
 type TaskResult struct {
-	Code int               `json:"code"`
-	Msg  string            `json:"msg"`
-	Raw  map[string]any    `json:"-"`
+	Code int            `json:"code"`
+	Msg  string         `json:"msg"`
+	Raw  map[string]any `json:"-"`
 }
 
 // ─── 维度 ───

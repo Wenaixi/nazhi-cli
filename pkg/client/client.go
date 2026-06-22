@@ -98,6 +98,7 @@ func WithToken(token string) Option {
 //	    nazhicli.WithSSOBase("https://www.nazhisoft.com"),
 //	    nazhicli.WithTimeout(15*time.Second),
 //	)
+//
 // OCR 验证码识别器默认启用进程级单例（模型只解压一次）。
 func New(opts ...Option) *Client {
 	c := &Client{

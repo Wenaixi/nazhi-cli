@@ -1,9 +1,14 @@
 # nazhi-cli CI 工作流
 #
 # 触发条件:
-#   - push / PR → main 分支: 测试 + 跨平台构建
-#   - tag v*: 测试 + 跨平台构建 + GitHub Release 发布
+#   - push / PR → main 分支: 检测 + 单元测试 + 跨平台构建
+#   - tag v*: 检测 + 测试 + 构建 + 集成测试 + GitHub Release
 #   - 手动触发 (workflow_dispatch)
+#
+# 关键设计:
+#   - 检测 (check) 和跨平台构建 (build) 并行，最大化 CI 速度
+#   - 集成测试只在 tag 发布时跑（保护真实凭据）
+#   - 每个平台用 native runner（onnxruntime_go 强制 CGO）
 
 name: CI
 
@@ -14,14 +19,23 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      run_integration:
+        description: "运行真实环境集成测试（需要 secrets）"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 env:
   GO_VERSION: "1.26"
 
 jobs:
-  # ─── 代码质量 + 测试 ──────────────────────────
+  # ─── 1. 代码质量 + 单元测试 ─────────────────────
   check:
-    name: "检测 & 测试"
+    name: "检测 & 单元测试"
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -37,6 +51,9 @@ jobs:
           path: ~/.cache/golangci-lint
           key: golangci-lint-${{ runner.os }}
 
+      - name: 验证 go.mod 整洁
+        run: go mod tidy && git diff --exit-code go.mod go.sum
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
@@ -46,16 +63,25 @@ jobs:
       - name: go vet
         run: go vet ./...
 
-      - name: 测试（race 检测）
-        run: go test -count=1 -race -v ./...
+      - name: gofmt 检查
+        run: |
+          if [ "$(gofmt -l . | wc -l)" -gt 0 ]; then
+            echo "以下文件未格式化:"
+            gofmt -l .
+            exit 1
+          fi
 
-  # ─── 跨平台构建 ──────────────────────────────
-  # 关键：每个平台用 native runner，因为 onnxruntime_go 在 Linux/macOS 强制 CGO，
-  # 无法从其他 OS 交叉编译。
+      - name: 单元测试（race 检测）
+        run: go test -count=1 -race -v ./pkg/...
+
+      - name: 集成测试编译验证（不跑真实环境）
+        run: go test -tags=integration -run=^$ ./test/integration/...
+
+  # ─── 2. 跨平台构建（5 平台）─────────────────────
   build:
-    name: "编译 ${{ matrix.name }}"
-    needs: [check]
+    name: "构建 ${{ matrix.name }}"
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: Linux (amd64)
@@ -110,9 +136,19 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: ${{ matrix.cgo }}
         run: |
+          mkdir -p bin
           go build -ldflags="-s -w" \
             -o "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
             ./cmd/nazhi
+
+      - name: 验证二进制可执行
+        run: |
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} --version
+          else
+            chmod +x ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+            ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} --version
+          fi
 
       - name: 压缩产物
         uses: actions/upload-artifact@v4
@@ -121,11 +157,36 @@ jobs:
           path: bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
           if-no-files-found: error
 
-  # ─── Release (仅 tag v*) ────────────────────
+  # ─── 3. 集成测试（仅 tag + 手动触发）───────────
+  integration:
+    name: "真实环境集成测试"
+    if: ${{ startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && inputs.run_integration == 'true') }}
+    needs: [check]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache: true
+
+      - name: 真实环境集成测试
+        env:
+          NAZHI_USERNAME: ${{ secrets.NAZHI_USERNAME }}
+          NAZHI_PASSWORD: ${{ secrets.NAZHI_PASSWORD }}
+        run: |
+          if [ -z "$NAZHI_USERNAME" ] || [ -z "$NAZHI_PASSWORD" ]; then
+            echo "::warning::NAZHI_USERNAME 或 NAZHI_PASSWORD secret 未设置，跳过"
+            exit 0
+          fi
+          go test -tags=integration -count=1 -race -v -timeout=180s ./test/integration/...
+
+  # ─── 4. Release（仅 tag v*）─────────────────────
   release:
     name: "发布 Release"
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [build]
+    needs: [build, integration]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -147,10 +208,29 @@ jobs:
           done
           ls -lh release/
 
+      - name: 生成 SHA256 校验和
+        run: |
+          cd release
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:
           name: nazhi ${{ github.ref_name }}
-          body: "请查看 [CHANGELOG.md](./CHANGELOG.md) 了解更新详情。"
+          body: |
+            ## nazhi-cli ${{ github.ref_name }}
+
+            请查看 [CHANGELOG.md](../../blob/main/CHANGELOG.md) 了解更新详情。
+
+            ### 安装
+
+            下载对应平台的二进制文件即可使用。详细安装说明见 [README](../../blob/main/README.md)。
+
+            ### 校验
+
+            使用 SHA256SUMS 校验下载文件完整性。
           fail_on_unmatched_files: false
-          files: release/*
+          files: |
+            release/*
+            release/SHA256SUMS

@@ -1,0 +1,374 @@
+# SDK 参考 (pkg/client, pkg/types)
+
+nazhi-cli 的 Go SDK 提供纳智综合评价系统的完整编程接口。
+
+## 安装
+
+```bash
+go get github.com/Wenaixi/nazhi-cli/pkg/client
+go get github.com/Wenaixi/nazhi-cli/pkg/types
+```
+
+## 快速开始
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+    "os"
+    "time"
+
+    "github.com/Wenaixi/nazhi-cli/pkg/client"
+    "github.com/Wenaixi/nazhi-cli/pkg/types"
+)
+
+func main() {
+    // 创建 Client（OCR 默认启用、进程级单例）
+    c := client.New(
+        client.WithSSOBase("https://www.nazhisoft.com"),
+        client.WithBaseURL("http://139.159.205.146:8280"),
+        client.WithUploadURL("http://doc.nazhisoft.com"),
+        client.WithTimeout(30*time.Second),
+    )
+
+    ctx := context.Background()
+
+    // 1. 登录（学号密码从环境变量读取，不要硬编码）
+    resp, err := c.Login(ctx, types.LoginRequest{
+        Username: os.Getenv("NAZHI_USERNAME"),
+        Password: os.Getenv("NAZHI_PASSWORD"),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+    token := resp.Token
+
+    // 2. 激活业务 Session（HAR 对齐 4 步：/ + getMenu + getMenu + getMyInfo）
+    if _, err := c.ActivateSession(ctx, token); err != nil {
+        log.Fatal(err)
+    }
+
+    // 3. 业务操作
+    if info, err := c.GetMyInfo(ctx, token); err == nil {
+        log.Printf("欢迎 %s (%s)", info.Name, info.ClassName)
+    }
+
+    tasks, err := c.FetchTasks(ctx, token)
+    if err != nil {
+        log.Fatal(err)
+    }
+    log.Printf("共 %d 个任务", len(tasks))
+}
+```
+
+## Client 构造
+
+```go
+func New(opts ...Option) *Client
+```
+
+### Option 模式
+
+| Option | 说明 | 默认值 |
+|--------|------|--------|
+| `WithSSOBase(url)` | SSO 根地址 | `https://www.nazhisoft.com` |
+| `WithBaseURL(url)` | 业务 API 根地址 | `http://139.159.205.146:8280` |
+| `WithUploadURL(url)` | 文件上传服务器 | `http://doc.nazhisoft.com` |
+| `WithTimeout(d)` | HTTP 超时 | 15s |
+| `WithHTTPClient(hc)` | 自定义 http.Client | 默认带 cookie jar |
+| `WithLogger(l)` | 自定义 slog.Logger | stderr WARN 级别 |
+| `WithToken(t)` | 预置 X-Auth-Token（同时写 Header + Cookie） | 无 |
+| `WithCustomOCR(r)` | 自定义 OCR（仅测试用） | 进程级 ddddocr 单例 |
+
+### 并发安全
+
+每个 `Client` 实例拥有独立的 cookie jar，**天然并发安全**：
+
+```go
+var wg sync.WaitGroup
+for i := 0; i < 10; i++ {
+    wg.Add(1)
+    go func() {
+        defer wg.Done()
+        tasks, _ := c.FetchTasks(ctx, token)  // 安全
+    }()
+}
+wg.Wait()
+```
+
+## SDK 方法
+
+### 认证域 (auth.go)
+
+#### InitSession
+
+```go
+func (c *Client) InitSession(ctx context.Context) error
+```
+
+访问 SSO 登录页建立 `JSESSIONID` Cookie。一般由 `Login()` 内部调用。
+
+#### GetSchoolID
+
+```go
+func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID, schoolName string, err error)
+```
+
+根据学号查询学校 ID 和名称（无需登录）。返回示例：`"173", "福清一中"`。
+
+#### Login
+
+```go
+func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error)
+```
+
+完整 SSO 登录，自动处理 OCR 验证码：
+
+```go
+type LoginRequest struct {
+    SchoolID string // 可空，服务端自学号推断
+    Username string
+    Password string
+}
+
+type LoginResponse struct {
+    Token     string
+    ExpiresAt time.Time
+    RawData   map[string]any
+}
+```
+
+内部流程：`InitSession → GetSchoolID → kaptcha.jpg → OCR 重试 → validateCaptcha → validate → 302 提取 token`。
+
+### Session 域 (session.go)
+
+#### ActivateSession
+
+```go
+func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error)
+```
+
+激活业务 Session（**HAR 对齐 4 步**，必须按顺序否则后续接口返回空）：
+
+1. `GET /` — 初始化后端 Session
+2. `GET /api/studentInfo/getMenu`（Referer: `/homepage?token=xxx`）
+3. `GET /api/studentInfo/getMenu`（Referer: `/home`）
+4. `GET /api/studentInfo/getMyInfo` — 获取完整个人资料
+
+### 任务域 (task.go)
+
+#### FetchTasks
+
+```go
+func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, error)
+```
+
+拉取全部维度的任务列表。内部流程：`ActivateSession → getDimensions → 遍历 getCircleStatistics`。
+
+#### SubmitTask
+
+```go
+func (c *Client) SubmitTask(ctx context.Context, token string, payload types.TaskSubmitPayload) (*types.TaskResult, error)
+```
+
+提交一次任务。`payload` 是完整的 29 字段 `addCircle` 请求体，**SDK 不裁剪不处理**，透传给服务器。
+
+```go
+type TaskSubmitPayload struct {
+    ID                  *int64
+    Name                string
+    HostName            string
+    CircleDate          string
+    Rank                string
+    Level               string
+    Content             string  // AI 生成的心得体会
+    PictureList         []int64 // 上传图片 ID
+    CircleTaskID        int64
+    CircleTypeID        int64
+    DimensionID         int64
+    Hours               float64
+    CircleBeginDate     string
+    CircleEndDate       string
+    CheckResult         string
+    PatentType          string
+    PatentNum           string
+    Address             string
+    TermName            string
+    ActivityName        string
+    SportsName          string
+    TeamName            string
+    OrgName             string
+    ResultsName         string
+    ObtainTime          string
+    SpecialtyTechnology string
+    PlayRole            string
+    LikeSpecialty1      string
+    LikeSpecialty2      string
+    LikeSpecialty3      string
+}
+```
+
+**任务类型字段差异**（HAR 验证）：
+
+| 字段 | 劳动 | 军训 | 班会 | 通用 |
+|------|------|------|------|------|
+| `name` | 任务原名 | `""` | `"班会"` | 任务原名 |
+| `level` | `"5"` | `""` | `""` | `""` |
+| `checkResult` | `""` | `"1"` | `""` | `""` |
+| `address` | 学校名 | 学校名 | 班级名 | `""` |
+| `orgName` | 学校名 | 学校名 | `""` | `""` |
+| `playRole` | `""` | `""` | `"3"` | `"3"` |
+| `hours` | `2.0` | `32.0` | `1.0` | `0.5` |
+
+#### GetDimensions
+
+```go
+func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimension, error)
+```
+
+获取任务维度列表（思想品德、学业水平、身心健康等）。
+
+#### GetCircleTypeByTaskId
+
+```go
+func (c *Client) GetCircleTypeByTaskId(ctx context.Context, token string, taskID int64) (*map[string]any, error)
+```
+
+按任务 ID 查询圈子类型信息。
+
+### 自我评价域 (self_eval.go)
+
+#### SubmitSelfEvaluation
+
+```go
+func (c *Client) SubmitSelfEvaluation(ctx context.Context, token, comment string) error
+```
+
+提交自我评价文本。
+
+#### QuerySelfEvaluation
+
+```go
+func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.SelfEvalStatus, error)
+```
+
+查询自我评价状态 + 教师评语。
+
+#### QuerySelfGradEvaluation
+
+```go
+func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error)
+```
+
+查询学期评价。
+
+### 用户域 (user.go)
+
+#### GetMyInfo
+
+```go
+func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error)
+```
+
+获取完整个人资料（51 字段：姓名、学号、学校、年级、班级、座号、性别、出生日期等）。
+
+### 文件域 (file.go)
+
+#### UploadFile
+
+```go
+func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
+```
+
+上传图片到文件服务器，返回图片 ID。
+
+**关键约束**：
+- ⚠️ **不发送任何 Token/Cookie**（文件服务器独立，发送反而被风控）
+- SDK 内部使用独立 `http.Client`（无 cookie jar）
+- 上传前自动预处理：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB
+
+支持格式：JPEG、PNG、GIF（取首帧）、WEBP。BMP 需先转换。
+
+## 错误处理
+
+所有 SDK 错误都是 `error` 类型，可通过 `errors.Is` 判断：
+
+```go
+import "errors"
+
+_, err := c.Login(ctx, req)
+switch {
+case errors.Is(err, client.ErrLoginRejected):
+    // 学号/密码错误
+case errors.Is(err, client.ErrNetwork):
+    // 网络问题（超时/DNS/断连）
+case errors.Is(err, client.ErrFileTooLarge):
+    // 图片 > 5MB
+case errors.Is(err, client.ErrInvalidPayload):
+    // payload 字段缺失
+}
+```
+
+| 哨兵错误 | 说明 |
+|---------|------|
+| `ErrLoginRejected` | 登录失败（凭证错、验证码错） |
+| `ErrNetwork` | 网络错误 |
+| `ErrUploadRejected` | 上传被服务器拒绝 |
+| `ErrFileTooLarge` | 文件 > 5MB |
+| `ErrInvalidPayload` | 任务 payload 字段缺失 |
+
+## 高级用法
+
+### 替换 HTTP 客户端
+
+```go
+c := client.New(
+    client.WithHTTPClient(&http.Client{
+        Timeout: 30 * time.Second,
+        Transport: &http.Transport{
+            MaxIdleConns:    100,
+            IdleConnPerHost: 10,
+            IdleConnTimeout: 60 * time.Second,
+        },
+    }),
+)
+```
+
+⚠️ 注意：替换后 `syncCookieToken` 假设新 client 有 `*cookiejar.Jar`，否则 token 同步会失败。
+
+### 自定义 Logger
+
+```go
+import "log/slog"
+
+logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+c := client.New(
+    client.WithLogger(logger),
+    client.WithToken(token),
+)
+// 失败时可通过 logger.Debug 看到详细 HTTP 请求
+```
+
+### 注入 Mock OCR（测试用）
+
+```go
+type mockOCR struct{ text string }
+func (m *mockOCR) Recognize(_ []byte) (string, error) { return m.text, nil }
+
+c := client.New(
+    client.WithCustomOCR(&mockOCR{text: "AB12"}),
+)
+```
+
+## 类型定义 (pkg/types)
+
+详见 [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) 源码注释，包含：
+
+- `LoginRequest` / `LoginResponse`
+- `Task` / `TaskSubmitPayload` / `TaskResult`
+- `UserInfo`（51 字段）
+- `SelfEvalStatus` / `SelfGradStatus`
+- `Dimension`
+- `UnifiedResponse` + 泛型辅助 `DecodeReturnData[T]` / `DecodeDataList[T]` / `DecodeDataMap[T]`

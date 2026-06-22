@@ -1,10 +1,10 @@
-// cmd/nazhi/main.go — nazhi CLI 入口 (cobra root)
 package main
 
 import (
 	"fmt"
 	"os"
 
+	"github.com/Wenaixi/nazhi-cli/internal/version"
 	"github.com/spf13/cobra"
 )
 
@@ -15,8 +15,9 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "nazhi",
-	Short: "nazhi — 纳智综合评价自动化 CLI",
+	Use:     "nazhi",
+	Short:   "nazhi — 纳智综合评价自动化 CLI",
+	Version: version.Version,
 	Long: `nazhi 是纳智综合评价自动化系统的命令行工具。
 
 提供登录、任务管理、自我评价、文件上传等完整功能。
@@ -46,21 +47,21 @@ func init() {
 	rootCmd.AddCommand(schoolCmd)
 
 	// session
-	rootCmd.AddCommand(sessionCmd)       // session parent
+	rootCmd.AddCommand(sessionCmd) // session parent
 	sessionCmd.AddCommand(sessionActivateCmd)
 
 	// task
-	rootCmd.AddCommand(taskCmd)          // task parent
+	rootCmd.AddCommand(taskCmd) // task parent
 	taskCmd.AddCommand(taskListCmd)
 	taskCmd.AddCommand(taskSubmitCmd)
 
 	// self-eval
-	rootCmd.AddCommand(selfEvalCmd)       // self-eval parent
+	rootCmd.AddCommand(selfEvalCmd) // self-eval parent
 	selfEvalCmd.AddCommand(selfEvalSubmitCmd)
 	selfEvalCmd.AddCommand(selfEvalStatusCmd)
 
 	// file
-	rootCmd.AddCommand(fileCmd)          // file parent
+	rootCmd.AddCommand(fileCmd) // file parent
 	fileCmd.AddCommand(fileUploadCmd)
 
 	// whoami
