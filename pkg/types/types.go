@@ -136,8 +136,8 @@ type Task struct {
 	PushNum       int     `json:"pushNum"`        // 推送次数
 	UpPic         int     `json:"upPic"`          // 1=需要图片
 	Score         float64 `json:"score"`
-	StartDate     string  `json:"startDate"`
-	EndDate       string  `json:"endDate"`
+	StartDate     string  `json:"startDateStr"`    // 平台返回 "2026-01-12"（注意是 *Str 后缀，原始 startDate 是数组）
+	EndDate       string  `json:"endDateStr"`      // 平台返回 "2026-02-10"
 	CreatorName   string  `json:"creatorName"`
 	RoleName      string  `json:"roleName"`
 	TermID        int64   `json:"termId"`
