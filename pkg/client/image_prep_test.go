@@ -6,6 +6,10 @@ import (
 	"image/color"
 	"image/jpeg"
 	"image/png"
+	"net/http"
+	"net/http/cookiejar"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"testing"
 	"time"
@@ -143,4 +147,63 @@ func TestPrepareImage_GifStatic(t *testing.T) {
 	if err != nil {
 		t.Logf("GIF 测试跳过: %v", err)
 	}
+}
+
+// ─── 测试: UploadFile 不发送任何鉴权 Header ───
+
+// 验证即使 cookie jar 已被注入 X-Auth-Token，HTTP 请求也不携带任何鉴权头
+func TestUploadFile_NoAuthHeaders(t *testing.T) {
+	var seenHeaders http.Header
+	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		seenHeaders = r.Header.Clone()
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"code":1,"returnData":{"id":67890}}`))
+	}))
+	defer upload.Close()
+
+	// 创建带 X-Auth-Token 的 Client（模拟"复用了已登录 Client"的最坏情况）
+	c := New(WithUploadURL(upload.URL), WithTimeout(5*time.Second))
+	jar, ok := c.http.Jar.(*cookiejar.Jar)
+	if ok {
+		u, _ := url.Parse(upload.URL)
+		jar.SetCookies(u, []*http.Cookie{
+			{Name: "X-Auth-Token", Value: "fake-leaked-token-should-not-be-sent"},
+			{Name: "JSESSIONID", Value: "fake-session"},
+		})
+	}
+
+	// 创建测试 PNG
+	tmpfile := t.TempDir() + "/test-noauth.png"
+	img := image.NewRGBA(image.Rect(0, 0, 50, 50))
+	for y := 0; y < 50; y++ {
+		for x := 0; x < 50; x++ {
+			img.Set(x, y, color.RGBA{0, 255, 0, 255})
+		}
+	}
+	f, _ := os.Create(tmpfile)
+	if err := png.Encode(f, img); err != nil {
+		f.Close()
+		t.Fatalf("编码失败: %v", err)
+	}
+	f.Close()
+
+	_, err := c.UploadFile(t.Context(), tmpfile)
+	if err != nil {
+		t.Fatalf("UploadFile 失败: %v", err)
+	}
+
+	// 1. X-Auth-Token Header 没发送
+	if v := seenHeaders.Get("X-Auth-Token"); v != "" {
+		t.Errorf("❌ 检测到 X-Auth-Token Header 被发送: %q", v)
+	}
+	// 2. Authorization Header 没发送
+	if v := seenHeaders.Get("Authorization"); v != "" {
+		t.Errorf("❌ 检测到 Authorization Header 被发送: %q", v)
+	}
+	// 3. Cookie Header 没发送（清空所有 cookie）
+	if v := seenHeaders.Get("Cookie"); v != "" {
+		t.Errorf("❌ 检测到 Cookie Header 被发送: %q", v)
+	}
+	t.Logf("✓ UploadFile 正确未发送任何鉴权 Header（X-Auth-Token/Authorization/Cookie）")
 }

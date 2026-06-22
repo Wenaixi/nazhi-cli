@@ -15,26 +15,15 @@ var schoolCmd = &cobra.Command{
 	Use:   "school",
 	Short: "查询学校 ID（不登录）",
 	Long:  `根据学号查询对应的学校 ID 和学校名称。不需要登录，只需建立 SSO Session。`,
-	Example: `  nazhi school -u 学号
-  nazhi school -u 学号 --sso-base https://www.nazhisoft.com`,
+	Example: `  nazhi school -u TEST2025001
+  nazhi school -u TEST2025001 --sso-base https://www.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
 		username, _ := cmd.Flags().GetString("username")
 		ssoBase, _ := cmd.Flags().GetString("sso-base")
 		timeoutSec, _ := cmd.Flags().GetInt("timeout")
 
-		// 环境变量 fallback
 		if username == "" {
-			username = envString("NAZHI_USERNAME", "")
-		}
-		if ssoBase == "" {
-			ssoBase = envString("NAZHI_SSO_BASE", "")
-		}
-		if timeoutSec == 15 {
-			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
-		}
-
-		if username == "" {
-			printError(fmt.Errorf("--username 为必填（也可通过 NAZHI_USERNAME 环境变量设置）"))
+			printError(fmt.Errorf("--username 为必填"))
 			return
 		}
 
