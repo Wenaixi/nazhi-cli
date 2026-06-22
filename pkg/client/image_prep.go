@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"image"
 	"image/color"
@@ -9,79 +10,144 @@ import (
 	"image/gif"
 	"image/jpeg"
 	"image/png"
+	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/disintegration/imaging"
+	// 注册 WEBP 解码器（golang.org/x/image 是 disintegration/imaging 的间接依赖）
+	_ "golang.org/x/image/webp"
 )
 
-// MaxImageSize 是上传前图片压缩的目标上限（5MB，主人指定）。
-// 平台实测单图 56KB~79KB，5MB 留足安全余量；与 v2 backend file.go 限额一致。
-const MaxImageSize = 5 * 1024 * 1024 // 5MB = 5242880 bytes
+// MaxImageSize 默认压缩目标上限（5MB）。
+const MaxImageSize = 5 * 1024 * 1024
 
-// 质量级联（对齐 v1 策略：先降质量后缩尺寸）。
-var qualitySteps = []int{80, 60, 40}
-
-// 缩放级联（每步 ×0.7，对齐 v1）。
-var scaleFactors = []float64{0.9, 0.63, 0.441, 0.309, 0.216, 0.151, 0.106}
-
-// MinImageDimension 缩放下限（像素），避免图片过小。
+// MinImageDimension 缩放下限（像素），低于此值停止缩放。
 const MinImageDimension = 10
 
-// prepareImageForUpload 读取本地图片并预处理为符合平台要求的 JPG 字节流。
+// qualitySteps 质量级联：先降质量后缩尺寸。
+// 92 起步是默认值，平台 56-79KB 实测用 40 足够。
+var qualitySteps = []int{80, 60, 40}
+
+// scaleFactors 缩放级联（每步 ×0.7 指数衰减）。
+var scaleFactors = []float64{0.9, 0.63, 0.441, 0.309, 0.216, 0.151, 0.106}
+
+// ErrImageTooLarge 压缩后仍超过 MaxImageSize。
+var ErrImageTooLarge = errors.New("image: 压缩后仍超过目标大小")
+
+// ErrUnsupportedFormat 不支持的图片格式。
+var ErrUnsupportedFormat = errors.New("image: 不支持的格式")
+
+// PrepStats 记录图片预处理的统计信息（便于调试和日志）。
+type PrepStats struct {
+	OriginalSize   int    // 原始文件大小（字节）
+	OutputSize     int    // 压缩后大小（字节）
+	OriginalWidth  int    // 原始宽度
+	OriginalHeight int    // 原始高度
+	OutputWidth    int    // 输出宽度
+	OutputHeight   int    // 输出高度
+	InputFormat    string // 输入格式（png/jpeg/gif/webp）
+	OutputFormat   string // 输出格式（固定 jpeg）
+	QualityUsed    int    // 最终使用的质量（40/60/80/92）
+	Scaled         bool   // 是否经过缩放
+	Flattened      bool   // 是否经过透明合成
+}
+
+// CompressionRatio 返回压缩比（0-1，0.3 表示压缩到 30%）。
+func (s PrepStats) CompressionRatio() float64 {
+	if s.OriginalSize == 0 {
+		return 1
+	}
+	return float64(s.OutputSize) / float64(s.OriginalSize)
+}
+
+// prepResult 内部结果（包含字节流和统计）。
+type prepResult struct {
+	Data  []byte
+	MIME  string
+	Stats PrepStats
+}
+
+// prepareImageForUpload 读取本地图片，预处理为符合平台要求的 JPG 字节流。
 //
-// 预处理流程（对齐 v1 utils/image_convert.py 的 ensure_jpg + compress_image）：
-//  1. 解码任意格式（PNG / JPEG / GIF / BMP / WEBP）
-//  2. 透明通道 → 合成白底（兼容 RGBA / LA / transparency info）
-//  3. 动画 GIF → 取第 0 帧
-//  4. 编码为 JPG（quality=92, optimize=true）
-//  5. 质量级联压缩：92 → 80 → 60 → 40
-//  6. 仍超 1MB → 等比缩放（0.9 → 0.63 → 0.44 → ...）
-//  7. 输出 ≤ 1MB 的 JPG 字节流 + MIME type
+// 流程：
+//  1. sniff 文件格式（magic bytes 优先，扩展名兜底）
+//  2. 解码 + 透明合成 + 动画取首帧
+//  3. 编码为 JPG（quality=92 起步）
+//  4. 质量级联 → 缩放级联 → 输出
 //
-// 不会修改原文件，所有处理在内存中完成。
+// 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
-	// 1. 打开并解码
+	result, err := c.prepareImageWithStats(path)
+	if err != nil {
+		return nil, "", err
+	}
+	return result.Data, result.MIME, nil
+}
+
+// prepareImageWithStats 与 prepareImageForUpload 相同但返回详细统计。
+func (c *Client) prepareImageWithStats(path string) (*prepResult, error) {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("文件不存在: %w", err)
+	}
+
 	img, format, err := decodeImage(path)
 	if err != nil {
-		return nil, "", fmt.Errorf("图片解码失败: %w", err)
+		return nil, err
 	}
 
-	// 2. 动画 GIF 取第 0 帧
-	if format == "gif" {
-		if g, ok := img.(*image.Paletted); ok {
-			img = imaging.Clone(g) // 静态化
-		}
+	stats := PrepStats{
+		OriginalSize:   int(fileInfo.Size()),
+		OriginalWidth:  img.Bounds().Dx(),
+		OriginalHeight: img.Bounds().Dy(),
+		InputFormat:    format,
+		OutputFormat:   "jpeg",
 	}
 
-	// 3. 透明通道 → 白底合成
-	if hasTransparency(img) {
+	// 动画取首帧 + 透明合成
+	flattened := hasTransparency(img)
+	if format == "gif" && flattened {
+		img = imaging.Clone(img)
+		flattened = false
+	}
+	if flattened {
 		img = flattenOnWhite(img)
+		stats.Flattened = true
 	}
 
-	// 4. 编码为 JPG（quality=92 起步）
+	// 尝试用 92 起步
 	data, err := encodeJPEG(img, 92)
 	if err != nil {
-		return nil, "", fmt.Errorf("编码 JPG 失败: %w", err)
+		return nil, fmt.Errorf("JPG 编码失败: %w", err)
 	}
 
-	// 5. 检查大小，已满足则直接返回
+	// 已满足
 	if len(data) <= MaxImageSize {
-		return data, "image/jpeg", nil
+		stats.QualityUsed = 92
+		stats.OutputSize = len(data)
+		stats.OutputWidth = img.Bounds().Dx()
+		stats.OutputHeight = img.Bounds().Dy()
+		return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
 	}
 
-	// 6. 质量级联压缩
+	// 质量级联
 	for _, q := range qualitySteps {
 		data, err = encodeJPEG(img, q)
 		if err != nil {
-			return nil, "", fmt.Errorf("质量 %d 编码失败: %w", q, err)
+			return nil, fmt.Errorf("质量 %d 编码失败: %w", q, err)
 		}
 		if len(data) <= MaxImageSize {
-			return data, "image/jpeg", nil
+			stats.QualityUsed = q
+			stats.OutputSize = len(data)
+			stats.OutputWidth = img.Bounds().Dx()
+			stats.OutputHeight = img.Bounds().Dy()
+			return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
 		}
 	}
 
-	// 7. 仍超 1MB → 等比缩放（保持当前质量 40）
+	// 缩放级联（保持质量 40）
 	for _, scale := range scaleFactors {
 		w := int(float64(img.Bounds().Dx()) * scale)
 		h := int(float64(img.Bounds().Dy()) * scale)
@@ -94,62 +160,97 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 			continue
 		}
 		if len(data) <= MaxImageSize {
-			return data, "image/jpeg", nil
+			stats.QualityUsed = 40
+			stats.Scaled = true
+			stats.OutputSize = len(data)
+			stats.OutputWidth = resized.Bounds().Dx()
+			stats.OutputHeight = resized.Bounds().Dy()
+			return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
 		}
 	}
 
-	// 8. 最后兜底：即使缩到最小仍超 1MB，强制返回当前最小结果
-	// 这种情况极少见（如 2000×2000 像素的复杂图），用户应手动压
-	return data, "image/jpeg", nil
+	// 兜底：返回当前最小结果
+	stats.QualityUsed = 40
+	stats.Scaled = true
+	stats.OutputSize = len(data)
+	if data == nil {
+		return nil, ErrImageTooLarge
+	}
+	return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
 }
 
-// decodeImage 解码任意支持的图片格式。
+// decodeImage sniff 文件 magic bytes 解码任意格式。
+// 优先用 magic bytes 检测，避免依赖扩展名（用户可能给 .dat 文件）。
 func decodeImage(path string) (image.Image, string, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, "", err
+		return nil, "", fmt.Errorf("打开图片失败: %w", err)
 	}
 	defer f.Close()
 
-	// 先 sniff 格式（用扩展名兜底）
-	ext := strings.ToLower(strings.TrimPrefix(extOf(path), "."))
-	var format string
-	switch ext {
-	case "jpg", "jpeg":
-		format = "jpeg"
-	case "png":
-		format = "png"
-	case "gif":
-		format = "gif"
-	case "bmp":
-		format = "bmp"
-	default:
-		// 尝试通过 Read 嗅探
-		img, fmtName, err := image.Decode(f)
-		return img, fmtName, err
+	// magic bytes sniff
+	var head [12]byte
+	n, _ := io.ReadFull(f, head[:])
+	if n == 0 {
+		return nil, "", errors.New("文件为空")
 	}
 
-	// 重新打开以重置 reader
-	f2, err := os.Open(path)
-	if err != nil {
-		return nil, "", err
+	format := sniffFormat(head[:n])
+	if format == "" {
+		// 用扩展名兜底
+		format = strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
 	}
-	defer f2.Close()
+
+	// 重置 reader
+	if _, err := f.Seek(0, io.SeekStart); err != nil {
+		return nil, "", fmt.Errorf("读取图片失败: %w", err)
+	}
 
 	switch format {
-	case "jpeg":
-		img, err := jpeg.Decode(f2)
+	case "jpeg", "jpg":
+		img, err := jpeg.Decode(f)
 		return img, "jpeg", err
 	case "png":
-		img, err := png.Decode(f2)
+		img, err := png.Decode(f)
 		return img, "png", err
 	case "gif":
-		img, err := gif.Decode(f2)
+		img, err := gif.Decode(f)
 		return img, "gif", err
+	case "webp":
+		img, err := decodeWebP(f)
+		return img, "webp", err
 	case "bmp":
-		return nil, "", fmt.Errorf("BMP 暂不支持（请转换为 PNG/JPG）")
+		// stdlib 无 BMP 解码，提示用户转换
+		return nil, "", fmt.Errorf("%w: BMP（请先用图片工具转为 PNG/JPG）", ErrUnsupportedFormat)
 	}
-	return nil, "", fmt.Errorf("不支持的图片格式: %s", ext)
+	return nil, "", fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
+}
+
+// sniffFormat 通过文件头 magic bytes 识别格式。
+func sniffFormat(head []byte) string {
+	if len(head) >= 3 && head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF {
+		return "jpeg"
+	}
+	if len(head) >= 8 && head[0] == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G' {
+		return "png"
+	}
+	if len(head) >= 6 && (string(head[:6]) == "GIF87a" || string(head[:6]) == "GIF89a") {
+		return "gif"
+	}
+	// WEBP: "RIFF" + 4 bytes + "WEBP"
+	if len(head) >= 12 && string(head[0:4]) == "RIFF" && string(head[8:12]) == "WEBP" {
+		return "webp"
+	}
+	return ""
+}
+
+// decodeWebP 包装 webp.Decode 并提供友好错误。
+func decodeWebP(r io.Reader) (image.Image, error) {
+	img, err := imaging.Decode(r)
+	if err != nil {
+		return nil, fmt.Errorf("WEBP 解码失败: %w", err)
+	}
+	return img, nil
 }
 
 // hasTransparency 检测图片是否含透明通道。
@@ -165,35 +266,20 @@ func hasTransparency(img image.Image) bool {
 	return false
 }
 
-// flattenOnWhite 将含透明通道的图片合成到白底 RGBA 图上（对齐 v1）。
+// flattenOnWhite 将含透明通道的图片合成到白底 RGBA 图上。
 func flattenOnWhite(src image.Image) image.Image {
 	bounds := src.Bounds()
 	dst := image.NewRGBA(bounds)
-	// 先填白底
 	draw.Draw(dst, bounds, image.NewUniform(color.White), image.Point{}, draw.Src)
-	// 再叠加原图（透明处自动透出白底）
 	draw.Draw(dst, bounds, src, bounds.Min, draw.Over)
 	return dst
 }
 
-// encodeJPEG 编码为 JPG 字节流，使用 optimize 模式（对齐 v1）。
+// encodeJPEG 编码为 JPG 字节流。
 func encodeJPEG(img image.Image, quality int) ([]byte, error) {
 	var buf bytes.Buffer
 	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
 		return nil, err
 	}
 	return buf.Bytes(), nil
-}
-
-// extOf 提取文件扩展名（不含点）。
-func extOf(path string) string {
-	for i := len(path) - 1; i >= 0 && i >= len(path)-10; i-- {
-		if path[i] == '.' {
-			return path[i+1:]
-		}
-		if path[i] == '/' || path[i] == '\\' {
-			return ""
-		}
-	}
-	return ""
 }

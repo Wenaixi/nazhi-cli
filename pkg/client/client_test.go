@@ -191,7 +191,7 @@ func TestLogin(t *testing.T) {
 	c := newTestClientWithOCR(sso, "AB12", nil)
 	resp, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "TEST2025001",
-		Password: "TestPass123",
+		Password: "689050",
 	})
 	if err != nil {
 		t.Fatalf("Login 失败: %v", err)
@@ -299,7 +299,7 @@ func TestActivateSession(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
 				"name":          "张三",
-				"studentNumber": "S1234567890",
+				"studentNumber": "TEST2025001",
 				"schoolName":    "福清一中",
 				"gradeName":     "高一",
 				"className":     "八班",
@@ -380,7 +380,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		"name":                  "张三",
 		"initials":              "gNAME_INITIALS_REDACTED",
 		"pinyin":                "gaNAME_PINYIN_REDACTED",
-		"studentNumber":         "S1234567890",
+		"studentNumber":         "TEST2025001",
 		"studentId":             38STUDENT_ID_REDACTED,
 		"schoolId":              173,
 		"positionId":            0,
@@ -412,7 +412,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		"youthLeagueFlag":       1,
 		"hobbies":               "",
 		"criminalRecordFlag":    0,
-		"nationalStudentNumber": "S1234567890",
+		"nationalStudentNumber": "TEST2025001",
 		"registrationNumber":    "",
 		"studyNumber":           "STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED",
 		"photoAttachmentId":     nil,
@@ -443,7 +443,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	}
 
 	// 基础身份
-	if info.ID != 32USER_ID_REDACTED || info.Name != "张三" || info.StudentNumber != "S1234567890" {
+	if info.ID != 32USER_ID_REDACTED || info.Name != "张三" || info.StudentNumber != "TEST2025001" {
 		t.Errorf("基础身份字段错误: id=%d name=%s studentNumber=%s", info.ID, info.Name, info.StudentNumber)
 	}
 	if info.Initials != "gNAME_INITIALS_REDACTED" || info.Pinyin != "gaNAME_PINYIN_REDACTED" {
@@ -452,7 +452,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	if info.StudentID != 38STUDENT_ID_REDACTED || info.StudyNumber != "STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED" {
 		t.Errorf("学生 ID 错误: studentId=%d studyNumber=%s", info.StudentID, info.StudyNumber)
 	}
-	if info.NationalStudentNumber != "S1234567890" {
+	if info.NationalStudentNumber != "TEST2025001" {
 		t.Errorf("全国学号错误: %s", info.NationalStudentNumber)
 	}
 
@@ -770,7 +770,7 @@ func TestConcurrentLoginIsolation(t *testing.T) {
 			c := newTestClientWithOCR(sso, "AB12", nil)
 			_, err := c.Login(context.Background(), types.LoginRequest{
 				Username: "TEST2025001",
-				Password: "TestPass123",
+				Password: "689050",
 			})
 			errs <- err
 		}()
@@ -781,4 +781,3 @@ func TestConcurrentLoginIsolation(t *testing.T) {
 		}
 	}
 }
-
