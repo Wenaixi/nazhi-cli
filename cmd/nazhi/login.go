@@ -28,8 +28,22 @@ var loginCmd = &cobra.Command{
 		ssoBase, _ := cmd.Flags().GetString("sso-base")
 		timeoutSec, _ := cmd.Flags().GetInt("timeout")
 
+		// 环境变量 fallback（命令行标志优先）
+		if username == "" {
+			username = envString("NAZHI_USERNAME", "")
+		}
+		if password == "" {
+			password = envString("NAZHI_PASSWORD", "")
+		}
+		if ssoBase == "" {
+			ssoBase = envString("NAZHI_SSO_BASE", "")
+		}
+		if timeoutSec == 15 {
+			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
+		}
+
 		if username == "" || password == "" {
-			printError(fmt.Errorf("--username 和 --password 为必填"))
+			printError(fmt.Errorf("--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
 			return
 		}
 

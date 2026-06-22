@@ -56,3 +56,9 @@ $RECYCLE.BIN/
 
 # 意外创建的目录（git 展开环境变量导致的）
 %userprofile%/
+
+# ─── 凭据与运行时配置 ─────────
+# .env 含真实学号密码，绝不提交
+.env
+.env.local
+.env.*.local
