@@ -35,7 +35,7 @@ var sessionActivateCmd = &cobra.Command{
 		if baseURL == "" {
 			baseURL = envString("NAZHI_BASE_URL", "")
 		}
-		if timeoutSec == 15 {
+		if !flagChanged(cmd, "timeout") {
 			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
 		}
 

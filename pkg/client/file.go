@@ -59,7 +59,14 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	//
 	// 即使用户复用了已登录的 Client（cookie jar 里有 X-Auth-Token），
 	// 这里也用全新的 client.Do() 发请求，确保不会泄露任何 Cookie。
-	cleanClient := &http.Client{Timeout: c.http.Timeout}
+	// 同时禁用自动重定向（CheckRedirect=ErrUseLastResponse），与 SSO 流程策略一致，
+	// 防止 302 跳转到第三方主机时附带请求头。
+	cleanClient := &http.Client{
+		Timeout: c.http.Timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 
 	resp, err := cleanClient.Do(req)
 	if err != nil {

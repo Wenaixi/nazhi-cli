@@ -113,14 +113,6 @@ type UserInfo struct {
 	Raw         map[string]any `json:"-"`    // 完整原始数据
 }
 
-// ─── 学校 ───
-
-// SchoolInfo 是目标平台的学校基本信息。
-type SchoolInfo struct {
-	SchoolID   string `json:"school_id"`
-	SchoolName string `json:"school_name"`
-}
-
 // ─── 任务 ───
 
 // Task 是目标平台的一个任务条目。
@@ -209,10 +201,4 @@ type SelfEvalStatus struct {
 	EvalRecordID   int64  `json:"id"`
 }
 
-// ─── 会话激活结果 ───
-
-// SessionInfo 是 ActivateSession 的返回信息。
-type SessionInfo struct {
-	UserInfo *UserInfo `json:"user_info"`
-	Raw      map[string]any `json:"-"`
-}
+// ─── 凭据相关 ───

@@ -24,11 +24,13 @@ func (c *Client) InitSession(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("InitSession 失败: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("InitSession 返回非 200: %d", resp.StatusCode)
 	}
-	_, _ = io.Copy(io.Discard, resp.Body)
 	return nil
 }
 
@@ -240,16 +242,34 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context, retries int) (string
 // ─── 内部辅助 ───
 
 // extractTokenFromLocation 从 302 Location 头中提取 token 查询参数。
+// 使用 net/url 解析，正确处理 URL encoding、fragment、复杂 query。
 func extractTokenFromLocation(location string) string {
-	idx := strings.Index(location, "token=")
-	if idx == -1 {
+	u, err := url.Parse(location)
+	if err != nil {
 		return ""
 	}
-	token := location[idx+6:]
-	if ampIdx := strings.Index(token, "&"); ampIdx != -1 {
-		token = token[:ampIdx]
+	// 优先 query 参数
+	if token := u.Query().Get("token"); token != "" {
+		return token
 	}
-	return token
+	// 兜底：fragment 中也可能有 token（HAR 验证发现个别场景）
+	if u.Fragment != "" {
+		if fToken := extractTokenFromFragment(u.Fragment); fToken != "" {
+			return fToken
+		}
+	}
+	return ""
+}
+
+// extractTokenFromFragment 从 fragment 字符串中提取 token。
+func extractTokenFromFragment(fragment string) string {
+	parts := strings.Split(fragment, "&")
+	for _, p := range parts {
+		if strings.HasPrefix(p, "token=") {
+			return strings.TrimPrefix(p, "token=")
+		}
+	}
+	return ""
 }
 
 // extractTokenFromReturnData 尝试从统一响应的 returnData 中提取 token。

@@ -172,8 +172,12 @@ func (c *Client) prepareImageWithStats(path string) (*prepResult, error) {
 	// 兜底：返回当前最小结果
 	stats.QualityUsed = 40
 	stats.Scaled = true
-	stats.OutputSize = len(data)
 	if data == nil {
+		return nil, ErrImageTooLarge
+	}
+	stats.OutputSize = len(data)
+	// 兜底前检查大小，若仍超限返回错误（避免首次 break 就兜底的边界 bug）
+	if len(data) > MaxImageSize {
 		return nil, ErrImageTooLarge
 	}
 	return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil

@@ -33,7 +33,7 @@ var selfEvalSubmitCmd = &cobra.Command{
 		if baseURL == "" {
 			baseURL = envString("NAZHI_BASE_URL", "")
 		}
-		if timeoutSec == 15 {
+		if !flagChanged(cmd, "timeout") {
 			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
 		}
 
@@ -42,9 +42,13 @@ var selfEvalSubmitCmd = &cobra.Command{
 			return
 		}
 
-		// 从 stdin 读取评论
+		// 从 stdin 读取评论（非 TTY 环境如 CI 直接读取，不阻塞）
 		if comment == "" || comment == "-" {
-			fmt.Fprint(os.Stderr, "请输入自我评价内容（Ctrl+D 结束）: ")
+			// CI 环境下 stdin 不是字符设备，直接读取而不等待用户输入
+			isTerminal := isTerminalStdin()
+			if isTerminal {
+				fmt.Fprint(os.Stderr, "请输入自我评价内容（Ctrl+D 结束）: ")
+			}
 			reader := bufio.NewReader(os.Stdin)
 			input, _ := reader.ReadString('\n')
 			comment = strings.TrimSpace(input)

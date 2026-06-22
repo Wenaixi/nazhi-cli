@@ -98,8 +98,15 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 
 	c.logDebug("→ %s %s", method, url)
 	for k, v := range req.Header {
+		if len(v) == 0 {
+			continue
+		}
 		if k == "X-Auth-Token" {
-			c.logDebug("  Header: %s: %s...", k, v[0][:min(len(v[0]), 16)])
+			if len(v[0]) > 16 {
+				c.logDebug("  Header: %s: %s...", k, v[0][:16])
+			} else {
+				c.logDebug("  Header: %s: %s", k, v[0])
+			}
 		} else {
 			c.logDebug("  Header: %s: %s", k, v[0])
 		}
@@ -155,11 +162,4 @@ func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body
 
 	c.logDebug("→ %s %s", method, url)
 	return c.http.Do(req)
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
