@@ -71,6 +71,9 @@ var taskSubmitCmd = &cobra.Command{
 		if baseURL != "" {
 			opts = append(opts, client.WithBaseURL(baseURL))
 		}
+		if token != "" {
+			opts = append(opts, client.WithToken(token))
+		}
 		c := client.New(opts...)
 
 		printVerbose("正在提交任务...")

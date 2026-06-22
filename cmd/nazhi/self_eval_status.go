@@ -42,6 +42,9 @@ var selfEvalStatusCmd = &cobra.Command{
 		if baseURL != "" {
 			opts = append(opts, client.WithBaseURL(baseURL))
 		}
+		if token != "" {
+			opts = append(opts, client.WithToken(token))
+		}
 		c := client.New(opts...)
 
 		printVerbose("正在查询自我评价状态...")

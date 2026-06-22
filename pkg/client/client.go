@@ -74,6 +74,22 @@ func WithCustomOCR(r captchaRecognizer) Option {
 	return func(c *Client) { c.ocr = r }
 }
 
+// WithToken 预置 X-Auth-Token（同时写入 Header 和 Cookie）。
+//
+// 用于不经过 Login() 流程、直接从外部传入 token 的场景：
+//   - CLI 命令的 --token 标志
+//   - 从文件/CI secret 读取的存量 token
+//
+// 业务服务器要求 X-Auth-Token 同时存在于 Header 和 Cookie（参见 auth-flow.md），
+// 仅设置 Header 会导致后续接口返回空数据。
+func WithToken(token string) Option {
+	return func(c *Client) {
+		if token != "" {
+			c.syncCookieToken(token)
+		}
+	}
+}
+
 // ─── 构造 ───
 
 // New 创建 Client。使用 Option 模式配置：
