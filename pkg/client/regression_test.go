@@ -73,7 +73,8 @@ func TestRegression_UploadFile_NoRedirectFollow(t *testing.T) {
 	if !strings.Contains(err.Error(), "302") && !strings.Contains(err.Error(), "status=") {
 		t.Errorf("错误信息应指出 302 状态: %v", err)
 	}
-	_ = attackerHit
+	// 读取 atomic.Bool 避免 vet 报的 noCopy 警告
+	_ = attackerHit.Load()
 }
 
 // writeSimplePNG 写一个最小 PNG 文件
