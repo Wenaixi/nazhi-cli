@@ -57,7 +57,9 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v6
         with:
-          version: latest
+          # v1.64.8 用 Go 1.24 构建，无法解析 go.mod 的 1.26.1 语法；
+          # v2.x 系列用 Go 1.23+ 构建并支持 Go 1.26 target。
+          version: v2.1.6
           args: --timeout=5m ./...
 
       - name: go vet
@@ -107,13 +109,15 @@ jobs:
             goos: windows
             goarch: amd64
             ext: ".exe"
-            cgo: "0"
+            # onnxruntime_go 强制 CGO → Windows 也需要 CGO_ENABLED=1
+            # windows-latest 默认已装 MinGW gcc
+            cgo: "1"
           - name: Windows (arm64)
             runner: windows-11-arm
             goos: windows
             goarch: arm64
             ext: ".exe"
-            cgo: "0"
+            cgo: "1"
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -126,7 +130,14 @@ jobs:
       - name: 读取版本号
         id: version
         run: |
-          VER=$(grep 'Version' internal/version/version.go | head -1 | sed 's/.*"\(.*\)"/\1/')
+          # 仅匹配 var Version = "x.y.z" 定义行（排除注释里的 Version 字样）
+          VER=$(grep -E '^\s*var\s+Version\s*=' internal/version/version.go \
+                | head -1 \
+                | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$VER" ]; then
+            echo "::error::无法从 internal/version/version.go 解析版本号"
+            exit 1
+          fi
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
 

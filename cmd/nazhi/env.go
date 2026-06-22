@@ -1,10 +1,8 @@
 package main
 
 import (
-	"fmt"
 	"os"
 	"strconv"
-	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -39,30 +37,6 @@ func envInt(key string, fallback int) int {
 		}
 	}
 	return fallback
-}
-
-// envDuration 返回解析后的 time.Duration 环境变量值（按秒），失败或未设置则返回 fallback。
-func envDuration(key string, fallback time.Duration) time.Duration {
-	if v, ok := os.LookupEnv(key); ok && v != "" {
-		if n, err := strconv.Atoi(v); err == nil {
-			return time.Duration(n) * time.Second
-		}
-	}
-	return fallback
-}
-
-// requireEnv 检查必备环境变量，全部存在则返回 nil，否则返回包含缺失项的 error。
-func requireEnv(keys ...string) error {
-	var missing []string
-	for _, k := range keys {
-		if v, ok := os.LookupEnv(k); !ok || v == "" {
-			missing = append(missing, k)
-		}
-	}
-	if len(missing) > 0 {
-		return fmt.Errorf("缺少环境变量: %v（可通过 --flag 或 .env 注入）", missing)
-	}
-	return nil
 }
 
 // flagChanged 检查用户是否通过命令行显式设置了某个 flag。
