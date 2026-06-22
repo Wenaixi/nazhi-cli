@@ -1,0 +1,44 @@
+{
+  "GET__api_studentInfo_getMenu": {
+    "method": "GET",
+    "path": "/api/studentInfo/getMenu",
+    "request_body": "",
+    "response_status": 200,
+    "response_body": "{\"code\":1,\"msg\":\"成功\",\"returnData\":[{\"creation_time\":1631517280000,\"modifier_time\":1631518939000,\"creator\":5,\"code\":\"1000\",\"level\":1,\"modifier\":5,\"icon\":\"fa-print\",\"pid\":0,\"sort\":0,\"type\":1,\"url\":\"/home\",\"name\":\"通用学生端\",\"checked\":true,\"id\":160,\"open\":true},{\"creation_time\":1631517446000,\"modifier_time\":1631518943000,\"creator\":5,\"code\":\"1001\",\"level\":2,\"modifier\":5,\"icon\":\"fa-print\",\"pid\":160,\"sort\":1,\"type\":1,\"url\":\"/home\",\"name\":\"首页\",\"checked\":true,\"id\":162,\"open\":true},{\"creation_time\":1631517560000,\"creator\":5,\"code\":\"1002\",\"level\":2,\"icon\":\"fa-print\",\"pid\":160,\"sort\":2,\"type\":1,\"url\":\"/management\",\"name\":\"写实管理\",\"checked\":true,\"id\":163,\"open\":true},{\"creation_time\":1631517594000,\"creator\":5,\"code\":\"1003\",\"level\":2,\"icon\":\"fa-print\",\"pid\":160,\"sort\":3,\"type\":1,\"url\":\"/classic\",\"name\":\"典型案例\",\"checked\":true,\"id\":164,\"open\":true},{\"creation_time\":1631517617000,\"creator\":5,\"code\":\"1004\",\"level\":2,\"icon\":\"fa-print\",\"pid\":160,\"sort\":4,\"type\":1,\"url\":\"/realism\",\"name\":\"成绩管理\",\"checked\":true,\"id\":165,\"open\":true},{\"creation_time\":1631517639000,\"creator\":5,\"code\":\"1005\",\"level\":2,\"icon\":\"fa-print\",\"pid\":160,\"sort\":5,\"type\":1,\"url\":\"/DemocraticActivity\",\"name\":\"民主评价\",\"checked\":true,\"id\":166,\"open\":true},{\"creation_time\":1631517685000,\"creator\":5,\"code\":\"1006\",\"level\":2,\"icon\":\"fa-print\",\"pid\":160,\"sort\":6,\"type\":1,\"url\":\"/performance\",\"name\":\"德育表现\",\"checked\":true,\"id\":167,\"open\":true},{\"creation_time\":1631517771000,\"creator\":5,\"code\":\"1009\",\"level\":2,\"icon\":\"fa-print\",\"pid\":160,\"sort\":9,\"type\":1,\"url\":\"/files\",\"name\":\"我的档案\",\"checked\":true,\"id\":170,\"open\":true}],\"note\":null,\"pageBean\":null,\"dataList\":null,\"dataMap\":null,\"dataInt\":0,\"dataString\":\"http://doc.nazhisoft.com\",\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+  },
+  "GET__api_studentMoralEduNew_querySelfEvaluation": {
+    "method": "GET",
+    "path": "/api/studentMoralEduNew/querySelfEvaluation",
+    "request_body": "",
+    "response_status": 200,
+    "response_body": "{\"code\":1,\"msg\":null,\"returnData\":null,\"note\":null,\"pageBean\":null,\"dataList\":null,\"dataMap\":{\"gender\":1,\"teacher_id\":8238,\"class_id\":150668,\"student_id\":38STUDENT_ID_REDACTED,\"term_id\":17,\"teacher_comment_time\":1767964178000,\"student_name\":\"张三\",\"school_id\":173,\"student_number\":\"TEST2025001\",\"teacher_comment\":\"你是一个爱学习，很懂事的孩子，平时能主动帮助学习上有困难的同学，班级工作认真负责，是老师的小助手，是同学学习的楷模，新年来临之际，老师希望你能继续发扬长处，课堂上大胆发言，更上一个新的台阶！\",\"grade_id\":26268,\"id\":331103,\"grade_name\":\"高一\",\"class_name\":\"八班\"},\"dataInt\":0,\"dataString\":null,\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+  },
+  "GET__api_studentMoralEduNew_querySelfGradEvaluation": {
+    "method": "GET",
+    "path": "/api/studentMoralEduNew/querySelfGradEvaluation",
+    "request_body": "",
+    "response_status": 200,
+    "response_body": "{\"code\":1,\"msg\":null,\"returnData\":null,\"note\":null,\"pageBean\":null,\"dataList\":null,\"dataMap\":{\"isGrad\":0,\"student_comment\":\"\"},\"dataInt\":0,\"dataString\":null,\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+  },
+  "GET__api_studentCircleNew_getStudentCircle": {
+    "method": "GET",
+    "path": "/api/studentCircleNew/getStudentCircle",
+    "request_body": "",
+    "response_status": 200,
+    "response_body": "{\"code\":1,\"msg\":null,\"returnData\":null,\"note\":null,\"pageBean\":{\"pageNo\":1,\"pageSize\":3,\"totalNum\":0,\"totalPage\":0,\"startNum\":0,\"endNum\":3},\"dataList\":[],\"dataMap\":null,\"dataInt\":0,\"dataString\":null,\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+  },
+  "GET__api_teacher_fiveEvaluation_classManagerStatisticsAnalysis_getClassStarCountByClassIdAndTermId2": {
+    "method": "GET",
+    "path": "/api/teacher/fiveEvaluation/classManagerStatisticsAnalysis/getClassStarCountByClassIdAndTermId2",
+    "request_body": "",
+    "response_status": 200,
+    "response_body": "{\"code\":1,\"msg\":\"成功\",\"returnData\":null,\"note\":\"23\",\"pageBean\":null,\"dataList\":null,\"dataMap\":{\"studentId\":38STUDENT_ID_REDACTED,\"studentNumber\":\"TEST2025001\",\"studentName\":\"张三\",\"className\":\"高一八班\"},\"dataInt\":0,\"dataString\":\"\",\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+  },
+  "POST__api_studentMoralEduNew_addSelfEvaluation": {
+    "method": "POST",
+    "path": "/api/studentMoralEduNew/addSelfEvaluation",
+    "request_body": "{\"studentComment\":\"回看这一个学期，我觉得自己在心态和行动上都有了明显的成长。\\n\\n在学习上，我这学期最大的改变就是“沉得住气”了。以前遇到难题容易烦躁，但现在我能静下心来分析。课堂上，我努力跟上老师的节奏，笔记记得比以前更勤快。对于我的弱势科目，我不再逃避，而是尝试去理解基础概念，作业也尽量做到不抄袭、独立完成。虽然成绩还有提升空间，但我这种踏实的态度让我对未来更有信心。我开始明白，学习不是为了应付考试，而是为了充实自己。\\n\\n在品德和班级生活方面，我一直觉得自己是个挺热心的人。我和同学们相处得很愉快，大家有困难的时候，我能帮的一定帮。不管是打扫卫生还是班级活动，我都愿意出一份力，因为我觉得班级氛围好，大家待着才舒服。我尊重老师，遵守校规校纪，没有做过违规的事情，努力做一个让老师放心、让同学信任的人。\\n\\n在身心健康方面，我尽量保持规律的作息，不熬夜。体育课上我也认真锻炼，因为身体是革命的本钱。面对考试压力，我学会了自我调节，不让自己钻牛角尖，保持乐观积极的心态。\\n\\n总的来说，这学期我有进步，也有不足。比如有时候自控力还不够强，周末容易放松过度。下个学期，我打算制定更详细的时间表，把碎片时间利用起来，争取在成绩上再上一个台阶。我会继续保持现在的冲劲，一步一个脚印，做更好的自己。\"}",
+    "response_status": 200,
+    "response_body": "{\"code\":1,\"msg\":\"更新成功\",\"returnData\":null,\"note\":null,\"pageBean\":null,\"dataList\":null,\"dataMap\":null,\"dataInt\":0,\"dataString\":null,\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+  }
+}

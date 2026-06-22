@@ -153,10 +153,16 @@ type harFixture struct {
 // loadFixtures 加载 task_flow.json HAR fixtures。
 func loadFixtures(t *testing.T) map[string]harFixture {
 	t.Helper()
-	path := filepath.Join("har_fixtures", "task_flow.json")
+	return loadFixturesByName(t, "task_flow.json")
+}
+
+// loadFixturesByName 按文件名加载 fixtures（支持多种业务场景）。
+func loadFixturesByName(t *testing.T, filename string) map[string]harFixture {
+	t.Helper()
+	path := filepath.Join("har_fixtures", filename)
 	data, err := os.ReadFile(path)
 	if err != nil {
-		t.Fatalf("加载 HAR fixtures 失败: %v（请确认 %s 存在）", err, path)
+		t.Fatalf("加载 HAR fixtures 失败: %v（请确认 %s 存在，可从 Nazhi-auto/_archive 复制）", err, path)
 	}
 	var fixtures map[string]harFixture
 	if err := json.Unmarshal(data, &fixtures); err != nil {
@@ -527,6 +533,224 @@ func TestHAR_SubmitTask(t *testing.T) {
 	if !foundAddCircle {
 		t.Error("未触发 addCircle")
 	}
+}
+
+// ────────────────────────────────────────────────────────────
+// 4 个新场景测试：使用不同 HAR 的真实数据
+// ────────────────────────────────────────────────────────────
+
+// TestHAR_SubmitSelfEvaluation 用上传自我评价.har 验证 SubmitSelfEvaluation。
+func TestHAR_SubmitSelfEvaluation(t *testing.T) {
+	fixtures := loadFixturesByName(t, "self_eval.json")
+	srv := startHARMockServer(t, fixtures)
+	defer srv.Close()
+
+	c := client.New(
+		client.WithBaseURL(srv.URL),
+		client.WithTimeout(10*time.Second),
+		client.WithToken("fake-jwt-token"),
+	)
+
+	t.Log("→ POST /api/studentMoralEduNew/addSelfEvaluation (SDK SubmitSelfEvaluation)")
+	err := c.SubmitSelfEvaluation(context.Background(), "fake-jwt-token", "这学期的表现很好，认真听讲，积极发言")
+	if err != nil {
+		t.Fatalf("SubmitSelfEvaluation: %v", err)
+	}
+	t.Logf("✅ SubmitSelfEvaluation 成功")
+
+	// 验证 addSelfEvaluation 被调用
+	requests := srv.Requests()
+	foundSelf := false
+	for _, r := range requests {
+		if r.Path == "/api/studentMoralEduNew/addSelfEvaluation" {
+			foundSelf = true
+			t.Logf("📨 实际请求体: %s", r.Body)
+		}
+	}
+	if !foundSelf {
+		t.Error("未触发 addSelfEvaluation")
+	}
+
+	// 同时验证 querySelfEvaluation
+	t.Log("→ GET /api/studentMoralEduNew/querySelfEvaluation (SDK QuerySelfEvaluation)")
+	status, err := c.QuerySelfEvaluation(context.Background(), "fake-jwt-token")
+	if err != nil {
+		t.Errorf("QuerySelfEvaluation: %v", err)
+	} else if status != nil {
+		t.Logf("✅ QuerySelfEvaluation 返回: student_comment=%q", truncate(status.StudentComment, 30))
+	}
+}
+
+// TestHAR_SubmitTask_Military 用军训.har 验证 SubmitTask 军训类型。
+// 真实 payload: name="", level="", checkResult="1", hours=32, playRole=""
+func TestHAR_SubmitTask_Military(t *testing.T) {
+	fixtures := loadFixturesByName(t, "military.json")
+	srv := startHARMockServer(t, fixtures)
+	defer srv.Close()
+
+	c := client.New(
+		client.WithBaseURL(srv.URL),
+		client.WithTimeout(10*time.Second),
+		client.WithToken("fake-jwt-token"),
+	)
+
+	// 真实军训 payload（从 military.json 提取）
+	payload := types.TaskSubmitPayload{
+		ID:                  nil,
+		Name:                "", // 军训 name 必须为空
+		HostName:            "",
+		CircleDate:          "",
+		Rank:                "",
+		Level:               "", // 军训 level 必须为空
+		Content:             "通过军训，我学会了坚持和团队合作...（真实心得约 100 字）",
+		PictureList:         []int64{4400262},
+		CircleTaskID:        16513,
+		CircleTypeID:        3691,
+		DimensionID:         13,
+		Hours:               32, // 军训固定 32 学时
+		CircleBeginDate:     "",
+		CircleEndDate:       "",
+		CheckResult:         "1", // 军训 checkResult=1
+		PatentType:          "",
+		PatentNum:           "",
+		Address:             "福清一中", // 军训 address=学校名
+		TermName:            "",
+		ActivityName:        "",
+		SportsName:          "",
+		TeamName:            "",
+		OrgName:             "福清一中", // 军训 orgName=学校名
+		ResultsName:         "",
+		ObtainTime:          "",
+		SpecialtyTechnology: "",
+		PlayRole:            "", // 军训 playRole 必须为空
+		LikeSpecialty1:      "",
+		LikeSpecialty2:      "",
+		LikeSpecialty3:      "",
+	}
+
+	t.Log("→ POST /api/studentCircleNew/addCircle (军训类型)")
+	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", payload)
+	if err != nil {
+		t.Fatalf("SubmitTask (军训): %v", err)
+	}
+	if result.Code != 1 {
+		t.Errorf("返回 code=%d，期望 1", result.Code)
+	}
+	t.Logf("✅ 军训类型提交成功 code=%d", result.Code)
+}
+
+// TestHAR_SubmitTask_ClassMeeting 用班会.har 验证 SubmitTask 班会类型。
+// 真实 payload: name="班会", level="", hours=1, playRole="3"
+func TestHAR_SubmitTask_ClassMeeting(t *testing.T) {
+	fixtures := loadFixturesByName(t, "class_meeting.json")
+	srv := startHARMockServer(t, fixtures)
+	defer srv.Close()
+
+	c := client.New(
+		client.WithBaseURL(srv.URL),
+		client.WithTimeout(10*time.Second),
+		client.WithToken("fake-jwt-token"),
+	)
+
+	payload := types.TaskSubmitPayload{
+		ID:                  nil,
+		Name:                "班会", // 班会 name 固定为"班会"
+		HostName:            "",
+		CircleDate:          "",
+		Rank:                "",
+		Level:               "", // 班会 level 必须为空
+		Content:             "今天班会我们讨论了诚信考试的重要性...（真实心得）",
+		PictureList:         []int64{4401164},
+		CircleTaskID:        16324,
+		CircleTypeID:        9256,
+		DimensionID:         9,
+		Hours:               1, // 班会 1 学时
+		CircleBeginDate:     "",
+		CircleEndDate:       "",
+		CheckResult:         "",
+		PatentType:          "",
+		PatentNum:           "",
+		Address:             "高一八班", // 班会 address=班级名
+		TermName:            "",
+		ActivityName:        "",
+		SportsName:          "",
+		TeamName:            "",
+		OrgName:             "", // 班会 orgName 必须为空
+		ResultsName:         "",
+		ObtainTime:          "",
+		SpecialtyTechnology: "",
+		PlayRole:            "3", // 班会 playRole=3
+		LikeSpecialty1:      "",
+		LikeSpecialty2:      "",
+		LikeSpecialty3:      "",
+	}
+
+	t.Log("→ POST /api/studentCircleNew/addCircle (班会类型)")
+	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", payload)
+	if err != nil {
+		t.Fatalf("SubmitTask (班会): %v", err)
+	}
+	if result.Code != 1 {
+		t.Errorf("返回 code=%d，期望 1", result.Code)
+	}
+	t.Logf("✅ 班会类型提交成功 code=%d", result.Code)
+}
+
+// TestHAR_SubmitTask_Labor 用劳动.har 验证 SubmitTask 劳动类型。
+// 真实 payload: name="", level="5", hours=2, playRole=""
+func TestHAR_SubmitTask_Labor(t *testing.T) {
+	fixtures := loadFixturesByName(t, "labor.json")
+	srv := startHARMockServer(t, fixtures)
+	defer srv.Close()
+
+	c := client.New(
+		client.WithBaseURL(srv.URL),
+		client.WithTimeout(10*time.Second),
+		client.WithToken("fake-jwt-token"),
+	)
+
+	payload := types.TaskSubmitPayload{
+		ID:                  nil,
+		Name:                "", // 劳动 name 用原始任务名（这里保持空）
+		HostName:            "",
+		CircleDate:          "",
+		Rank:                "",
+		Level:               "5", // 劳动 level="5" 校级
+		Content:             "通过参加校园劳动，我体会到...（真实心得约 100 字）",
+		PictureList:         []int64{4399727},
+		CircleTaskID:        16512,
+		CircleTypeID:        9275,
+		DimensionID:         14,
+		Hours:               2, // 劳动 2 学时
+		CircleBeginDate:     "",
+		CircleEndDate:       "",
+		CheckResult:         "",
+		PatentType:          "",
+		PatentNum:           "",
+		Address:             "福清一中", // 劳动 address=学校名
+		TermName:            "",
+		ActivityName:        "",
+		SportsName:          "",
+		TeamName:            "",
+		OrgName:             "福清一中", // 劳动 orgName=学校名
+		ResultsName:         "",
+		ObtainTime:          "",
+		SpecialtyTechnology: "",
+		PlayRole:            "", // 劳动 playRole 必须为空
+		LikeSpecialty1:      "",
+		LikeSpecialty2:      "",
+		LikeSpecialty3:      "",
+	}
+
+	t.Log("→ POST /api/studentCircleNew/addCircle (劳动类型)")
+	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", payload)
+	if err != nil {
+		t.Fatalf("SubmitTask (劳动): %v", err)
+	}
+	if result.Code != 1 {
+		t.Errorf("返回 code=%d，期望 1", result.Code)
+	}
+	t.Logf("✅ 劳动类型提交成功 code=%d", result.Code)
 }
 
 // ────────────────────────────────────────────────────────────
