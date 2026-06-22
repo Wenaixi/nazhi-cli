@@ -26,8 +26,19 @@ var selfEvalSubmitCmd = &cobra.Command{
 		baseURL, _ := cmd.Flags().GetString("base-url")
 		timeoutSec, _ := cmd.Flags().GetInt("timeout")
 
+		// 环境变量 fallback
 		if token == "" {
-			printError(fmt.Errorf("--token 为必填"))
+			token = envString("NAZHI_TOKEN", "")
+		}
+		if baseURL == "" {
+			baseURL = envString("NAZHI_BASE_URL", "")
+		}
+		if timeoutSec == 15 {
+			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
+		}
+
+		if token == "" {
+			printError(fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）"))
 			return
 		}
 

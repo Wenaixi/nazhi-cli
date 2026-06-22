@@ -34,8 +34,10 @@ test-verbose:
 	@echo "✅ 测试完成"
 
 test-integration:
-	go test -count=1 -tags=integration -race ./...
-	@echo "✅ 集成测试完成"
+	@if [ -f .env ]; then echo "📄 加载 .env"; export $$(grep -v '^#' .env | xargs); fi; \
+	NAZHI_USERNAME="$${NAZHI_USERNAME:-}" NAZHI_PASSWORD="$${NAZHI_PASSWORD:-}" \
+	go test -count=1 -tags=integration -race -v ./test/integration/...
+	@echo "✅ 集成测试完成（未设置 NAZHI_USERNAME/NAZHI_PASSWORD 时自动 skip）"
 
 # ─── 代码质量 ───
 

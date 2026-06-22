@@ -22,8 +22,19 @@ var schoolCmd = &cobra.Command{
 		ssoBase, _ := cmd.Flags().GetString("sso-base")
 		timeoutSec, _ := cmd.Flags().GetInt("timeout")
 
+		// 环境变量 fallback
 		if username == "" {
-			printError(fmt.Errorf("--username 为必填"))
+			username = envString("NAZHI_USERNAME", "")
+		}
+		if ssoBase == "" {
+			ssoBase = envString("NAZHI_SSO_BASE", "")
+		}
+		if timeoutSec == 15 {
+			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
+		}
+
+		if username == "" {
+			printError(fmt.Errorf("--username 为必填（也可通过 NAZHI_USERNAME 环境变量设置）"))
 			return
 		}
 

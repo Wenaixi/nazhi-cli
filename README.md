@@ -1,200 +1,304 @@
-﻿# nazhi-cli
+# nazhi-cli
 
-**绾虫櫤缁煎悎璇勪环绯荤粺 鑷姩鍖?CLI + Go SDK**
+**纳智综合评价系统 自动化 CLI + Go SDK**
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 
-涓€绔欏紡鍛戒护琛屽伐鍏?+ Go SDK锛岀敤浜庣撼鏅虹患鍚堣瘎浠风郴缁熺殑鑷姩鍖栨搷浣溿€傛彁渚?**SSO 鐧诲綍**銆?*浠诲姟绠＄悊**銆?*鑷垜璇勪环**銆?*鏂囦欢涓婁紶** 绛夊畬鏁村姛鑳姐€?
-鉁?**鐗硅壊**
+一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 **SSO 登录**、**任务管理**、**自我评价**、**文件上传** 等完整功能。
 
-- 馃攼 **鍏ㄨ嚜鍔?OCR 楠岃瘉鐮?* 鈥?妯″瀷宸插祵鍏ヤ簩杩涘埗锛屾棤闇€涓嬭浇銆佹棤闇€閰嶇疆锛屽紑绠卞嵆鐢?- 馃實 **璺ㄥ钩鍙版敮鎸?* 鈥?Windows / Linux / macOS锛? 涓钩鍙?脳 鏋舵瀯缁勫悎锛夛紝鍗曚簩杩涘埗杩愯
-- 馃摝 **杩涚▼绾?OCR 鍗曚緥** 鈥?澶氬疄渚嬪叡浜紩鎿庯紝閬垮厤閲嶅瑙ｅ帇妯″瀷
-- 馃洜锔?**CLI + SDK 鍙屽舰鎬?* 鈥?鑴氭湰鍙洿鎺ヨ皟鐢紝闆嗘垚鏂瑰鍏?Go 鍖?- 馃И **瀹屾暣娴嬭瘯瑕嗙洊** 鈥?鍗曞厓娴嬭瘯 + race 妫€娴?+ 璺ㄥ钩鍙?CI
+✨ **特色**
 
----
-
-## 鐩綍
-
-- [瀹夎](#瀹夎)
-- [蹇€熷紑濮媇(#蹇€熷紑濮?
-- [鍛戒护鍙傝€僝(#鍛戒护鍙傝€?
-- [璺ㄥ钩鍙版敮鎸乚(#璺ㄥ钩鍙版敮鎸?
-- [浣滀负 Go SDK 浣跨敤](#浣滀负-go-sdk-浣跨敤)
-- [鏋舵瀯鎬昏](#鏋舵瀯鎬昏)
-- [寮€鍙慮(#寮€鍙?
-- [甯歌闂](#甯歌闂)
-- [鍗忚](#鍗忚)
+- 🔐 **全自动 OCR 验证码** — 模型已嵌入二进制，无需下载、无需配置，开箱即用
+- 🌍 **跨平台支持** — Windows / Linux / macOS（5 个平台 × 架构组合），单二进制运行
+- 📦 **进程级 OCR 单例** — 多实例共享引擎，避免重复解压模型
+- 🛠️ **CLI + SDK 双形态** — 脚本可直接调用，集成方导入 Go 包
+- 🧪 **完整测试覆盖** — 单元测试 + race 检测 + 跨平台 CI + 真实环境集成测试
 
 ---
 
-## 瀹夎
+## 目录
 
-### 棰勭紪璇戜簩杩涘埗锛堟帹鑽愶級
+- [安装](#安装)
+- [快速开始](#快速开始)
+- [环境变量](#环境变量)
+- [命令参考](#命令参考)
+- [跨平台支持](#跨平台支持)
+- [作为 Go SDK 使用](#作为-go-sdk-使用)
+- [架构总览](#架构总览)
+- [开发](#开发)
+- [常见问题](#常见问题)
+- [协议](#协议)
 
-浠?[Releases](https://github.com/Wenaixi/nazhi-cli/releases) 涓嬭浇瀵瑰簲骞冲彴鐨勬渶鏂扮増鏈細
+---
 
-| 骞冲彴 | 鏋舵瀯 | 鏂囦欢 |
+## 安装
+
+### 预编译二进制（推荐）
+
+从 [Releases](https://github.com/Wenaixi/nazhi-cli/releases) 下载对应平台的最新版本：
+
+| 平台 | 架构 | 文件 |
 |---|---|---|
 | Windows | amd64 / arm64 | `nazhi-windows-amd64.exe` / `nazhi-windows-arm64.exe` |
 | Linux | amd64 / arm64 | `nazhi-linux-amd64` / `nazhi-linux-arm64` |
 | macOS | arm64 (Apple Silicon) | `nazhi-darwin-arm64` |
 
-> macOS 浠呮敮鎸?arm64锛圓pple Silicon锛夛紝鍥犱负 Microsoft 宸插仠鍙?onnxruntime macOS x86_64銆?
+> macOS 仅支持 arm64（Apple Silicon），因为 Microsoft 已停发 onnxruntime macOS x86_64。
+
 ### go install
 
 ```bash
 go install github.com/Wenaixi/nazhi-cli/cmd/nazhi@latest
 ```
 
-### 浠庢簮鐮佹瀯寤?
+### 从源码构建
+
 ```bash
 git clone https://github.com/Wenaixi/nazhi-cli.git
 cd nazhi-cli
-make build         # 褰撳墠骞冲彴
-make release       # 鍏ㄥ钩鍙?```
+make build         # 当前平台
+make release       # 全平台
+```
 
 ---
 
-## 蹇€熷紑濮?
-### 1. 鐧诲綍鑾峰彇 Token
+## 快速开始
+
+### 1. 登录获取 Token
 
 ```bash
-nazhi login -u S1234567890 -p testpass123
+nazhi login -u 学号 -p 密码
 ```
 
-杈撳嚭锛圝SON 鏍煎紡锛夛細
+输出（JSON 格式）：
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1...",
+  "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOi...",
   "refresh_after": "...",
   "expires_at": "...",
   "user_info": null
 }
 ```
 
-> 馃敀 **瀹夊叏鎻愮ず**锛歍oken 绛夊悓浜庡瘑鐮侊紝璇峰Ε鍠勪繚绠°€傝剼鏈腑鍙娇鐢?`--token` 鍙傛暟鎴栦粠鐜鍙橀噺浼犲叆銆?
-### 2. 婵€娲讳笟鍔?Session锛堜娇鐢?Token锛?
+> 🔒 **安全提示**：Token 等同于密码，请妥善保管。脚本中可使用 `--token` 参数或从环境变量传入。
+
+### 2. 激活业务 Session（使用 Token）
+
 ```bash
 nazhi session activate --token "eyJhbGciOiJIUzUxMiJ9..."
 ```
 
-> Session 婵€娲诲悗浼氫繚鎸佹湇鍔＄鐘舵€侊紙Cookie锛夛紝鍚庣画 API 璋冪敤闇€甯?`--token`銆?
-### 3. 涓氬姟鎿嶄綔
+> Session 激活后会保持服务端状态（Cookie），后续 API 调用需带 `--token`。
+
+### 3. 业务操作
 
 ```bash
-# 鏌ョ湅涓汉淇℃伅
+# 查看个人信息
 nazhi whoami --token "eyJ..."
 
-# 鍒楀嚭鎵€鏈変换鍔?nazhi task list --token "eyJ..."
+# 列出所有任务
+nazhi task list --token "eyJ..."
 
-# 鎻愪氦浠诲姟锛堜粠 JSON 瀛楃涓诧級
-nazhi task submit --token "eyJ..." --payload '{"circleTaskId":1001,"name":"鐝細"}'
+# 提交任务（从 JSON 字符串）
+nazhi task submit --token "eyJ..." --payload '{"circleTaskId":1001,"name":"班会"}'
 
-# 鎻愪氦浠诲姟锛堜粠鏂囦欢锛?nazhi task submit --token "eyJ..." --payload @task.json
+# 提交任务（从文件）
+nazhi task submit --token "eyJ..." --payload @task.json
 
-# 鎻愪氦鑷垜璇勪环
-nazhi self-eval submit --token "eyJ..." --comment "寰堝ソ鐨勫鏈?
+# 提交自我评价
+nazhi self-eval submit --token "eyJ..." --comment "很好的学期"
 
-# 鏌ョ湅璇勪环鐘舵€?nazhi self-eval status --token "eyJ..."
+# 查看评价状态
+nazhi self-eval status --token "eyJ..."
 
-# 涓婁紶鍥剧墖锛堢敤浜庝换鍔￠檮浠讹級
+# 上传图片（用于任务附件）
 nazhi file upload -f ./photo.jpg
 ```
 
-### 鍏ㄥ眬閫夐」
+### 全局选项
 
-鎵€鏈夊懡浠ゆ敮鎸侊細
+所有命令支持：
 
-| 鏍囧織 | 璇存槑 |
+| 标志 | 说明 |
 |---|---|
-| `-v, --verbose` | 璇︾粏鏃ュ織杈撳嚭鍒?stderr |
-| `--quiet` | 闈欓粯妯″紡 |
-| `--output json` | 杈撳嚭鏍煎紡锛堥粯璁?JSON锛?|
+| `-v, --verbose` | 详细日志输出到 stderr |
+| `--quiet` | 静默模式 |
+| `--output json` | 输出格式（默认 JSON） |
 
 ---
 
-## 鍛戒护鍙傝€?
+## 环境变量
+
+所有 CLI 命令都支持通过环境变量注入凭据和配置，**命令行标志始终优先于环境变量**。
+
+### 支持的变量
+
+| 变量 | 作用 | 适用命令 |
+|------|------|----------|
+| `NAZHI_USERNAME` | 学号 | `login`、`school` |
+| `NAZHI_PASSWORD` | 密码 | `login` |
+| `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval` |
+| `NAZHI_SSO_BASE` | SSO 根地址 | `login`、`school` |
+| `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval` |
+| `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 |
+
+### 三种使用方式
+
+**方式 1：临时环境变量**
+
+```bash
+export NAZHI_USERNAME="学号"
+export NAZHI_PASSWORD="密码"
+nazhi login                              # 不需要再传 -u/-p
+nazhi task list                          # 先登录获取 token，或 export NAZHI_TOKEN=...
+```
+
+**方式 2：.env 文件（推荐用于本地开发）**
+
+```bash
+cp .env.example .env
+# 编辑 .env 填入真实凭据
+make test-integration                    # 集成测试自动读取 .env
+```
+
+`.env` 已在 `.gitignore` 中，不会被提交。CI 中使用 GitHub Secrets 注入即可。
+
+**方式 3：CI 注入**
+
+```yaml
+# .github/workflows/ci.yml
+- name: 集成测试
+  env:
+    NAZHI_USERNAME: ${{ secrets.NAZHI_USERNAME }}
+    NAZHI_PASSWORD: ${{ secrets.NAZHI_PASSWORD }}
+  run: go test -tags=integration -v ./test/integration/...
+```
+
+### 优先级
+
+```
+命令行标志 > 环境变量 > SDK 默认值
+```
+
+示例：
+
+```bash
+# 环境变量提供学号，命令行覆盖密码
+NAZHI_USERNAME=学号 nazhi login -p 其它密码
+```
+
+---
+
+## 命令参考
+
 ```
 nazhi
-鈹溾攢鈹€ login                          SSO 鐧诲綍锛堝叏鑷姩 OCR锛?鈹?  鈹溾攢鈹€ -u/--username       蹇呭～   瀛﹀彿
-鈹?  鈹溾攢鈹€ -p/--password       蹇呭～   瀵嗙爜
-鈹?  鈹溾攢鈹€ --sso-base          閫夊～   SSO 鏍瑰湴鍧€锛堥粯璁?https://www.nazhisoft.com锛?鈹?  鈹斺攢鈹€ --timeout           閫夊～   HTTP 瓒呮椂绉掓暟锛堥粯璁?15锛?鈹?鈹溾攢鈹€ school                          鏌ヨ瀛︽牎 ID锛堜笉闇€鐧诲綍锛?鈹?  鈹斺攢鈹€ -u/--username       蹇呭～   瀛﹀彿
-鈹?鈹溾攢鈹€ session
-鈹?  鈹斺攢鈹€ activate                    婵€娲讳笟鍔?Session
-鈹?      鈹斺攢鈹€ --token          蹇呭～   X-Auth-Token
-鈹?鈹溾攢鈹€ whoami                          鑾峰彇褰撳墠鐢ㄦ埛淇℃伅
-鈹?  鈹斺攢鈹€ --token            蹇呭～
-鈹?鈹溾攢鈹€ task
-鈹?  鈹溾攢鈹€ list                        鍒楀嚭鍏ㄧ淮搴︿换鍔?鈹?  鈹?  鈹斺攢鈹€ --token        蹇呭～
-鈹?  鈹斺攢鈹€ submit                      鎻愪氦浠诲姟
-鈹?      鈹溾攢鈹€ --token        蹇呭～
-鈹?      鈹斺攢鈹€ --payload      蹇呭～     JSON 瀛楃涓叉垨 @file.json
-鈹?鈹溾攢鈹€ self-eval
-鈹?  鈹溾攢鈹€ submit                      鎻愪氦鑷垜璇勪环
-鈹?  鈹?  鈹溾攢鈹€ --token        蹇呭～
-鈹?  鈹?  鈹斺攢鈹€ --comment      蹇呭～     鏀寔 stdin: -
-鈹?  鈹斺攢鈹€ status                      鏌ヨ璇勪环鐘舵€?鈹?      鈹斺攢鈹€ --token        蹇呭～
-鈹?鈹斺攢鈹€ file
-    鈹斺攢鈹€ upload                      涓婁紶鍥剧墖
-        鈹斺攢鈹€ -f/--file       蹇呭～   鏈湴鍥剧墖璺緞
+├── login                          SSO 登录（全自动 OCR）
+│   ├── -u/--username       必填   学号（NAZHI_USERNAME）
+│   ├── -p/--password       必填   密码（NAZHI_PASSWORD）
+│   ├── --sso-base          选填   SSO 根地址（NAZHI_SSO_BASE，默认 https://www.nazhisoft.com）
+│   └── --timeout           选填   HTTP 超时秒数（NAZHI_TIMEOUT，默认 15）
+│
+├── school                          查询学校 ID（不需登录）
+│   └── -u/--username       必填   学号（NAZHI_USERNAME）
+│
+├── session
+│   └── activate                    激活业务 Session
+│       └── --token          必填   X-Auth-Token（NAZHI_TOKEN）
+│
+├── whoami                          获取当前用户信息
+│   └── --token            必填   （NAZHI_TOKEN）
+│
+├── task
+│   ├── list                        列出全维度任务
+│   │   └── --token        必填
+│   └── submit                      提交任务
+│       ├── --token        必填
+│       └── --payload      必填     JSON 字符串或 @file.json
+│
+├── self-eval
+│   ├── submit                      提交自我评价
+│   │   ├── --token        必填
+│   │   └── --comment      必填     支持 stdin: -
+│   └── status                      查询评价状态
+│       └── --token        必填
+│
+└── file
+    └── upload                      上传图片
+        └── -f/--file       必填   本地图片路径
 ```
 
-### 杈撳嚭鏍煎紡
+### 输出格式
 
-鎴愬姛鏃惰緭鍑?JSON 鍒?stdout锛?
+成功时输出 JSON 到 stdout：
+
 ```json
-{ "code": 1, "msg": "鎴愬姛", "data": [...] }
+{ "code": 1, "msg": "成功", "data": [...] }
 ```
 
-澶辫触鏃惰緭鍑?JSON 鍒?stderr 骞堕€€鍑虹爜 1锛?
+失败时输出 JSON 到 stderr 并退出码 1：
+
 ```json
-{ "error": true, "message": "鍏蜂綋閿欒淇℃伅" }
+{ "error": true, "message": "具体错误信息" }
 ```
 
-鍙€氳繃 `--quiet` 灞忚斀鎵€鏈?stderr 杈撳嚭锛屼究浜庤剼鏈閬撳鐞嗐€?
+可通过 `--quiet` 屏蔽所有 stderr 输出，便于脚本管道处理。
+
 ---
 
-## 璺ㄥ钩鍙版敮鎸?
-| 骞冲彴 | 鏋舵瀯 | 鐘舵€?| 澶囨敞 |
-|---|---|---|---|
-| **Windows** | amd64 | 鉁?| 涓诲姏娴嬭瘯骞冲彴 |
-| **Windows** | arm64 | 鉁?| Windows on ARM |
-| **Linux** | amd64 | 鉁?| 鏈嶅姟鍣ㄤ富娴?|
-| **Linux** | arm64 | 鉁?| ARM 鏈嶅姟鍣?/ Raspberry Pi |
-| **macOS** | arm64 | 鉁?| Apple Silicon |
-| macOS | x86_64 | 鉂?| Microsoft 宸插仠鍙?onnxruntime |
+## 跨平台支持
 
-### OCR 鍘熺敓搴撳垎鍙?
-姣忎釜骞冲彴鎼哄甫瀵瑰簲 onnxruntime 搴擄紙C 寮曟搸锛夛紝閫氳繃 Go build tag 闅旂宓屽叆锛?
+| 平台 | 架构 | 状态 | 备注 |
+|---|---|---|---|
+| **Windows** | amd64 | ✅ | 主力测试平台 |
+| **Windows** | arm64 | ✅ | Windows on ARM |
+| **Linux** | amd64 | ✅ | 服务器主流 |
+| **Linux** | arm64 | ✅ | ARM 服务器 / Raspberry Pi |
+| **macOS** | arm64 | ✅ | Apple Silicon |
+| macOS | x86_64 | ❌ | Microsoft 已停发 onnxruntime |
+
+### OCR 原生库分发
+
+每个平台携带对应 onnxruntime 库（C 引擎），通过 Go build tag 隔离嵌入：
+
 ```
 internal/ocr/
-鈹溾攢鈹€ onnx_win_amd64.go   //go:build windows && amd64
-鈹溾攢鈹€ onnx_win_arm64.go   //go:build windows && arm64
-鈹溾攢鈹€ onnx_lin_amd64.go   //go:build linux && amd64
-鈹溾攢鈹€ onnx_lin_arm64.go   //go:build linux && arm64
-鈹斺攢鈹€ onnx_mac_arm64.go   //go:build darwin && arm64
+├── onnx_win_amd64.go   //go:build windows && amd64
+├── onnx_win_arm64.go   //go:build windows && arm64
+├── onnx_lin_amd64.go   //go:build linux && amd64
+├── onnx_lin_arm64.go   //go:build linux && arm64
+└── onnx_mac_arm64.go   //go:build darwin && arm64
 ```
 
-缂栬瘧鏃跺彧宓屽叆褰撳墠骞冲彴閭ｄ唤锛堢害 15-37 MB锛夛紝鎵€浠?Windows amd64 浜岃繘鍒朵笉浼氬甫 macOS 鐨?dylib銆?
-### OCR 杩涚▼绾у崟渚?
-`internal/ocr.GetDefault()` 杩涚▼鍏变韩涓€涓?OCR 寮曟搸锛?
-- 澶氫釜 `client.New()` 鍏变韩鍚屼竴 `*OCR` 瀹炰緥
-- 妯″瀷鍙В鍘嬩竴娆★紙绾?14 MB 鈫?涓存椂鐩綍锛?- 鍐呴儴 `sync.Mutex` 淇濊瘉骞跺彂瀹夊叏
-- 99 娆￠噸璇曟満鍒讹紙鍚屼竴鍥剧墖锛夋彁楂樿瘑鍒噯纭巼
+编译时只嵌入当前平台那份（约 15-37 MB），所以 Windows amd64 二进制不会带 macOS 的 dylib。
 
-### CI 鐭╅樀
+### OCR 进程级单例
 
-`onnxruntime_go` 鍦?Linux/macOS 寮哄埗 CGO锛屾棤娉曚粠鍏朵粬 OS 浜ゅ弶缂栬瘧銆侰I 姣忎釜骞冲彴鐢?native runner锛?
-- `ubuntu-latest` / `ubuntu-22.04-arm64` 缂栬瘧 Linux锛圕GO=1锛?- `macos-latest` 缂栬瘧 macOS锛圕GO=1锛?- `windows-latest` / `windows-11-arm` 缂栬瘧 Windows锛圕GO=0锛?
+`internal/ocr.GetDefault()` 进程共享一个 OCR 引擎：
+
+- 多个 `client.New()` 共享同一 `*OCR` 实例
+- 模型只解压一次（约 14 MB → 临时目录）
+- 内部 `sync.Mutex` 保证并发安全
+- 99 次重试机制（同一图片）提高识别准确率
+
+### CI 矩阵
+
+`onnxruntime_go` 在 Linux/macOS 强制 CGO，无法从其他 OS 交叉编译。CI 每个平台用 native runner：
+
+- `ubuntu-latest` / `ubuntu-22.04-arm64` 编译 Linux（CGO=1）
+- `macos-latest` 编译 macOS（CGO=1）
+- `windows-latest` / `windows-11-arm` 编译 Windows（CGO=0）
+
 ---
 
-## 浣滀负 Go SDK 浣跨敤
+## 作为 Go SDK 使用
 
-### 蹇€熶笂鎵?
+### 快速上手
+
 ```go
 import (
     "context"
@@ -204,61 +308,64 @@ import (
 )
 
 func main() {
-    // 鍒涘缓瀹㈡埛绔紙OCR 榛樿鍚敤銆佽繘绋嬬骇鍗曚緥锛?    c := client.New(
+    // 创建客户端（OCR 默认启用、进程级单例）
+    c := client.New(
         client.WithSSOBase("https://www.nazhisoft.com"),
         client.WithTimeout(15 * time.Second),
     )
 
-    // 1. 鐧诲綍
+    // 1. 登录（学号密码从配置/环境变量读取，不要硬编码）
     resp, err := c.Login(context.Background(), types.LoginRequest{
-        Username: "S1234567890",
-        Password: "testpass123",
+        Username: os.Getenv("NAZHI_USERNAME"),
+        Password: os.Getenv("NAZHI_PASSWORD"),
     })
     if err != nil {
         log.Fatal(err)
     }
     token := resp.Token
 
-    // 2. 婵€娲?Session
+    // 2. 激活 Session
     if _, err := c.ActivateSession(context.Background(), token); err != nil {
         log.Fatal(err)
     }
 
-    // 3. 涓氬姟鎿嶄綔
+    // 3. 业务操作
     tasks, err := c.FetchTasks(context.Background(), token)
     if err != nil {
         log.Fatal(err)
     }
-    log.Printf("鍏?%d 涓换鍔?, len(tasks))
+    log.Printf("共 %d 个任务", len(tasks))
 
-    // 鎻愪氦浠诲姟
+    // 提交任务
     result, err := c.SubmitTask(context.Background(), token, types.TaskSubmitPayload{
         CircleTaskID: 1001,
-        Name:         "鐝細",
-        // ... 鍏朵粬 28 涓瓧娈?    })
+        Name:         "班会",
+        // ... 其他 28 个字段
+    })
     if err != nil {
         log.Fatal(err)
     }
-    log.Printf("鎻愪氦缁撴灉: code=%d", result.Code)
+    log.Printf("提交结果: code=%d", result.Code)
 
-    // 鑷垜璇勪环
-    if err := c.SubmitSelfEvaluation(context.Background(), token, "寰堝ソ鐨勫鏈?); err != nil {
+    // 自我评价
+    if err := c.SubmitSelfEvaluation(context.Background(), token, "很好的学期"); err != nil {
         log.Fatal(err)
     }
 
-    // 涓婁紶鍥剧墖
+    // 上传图片
     imageID, err := c.UploadFile(context.Background(), "./photo.jpg")
     if err != nil {
         log.Fatal(err)
     }
-    log.Printf("鍥剧墖 ID: %d", imageID)
+    log.Printf("图片 ID: %d", imageID)
 }
 ```
 
-### 杩涢樁閫夐」
+### 进阶选项
 
 ```go
-// 鑷畾涔?HTTP 瀹㈡埛绔?c := client.New(
+// 自定义 HTTP 客户端
+c := client.New(
     client.WithHTTPClient(&http.Client{
         Timeout: 30 * time.Second,
         Transport: &http.Transport{
@@ -269,142 +376,191 @@ func main() {
     client.WithLogger(slog.Default()),
 )
 
-// 淇敼 SSO 鏍瑰湴鍧€锛堢敤浜庡紑鍙?娴嬭瘯鐜锛?c := client.New(
+// 修改 SSO 根地址（用于开发/测试环境）
+c := client.New(
     client.WithSSOBase("http://localhost:8080"),
 )
 ```
 
-### 閿欒澶勭悊
+### 错误处理
 
-SDK 閫氳繃 `errors.Is` 鍒ゆ柇閿欒绫诲瀷锛?
+SDK 通过 `errors.Is` 判断错误类型：
+
 ```go
 import "errors"
 
 _, err := c.Login(ctx, req)
 switch {
 case errors.Is(err, client.ErrLoginRejected):
-    // 瀛﹀彿/瀵嗙爜閿欒
+    // 学号/密码错误
 case errors.Is(err, client.ErrTokenExpired):
-    // Token 杩囨湡锛岄渶閲嶆柊鐧诲綍
+    // Token 过期，需重新登录
 case errors.Is(err, client.ErrNetwork):
-    // 缃戠粶闂锛堣秴鏃?鏂繛锛?}
+    // 网络问题（超时/断连）
+}
 ```
 
-瀹屾暣閿欒鍒楄〃瑙?`pkg/client/errors.go`銆?
-### 绾跨▼瀹夊叏
+完整错误列表见 `pkg/client/errors.go`。
 
-`Client` 瀹炰緥鏄嚎绋嬪畨鍏ㄧ殑锛?
-- 鐙珛 cookie jar锛堟瘡涓?Client 闅旂锛?- 鐙珛 HTTP 杩炴帴姹?- 鍏变韩杩涚▼绾?OCR 寮曟搸锛坄ocr.GetDefault()`锛?
-鍙互鍦ㄥ涓?goroutine 涓苟鍙戣皟鐢ㄥ悓涓€ Client銆?
+### 线程安全
+
+`Client` 实例是线程安全的：
+
+- 独立 cookie jar（每个 Client 隔离）
+- 独立 HTTP 连接池
+- 共享进程级 OCR 引擎（`ocr.GetDefault()`）
+
+可以在多个 goroutine 中并发调用同一 Client。
+
 ---
 
-## 鏋舵瀯鎬昏
+## 架构总览
 
 ```
 nazhi-cli
-鈹溾攢鈹€ cmd/nazhi/          鈫?CLI 灞傦紙cobra 鍛戒护锛?鈹?  鈹溾攢鈹€ login.go
-鈹?  鈹溾攢鈹€ school.go
-鈹?  鈹溾攢鈹€ session.go
-鈹?  鈹溾攢鈹€ task_*.go
-鈹?  鈹溾攢鈹€ self_eval_*.go
-鈹?  鈹溾攢鈹€ file_upload.go
-鈹?  鈹斺攢鈹€ output.go       鈫?缁熶竴 JSON 杈撳嚭 + 閿欒澶勭悊
-鈹?鈹溾攢鈹€ pkg/                鈫?鍏紑 SDK
-鈹?  鈹溾攢鈹€ client/         鈫?Client + Option 妯″紡
-鈹?  鈹?  鈹溾攢鈹€ auth.go           SSO 鐧诲綍
-鈹?  鈹?  鈹溾攢鈹€ session.go        Session 婵€娲?鈹?  鈹?  鈹溾攢鈹€ task.go           浠诲姟 CRUD
-鈹?  鈹?  鈹溾攢鈹€ self_eval.go      鑷垜璇勪环
-鈹?  鈹?  鈹溾攢鈹€ user.go           鐢ㄦ埛淇℃伅
-鈹?  鈹?  鈹溾攢鈹€ file.go           鏂囦欢涓婁紶
-鈹?  鈹?  鈹溾攢鈹€ client.go         Client 缁撴瀯浣?+ Option
-鈹?  鈹?  鈹溾攢鈹€ request.go        HTTP 瀹㈡埛绔皝瑁?鈹?  鈹?  鈹斺攢鈹€ errors.go         鍝ㄥ叺閿欒
-鈹?  鈹斺攢鈹€ types/          鈫?璇锋眰/鍝嶅簲绫诲瀷
-鈹?鈹斺攢鈹€ internal/           鈫?鍐呴儴鍖咃紙鏈粨搴撲笓鐢級
-    鈹溾攢鈹€ ocr/            鈫?ddddocr + onnxruntime 灏佽
-    鈹?  鈹溾攢鈹€ ocr.go           OCR 鏈嶅姟锛堝崟渚?+ 骞冲彴鍒嗗彂锛?    鈹?  鈹溾攢鈹€ onnx_*.go        build tag 闅旂鐨勫師鐢熷簱 embed
-    鈹?  鈹斺攢鈹€ models/          妯″瀷 + 瀛楃闆?+ 5 骞冲彴 onnxruntime
-    鈹斺攢鈹€ version/        鈫?鐗堟湰鍙?```
+├── cmd/nazhi/          ← CLI 层（cobra 命令）
+│   ├── login.go
+│   ├── school.go
+│   ├── session.go
+│   ├── task_*.go
+│   ├── self_eval_*.go
+│   ├── file_upload.go
+│   ├── env.go          ← 环境变量加载
+│   └── output.go       ← 统一 JSON 输出 + 错误处理
+│
+├── pkg/                ← 公开 SDK
+│   ├── client/         ← Client + Option 模式
+│   │   ├── auth.go           SSO 登录
+│   │   ├── session.go        Session 激活
+│   │   ├── task.go           任务 CRUD
+│   │   ├── self_eval.go      自我评价
+│   │   ├── user.go           用户信息
+│   │   ├── file.go           文件上传
+│   │   ├── client.go         Client 结构体 + Option
+│   │   ├── request.go        HTTP 客户端封装
+│   │   └── errors.go         哨兵错误
+│   └── types/          ← 请求/响应类型
+│
+├── test/integration/   ← 真实环境集成测试（-tags=integration）
+│   └── integration_test.go
+│
+└── internal/           ← 内部包（本仓库专用）
+    ├── ocr/            ← ddddocr + onnxruntime 封装
+    │   ├── ocr.go           OCR 服务（单例 + 平台分发）
+    │   ├── onnx_*.go        build tag 隔离的原生库 embed
+    │   └── models/          模型 + 字符集 + 5 平台 onnxruntime
+    └── version/        ← 版本号
+```
 
-璇︾粏鏋舵瀯璇存槑瑙?[CLAUDE.md](./CLAUDE.md)銆?
+详细架构说明见 [CLAUDE.md](./CLAUDE.md)。
+
 ---
 
-## 寮€鍙?
-### 甯哥敤鍛戒护
+## 开发
+
+### 常用命令
 
 ```bash
-# 鏋勫缓锛堝綋鍓嶅钩鍙帮級
+# 构建（当前平台）
 make build
 
-# 娴嬭瘯锛堝惈 race 妫€娴嬶級
-make test               # 闈欓粯
-make test-verbose       # 璇︾粏杈撳嚭
+# 测试（含 race 检测）
+make test               # 静默
+make test-verbose       # 详细输出
 
-# 浠ｇ爜璐ㄩ噺
+# 集成测试（需要真实 SSO 凭据，存放在 .env 中）
+make test-integration
+
+# 代码质量
 make lint               # golangci-lint
 make vet                # go vet
 make fmt                # gofmt
 
-# 璺ㄥ钩鍙版瀯寤?make build-linux        # 浜ゅ弶缂栬瘧 Linux amd64
-make build-darwin       # 浜ゅ弶缂栬瘧 macOS arm64
-make build-windows      # 浜ゅ弶缂栬瘧 Windows amd64
-make release            # 鍏ㄥ钩鍙板彂甯?
-# 娓呯悊
-make clean              # 娓呯悊 bin/ 绛?```
+# 跨平台构建
+make build-linux        # 交叉编译 Linux amd64
+make build-darwin       # 交叉编译 macOS arm64
+make build-windows      # 交叉编译 Windows amd64
+make release            # 全平台发布
 
-### 椤圭洰瑕佹眰
+# 清理
+make clean              # 清理 bin/ 等
+```
+
+### 项目要求
 
 - Go 1.26+
 - Windows / Linux / macOS
 
-### 娴嬭瘯
+### 测试
 
 ```bash
-# 鍏ㄩ噺鍗曟祴
+# 全量单测
 go test -race -count=1 ./...
 
-# 浠?SDK 娴嬭瘯
+# 仅 SDK 测试
 go test -race -count=1 ./pkg/client/...
 
-# 璇︾粏杈撳嚭
+# 详细输出
 go test -race -count=1 -v ./...
+
+# 真实环境集成测试（需要 NAZHI_USERNAME/NAZHI_PASSWORD）
+go test -race -count=1 -tags=integration -v ./test/integration/...
 ```
 
-### 璐＄尞
+### 贡献
 
-娆㈣繋 PR锛佹祦绋嬭 [CONTRIBUTING.md](./CONTRIBUTING.md)銆傛彁浜ゅ墠璇风‘淇濓細
+欢迎 PR！流程见 [CONTRIBUTING.md](./CONTRIBUTING.md)。提交前请确保：
 
-- `make test` 閫氳繃
-- `make lint` 閫氳繃
-- 鎻愪氦淇℃伅閬靛惊 Conventional Commits
+- `make test` 通过
+- `make lint` 通过
+- 提交信息遵循 Conventional Commits
+- **不要** 在代码、注释、文档中提交真实凭据（用占位符或 .env）
 
 ---
 
-## 甯歌闂
+## 常见问题
 
-### Q: Windows 涓婅鏉€姣掕蒋浠惰鎶ワ紵
+### Q: Windows 上被杀毒软件误报？
 
-A: 鍐呭祵鐨?`onnxruntime.dll` 鏄?Microsoft 瀹樻柟浜岃繘鍒讹紝閮ㄥ垎鏉€杞細璇姤銆傝繖鏄?go-ddddocr + onnxruntime 鐢熸€佺殑閫氱敤闂銆傚缓璁湪鐧藉悕鍗曚腑娣诲姞鏈▼搴忥紝鎴栧湪浼佷笟鍐呯綉鐜浣跨敤銆?
-### Q: macOS x86_64 浣曟椂鏀寔锛?
-A: Microsoft onnxruntime v1.25.0 宸插仠姝㈠彂甯?macOS x86_64 鐗堟湰锛圓pple 鍏ㄩ潰杞悜 Silicon锛夈€傛湰椤圭洰涓嶆墦绠楁敮鎸併€傚闇€ Intel Mac 璇蜂娇鐢?v1.20.x 鐨?onnxruntime锛堥渶鑷 fork OCR 搴擄級銆?
-### Q: 鑳藉惁瀹屽叏绂荤嚎杩愯锛堜笉鑱旂綉锛夛紵
+A: 内嵌的 `onnxruntime.dll` 是 Microsoft 官方二进制，部分杀软会误报。这是 go-ddddocr + onnxruntime 生态的通用问题。建议在白名单中添加本程序，或在企业内网环境使用。
 
-A: 鉁?鍙互銆侽CR 妯″瀷鍦ㄧ紪璇戞椂閫氳繃 `//go:embed` 宓屽叆浜岃繘鍒讹紝杩愯鏃朵粎璁块棶 `www.nazhisoft.com`锛圫SO 鏈嶅姟鍣級銆?
-### Q: 鐧诲綍澶辫触鎻愮ず"楠岃瘉鐮佹牎楠屽け璐?锛?
-A: OCR 瀵瑰悓涓€寮犻獙璇佺爜鏈€澶氶噸璇?99 娆★紙绁炵粡缃戠粶鏈韩鏈夐殢鏈烘€э級銆傚鎸佺画澶辫触锛?- 妫€鏌ヨ处鍙峰瘑鐮佹槸鍚︽纭?- 閲嶈瘯 2-3 娆★紙楠岃瘉鐮佷細鍒锋柊锛?- 鍙兘鏄湇鍔＄闄愬埗锛岀◢绛夊嚑鍒嗛挓
+### Q: macOS x86_64 何时支持？
 
-### Q: 濡備綍鍦?CI 涓皟鐢?nazhi锛?
-A: 鐩存帴涓嬭浇 release 浜岃繘鍒跺埌 runner锛岃皟鐢ㄥ嵆鍙細
+A: Microsoft onnxruntime v1.25.0 已停止发布 macOS x86_64 版本（Apple 全面转向 Silicon）。本项目不打算支持。如需 Intel Mac 请使用 v1.20.x 的 onnxruntime（需自行 fork OCR 库）。
+
+### Q: 能否完全离线运行（不联网）？
+
+A: ✅ 可以。OCR 模型在编译时通过 `//go:embed` 嵌入二进制，运行时仅访问 `www.nazhisoft.com`（SSO 服务器）。
+
+### Q: 登录失败提示"验证码校验失败"？
+
+A: OCR 对同一张验证码最多重试 99 次（神经网络本身有随机性）。如持续失败：
+- 检查账号密码是否正确
+- 重试 2-3 次（验证码会刷新）
+- 可能是服务端限制，稍等几分钟
+
+### Q: 如何在 CI 中调用 nazhi？
+
+A: 直接下载 release 二进制到 runner，调用即可：
 
 ```yaml
 - name: Login
-  run: ./nazhi login -u ${{ secrets.USERNAME }} -p ${{ secrets.PASSWORD }} > token.json
-- name: Get token
-  id: gettoken
-  run: echo "::set-output name=token::$(jq -r .token token.json)"
+  env:
+    NAZHI_USERNAME: ${{ secrets.NAZHI_USERNAME }}
+    NAZHI_PASSWORD: ${{ secrets.NAZHI_PASSWORD }}
+  run: |
+    ./nazhi login > token.json
+    TOKEN=$(jq -r .token token.json)
+    echo "TOKEN=$TOKEN" >> $GITHUB_ENV
+- name: Fetch tasks
+  env:
+    NAZHI_TOKEN: ${{ env.TOKEN }}
+  run: ./nazhi task list
 ```
 
-### Q: SDK 鏄惁鑳戒綔涓哄簱琚閮?Go 椤圭洰 import锛?
-A: 鉁?鍙互銆俙pkg/client` 鍜?`pkg/types` 鏄叕寮€鍖咃細
+### Q: SDK 是否能作为库被外部 Go 项目 import？
+
+A: ✅ 可以。`pkg/client` 和 `pkg/types` 是公开包：
 
 ```go
 import (
@@ -413,23 +569,35 @@ import (
 )
 ```
 
-`internal/ocr` 鏄唴閮ㄥ寘锛屽閮ㄩ」鐩棤娉曞鍏ワ紝浣嗕笉褰卞搷 SDK 浣跨敤锛圤CR 閫氳繃 `GetDefault()` 鑷姩鍒濆鍖栵級銆?
-### Q: Linux ARM64 (Raspberry Pi) 鑳藉惁杩愯锛?
-A: 鉁?鍙互锛屽凡鍦?CI 楠岃瘉銆傛敞鎰?onnxruntime ARM64 浜岃繘鍒堕渶瑕?ARMv8-A 鏋舵瀯锛堟爲鑾撴淳 4+锛夈€?
-### Q: 濡備綍璋冭瘯 HTTP 璇锋眰锛?
-A: 浣跨敤 `--verbose` 鏍囧織鍙湅鍒拌缁嗘棩蹇楋細
+`internal/ocr` 是内部包，外部项目无法导入，但不影响 SDK 使用（OCR 通过 `GetDefault()` 自动初始化）。
+
+### Q: Linux ARM64 (Raspberry Pi) 能否运行？
+
+A: ✅ 可以，已在 CI 验证。注意 onnxruntime ARM64 二进制需要 ARMv8-A 架构（树莓派 4+）。
+
+### Q: 如何调试 HTTP 请求？
+
+A: 使用 `--verbose` 标志可看到详细日志：
 
 ```bash
-nazhi login -u xxx -p xxx -v
+nazhi login -v
 ```
 
-杈撳嚭鍖呭惈璇锋眰鏂规硶銆乁RL銆佺姸鎬佺爜銆佽€楁椂绛夈€?
+输出包含请求方法、URL、状态码、耗时等。
+
+### Q: 集成测试和单元测试的区别？
+
+A:
+
+- **单元测试** (`make test`)：用 `httptest.Server` mock SSO/业务服务器，验证 SDK 内部逻辑、并发、错误处理等。CI 必跑。
+- **集成测试** (`make test-integration`)：连真实 SSO/业务服务器，验证真实环境下的登录、API 调用。需要 `NAZHI_USERNAME` / `NAZHI_PASSWORD` 环境变量（未设置时自动 `t.Skip`）。本地手动跑，CI 可选。
+
 ---
 
-## 鍗忚
+## 协议
 
-[MIT License](./LICENSE) 鈥?璇﹁ LICENSE 鏂囦欢銆?
+[MIT License](./LICENSE) — 详见 LICENSE 文件。
+
 ---
 
-*Built with 鉂わ笍 for 绾虫櫤缁煎悎璇勪环绯荤粺鑷姩鍖?
-
+*Built with ❤️ for 纳智综合评价系统自动化*
