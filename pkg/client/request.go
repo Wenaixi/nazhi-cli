@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
@@ -97,18 +98,20 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 	}
 
 	c.logDebug("→ %s %s", method, url)
-	for k, v := range req.Header {
-		if len(v) == 0 {
-			continue
-		}
-		val := v[0]
-		// 脱敏：所有 header value 长度 > 16 字符都截断到 16 字符
-		// 防止 X-Auth-Token、Authorization、Cookie、Set-Cookie、Referer 中嵌入的 token
-		// 等敏感信息泄漏到日志（参见 request_log_redact_test.go 回归测试）。
-		if len(val) > 16 {
-			c.logDebug("  Header: %s: %s...", k, val[:16])
-		} else {
-			c.logDebug("  Header: %s: %s", k, val)
+	if c.logger.Enabled(context.Background(), slog.LevelDebug) {
+		for k, v := range req.Header {
+			if len(v) == 0 {
+				continue
+			}
+			val := v[0]
+			// 脱敏：所有 header value 长度 > 16 字符都截断到 16 字符
+			// 防止 X-Auth-Token、Authorization、Cookie、Set-Cookie、Referer 中嵌入的 token
+			// 等敏感信息泄漏到日志（参见 request_log_redact_test.go 回归测试）。
+			if len(val) > 16 {
+				c.logDebug("  Header: %s: %s...", k, val[:16])
+			} else {
+				c.logDebug("  Header: %s: %s", k, val)
+			}
 		}
 	}
 
