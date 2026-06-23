@@ -104,7 +104,7 @@ func copyMap(m map[string]string) map[string]string {
 //
 // token-aware 守卫：用 sessionToken + sessionMu 替代原 sync.Once，
 // 解决 sync.Once 不感知 token 变更的问题——进程内 token 变化
-//（如重新 Login）时重新执行 4 步激活，不会返回旧 session cookie。
+// （如重新 Login）时重新执行 4 步激活，不会返回旧 session cookie。
 func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) error {
 	c.sessionMu.Lock()
 	if c.sessionToken == token {
