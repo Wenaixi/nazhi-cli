@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/internal/ocr"
@@ -20,13 +21,18 @@ type captchaRecognizer interface {
 // Client 是目标平台 API 的完整 Go SDK。
 // 每个实例拥有独立的 cookie jar，天然并发安全。
 type Client struct {
-	ssoBaseURL   string // SSO 根地址
-	baseURL      string // 业务 API 根地址（port 8280）
-	uploadURL    string // 文件上传服务器地址
+	ssoBaseURL   string       // SSO 根地址
+	baseURL      string       // 业务 API 根地址（port 8280）
+	uploadURL    string       // 文件上传服务器地址
 	http         *http.Client // 独立 cookie jar
 	logger       *slog.Logger
 	ocr          captchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
-	pendingToken string // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
+	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
+
+	// sessionOnce 保证所有 biz 方法的 session 预热只首次调用 ActivateSession，
+	// 避免重复 4 步 GET 浪费请求 + 防止漏调导致空数据静默成功（HAR 验证）。
+	sessionOnce sync.Once
+	sessionErr  error
 }
 
 // ─── Option 模式 ───

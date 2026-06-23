@@ -12,6 +12,9 @@ import (
 // 包含：姓名、性别、学号、学校、年级、班级、座号（seat）等。
 // 最佳努力设计：失败返回 nil，不中断主流程。
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error) {
+	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+		return nil, fmt.Errorf("GetMyInfo 预热 session 失败: %w", err)
+	}
 	headers := c.bizHeaders(token)
 	headers["Referer"] = c.baseURL + "/modify"
 
