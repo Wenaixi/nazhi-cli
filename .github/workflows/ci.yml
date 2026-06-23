@@ -162,7 +162,7 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-${{ matrix.cross }}g++ g++-${{ matrix.cross }}gcc
+          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
       - name: 安装 zig（仅 Windows arm64 需要）
         if: ${{ matrix.cross == 'zig' }}
