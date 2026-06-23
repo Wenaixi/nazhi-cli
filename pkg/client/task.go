@@ -89,6 +89,11 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 func (c *Client) SubmitTask(ctx context.Context, token string, payload types.TaskSubmitPayload) (*types.TaskResult, error) {
 	headers := c.bizHeaders(token)
 
+	// session 预热（HAR 强契约：4 步激活后再发 biz 请求，否则返回空数据）
+	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+		return nil, fmt.Errorf("SubmitTask 预热 session 失败: %w", err)
+	}
+
 	// 验证 payload
 	if payload.CircleTaskID == 0 || payload.CircleTypeID == 0 {
 		return nil, fmt.Errorf("%w: circleTaskId 和 circleTypeId 不能为空", ErrInvalidPayload)
@@ -124,6 +129,9 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 
 // GetDimensions 获取任务维度列表。
 func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimension, error) {
+	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+		return nil, fmt.Errorf("GetDimensions 预热 session 失败: %w", err)
+	}
 	headers := c.bizHeaders(token)
 
 	bodyBytes, err := c.doRequest(ctx, http.MethodGet,
@@ -153,6 +161,9 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 
 // GetCircleTypeByTaskId 确认任务类型信息。
 func (c *Client) GetCircleTypeByTaskId(ctx context.Context, token string, taskID int64) (*map[string]any, error) {
+	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+		return nil, fmt.Errorf("GetCircleTypeByTaskId 预热 session 失败: %w", err)
+	}
 	headers := c.bizHeaders(token)
 
 	url := c.bizURL("/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10))

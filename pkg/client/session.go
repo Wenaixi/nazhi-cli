@@ -89,3 +89,17 @@ func copyMap(m map[string]string) map[string]string {
 	}
 	return out
 }
+
+// activateSessionIfNeeded 保证所有 biz 方法在第一次调用前完成
+// 4 步 session 预热（HAR 验证的强契约），后续调用 sync.Once 直接返回缓存错误。
+//
+// 这是 finding "SubmitTask 不调 ActivateSession" 的根治方案：
+// 每个 biz 方法（SubmitTask / GetDimensions / GetCircleTypeByTaskId / GetMyInfo /
+// QuerySelfEvaluation / QuerySelfGradEvaluation / SubmitSelfEvaluation）头部
+// 都调一次本 helper，确保 biz API 拿到预热过的 session cookie，不会返回空数据。
+func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) error {
+	c.sessionOnce.Do(func() {
+		_, c.sessionErr = c.ActivateSession(ctx, token)
+	})
+	return c.sessionErr
+}
