@@ -349,7 +349,9 @@ func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, 
 	if token == "" {
 		return "", time.Time{}, fmt.Errorf("returnData 中无 token 字段")
 	}
-	return token, time.Time{}, nil
+	// Bug 3 fix：返回兜底 now+24h 而非零值 time.Time{}
+	// 零值 time.Time 会被 ExpiresAt.Before(now) 误判为「已过期」
+	return token, time.Now().Add(24 * time.Hour), nil
 }
 
 // parseRawData 将原始 JSON 字节解析为 map 用于保留完整数据。
