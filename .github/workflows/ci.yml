@@ -157,12 +157,12 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
 
-      - name: 安装交叉编译工具链（仅 Linux arm64 / Windows arm64 需要）
+      - name: 安装交叉编译工具链（仅 Linux arm64 需要）
         if: ${{ matrix.cross != '' && matrix.cross != 'zig' }}
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y gcc-${matrix.cross}g++ g++-${matrix.cross}gcc
+          sudo apt-get install -y gcc-${{ matrix.cross }}g++ g++-${{ matrix.cross }}gcc
 
       - name: 安装 zig（仅 Windows arm64 需要）
         if: ${{ matrix.cross == 'zig' }}
