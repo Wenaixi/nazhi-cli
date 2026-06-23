@@ -66,4 +66,10 @@ func init() {
 
 	// whoami
 	rootCmd.AddCommand(whoamiCmd)
+
+	// version
+	rootCmd.AddCommand(versionCmd)
+
+	// completion
+	rootCmd.AddCommand(completionCmd)
 }

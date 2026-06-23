@@ -95,7 +95,7 @@ const (
 )
 
 // Login 完成 SSO 登录并返回 Token。
-// 内部流程：InitSession → GetSchoolID → 多图多试 OCR（最多 33 张图 × 3 次）→ 预校验 → 正式登录
+// 内部流程：InitSession → GetSchoolID → 多图多试 OCR（1 张图 OCR 1 次 × 最多 99 张图 = 99 次总尝试上限）→ 预校验 → 正式登录
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
 	// 1. 建立 session
 	if err := c.InitSession(ctx); err != nil {

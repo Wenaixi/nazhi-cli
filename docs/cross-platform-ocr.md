@@ -8,12 +8,12 @@
 
 | GOOS | GOARCH | 状态 | 备注 |
 |------|--------|------|------|
-| windows | amd64 | ✅ | 主力测试平台 |
-| windows | arm64 | ✅ | Windows on ARM |
-| linux | amd64 | ✅ | 服务器主流 |
-| linux | arm64 | ✅ | ARM 服务器 / Raspberry Pi 4+ |
-| darwin | arm64 | ✅ | Apple Silicon |
-| darwin | amd64 | ❌ | Microsoft 已停发 macOS x86_64 onnxruntime |
+| windows | amd64 | 支持 | 主力测试平台 |
+| windows | arm64 | 支持 | Windows on ARM（zig cc 交叉编译）|
+| linux | amd64 | 支持 | 服务器主流 |
+| linux | arm64 | 支持 | ARM 服务器 / Raspberry Pi 4+ |
+| darwin | arm64 | 支持 | Apple Silicon |
+| darwin | amd64 | 不支持 | Microsoft 已停发 macOS x86_64 onnxruntime |
 
 ## 文件结构
 
@@ -97,15 +97,18 @@ func GetDefault() *OCR {
 
 ## CI 矩阵
 
-`onnxruntime_go` 在 Linux/macOS 强制 CGO，无法从其他 OS 交叉编译。CI 每个平台用 native runner：
+`onnxruntime_go` 在 Linux/macOS 强制 CGO，无法从其他 OS 交叉编译。CI 每个平台用 native runner（或 cross-compile 工具链）：
 
-| 平台 | Runner | CGO_ENABLED |
-|------|--------|-------------|
-| Linux amd64 | `ubuntu-latest` | 1 |
-| Linux arm64 | `ubuntu-22.04-arm64` | 1 |
-| macOS arm64 | `macos-latest` | 1 |
-| Windows amd64 | `windows-latest` | 0 |
-| Windows arm64 | `windows-11-arm` | 0 |
+| 平台 | Runner | CGO_ENABLED | 编译方式 |
+|------|--------|-------------|----------|
+| Linux amd64 | `ubuntu-latest` | 1 | Native |
+| Linux arm64 | `ubuntu-latest` | 1 | Cross-compile: `gcc-aarch64-linux-gnu` |
+| macOS arm64 | `macos-latest` | 1 | Native |
+| Windows amd64 | `windows-latest` | 1 | Native MinGW |
+| Windows arm64 | `windows-latest` | 1 | Cross-compile: `zig cc -target aarch64-windows-gnu` |
+
+Linux arm64 用 `gcc-aarch64-linux-gnu` 在 amd64 runner 上交叉编译（不依赖稀缺的 ARM64 runner 资源池）。
+Windows arm64 用 `zig cc` 自带 aarch64-windows-gnu 工具链，绕过 MinGW gcc 只出 x86_64 的限制。
 
 ## 文件命名规则
 

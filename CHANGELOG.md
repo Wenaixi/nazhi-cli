@@ -7,11 +7,59 @@
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-24
+
+### Added
+
+- **Shell 自动补全** `nazhi completion [bash|zsh|fish|powershell]`
+- **版本号子命令** `nazhi version`
+
+### Fixed
+
+- **Session 兜底 body 读取 bug** — `session.go:77` 中步骤 4 失败后 body 已被 defer Close 消耗的问题。
+
+### Changed
+
+- **文档 emoji 清理** — 全部文档和注释移除 emoji。
+- **Makefile** — echo 消息纯文本化。
+
+### Tests
+
+- **`TestActivateSession_*` 系列** — 5 个 session fallback 测试覆盖。
+
+### Build
+
+- 版本号：`0.2.2`
+
+## [0.2.1] - 2026-06-24
+
+优化 — 多图多试 OCR 策略优化 + 文档完善 + CI 全平台修复。
+
+### Changed
+
+- **OCR 重试策略**：`3×33` → `1×99`（单图 OCR 1 次，失败换新图，最多 99 张图）。ddddocr 对同一张图是确定性的，同图重试无意义，真正有效的是换图（新验证码字符集变化）。
+- **Makefile echo**：移除所有 emoji，输出保持纯文本。
+- **CHANGELOG / README / 文档**：全部移除 emoji，统一风格。
+
+### Fixed
+
+- **测试性能**：`TestPrepareImage_CompressesLargeImage` 从 3000×3000 降为 1500×1500 + Pix 直接填充（29s → 3s）。
+- **CI 全平台修复**：10+ 轮修复后，5 平台（Linux amd64/arm64, macOS arm64, Windows amd64/arm64）全部构建通过。
+  - Linux arm64：`gcc-aarch64-linux-gnu` 在 amd64 runner 交叉编译
+  - Windows arm64：`zig cc` 在 amd64 runner 交叉编译
+  - golangci-lint：`go install` 兼容 Go 1.26.1
+  - softprops release：`continue-on-error: true` 处理新 release 404
+- **CLAUDE.md**：OCR 并发策略、CI 修复历程、发布资产全部更新。
+
+### Build
+
+- 版本号：`0.2.1`
+
 ## [0.2.0] - 2026-06-22
 
-🎉 **重大更新** — 跨平台 OCR + 进程级单例 + HAR 驱动测试 + Cookie 同步修复 + 完整文档体系。
+**重大更新** — 跨平台 OCR + 进程级单例 + HAR 驱动测试 + Cookie 同步修复 + 完整文档体系。
 
-### ✨ Features
+### Features
 
 #### 跨平台 OCR（5 平台）
 - 5 平台 build tag 隔离的 `onnx_*.go` 嵌入文件（win/lin/mac × amd64/arm64）
@@ -66,7 +114,7 @@
 - `docs/env-vars.md` — 环境变量参考
 - `docs/har-testing.md` — HAR 驱动测试架构
 
-### 🐛 Fixes
+### Fixes
 
 #### Security
 - **历史凭据泄露已修复**（v0.1.0 之前）：通过 `git-filter-repo` 重写所有分支和 tag 历史
@@ -89,7 +137,7 @@
 - 删除未使用的函数（EnforceCode、自定义 min）
 - 删除 debug 工具目录（cmd/debuglogin/、cmd/reallogin/、cmd/getcaptcha/、cmd/ocrtest/）
 
-### 🏗️ CI/CD
+### CI/CD
 
 - 5 平台 native runner 矩阵（ubuntu-latest、ubuntu-22.04-arm64、macos-latest、windows-latest、windows-11-arm）
 - 新增 `integration` Job：tag 发布时跑真实环境集成测试（需 secrets）
@@ -98,7 +146,7 @@
 - 新增 SHA256 校验和
 - 二进制 `--version` 验证步骤
 
-### 📦 Build
+### Build
 
 - Go 1.26.1
 - 单二进制分发（内嵌 OCR 模型 + onnxruntime）
@@ -106,7 +154,7 @@
 
 ## [0.1.0] - 2026-06-21
 
-🎉 初始发布 — nazhi-cli：纳智综合评价自动化 CLI + Go SDK。
+初始发布 — nazhi-cli：纳智综合评价自动化 CLI + Go SDK。
 
 ### Features
 

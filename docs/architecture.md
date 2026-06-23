@@ -6,7 +6,7 @@
 ┌─────────────────────────────────────┐
 │  cmd/nazhi/  (CLI 层 - cobra 命令)   │
 │  - 薄壳层：参数解析 + JSON 输出      │
-│  - 9 个用户可见命令                  │
+│  - 11 个用户可见命令                  │
 └────────────┬────────────────────────┘
              │ 调用
              ↓
@@ -54,6 +54,8 @@ nazhi-cli/
 │       ├── task_submit.go    # 任务提交
 │       ├── self_eval_*.go    # 自我评价
 │       ├── file_upload.go    # 文件上传
+│       ├── version.go        # 版本信息
+│       ├── completion.go     # shell 自动补全
 │       ├── env.go            # 环境变量加载
 │       └── output.go         # JSON 输出
 ├── pkg/                      # 公开 SDK

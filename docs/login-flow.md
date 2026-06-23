@@ -53,9 +53,13 @@ GET https://www.nazhisoft.com/kaptcha/kaptcha.jpg?t={毫秒时间戳}
 ### Step 4: OCR 识别（最多 99 次重试）
 
 ```go
-// 同一张图片多次 OCR 识别（神经网络有随机性）
-for i := 0; i < 99; i++ {
-    text, err := ocr.Recognize(imageBytes)
+// 多图多试策略：
+//   单张图片 OCR 1 次（ddddocr 对同一张图是确定性的）
+//   失败则换新图，最多换 99 张
+//   总尝试次数上限 = 1 × 99 = 99 次
+for imgIdx := 0; imgIdx < 99; imgIdx++ {
+    imgBytes := fetchCaptchaImage()
+    text, err := ocr.Recognize(imgBytes)
     if err == nil && text != "" {
         return text, nil
     }
