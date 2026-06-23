@@ -272,7 +272,9 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	defer resp.Body.Close()
 
 	imgBytes, err := io.ReadAll(resp.Body)
+	// 读取失败时先 drain body 再返回，避免 TCP 连接无法归还 keep-alive 池
 	if err != nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil, fmt.Errorf("读取验证码图片失败: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK || len(imgBytes) == 0 {
