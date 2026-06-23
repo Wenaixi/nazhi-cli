@@ -31,8 +31,10 @@ const MinImageDimension = 10
 // 92 起步是默认值，平台 56-79KB 实测用 40 足够。
 var qualitySteps = []int{80, 60, 40}
 
-// scaleFactors 缩放级联（每步 ×0.7 指数衰减）。
-var scaleFactors = []float64{0.9, 0.63, 0.441, 0.309, 0.216, 0.151, 0.106}
+// scaleFactors 缩放级联（每步在前一步基础上 ×0.7 累乘，7 步总比例 ~8%）。
+// 累乘语义：4000×3000 → 2800×2100 → 1960×1470 → ... → 329×247。
+// 这是真正"级联"，比 7 步独立绝对比例更渐进式缩小，文件大小更可控。
+var scaleFactors = []float64{0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7}
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
 var ErrImageTooLarge = errors.New("image: 压缩后仍超过目标大小")
@@ -148,14 +150,15 @@ func (c *Client) prepareImageWithStats(path string) (*prepResult, error) {
 		}
 	}
 
-	// 缩放级联（保持质量 40）
+	// 缩放级联（保持质量 40，每步基于上一步结果累乘 ×scale）
+	current := img
 	for _, scale := range scaleFactors {
-		w := int(float64(img.Bounds().Dx()) * scale)
-		h := int(float64(img.Bounds().Dy()) * scale)
+		w := int(float64(current.Bounds().Dx()) * scale)
+		h := int(float64(current.Bounds().Dy()) * scale)
 		if w < MinImageDimension || h < MinImageDimension {
 			break
 		}
-		resized := imaging.Resize(img, w, h, imaging.Lanczos)
+		resized := imaging.Resize(current, w, h, imaging.Lanczos)
 		data, err = encodeJPEG(resized, 40)
 		if err != nil {
 			continue
@@ -168,6 +171,8 @@ func (c *Client) prepareImageWithStats(path string) (*prepResult, error) {
 			stats.OutputHeight = resized.Bounds().Dy()
 			return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
 		}
+		// 关键：下一轮基于当前 resized 而非原图（累乘语义）
+		current = resized
 	}
 
 	// 兜底：返回当前最小结果
