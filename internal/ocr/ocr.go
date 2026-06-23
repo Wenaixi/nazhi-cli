@@ -86,7 +86,10 @@ func NewPool(preload int) *Pool {
 // Recognize 从池中取一个 OCR 实例识别图片，用完归还。
 // 不同实例并发安全（每个实例内部有独立 mu 保护 Classification）。
 func (p *Pool) Recognize(imageData []byte) (string, error) {
-	o := p.pool.Get().(*OCR)
+	o, ok := p.pool.Get().(*OCR)
+	if !ok {
+		o = &OCR{}
+	}
 	defer p.pool.Put(o)
 	return o.Recognize(imageData)
 }
