@@ -297,7 +297,10 @@ var jpegBufPool = sync.Pool{
 // 使用 sync.Pool 复用 buffer 减少 GC 压力，cascade 重编码场景下
 // 5MB 图片多次 encode 共享同一个 buffer 实例。
 func encodeJPEG(img image.Image, quality int) ([]byte, error) {
-	buf := jpegBufPool.Get().(*bytes.Buffer)
+	buf, ok := jpegBufPool.Get().(*bytes.Buffer)
+	if !ok {
+		buf = &bytes.Buffer{}
+	}
 	buf.Reset()
 	defer func() {
 		// 释放前清空，避免 buffer 持有对 img 像素的引用导致 GC 无法回收
