@@ -285,7 +285,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 上传图片到文件服务器，返回图片 ID。
 
 **关键约束**：
-- ⚠️ **不发送任何 Token/Cookie**（文件服务器独立，发送反而被风控）
+- **不发送任何 Token/Cookie**（文件服务器独立，发送反而被风控）
 - SDK 内部使用独立 `http.Client`（无 cookie jar）
 - 上传前自动预处理：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB
 
@@ -336,7 +336,7 @@ c := client.New(
 )
 ```
 
-⚠️ 注意：替换后 `syncCookieToken` 假设新 client 有 `*cookiejar.Jar`，否则 token 同步会失败。
+注意：替换后 `syncCookieToken` 假设新 client 有 `*cookiejar.Jar`，否则 token 同步会失败。
 
 ### 自定义 Logger
 
@@ -348,7 +348,7 @@ c := client.New(
     client.WithLogger(logger),
     client.WithToken(token),
 )
-// 失败时可通过 logger.Debug 看到详细 HTTP 请求
+失败时可通过 logger.Debug 看到详细 HTTP 请求
 ```
 
 ### 注入 Mock OCR（测试用）

@@ -1,6 +1,6 @@
 # CLI 参考
 
-nazhi-cli 提供 9 个用户可见命令 + 全局选项 + 环境变量配置。
+nazhi-cli 提供 11 个用户可见命令 + 全局选项 + 环境变量配置。
 
 ## 全局选项
 
@@ -28,6 +28,8 @@ nazhi
 │   └── status                      查询评价状态
 └── file
     └── upload                      上传图片
+├── version                         显示版本信息
+└── completion                      生成 shell 自动补全脚本
 ```
 
 ## 通用约定
@@ -36,6 +38,47 @@ nazhi
 - **错误输出**：失败时输出 `{"error": true, "message": "..."}` 到 stderr，退出码 1
 - **`--quiet` 屏蔽**：屏蔽所有 stderr，便于管道处理
 - **环境变量**：所有标志都有对应的 `NAZHI_*` 环境变量 fallback
+
+## nazhi version
+
+显示当前版本号。
+
+```bash
+nazhi version
+nazhi --version    # 等效
+```
+
+**输出**：纯文本版本号（如 `0.2.2`）。
+
+## nazhi completion
+
+生成指定 shell 的自动补全脚本。
+
+```bash
+nazhi completion bash
+nazhi completion zsh
+nazhi completion fish
+nazhi completion powershell
+```
+
+支持的 shell：`bash`、`zsh`、`fish`、`powershell`。
+
+**使用示例**：
+
+```bash
+# Bash
+source <(nazhi completion bash)
+
+# Zsh（先加载补全系统）
+echo "autoload -U compinit; compinit" >> ~/.zshrc
+echo "source <(nazhi completion zsh)" >> ~/.zshrc
+
+# fish
+nazhi completion fish | source
+
+# PowerShell
+nazhi completion powershell | Out-String | Invoke-Expression
+```
 
 ## nazhi login
 
@@ -63,7 +106,7 @@ nazhi login -u 学号 -p 密码
 }
 ```
 
-> 🔒 Token 有效期 14 天，存到环境变量复用。
+> Token 有效期 14 天，存到环境变量复用。
 
 ## nazhi school
 
@@ -212,7 +255,7 @@ nazhi file upload -f ./photo.jpg
 | `--upload-url` | ❌ | `NAZHI_UPLOAD_URL` | 上传服务器，默认 `http://doc.nazhisoft.com` |
 | `--timeout` | ❌ | `NAZHI_TIMEOUT` | HTTP 超时 |
 
-**⚠️ 不接受 `--token`**：文件服务器独立，发送 token 反而被风控。
+**不支持 `--token`**：文件服务器独立，发送 token 反而被风控。
 
 **支持格式**：JPEG、PNG、GIF（取首帧）、WEBP。BMP 需先转换。
 

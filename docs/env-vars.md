@@ -82,9 +82,9 @@ unset NAZHI_TOKEN
 
 ## 安全建议
 
-- ⚠️ **不要在脚本中硬编码** 真实学号密码
-- ✅ **使用 secret 管理**（GitHub Secrets、Vault、AWS Secrets Manager）
-- ✅ **在 CI 中通过环境变量注入**
-- ✅ **定期轮换** SSO 密码，因为历史上发生过泄露
-- ✅ **`.env` 文件绝不入 git**（已在 `.gitignore`）
-- ✅ **临时文件中残留的 token** 用 `git-filter-repo` 清理历史
+- **不要在脚本中硬编码** 真实学号密码
+- **使用 secret 管理**（GitHub Secrets、Vault、AWS Secrets Manager）
+- **在 CI 中通过环境变量注入**
+- **定期轮换** SSO 密码，因为历史上发生过泄露
+- **`.env` 文件绝不入 git**（已在 `.gitignore`）
+- **临时文件中残留的 token** 用 `git-filter-repo` 清理历史

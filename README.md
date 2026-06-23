@@ -1,6 +1,6 @@
 # nazhi-cli
 
-**纳智综合评价系统 自动化 CLI + Go SDK** v0.2.0
+**纳智综合评价系统 自动化 CLI + Go SDK** v0.2.2
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
@@ -9,14 +9,14 @@
 
 一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 **SSO 登录**、**任务管理**、**自我评价**、**文件上传** 等完整功能。
 
-## ✨ 特色
+## 特色
 
-- 🔐 **全自动 OCR 验证码** — 模型已嵌入二进制，无需下载、无需配置，开箱即用
-- 🌍 **跨平台支持** — Windows / Linux / macOS（5 个平台 × 架构组合），单二进制运行
-- 📦 **进程级 OCR 单例** — 多实例共享引擎，避免重复解压模型
-- 🛠️ **CLI + SDK 双形态** — 脚本可直接调用，集成方导入 Go 包
-- 🧪 **完整测试覆盖** — 单元测试 + race 检测 + 真实环境集成测试 + HAR 驱动测试
-- 🍪 **HAR 对齐** — 4 步 Session 激活、双重 Token 注入，全部逆向 v1 抓包验证
+- 全自动 OCR 验证码 — 模型已嵌入二进制，无需下载、无需配置，开箱即用
+- 跨平台支持 — Windows / Linux / macOS（5 个平台 × 架构组合），单二进制运行
+- 进程级 OCR 单例 — 多实例共享引擎，避免重复解压模型
+- CLI + SDK 双形态 — 脚本可调用，集成方导入 Go 包
+- 完整测试覆盖 — 单元测试 + race 检测 + 真实环境集成测试 + HAR 驱动测试
+- HAR 对齐 — 4 步 Session 激活、双重 Token 注入，全部逆向抓包验证
 
 ## 📚 文档
 
@@ -135,6 +135,8 @@ nazhi
 │   └── status           # 查询评价状态
 └── file
     └── upload           # 上传图片
+├── version              # 显示版本信息
+└── completion           # 生成 shell 自动补全脚本
 ```
 
 详见 [CLI 参考](docs/cli/README.md)
@@ -229,4 +231,4 @@ make test-integration
 
 ---
 
-*Built with ❤️ for 纳智综合评价系统自动化*
+*Built for nazhi 综合评价系统自动化*

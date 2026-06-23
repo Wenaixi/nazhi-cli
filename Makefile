@@ -9,55 +9,55 @@ LDFLAGS := -ldflags="-s -w"
 
 build: clean-bin
 	go build $(LDFLAGS) -o bin/nazhi.exe ./cmd/nazhi
-	@echo "✅ 构建完成: bin/nazhi.exe"
+	@echo "构建完成: bin/nazhi.exe"
 
 build-linux:
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
-	@echo "✅ Linux amd64: bin/nazhi-linux-amd64"
+	@echo "Linux amd64: bin/nazhi-linux-amd64"
 
 build-darwin:
 	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
-	@echo "✅ macOS arm64: bin/nazhi-darwin-arm64"
+	@echo "macOS arm64: bin/nazhi-darwin-arm64"
 
 build-windows:
 	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
-	@echo "✅ Windows amd64: bin/nazhi-windows-amd64.exe"
+	@echo "Windows amd64: bin/nazhi-windows-amd64.exe"
 
 # ─── 测试 ───
 
 test:
 	go test -count=1 -race ./...
-	@echo "✅ 测试全绿"
+	@echo "测试全通过"
 
 test-verbose:
 	go test -count=1 -race -v ./...
-	@echo "✅ 测试完成"
+	@echo "测试完成"
 
 test-integration:
-	@if [ -f .env ]; then echo "📄 加载 .env"; export $$(grep -v '^#' .env | xargs); fi; \
+	@if [ -f .env ]; then echo "加载 .env"; export $$(grep -v '^#' .env | xargs); fi; \
 	NAZHI_USERNAME="$${NAZHI_USERNAME:-}" NAZHI_PASSWORD="$${NAZHI_PASSWORD:-}" \
 	go test -count=1 -tags=integration -race -v ./test/integration/...
-	@echo "✅ 集成测试完成（未设置 NAZHI_USERNAME/NAZHI_PASSWORD 时自动 skip）"
+	@echo "集成测试完成（未设置 NAZHI_USERNAME/NAZHI_PASSWORD 时自动跳过）"
 
 # ─── 代码质量 ───
 
 lint:
 	golangci-lint run ./...
-	@echo "✅ lint 通过"
+	@echo "lint 通过"
 
 vet:
 	go vet ./...
-	@echo "✅ vet 通过"
+	@echo "vet 通过"
 
 fmt:
 	gofmt -l -s -w .
-	@echo "✅ gofmt 完成"
+	@echo "gofmt 完成"
 
 # ─── 安装 ───
 
 install:
 	go install $(LDFLAGS) ./cmd/nazhi
-	@echo "✅ 已安装到 GOBIN: nazhi"
+	@echo "已安装到 GOBIN: nazhi"
 
 # ─── 发布 ───
 
@@ -75,7 +75,7 @@ clean-bin:
 
 clean:
 	rm -rf bin/
-	@echo "✅ 已清理"
+	@echo "已清理"
 
 # ─── 帮助 ───
 
@@ -85,7 +85,7 @@ help:
 	@echo "  make build        编译 CLI → bin/nazhi.exe"
 	@echo "  make build-linux  交叉编译 Linux amd64"
 	@echo "  make build-darwin 交叉编译 macOS arm64"
-	@echo "  make build-windows交叉编译 Windows amd64"
+	@echo "  make build-windows 交叉编译 Windows amd64"
 	@echo "  make test         全量测试（race 检测）"
 	@echo "  make vet          go vet 静态分析"
 	@echo "  make lint         golangci-lint 检查"

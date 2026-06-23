@@ -2,7 +2,7 @@
 
 欢迎查阅 nazhi-cli 项目文档。
 
-## 📚 用户文档
+## 用户文档
 
 | 文档 | 内容 |
 |------|------|
@@ -12,7 +12,7 @@
 | [环境变量](./env-vars.md) | NAZHI_* 环境变量完整说明 |
 | [HAR 集成测试](./har-testing.md) | HAR 驱动测试架构 |
 
-## 🏗️ 架构文档
+## 架构文档
 
 | 文档 | 内容 |
 |------|------|
@@ -21,7 +21,7 @@
 | [跨平台 OCR](./cross-platform-ocr.md) | 5 平台 onnxruntime 嵌入策略 |
 | [HAR 反向工程文档](../Nazhi-auto/docs/reverse/) | 55+ API 端点完整清单（来源：v1 抓包） |
 
-## 🔧 开发文档
+## 开发文档
 
 | 文档 | 内容 |
 |------|------|
@@ -30,7 +30,7 @@
 | [CHANGELOG](../CHANGELOG.md) | 版本变更日志 |
 | [安全策略](../SECURITY.md) | 漏洞上报方式 |
 
-## 🔗 外部参考
+## 外部参考
 
 - [Go 官方文档](https://go.dev/doc/)
 - [cobra 用户指南](https://github.com/spf13/cobra)

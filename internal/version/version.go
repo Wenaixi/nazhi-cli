@@ -6,4 +6,6 @@ package version
 //
 //	0.1.0 — 初始版本
 //	0.2.0 — 跨平台 OCR + 进程级单例 + HAR 驱动测试 + cookie 同步修复
-var Version = "0.2.0"
+//	0.2.1 — 多图多试 OCR 优化（1×99 策略）+ CI 全平台修复 + 文档完善
+//	0.2.2 — Shell 自动补全 + 版本子命令 + Session bug 修复 + 测试补充
+var Version = "0.2.2"

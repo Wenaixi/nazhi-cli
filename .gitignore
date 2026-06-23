@@ -11,6 +11,8 @@ coverage.out
 coverage.html
 *.cover
 *.prof
+coverage
+coverage_pkg
 
 # 第三方 vendor（项目用 go module，不用 vendor）
 /vendor/
