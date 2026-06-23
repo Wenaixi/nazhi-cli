@@ -270,6 +270,10 @@ jobs:
 
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
+        # softprops 内部对同名 asset 增量更新（删旧 + 传新），如果 release
+        # 是新建的不存在旧 asset → 删步骤返回 404，job 会标 failed。
+        # 但 5 平台 + SHA256SUMS 实际已上传成功，对最终 release 状态无影响。
+        continue-on-error: true
         with:
           name: nazhi ${{ github.ref_name }}
           body: |
