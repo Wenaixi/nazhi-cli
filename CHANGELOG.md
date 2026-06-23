@@ -7,6 +7,37 @@
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-06-24
+
+### Added
+
+- **全仓库代码审查** — 7 维度多 Agent 并行审查 + 验证 + 修复流程。
+
+### Fixed
+
+- **`auth.go:143` io.ReadAll 静默丢弃** — 捕获网络闪断时的读取错误，避免误导性的 "未找到 token"。
+- **`auth.go:269` fetchCaptchaImage 缺 drain** — 读取出错时 drain body 再 close，保证 TCP 连接可复用。
+- **`auth.go:347` ExpiresAt 零值** — 200 JSON 登录路径的 `ExpiresAt` 改为 `now+24h` 兜底，不再返回公元 0001 年。
+- **`auth.go:373` syncCookieToken 兼容性** — 类型断言失败时输出实际类型和修复提示。
+- **`session.go:109` token 不感知** — `activateSessionIfNeeded` 改为 token 感知守卫，不同 token 自动重新激活 4 步 session。
+- **`task.go:21` 行为不一致** — `FetchTasks` 改用 `activateSessionIfNeeded`，与其他 7 个 biz 方法统一。
+- **`user.go:41` 错误吞噬** — `getMyInfoRaw` 正确将 CheckCode 错误传播给调用方。
+- **`ocr.go:89`+`image_prep.go:300` sync.Pool 裸断言** — 类型断言加 `ok` 检查，杜绝 GC 后 panic。
+- **`file.go:121` 零超时传播** — `newCleanClient` 在父 client 无超时时兜底 30s。
+
+### Changed
+
+- **`request.go` 提取 `buildRequest()`** — 消除 `doRequest`/`doRequestWithResp` ~40 行重复代码。
+- **CLI 提取 `buildBizClient()`** — 消除 6 个命令文件各 ~15 行重复的 env fallback + Client 构造代码，新增 `cmd/nazhi/client_builder.go`。
+- **`request.go` header 日志加 debug guard** — 非 Debug 级别不再每次请求都遍历 header。
+- **`Makefile` VERSION 提取** — 改用精确模式 `grep -E '^\s*var\s+Version\s*='` 避免匹配注释行。
+- **`version` 命令输出 JSON** — 符合 CLI 统一输出约定，`nazhi version` 输出 `{"version":"0.3.0"}`。
+- **`ocr.go` Pool 注释修正** — 说明预热只分配结构体不触发 ONNX session，GC 后可能回收。
+
+### Build
+
+- 版本号：`0.3.0`
+
 ## [0.2.2] - 2026-06-24
 
 ### Added
