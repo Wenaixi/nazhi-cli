@@ -57,6 +57,40 @@ func GetDefault() *OCR {
 	return defaultOCR
 }
 
+// Pool 是多个 OCR 实例的池，允许并发识别（默认 1 实例，兼容单例行为）。
+//
+// ONNX Runtime session 不是线程安全的（一个 session 同一时刻只能一个线程调用），
+// 所以单实例下并发请求会被 sync.Mutex 串行化，N 并发 Login 的 wall time = N × 单次延迟。
+//
+// 启用并发：NewPool(n) 预热 n 个独立 session 实例，允许 n 路真并发。
+// 内存代价：每个实例约 50MB（ONNX 模型 + 原生库解压到独立 tempDir），n=4 ≈ 200MB。
+// 业务场景：批量调用 Login() 时才需要调高；单 Login 调一次用 1 实例足够。
+type Pool struct {
+	pool sync.Pool
+}
+
+// NewPool 创建 OCR 实例池。preload=0 或 1 表示懒加载单实例（默认行为）。
+// preload>1 表示预热 n 个独立 ONNX session 实例，支持 n 路真并发。
+func NewPool(preload int) *Pool {
+	p := &Pool{
+		pool: sync.Pool{New: func() any { return &OCR{} }},
+	}
+	for i := 0; i < preload; i++ {
+		// 预热：先 Get 触发 New，初始化 session，再 Put 回 pool
+		o := p.pool.Get().(*OCR)
+		p.pool.Put(o)
+	}
+	return p
+}
+
+// Recognize 从池中取一个 OCR 实例识别图片，用完归还。
+// 不同实例并发安全（每个实例内部有独立 mu 保护 Classification）。
+func (p *Pool) Recognize(imageData []byte) (string, error) {
+	o := p.pool.Get().(*OCR)
+	defer p.pool.Put(o)
+	return o.Recognize(imageData)
+}
+
 var (
 	defaultOCR  *OCR
 	defaultOnce sync.Once

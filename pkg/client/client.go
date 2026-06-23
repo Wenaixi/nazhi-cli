@@ -96,6 +96,23 @@ func WithCustomOCR(r captchaRecognizer) Option {
 	return func(c *Client) { c.ocr = r }
 }
 
+// WithOCRConcurrency 设置 OCR 实例池预热数量（允许并发识别）。
+//
+// 行为约定：
+//   - 0 或 1 = 默认懒加载单实例（与原单例行为一致，1 路串行识别）
+//   - N > 1 = 预热 N 个独立 ONNX session 实例，支持 N 路真并发识别
+//
+// 内存代价：每个 ONNX session 约 50MB（模型 + 原生库），N=4 约 200MB。
+// 业务场景：批量调用 Login() 时才需要调高；单次 Login 用 1 实例足够。
+func WithOCRConcurrency(n int) Option {
+	return func(c *Client) {
+		if n < 0 {
+			n = 0
+		}
+		c.ocr = ocr.NewPool(n)
+	}
+}
+
 // WithToken 预置 X-Auth-Token（同时写入 Header 和 Cookie）。
 //
 // 用于不经过 Login() 流程、直接从外部传入 token 的场景：
@@ -122,7 +139,8 @@ func WithToken(token string) Option {
 //	    nazhicli.WithTimeout(15*time.Second),
 //	)
 //
-// OCR 验证码识别器默认启用进程级单例（模型只解压一次）。
+// OCR 验证码识别器默认启用进程级 Pool 单实例（与原单例行为一致）。
+// 批量并发场景可用 WithOCRConcurrency(N) 预热 N 个独立 session 实例。
 //
 // Option 处理顺序：所有 Options 跑完后，若有 WithToken 注入，则在最终 c.http.Jar /
 // c.ssoBaseURL / c.baseURL 已知的前提下统一 syncCookieToken（避免顺序敏感性 bug）。
@@ -133,7 +151,7 @@ func New(opts ...Option) *Client {
 		uploadURL:  defaultUploadURL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:        ocr.GetDefault(),
+		ocr:        ocr.NewPool(0), // 默认懒加载单实例（兼容原行为）
 	}
 	for _, opt := range opts {
 		opt(c)
