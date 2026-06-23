@@ -81,7 +81,7 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 
 	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
+		return nil, fmt.Errorf("%w: 创建请求失败: %w", ErrNetwork, err)
 	}
 
 	// 设置 Content-Type
@@ -114,13 +114,17 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrNetwork, err)
+		return nil, fmt.Errorf("%w: 请求失败: %w", ErrNetwork, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("读取响应体失败: %w", err)
+		return nil, fmt.Errorf("%w: 读取响应体失败: %w", ErrNetwork, err)
 	}
 
 	c.logDebug("← %d (%d bytes)", resp.StatusCode, len(respBytes))
@@ -147,7 +151,7 @@ func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body
 
 	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
 	if err != nil {
-		return nil, fmt.Errorf("创建请求失败: %w", err)
+		return nil, fmt.Errorf("%w: 创建请求失败: %w", ErrNetwork, err)
 	}
 
 	if contentType != "" {
