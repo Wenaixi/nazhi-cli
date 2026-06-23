@@ -70,7 +70,8 @@ type Pool struct {
 }
 
 // NewPool 创建 OCR 实例池。preload=0 或 1 表示懒加载单实例（默认行为）。
-// preload>1 表示预热 n 个独立 ONNX session 实例，支持 n 路真并发。
+// preload>1 表示预分配 n 个 OCR 结构体（ONNX session 仍惰性初始化，首次 Recognize 时触发）。
+// 注意：sync.Pool 在 GC 后可能回收对象，到时惰性初始化兜底。
 func NewPool(preload int) *Pool {
 	p := &Pool{
 		pool: sync.Pool{New: func() any { return &OCR{} }},
@@ -86,7 +87,10 @@ func NewPool(preload int) *Pool {
 // Recognize 从池中取一个 OCR 实例识别图片，用完归还。
 // 不同实例并发安全（每个实例内部有独立 mu 保护 Classification）。
 func (p *Pool) Recognize(imageData []byte) (string, error) {
-	o := p.pool.Get().(*OCR)
+	o, ok := p.pool.Get().(*OCR)
+	if !ok {
+		o = &OCR{}
+	}
 	defer p.pool.Put(o)
 	return o.Recognize(imageData)
 }
