@@ -79,8 +79,20 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 
 // ─── Login ───
 
+// OCR 重试策略常量。
+// ddddocr 对同一张图是确定性的，所以单图重试主要兜底 IO/CGO 抖动；
+// 真正有效的是换图（新验证码字符集变化）。
+const (
+	// maxOCRAttemptsPerImage 单张验证码图片最多 OCR 次数。
+	maxOCRAttemptsPerImage = 9
+
+	// maxOCRImagesTotal 最多换多少张验证码图片。
+	// 单图 9 次 × 11 张 = 99 次总尝试上限（保留兼容原行为）。
+	maxOCRImagesTotal = 11
+)
+
 // Login 完成 SSO 登录并返回 Token。
-// 内部流程：InitSession → GetSchoolID → 获取验证码图片 → OCR 识别（最多 99 次重试同一张图片）→ 预校验 → 正式登录
+// 内部流程：InitSession → GetSchoolID → 多图多试 OCR（最多 11 张图 × 9 次）→ 预校验 → 正式登录
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
 	// 1. 建立 session
 	if err := c.InitSession(ctx); err != nil {
@@ -98,10 +110,9 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 
 	// 3. OCR 自动识别验证码
-	const maxOCRRetries = 99
-	captcha, err := c.ocrRecognizeWithRetry(ctx, maxOCRRetries)
+	captcha, err := c.ocrRecognizeWithRetry(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("Login OCR 自动识别验证码失败（已重试 %d 次）: %w", maxOCRRetries, err)
+		return nil, fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
 	}
 	c.logDebug("OCR 识别结果: %s", captcha)
 
@@ -200,43 +211,63 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	return nil
 }
 
-// ocrRecognizeWithRetry 获取一次验证码图片，然后对同一张图片重复 OCR 识别最多 retries 次。
-func (c *Client) ocrRecognizeWithRetry(ctx context.Context, retries int) (string, error) {
-	// 只获取一次验证码图片
+// ocrRecognizeWithRetry 多图多试策略识别验证码：
+//
+//   - 每张图片最多 OCR maxOCRAttemptsPerImage (9) 次
+//   - 单图全部失败则换新图，最多换 maxOCRImagesTotal (11) 张
+//   - 任意一次 OCR 成功（非空字符串）即返回
+//   - 总尝试数上限 = 9 × 11 = 99 次
+//
+// 注意事项：ddddocr 引擎对同一张图是确定性的（无随机采样），同图重试主要兜底
+// IO/CGO 抖动；真正有效的是换图（新验证码字符集变化）。
+func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
+	var lastErr error
+	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
+		imgBytes, err := c.fetchCaptchaImage(ctx)
+		if err != nil {
+			lastErr = err
+			c.logDebug("OCR 获取第 %d 张验证码失败: %v", imgIdx+1, err)
+			continue
+		}
+		for attempt := 0; attempt < maxOCRAttemptsPerImage; attempt++ {
+			text, err := c.ocr.Recognize(imgBytes)
+			if err != nil {
+				lastErr = err
+				c.logDebug("OCR 第 %d 张图 第 %d 次失败: %v", imgIdx+1, attempt+1, err)
+				continue
+			}
+			if text == "" {
+				lastErr = fmt.Errorf("空白结果")
+				c.logDebug("OCR 第 %d 张图 第 %d 次结果为空白", imgIdx+1, attempt+1)
+				continue
+			}
+			c.logDebug("OCR 识别成功: img=%d attempt=%d result=%s", imgIdx+1, attempt+1, text)
+			return text, nil
+		}
+		c.logDebug("OCR 同一张图识别 %d 次均失败，换新图", maxOCRAttemptsPerImage)
+	}
+	return "", fmt.Errorf("OCR 识别 %d 张图 × %d 次（共 %d 次）均失败，最后错误: %w",
+		maxOCRImagesTotal, maxOCRAttemptsPerImage,
+		maxOCRImagesTotal*maxOCRAttemptsPerImage, lastErr)
+}
+
+// fetchCaptchaImage 拉取一张新的验证码图片。
+func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	url := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
 	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, c.ssoHeaders(), "")
 	if err != nil {
-		return "", fmt.Errorf("获取验证码图片失败: %w", err)
+		return nil, fmt.Errorf("获取验证码图片失败: %w", err)
 	}
 	defer resp.Body.Close()
 
 	imgBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("读取验证码图片失败: %w", err)
+		return nil, fmt.Errorf("读取验证码图片失败: %w", err)
 	}
-
 	if resp.StatusCode != http.StatusOK || len(imgBytes) == 0 {
-		return "", fmt.Errorf("获取验证码图片响应异常 status=%d len=%d", resp.StatusCode, len(imgBytes))
+		return nil, fmt.Errorf("获取验证码图片响应异常 status=%d len=%d", resp.StatusCode, len(imgBytes))
 	}
-
-	// 对同一张图片多次 OCR 识别
-	var lastErr error
-	for i := range retries {
-		captchaText, err := c.ocr.Recognize(imgBytes)
-		if err != nil {
-			lastErr = err
-			c.logDebug("OCR 第 %d 次识别失败: %v", i+1, err)
-			continue
-		}
-		if captchaText == "" {
-			lastErr = fmt.Errorf("空白结果")
-			c.logDebug("OCR 第 %d 次结果为空白", i+1)
-			continue
-		}
-		return captchaText, nil
-	}
-
-	return "", fmt.Errorf("OCR 识别重试 %d 次均失败，最后错误: %w", retries, lastErr)
+	return imgBytes, nil
 }
 
 // ─── 内部辅助 ───
