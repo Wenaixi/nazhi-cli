@@ -9,6 +9,7 @@ package ocr
 
 import (
 	_ "embed"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -123,13 +124,24 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 }
 
 // Close 释放 OCR 资源并清理临时文件。
-// 进程退出时操作系统会回收临时目录，这里只主动 Close 引擎。
+// 返回任何清理过程中遇到的错误（Windows AV 持锁、Linux 权限拒绝等场景），
+// 让调用方知情，避免临时目录永久泄漏到 %TEMP%。
 func (o *OCR) Close() error {
+	var errs []error
 	if o.ocr != nil {
-		o.ocr.Close()
+		if err := o.ocr.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭 ddddocr 引擎: %w", err))
+		}
+		o.ocr = nil
 	}
 	if o.tempDir != "" {
-		os.RemoveAll(o.tempDir)
+		if err := os.RemoveAll(o.tempDir); err != nil {
+			errs = append(errs, fmt.Errorf("清理临时目录 %s: %w", o.tempDir, err))
+		}
+		o.tempDir = ""
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
 	}
 	return nil
 }
