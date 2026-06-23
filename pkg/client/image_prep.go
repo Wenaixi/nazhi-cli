@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"strings"
 
 	"github.com/disintegration/imaging"
@@ -279,11 +280,31 @@ func flattenOnWhite(src image.Image) image.Image {
 	return dst
 }
 
+// jpegBufPool 复用 bytes.Buffer 给 encodeJPEG，避免每次上传 5MB 图片时
+// cascade 重编码 2-11 次的 buffer 重复分配/GC 压力。
+// 注：bytes.Buffer.Get 出来必须 Reset；返回的 []byte 必须 copy（pool Put 后
+// 内部 slice 会被其他 goroutine 复用覆盖）。
+var jpegBufPool = sync.Pool{
+	New: func() any { return &bytes.Buffer{} },
+}
+
 // encodeJPEG 编码为 JPG 字节流。
+// 使用 sync.Pool 复用 buffer 减少 GC 压力，cascade 重编码场景下
+// 5MB 图片多次 encode 共享同一个 buffer 实例。
 func encodeJPEG(img image.Image, quality int) ([]byte, error) {
-	var buf bytes.Buffer
-	if err := jpeg.Encode(&buf, img, &jpeg.Options{Quality: quality}); err != nil {
+	buf := jpegBufPool.Get().(*bytes.Buffer)
+	buf.Reset()
+	defer func() {
+		// 释放前清空，避免 buffer 持有对 img 像素的引用导致 GC 无法回收
+		buf.Reset()
+		jpegBufPool.Put(buf)
+	}()
+	if err := jpeg.Encode(buf, img, &jpeg.Options{Quality: quality}); err != nil {
 		return nil, err
 	}
-	return buf.Bytes(), nil
+	// 关键：必须 copy 出来再返回——pool Put 后 buffer 内部 slice 会被
+	// 其他 goroutine 复用，buf.Bytes() 返回的引用会立刻失效
+	out := make([]byte, buf.Len())
+	copy(out, buf.Bytes())
+	return out, nil
 }
