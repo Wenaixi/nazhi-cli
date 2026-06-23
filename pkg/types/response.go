@@ -34,7 +34,10 @@ func DecodeResponse(data []byte) (UnifiedResponse, error) {
 }
 
 // CheckCode 检查 code 是否为 1（成功）。
-// 如果不是，返回包含错误信息的 error。
+// 如果不是，返回 *BusinessError（保留数值 code 供 errors.As 判别）。
+//
+// 下游可用 errors.As(err, &bizErr) 拿到 Code 数值做精细分支
+// （如 code=2 重试 / code=500 致命错误），不再局限于字符串匹配。
 func CheckCode(resp UnifiedResponse) error {
 	if resp.Code == 1 {
 		return nil
@@ -43,7 +46,27 @@ func CheckCode(resp UnifiedResponse) error {
 	if resp.Msg != nil && *resp.Msg != "" {
 		msg = *resp.Msg
 	}
-	return fmt.Errorf("业务错误 (code=%d): %s", resp.Code, msg)
+	return &BusinessError{Code: resp.Code, Msg: msg}
+}
+
+// BusinessError 业务错误，保留数值 code 供 errors.As 精细判别。
+//
+// 使用方法：
+//
+//	var bizErr *types.BusinessError
+//	if errors.As(err, &bizErr) {
+//	    switch bizErr.Code {
+//	    case 2: // 重试
+//	    case 500: // 致命
+//	    }
+//	}
+type BusinessError struct {
+	Code int    // 业务 code（非 1）
+	Msg  string // 错误描述
+}
+
+func (e *BusinessError) Error() string {
+	return fmt.Sprintf("业务错误 (code=%d): %s", e.Code, e.Msg)
 }
 
 // DecodeReturnData 将 returnData 解析为目标类型。
