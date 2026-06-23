@@ -100,15 +100,24 @@ func copyMap(m map[string]string) map[string]string {
 }
 
 // activateSessionIfNeeded 保证所有 biz 方法在第一次调用前完成
-// 4 步 session 预热（HAR 验证的强契约），后续调用 sync.Once 直接返回缓存错误。
+// 4 步 session 预热（HAR 验证的强契约），后续调用 token 相同则直接返回。
 //
-// 这是 finding "SubmitTask 不调 ActivateSession" 的根治方案：
-// 每个 biz 方法（SubmitTask / GetDimensions / GetCircleTypeByTaskId / GetMyInfo /
-// QuerySelfEvaluation / QuerySelfGradEvaluation / SubmitSelfEvaluation）头部
-// 都调一次本 helper，确保 biz API 拿到预热过的 session cookie，不会返回空数据。
+// token-aware 守卫：用 sessionToken + sessionMu 替代原 sync.Once，
+// 解决 sync.Once 不感知 token 变更的问题——进程内 token 变化
+//（如重新 Login）时重新执行 4 步激活，不会返回旧 session cookie。
 func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) error {
-	c.sessionOnce.Do(func() {
-		_, c.sessionErr = c.ActivateSession(ctx, token)
-	})
-	return c.sessionErr
+	c.sessionMu.Lock()
+	if c.sessionToken == token {
+		c.sessionMu.Unlock()
+		return nil
+	}
+	c.sessionMu.Unlock()
+
+	_, err := c.ActivateSession(ctx, token)
+	if err == nil {
+		c.sessionMu.Lock()
+		c.sessionToken = token
+		c.sessionMu.Unlock()
+	}
+	return err
 }

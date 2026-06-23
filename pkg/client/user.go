@@ -40,7 +40,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 
 	if err := types.CheckCode(resp); err != nil {
 		// 最佳努力设计：失败返回 nil 不中断主流程
-		return nil, nil
+		return nil, fmt.Errorf("获取用户信息业务错误: %w", err)
 	}
 
 	// 尝试从 returnData 解析
