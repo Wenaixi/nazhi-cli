@@ -140,7 +140,10 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 	defer httpResp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(httpResp.Body)
+	bodyBytes, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Login 读取响应体失败: %w", err)
+	}
 
 	// 5. 优先解析 200 JSON 响应（HAR 验证：登录响应 HTTP 200，body 含 returnData.token）
 	if httpResp.StatusCode == http.StatusOK {
@@ -269,7 +272,9 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	defer resp.Body.Close()
 
 	imgBytes, err := io.ReadAll(resp.Body)
+	// 读取失败时先 drain body 再返回，避免 TCP 连接无法归还 keep-alive 池
 	if err != nil {
+		_, _ = io.Copy(io.Discard, resp.Body)
 		return nil, fmt.Errorf("读取验证码图片失败: %w", err)
 	}
 	if resp.StatusCode != http.StatusOK || len(imgBytes) == 0 {
@@ -344,7 +349,9 @@ func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, 
 	if token == "" {
 		return "", time.Time{}, fmt.Errorf("returnData 中无 token 字段")
 	}
-	return token, time.Time{}, nil
+	// Bug 3 fix：返回兜底 now+24h 而非零值 time.Time{}
+	// 零值 time.Time 会被 ExpiresAt.Before(now) 误判为「已过期」
+	return token, time.Now().Add(24 * time.Hour), nil
 }
 
 // parseRawData 将原始 JSON 字节解析为 map 用于保留完整数据。
@@ -371,11 +378,11 @@ func stringPtrOr(s *string, def string) string {
 // 使其在业务 API 请求中自动携带（参考 v1 session.cookies.set 模式）。
 func (c *Client) syncCookieToken(token string) {
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
+	// Bug 4 fix：类型断言失败时输出实际类型 + 修复提示，帮助排查自定义 client 兼容问题
 	if !ok {
-		// 关键可观测性：HTTP client 缺少 *cookiejar.Jar 时 token 静默丢失，
-		// 业务服务器校验 cookie 缺失会返回空数据而无错误信号，必须 warn 出来。
-		c.logger.Warn("syncCookieToken: HTTP client 未配置 *cookiejar.Jar，X-Auth-Token 只能走 Header，服务器可能拒绝",
-			"tip", "用 client.New() 默认 HTTP 客户端，或显式 cookiejar.New(nil) 赋给 http.Client.Jar")
+		c.logger.Warn("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar，X-Auth-Token 无法同步到 cookie",
+			"actual_type", fmt.Sprintf("%T", c.http.Jar),
+			"tip", "用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建")
 		return
 	}
 	successCount := 0
