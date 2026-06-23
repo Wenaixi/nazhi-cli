@@ -84,15 +84,15 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 // 真正有效的是换图（新验证码字符集变化）。
 const (
 	// maxOCRAttemptsPerImage 单张验证码图片最多 OCR 次数。
-	maxOCRAttemptsPerImage = 9
+	maxOCRAttemptsPerImage = 3
 
 	// maxOCRImagesTotal 最多换多少张验证码图片。
-	// 单图 9 次 × 11 张 = 99 次总尝试上限（保留兼容原行为）。
-	maxOCRImagesTotal = 11
+	// 单图 3 次 × 33 张 = 99 次总尝试上限（保留兼容原行为）。
+	maxOCRImagesTotal = 33
 )
 
 // Login 完成 SSO 登录并返回 Token。
-// 内部流程：InitSession → GetSchoolID → 多图多试 OCR（最多 11 张图 × 9 次）→ 预校验 → 正式登录
+// 内部流程：InitSession → GetSchoolID → 多图多试 OCR（最多 33 张图 × 3 次）→ 预校验 → 正式登录
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
 	// 1. 建立 session
 	if err := c.InitSession(ctx); err != nil {
@@ -213,10 +213,10 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 
 // ocrRecognizeWithRetry 多图多试策略识别验证码：
 //
-//   - 每张图片最多 OCR maxOCRAttemptsPerImage (9) 次
-//   - 单图全部失败则换新图，最多换 maxOCRImagesTotal (11) 张
+//   - 每张图片最多 OCR maxOCRAttemptsPerImage (3) 次
+//   - 单图全部失败则换新图，最多换 maxOCRImagesTotal (33) 张
 //   - 任意一次 OCR 成功（非空字符串）即返回
-//   - 总尝试数上限 = 9 × 11 = 99 次
+//   - 总尝试数上限 = 3 × 33 = 99 次
 //
 // 注意事项：ddddocr 引擎对同一张图是确定性的（无随机采样），同图重试主要兜底
 // IO/CGO 抖动；真正有效的是换图（新验证码字符集变化）。
