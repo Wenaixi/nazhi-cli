@@ -171,7 +171,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
 		}
 		// 兜底 expiresAt = now+24h 时 warn 出来（说明 server 真的没给 expires）
-		if expiresAt.Sub(time.Now()) > 23*time.Hour {
+		if time.Until(expiresAt) > 23*time.Hour {
 			c.logDebug("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步

@@ -13,8 +13,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
-	"sync"
 	"strings"
+	"sync"
 
 	"github.com/disintegration/imaging"
 	// 注册 WEBP 解码器（golang.org/x/image 是 disintegration/imaging 的间接依赖）
