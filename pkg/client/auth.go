@@ -378,11 +378,11 @@ func stringPtrOr(s *string, def string) string {
 // 使其在业务 API 请求中自动携带（参考 v1 session.cookies.set 模式）。
 func (c *Client) syncCookieToken(token string) {
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
+	// Bug 4 fix：类型断言失败时输出实际类型 + 修复提示，帮助排查自定义 client 兼容问题
 	if !ok {
-		// 关键可观测性：HTTP client 缺少 *cookiejar.Jar 时 token 静默丢失，
-		// 业务服务器校验 cookie 缺失会返回空数据而无错误信号，必须 warn 出来。
-		c.logger.Warn("syncCookieToken: HTTP client 未配置 *cookiejar.Jar，X-Auth-Token 只能走 Header，服务器可能拒绝",
-			"tip", "用 client.New() 默认 HTTP 客户端，或显式 cookiejar.New(nil) 赋给 http.Client.Jar")
+		c.logger.Warn("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar，X-Auth-Token 无法同步到 cookie",
+			"actual_type", fmt.Sprintf("%T", c.http.Jar),
+			"tip", "用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建")
 		return
 	}
 	successCount := 0
