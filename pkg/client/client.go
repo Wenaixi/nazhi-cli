@@ -56,11 +56,26 @@ func WithUploadURL(url string) Option {
 }
 
 // WithTimeout 设置 HTTP 客户端超时（包括连接、TLS 握手、响应体读取）。
+//
+// 行为约定：
+//   - d > 0：设置超时
+//   - d = 0：保持设置但 warn（0 = net/http 默认"无超时"，请求可能永久挂起）
+//   - d < 0：拒绝设置并 warn，保持当前 Timeout（防止意外把超时改小）
 func WithTimeout(d time.Duration) Option {
 	return func(c *Client) {
-		if c.http != nil {
-			c.http.Timeout = d
+		if c.http == nil {
+			return
 		}
+		if d < 0 {
+			c.logger.Warn("WithTimeout: 负数超时被拒绝，保持当前值",
+				"duration", d, "current", c.http.Timeout)
+			return
+		}
+		if d == 0 {
+			c.logger.Warn("WithTimeout: 0 表示 net/http 默认'无超时'，所有请求可能永久挂起",
+				"tip", "用 WithTimeout(15*time.Second) 设置正数")
+		}
+		c.http.Timeout = d
 	}
 }
 
