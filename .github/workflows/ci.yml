@@ -122,9 +122,16 @@ jobs:
             # onnxruntime_go 强制 CGO → Windows 也需要 CGO_ENABLED=1
             # windows-latest 默认已装 MinGW gcc
             cgo: "1"
-          # Windows (arm64) 暂不构建：windows-11-arm runner 的 MinGW gcc 是 x86_64 版，
-          # CGO 编译 ARM64 汇编 (stp/ldp/blr) 会失败；交叉编译需要 aarch64-w64-mingw32
-          # 工具链，超出当前 CI 复杂度。Surface Pro X 等 arm64 Windows 用户极少。
+          # Windows (arm64) cross-compile from windows-latest (amd64 runner)：
+          # windows-11-arm runner 的 MinGW gcc 是 x86_64 版，编译 AArch64 汇编失败。
+          # 用 zig cc 自带 aarch64-windows-gnu 工具链 cross-compile，绕过 runner 限制。
+          - name: Windows (arm64)
+            runner: windows-latest
+            goos: windows
+            goarch: arm64
+            ext: ".exe"
+            cgo: "1"
+            cross: "zig"
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -150,12 +157,20 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
 
-      - name: 安装交叉编译工具链（仅 Linux arm64 需要）
-        if: ${{ matrix.cross != '' }}
+      - name: 安装交叉编译工具链（仅 Linux arm64 / Windows arm64 需要）
+        if: ${{ matrix.cross != '' && matrix.cross != 'zig' }}
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y gcc-${matrix.cross}g++ g++-${matrix.cross}gcc
+
+      - name: 安装 zig（仅 Windows arm64 需要）
+        if: ${{ matrix.cross == 'zig' }}
+        shell: bash
+        run: |
+          choco install zig --version=0.13.0 -y --no-progress
+          echo "C:\ProgramData\chocolatey\lib\zig" >> $GITHUB_PATH
+          zig version
 
       - name: 编译
         shell: bash
@@ -163,8 +178,8 @@ jobs:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: ${{ matrix.cgo }}
-          CC: ${{ matrix.cross && format('{0}gcc', matrix.cross) || '' }}
-          CXX: ${{ matrix.cross && format('{0}g++', matrix.cross) || '' }}
+          CC: ${{ matrix.cross == 'zig' && 'zig cc -target aarch64-windows-gnu' || (matrix.cross != '' && format('{0}gcc', matrix.cross) || '') }}
+          CXX: ${{ matrix.cross == 'zig' && 'zig c++ -target aarch64-windows-gnu' || (matrix.cross != '' && format('{0}g++', matrix.cross) || '') }}
         run: |
           mkdir -p bin
           go build -ldflags="-s -w" \
