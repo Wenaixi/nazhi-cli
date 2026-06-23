@@ -97,10 +97,17 @@ jobs:
             goarch: amd64
             ext: ""
             cgo: "1"
-          # Linux (arm64) 暂不构建：GitHub Actions `ubuntu-22.04-arm64` runner
-          # 资源池极小，CI job 排队 10+ 分钟无法分配；CGO 跨架构编译需要
-          # aarch64-linux-gnu 工具链。arm64 Linux 用户极少，关键 3 主流平台
-          # 已覆盖。本地交叉编译命令见 CLAUDE.md。
+          # Linux (arm64) cross-compile from ubuntu-latest (amd64 runner)：
+          # 不依赖 GitHub `ubuntu-22.04-arm64` runner 资源池（实测 10+ 分钟分配不到）。
+          # apt 装 gcc-aarch64-linux-gnu 作为 C cross compiler，CC 指向它。
+          # 运行时用户需自行安装 libonnxruntime.so.1.25.0 aarch64（运行时 dlopen）。
+          - name: Linux (arm64)
+            runner: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            ext: ""
+            cgo: "1"
+            cross: "aarch64-linux-gnu-"
           - name: macOS (arm64)
             runner: macos-latest
             goos: darwin
@@ -143,12 +150,21 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
 
+      - name: 安装交叉编译工具链（仅 Linux arm64 需要）
+        if: ${{ matrix.cross != '' }}
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-${matrix.cross}g++ g++-${matrix.cross}gcc
+
       - name: 编译
         shell: bash
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: ${{ matrix.cgo }}
+          CC: ${{ matrix.cross && format('{0}gcc', matrix.cross) || '' }}
+          CXX: ${{ matrix.cross && format('{0}g++', matrix.cross) || '' }}
         run: |
           mkdir -p bin
           go build -ldflags="-s -w" \
@@ -158,11 +174,16 @@ jobs:
       - name: 验证二进制可执行
         shell: bash
         run: |
-          if [ "${{ matrix.goos }}" = "windows" ]; then
-            ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} --version
+          # ARM64 二进制无法在 x86_64 runner 上直接执行，只验证文件类型
+          if [[ "${{ matrix.goarch }}" == "arm64" ]] && [[ "${{ matrix.runner }}" == "ubuntu-latest" || "${{ matrix.runner }}" == "windows-latest" ]]; then
+            file "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
           else
-            chmod +x ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
-            ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} --version
+            if [ "${{ matrix.goos }}" = "windows" ]; then
+              ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} --version
+            else
+              chmod +x ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+              ./bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }} --version
+            fi
           fi
 
       - name: 压缩产物
