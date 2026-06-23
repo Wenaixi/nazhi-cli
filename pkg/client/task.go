@@ -18,7 +18,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	headers := c.bizHeaders(token)
 
 	// 1. 先激活 session
-	if _, err := c.ActivateSession(ctx, token); err != nil {
+	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return nil, fmt.Errorf("FetchTasks ActivateSession 失败: %w", err)
 	}
 
