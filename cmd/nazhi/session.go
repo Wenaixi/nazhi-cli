@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -22,36 +20,13 @@ var sessionActivateCmd = &cobra.Command{
 	Short: "激活业务 Session",
 	Long:  `使用 token 激活目标平台业务 Session。返回用户基本信息。`,
 	Example: `  nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx
-  nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+	  nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {
-		token, _ := cmd.Flags().GetString("token")
-		baseURL, _ := cmd.Flags().GetString("base-url")
-		timeoutSec, _ := cmd.Flags().GetInt("timeout")
-
-		// 环境变量 fallback
-		if token == "" {
-			token = envString("NAZHI_TOKEN", "")
-		}
-		if baseURL == "" {
-			baseURL = envString("NAZHI_BASE_URL", "")
-		}
-		if !flagChanged(cmd, "timeout") {
-			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
-		}
-
-		if token == "" {
-			printError(fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）"))
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printError(err)
 			return
 		}
-
-		opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
-		if baseURL != "" {
-			opts = append(opts, client.WithBaseURL(baseURL))
-		}
-		if token != "" {
-			opts = append(opts, client.WithToken(token))
-		}
-		c := client.New(opts...)
 
 		printVerbose("激活 Session...")
 		info, err := c.ActivateSession(cmd.Context(), token)
