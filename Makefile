@@ -2,7 +2,7 @@
 
 # ─── 版本 ───
 
-VERSION := $(shell grep 'Version' internal/version/version.go | head -1 | sed 's/.*"\(.*\)"/\1/')
+VERSION := $(shell grep -E '^\s*var\s+Version\s*=' internal/version/version.go | sed 's/.*"\(.*\)"/\1/')
 LDFLAGS := -ldflags="-s -w"
 
 # ─── 构建 ───
