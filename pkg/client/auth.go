@@ -140,7 +140,10 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 	defer httpResp.Body.Close()
 
-	bodyBytes, _ := io.ReadAll(httpResp.Body)
+	bodyBytes, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("Login 读取响应体失败: %w", err)
+	}
 
 	// 5. 优先解析 200 JSON 响应（HAR 验证：登录响应 HTTP 200，body 含 returnData.token）
 	if httpResp.StatusCode == http.StatusOK {
