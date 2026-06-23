@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
@@ -59,10 +60,8 @@ func (c *Client) bizHeaders(token string) map[string]string {
 
 // ─── HTTP 请求执行 ───
 
-// doRequest 执行 HTTP 请求，自动设置请求头，返回响应体字节。
-// headers 是可选的自定义请求头（合并到公共头之上）。
-// contentType 为空时默认 application/json。
-func (c *Client) doRequest(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) ([]byte, error) {
+// buildRequest 构造 *http.Request，设置 Content-Type 和请求头。
+func (c *Client) buildRequest(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {
 		switch b := body.(type) {
@@ -96,19 +95,33 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 		req.Header.Set(k, v)
 	}
 
+	return req, nil
+}
+
+// doRequest 执行 HTTP 请求，自动设置请求头，返回响应体字节。
+// headers 是可选的自定义请求头（合并到公共头之上）。
+// contentType 为空时默认 application/json。
+func (c *Client) doRequest(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) ([]byte, error) {
+	req, err := c.buildRequest(ctx, method, url, body, headers, contentType)
+	if err != nil {
+		return nil, err
+	}
+
 	c.logDebug("→ %s %s", method, url)
-	for k, v := range req.Header {
-		if len(v) == 0 {
-			continue
-		}
-		val := v[0]
-		// 脱敏：所有 header value 长度 > 16 字符都截断到 16 字符
-		// 防止 X-Auth-Token、Authorization、Cookie、Set-Cookie、Referer 中嵌入的 token
-		// 等敏感信息泄漏到日志（参见 request_log_redact_test.go 回归测试）。
-		if len(val) > 16 {
-			c.logDebug("  Header: %s: %s...", k, val[:16])
-		} else {
-			c.logDebug("  Header: %s: %s", k, val)
+	if c.logger.Enabled(context.Background(), slog.LevelDebug) {
+		for k, v := range req.Header {
+			if len(v) == 0 {
+				continue
+			}
+			val := v[0]
+			// 脱敏：所有 header value 长度 > 16 字符都截断到 16 字符
+			// 防止 X-Auth-Token、Authorization、Cookie、Set-Cookie、Referer 中嵌入的 token
+			// 等敏感信息泄漏到日志（参见 request_log_redact_test.go 回归测试）。
+			if len(val) > 16 {
+				c.logDebug("  Header: %s: %s...", k, val[:16])
+			} else {
+				c.logDebug("  Header: %s: %s", k, val)
+			}
 		}
 	}
 
@@ -133,35 +146,9 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 
 // doRequestWithResp 执行请求并返回 *http.Response（调用者负责关闭 Body）。
 func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Response, error) {
-	var reqBody io.Reader
-	if body != nil {
-		switch b := body.(type) {
-		case []byte:
-			reqBody = bytes.NewReader(b)
-		case string:
-			reqBody = strings.NewReader(b)
-		default:
-			jsonBytes, err := json.Marshal(body)
-			if err != nil {
-				return nil, fmt.Errorf("序列化请求体失败: %w", err)
-			}
-			reqBody = bytes.NewReader(jsonBytes)
-		}
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, reqBody)
+	req, err := c.buildRequest(ctx, method, url, body, headers, contentType)
 	if err != nil {
-		return nil, fmt.Errorf("%w: 创建请求失败: %w", ErrNetwork, err)
-	}
-
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	} else if body != nil {
-		req.Header.Set("Content-Type", "application/json")
-	}
-
-	for k, v := range headers {
-		req.Header.Set(k, v)
+		return nil, err
 	}
 
 	c.logDebug("→ %s %s", method, url)
