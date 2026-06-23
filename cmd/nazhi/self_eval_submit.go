@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -19,28 +17,15 @@ var selfEvalSubmitCmd = &cobra.Command{
 	Short: "提交自我评价",
 	Long:  `提交自我评价文本。如果 --comment 为空或为 "-"，则从 stdin 读取评价内容。`,
 	Example: `  nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "很好的学期"
-  nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "-"`,
+	  nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "-"`,
 	Run: func(cmd *cobra.Command, args []string) {
-		token, _ := cmd.Flags().GetString("token")
-		comment, _ := cmd.Flags().GetString("comment")
-		baseURL, _ := cmd.Flags().GetString("base-url")
-		timeoutSec, _ := cmd.Flags().GetInt("timeout")
-
-		// 环境变量 fallback
-		if token == "" {
-			token = envString("NAZHI_TOKEN", "")
-		}
-		if baseURL == "" {
-			baseURL = envString("NAZHI_BASE_URL", "")
-		}
-		if !flagChanged(cmd, "timeout") {
-			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
-		}
-
-		if token == "" {
-			printError(fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）"))
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printError(err)
 			return
 		}
+
+		comment, _ := cmd.Flags().GetString("comment")
 
 		// 从 stdin 读取评论（非 TTY 环境如 CI 直接读取，不阻塞）
 		if comment == "" || comment == "-" {
@@ -58,17 +43,8 @@ var selfEvalSubmitCmd = &cobra.Command{
 			}
 		}
 
-		opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
-		if baseURL != "" {
-			opts = append(opts, client.WithBaseURL(baseURL))
-		}
-		if token != "" {
-			opts = append(opts, client.WithToken(token))
-		}
-		c := client.New(opts...)
-
 		printVerbose("正在提交自我评价...")
-		err := c.SubmitSelfEvaluation(cmd.Context(), token, comment)
+		err = c.SubmitSelfEvaluation(cmd.Context(), token, comment)
 		if err != nil {
 			printError(fmt.Errorf("提交自我评价失败: %w", err))
 			return
