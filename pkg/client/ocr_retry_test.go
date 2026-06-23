@@ -85,10 +85,10 @@ func TestOCRRetry_SucceedsOnFirstImage(t *testing.T) {
 	}
 }
 
-// TestOCRRetry_Fails3TimesThenNewImageSucceeds 验证核心场景：
-// 单图 OCR 3 次都失败后换新图，第 2 张图第 1 次成功。
-// 期望：2 次图片获取 + 4 次 OCR 调用。
-func TestOCRRetry_Fails3TimesThenNewImageSucceeds(t *testing.T) {
+// TestOCRRetry_FailsAcrossImages 验证跨图重试：每张图 OCR 1 次后换图
+// （ddddocr 确定性下同图重试无意义，1×99 策略）。
+// 期望：3 次失败后第 4 张图成功 = 4 imageFetches + 4 recognizeCalls。
+func TestOCRRetry_FailsAcrossImages(t *testing.T) {
 	var imageFetches int32
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/kaptcha/kaptcha.jpg" {
@@ -100,7 +100,7 @@ func TestOCRRetry_Fails3TimesThenNewImageSucceeds(t *testing.T) {
 	}))
 	defer sso.Close()
 
-	// 前 3 次 fail，第 4 次成功（=第 2 张图第 1 次尝试）
+	// 前 3 次 fail，第 4 次成功（=第 4 张图第 1 次尝试）
 	mock := &countMockOCR{failBeforeSuccess: 3, returnText: "xy34"}
 	c := newClientForOCRTest(sso.URL, mock)
 	c.ocr = mock
@@ -112,17 +112,18 @@ func TestOCRRetry_Fails3TimesThenNewImageSucceeds(t *testing.T) {
 	if got != "xy34" {
 		t.Fatalf("expected 'xy34', got %q", got)
 	}
-	if got := atomic.LoadInt32(&imageFetches); got != 2 {
-		t.Errorf("expected 2 image fetches (单图 3 次失败换新图), got %d", got)
+	if got := atomic.LoadInt32(&imageFetches); got != 4 {
+		t.Errorf("expected 4 image fetches (3 张图各 1 次失败 + 第 4 张成功), got %d", got)
 	}
 	if got := atomic.LoadInt32(&mock.recognizeCalls); got != 4 {
 		t.Errorf("expected 4 OCR calls (3 fail + 1 success), got %d", got)
 	}
 }
 
-// TestOCRRetry_Fails2ThenSucceedsOnAttempt3 验证：单图内部分失败时也能继续到成功。
-// 期望：1 张图 + 3 次 OCR 调用。
-func TestOCRRetry_Fails2ThenSucceedsOnAttempt3(t *testing.T) {
+// TestOCRRetry_Fails2ThenSucceedsAfter2Images 验证：前 2 张图各 1 次失败，
+// 第 3 张图第 1 次就成功（1×99 策略下"attempt 3"语义变为"第 3 张图"）。
+// 期望：3 imageFetches + 3 recognizeCalls。
+func TestOCRRetry_Fails2ThenSucceedsAfter2Images(t *testing.T) {
 	var imageFetches int32
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/kaptcha/kaptcha.jpg" {
@@ -145,8 +146,8 @@ func TestOCRRetry_Fails2ThenSucceedsOnAttempt3(t *testing.T) {
 	if got != "ok99" {
 		t.Fatalf("expected 'ok99', got %q", got)
 	}
-	if got := atomic.LoadInt32(&imageFetches); got != 1 {
-		t.Errorf("expected 1 image fetch, got %d", got)
+	if got := atomic.LoadInt32(&imageFetches); got != 3 {
+		t.Errorf("expected 3 image fetches (2 fail + 1 success), got %d", got)
 	}
 	if got := atomic.LoadInt32(&mock.recognizeCalls); got != 3 {
 		t.Errorf("expected 3 OCR calls (2 fail + 1 success), got %d", got)
@@ -264,19 +265,20 @@ func TestOCRRetry_ImageFetchFails(t *testing.T) {
 	}
 }
 
-// TestOCRRetry_Constants 兜底测试：常量值符合预期（3 × 33 = 99）。
+// TestOCRRetry_Constants 兜底测试：常量值符合预期（1 × 99 = 99）。
+// ddddocr 确定性下同图重试无意义，把所有重试预算分配给换图。
 func TestOCRRetry_Constants(t *testing.T) {
-	if maxOCRAttemptsPerImage != 3 {
-		t.Errorf("maxOCRAttemptsPerImage = %d, want 3", maxOCRAttemptsPerImage)
+	if maxOCRAttemptsPerImage != 1 {
+		t.Errorf("maxOCRAttemptsPerImage = %d, want 1", maxOCRAttemptsPerImage)
 	}
-	if maxOCRImagesTotal != 33 {
-		t.Errorf("maxOCRImagesTotal = %d, want 33", maxOCRImagesTotal)
+	if maxOCRImagesTotal != 99 {
+		t.Errorf("maxOCRImagesTotal = %d, want 99", maxOCRImagesTotal)
 	}
 	if maxOCRAttemptsPerImage*maxOCRImagesTotal != 99 {
-		t.Errorf("3 × 33 should equal 99, got %d",
+		t.Errorf("1 × 99 should equal 99, got %d",
 			maxOCRAttemptsPerImage*maxOCRImagesTotal)
 	}
-	t.Logf("nazhi %s — OCR 重试策略: %d 张图 × %d 次 = %d 次总尝试上限",
+	t.Logf("nazhi %s — OCR 重试策略: %d 张图 × %d 次 = %d 次总尝试上限（ddddocr 确定性下把预算全放换图）",
 		version.Version, maxOCRImagesTotal, maxOCRAttemptsPerImage,
 		maxOCRImagesTotal*maxOCRAttemptsPerImage)
 }

@@ -81,15 +81,17 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 // ─── Login ───
 
 // OCR 重试策略常量。
-// ddddocr 对同一张图是确定性的，所以单图重试主要兜底 IO/CGO 抖动；
-// 真正有效的是换图（新验证码字符集变化）。
+// ddddocr 对同一张图是确定性的（同图重试结果完全相同），所以单图 1 次 OCR
+// 即可拿到最终结果；同图重试只兜底极小概率的 CGO/IO 抖动，但收益微乎其微。
+// 真正有效的是换图（新验证码字符集变化），所以把次数预算全部放在换图上：
+// 1 张图 OCR 1 次 × 99 张图 = 99 次总尝试上限。
 const (
-	// maxOCRAttemptsPerImage 单张验证码图片最多 OCR 次数。
-	maxOCRAttemptsPerImage = 3
+	// maxOCRAttemptsPerImage 单张验证码图片 OCR 次数（ddddocr 确定性下 1 次足够）。
+	maxOCRAttemptsPerImage = 1
 
 	// maxOCRImagesTotal 最多换多少张验证码图片。
-	// 单图 3 次 × 33 张 = 99 次总尝试上限（保留兼容原行为）。
-	maxOCRImagesTotal = 33
+	// 1 × 99 = 99 次总尝试上限（保留原 99 次预算，分配给换图）。
+	maxOCRImagesTotal = 99
 )
 
 // Login 完成 SSO 登录并返回 Token。
@@ -218,13 +220,14 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 
 // ocrRecognizeWithRetry 多图多试策略识别验证码：
 //
-//   - 每张图片最多 OCR maxOCRAttemptsPerImage (3) 次
-//   - 单图全部失败则换新图，最多换 maxOCRImagesTotal (33) 张
+//   - 每张图片 OCR maxOCRAttemptsPerImage (1) 次（ddddocr 确定性，单次即终态）
+//   - 单图失败则换新图，最多换 maxOCRImagesTotal (99) 张
 //   - 任意一次 OCR 成功（非空字符串）即返回
-//   - 总尝试数上限 = 3 × 33 = 99 次
+//   - 总尝试数上限 = 1 × 99 = 99 次
 //
-// 注意事项：ddddocr 引擎对同一张图是确定性的（无随机采样），同图重试主要兜底
-// IO/CGO 抖动；真正有效的是换图（新验证码字符集变化）。
+// 关键洞察：ddddocr 引擎对同一张图是确定性的（无随机采样），同图重试只能
+// 兜底极小概率的 CGO/IO 抖动；真正有效的是换图（新验证码字符集变化）。
+// 把所有重试预算放在换图上，效率与原 3×33 策略等价但少 2/3 次浪费 OCR 调用。
 func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 	var lastErr error
 	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
@@ -249,7 +252,7 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 			c.logDebug("OCR 识别成功: img=%d attempt=%d result=%s", imgIdx+1, attempt+1, text)
 			return text, nil
 		}
-		c.logDebug("OCR 同一张图识别 %d 次均失败，换新图", maxOCRAttemptsPerImage)
+		c.logDebug("OCR 当前图识别失败，换新图")
 	}
 	return "", fmt.Errorf("OCR 识别 %d 张图 × %d 次（共 %d 次）均失败，最后错误: %w",
 		maxOCRImagesTotal, maxOCRAttemptsPerImage,
