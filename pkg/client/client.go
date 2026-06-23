@@ -96,11 +96,12 @@ func WithCustomOCR(r captchaRecognizer) Option {
 	return func(c *Client) { c.ocr = r }
 }
 
-// WithOCRConcurrency 设置 OCR 实例池预热数量（允许并发识别）。
+// WithOCRConcurrency 设置 OCR 实例池预分配数量。
 //
 // 行为约定：
 //   - 0 或 1 = 默认懒加载单实例（与原单例行为一致，1 路串行识别）
-//   - N > 1 = 预热 N 个独立 ONNX session 实例，支持 N 路真并发识别
+//   - N > 1 = 预分配 N 个 OCR 结构体，ONNX session 惰性初始化，
+//     首次调用 Recognize 时触发完整模型加载
 //
 // 内存代价：每个 ONNX session 约 50MB（模型 + 原生库），N=4 约 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单次 Login 用 1 实例足够。
