@@ -344,11 +344,17 @@ func stringPtrOr(s *string, def string) string {
 func (c *Client) syncCookieToken(token string) {
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
 	if !ok {
+		// 关键可观测性：HTTP client 缺少 *cookiejar.Jar 时 token 静默丢失，
+		// 业务服务器校验 cookie 缺失会返回空数据而无错误信号，必须 warn 出来。
+		c.logger.Warn("syncCookieToken: HTTP client 未配置 *cookiejar.Jar，X-Auth-Token 只能走 Header，服务器可能拒绝",
+			"tip", "用 client.New() 默认 HTTP 客户端，或显式 cookiejar.New(nil) 赋给 http.Client.Jar")
 		return
 	}
+	successCount := 0
 	for _, raw := range []string{c.ssoBaseURL, c.baseURL} {
 		u, err := url.Parse(raw)
 		if err != nil {
+			c.logger.Warn("syncCookieToken: 解析 base URL 失败", "url", raw, "err", err)
 			continue
 		}
 		jar.SetCookies(u, []*http.Cookie{{
@@ -356,6 +362,7 @@ func (c *Client) syncCookieToken(token string) {
 			Value: token,
 			Path:  "/",
 		}})
+		successCount++
 	}
-	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", len([]string{c.ssoBaseURL, c.baseURL}))
+	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", successCount)
 }

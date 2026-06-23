@@ -20,12 +20,13 @@ type captchaRecognizer interface {
 // Client 是目标平台 API 的完整 Go SDK。
 // 每个实例拥有独立的 cookie jar，天然并发安全。
 type Client struct {
-	ssoBaseURL string       // SSO 根地址
-	baseURL    string       // 业务 API 根地址（port 8280）
-	uploadURL  string       // 文件上传服务器地址
-	http       *http.Client // 独立 cookie jar
-	logger     *slog.Logger
-	ocr        captchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
+	ssoBaseURL   string // SSO 根地址
+	baseURL      string // 业务 API 根地址（port 8280）
+	uploadURL    string // 文件上传服务器地址
+	http         *http.Client // 独立 cookie jar
+	logger       *slog.Logger
+	ocr          captchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
+	pendingToken string // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 }
 
 // ─── Option 模式 ───
@@ -82,11 +83,12 @@ func WithCustomOCR(r captchaRecognizer) Option {
 //
 // 业务服务器要求 X-Auth-Token 同时存在于 Header 和 Cookie（参见 auth-flow.md），
 // 仅设置 Header 会导致后续接口返回空数据。
+//
+// 注意：实际 cookie 注入延迟到 New() 末尾执行，确保 WithSSOBase / WithBaseURL /
+// WithHTTPClient 在 WithToken 之后调用也能正确生效（避免 Option 顺序敏感性 bug）。
 func WithToken(token string) Option {
 	return func(c *Client) {
-		if token != "" {
-			c.syncCookieToken(token)
-		}
+		c.pendingToken = token
 	}
 }
 
@@ -100,6 +102,9 @@ func WithToken(token string) Option {
 //	)
 //
 // OCR 验证码识别器默认启用进程级单例（模型只解压一次）。
+//
+// Option 处理顺序：所有 Options 跑完后，若有 WithToken 注入，则在最终 c.http.Jar /
+// c.ssoBaseURL / c.baseURL 已知的前提下统一 syncCookieToken（避免顺序敏感性 bug）。
 func New(opts ...Option) *Client {
 	c := &Client{
 		ssoBaseURL: defaultSSOBase,
@@ -111,6 +116,10 @@ func New(opts ...Option) *Client {
 	}
 	for _, opt := range opts {
 		opt(c)
+	}
+	// 所有 Options 跑完后统一注入 cookie（baseURL / Jar 都是最终值）
+	if c.pendingToken != "" {
+		c.syncCookieToken(c.pendingToken)
 	}
 	return c
 }
