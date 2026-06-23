@@ -40,8 +40,10 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤2（getMenu）失败: %w", err)
 	}
-	_, _ = io.Copy(io.Discard, step2Resp.Body)
-	step2Resp.Body.Close()
+	defer func() {
+		_, _ = io.Copy(io.Discard, step2Resp.Body)
+		_ = step2Resp.Body.Close()
+	}()
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
 	step3Headers := copyMap(headers)
@@ -51,7 +53,12 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤3（getMenu）失败: %w", err)
 	}
-	defer menuResp.Body.Close()
+	defer func() {
+		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
+		//（未 drain 的 body 在 Close 时强制关闭 TCP 连接，无法复用）
+		_, _ = io.Copy(io.Discard, menuResp.Body)
+		_ = menuResp.Body.Close()
+	}()
 
 	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免外层 sessionOnce.Do
