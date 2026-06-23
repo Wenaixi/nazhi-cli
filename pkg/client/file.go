@@ -8,6 +8,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
@@ -123,9 +124,13 @@ func newCleanClient(c *Client) *http.Client {
 	if transport == nil {
 		transport = http.DefaultTransport
 	}
+	timeout := c.http.Timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second // 文件上传的合理兜底超时
+	}
 	return &http.Client{
 		Transport: transport,
-		Timeout:   c.http.Timeout,
+		Timeout:   timeout,
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
 		},
