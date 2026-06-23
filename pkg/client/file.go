@@ -61,18 +61,18 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 这里也用全新的 client.Do() 发请求，确保不会泄露任何 Cookie。
 	// 同时禁用自动重定向（CheckRedirect=ErrUseLastResponse），与 SSO 流程策略一致，
 	// 防止 302 跳转到第三方主机时附带请求头。
-	cleanClient := &http.Client{
-		Timeout: c.http.Timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
-	}
-
-	resp, err := cleanClient.Do(req)
+	//
+	// 共享 Transport 让连接池/TLS 握手/代理配置复用，批量上传 50 张图时
+	// 只需 1 次 DNS+TCP+TLS 握手，后续 keep-alive 复用。
+	resp, err := newCleanClient(c).Do(req)
 	if err != nil {
 		return 0, fmt.Errorf("%w: 上传请求失败: %w", ErrNetwork, err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
 
 	bodyBytes, _ := io.ReadAll(resp.Body)
 
@@ -106,4 +106,28 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	return int64(id), nil
+}
+
+// newCleanClient 构造"无 cookie"的安全 http.Client 供 UploadFile 使用。
+//
+// 安全保证：独立 http.Client（不共享 c.http.Jar），不发送任何 Cookie /
+// Authorization 头，杜绝业务域鉴权信息泄露到文件上传公共服务。
+//
+// 性能优化：共享 c.http.Transport（连接池、TLS 配置、代理、Dialer），
+// 批量上传 50 张图时仅需 1 次 DNS+TCP+TLS 握手，后续 keep-alive 复用。
+//
+// 同时禁用自动重定向（与 SSO 流程策略一致），防止 302 跳转到第三方主机
+// 时附带请求头。
+func newCleanClient(c *Client) *http.Client {
+	transport := c.http.Transport
+	if transport == nil {
+		transport = http.DefaultTransport
+	}
+	return &http.Client{
+		Transport: transport,
+		Timeout:   c.http.Timeout,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
