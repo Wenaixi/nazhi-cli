@@ -117,12 +117,9 @@ jobs:
             # onnxruntime_go 强制 CGO → Windows 也需要 CGO_ENABLED=1
             # windows-latest 默认已装 MinGW gcc
             cgo: "1"
-          - name: Windows (arm64)
-            runner: windows-11-arm
-            goos: windows
-            goarch: arm64
-            ext: ".exe"
-            cgo: "1"
+          # Windows (arm64) 暂不构建：windows-11-arm runner 的 MinGW gcc 是 x86_64 版，
+          # CGO 编译 ARM64 汇编 (stp/ldp/blr) 会失败；交叉编译需要 aarch64-w64-mingw32
+          # 工具链，超出当前 CI 复杂度。Surface Pro X 等 arm64 Windows 用户极少。
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
