@@ -5,9 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
-	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -20,26 +18,13 @@ var taskSubmitCmd = &cobra.Command{
 	Short: "提交任务",
 	Long:  `提交一次任务。payload 是完整的 addCircle 请求体（29 字段 JSON），可用 @file.json 从文件读取。`,
 	Example: `  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"circleTaskId":1001,"circleTypeId":9256,"name":"班会","hours":1}'
-  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json`,
+	  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json`,
 	Run: func(cmd *cobra.Command, args []string) {
-		token, _ := cmd.Flags().GetString("token")
 		payloadRaw, _ := cmd.Flags().GetString("payload")
-		baseURL, _ := cmd.Flags().GetString("base-url")
-		timeoutSec, _ := cmd.Flags().GetInt("timeout")
 
-		// 环境变量 fallback
-		if token == "" {
-			token = envString("NAZHI_TOKEN", "")
-		}
-		if baseURL == "" {
-			baseURL = envString("NAZHI_BASE_URL", "")
-		}
-		if !flagChanged(cmd, "timeout") {
-			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
-		}
-
-		if token == "" {
-			printError(fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）"))
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printError(err)
 			return
 		}
 		if payloadRaw == "" {
@@ -66,15 +51,6 @@ var taskSubmitCmd = &cobra.Command{
 			printError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}
-
-		opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
-		if baseURL != "" {
-			opts = append(opts, client.WithBaseURL(baseURL))
-		}
-		if token != "" {
-			opts = append(opts, client.WithToken(token))
-		}
-		c := client.New(opts...)
 
 		printVerbose("正在提交任务...")
 		result, err := c.SubmitTask(cmd.Context(), token, payload)
