@@ -97,12 +97,10 @@ jobs:
             goarch: amd64
             ext: ""
             cgo: "1"
-          - name: Linux (arm64)
-            runner: ubuntu-22.04-arm64
-            goos: linux
-            goarch: arm64
-            ext: ""
-            cgo: "1"
+          # Linux (arm64) 暂不构建：GitHub Actions `ubuntu-22.04-arm64` runner
+          # 资源池极小，CI job 排队 10+ 分钟无法分配；CGO 跨架构编译需要
+          # aarch64-linux-gnu 工具链。arm64 Linux 用户极少，关键 3 主流平台
+          # 已覆盖。本地交叉编译命令见 CLAUDE.md。
           - name: macOS (arm64)
             runner: macos-latest
             goos: darwin
