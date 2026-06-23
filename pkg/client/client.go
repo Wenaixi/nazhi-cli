@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"log/slog"
@@ -29,10 +29,13 @@ type Client struct {
 	ocr          captchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
-	// sessionOnce 保证所有 biz 方法的 session 预热只首次调用 ActivateSession，
-	// 避免重复 4 步 GET 浪费请求 + 防止漏调导致空数据静默成功（HAR 验证）。
-	sessionOnce sync.Once
-	sessionErr  error
+	// sessionToken 记录上次成功激活业务 session 的 token。
+	// sessionMu 保护 sessionToken 的并发读写。
+	// 解决了原 sync.Once 不感知 token 变更的问题：进程内 token 变化
+	//（如重新 Login）时重新执行 4 步激活，确保 cookie jar 中的 session
+	// cookie 与当前 token 一致，避免后续业务接口返回空数据。
+	sessionToken string
+	sessionMu    sync.Mutex
 }
 
 // ─── Option 模式 ───
