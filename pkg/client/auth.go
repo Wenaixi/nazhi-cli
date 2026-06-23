@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -163,15 +164,19 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		if location == "" {
 			return nil, fmt.Errorf("%w: 302 响应中未找到 Location 头", ErrLoginRejected)
 		}
-		token := extractTokenFromLocation(location)
+		token, expiresAt := extractTokenFromLocation(location)
 		if token == "" {
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
+		}
+		// 兜底 expiresAt = now+24h 时 warn 出来（说明 server 真的没给 expires）
+		if expiresAt.Sub(time.Now()) > 23*time.Hour {
+			c.logDebug("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步
 		c.syncCookieToken(token)
 		return &types.LoginResponse{
 			Token:     token,
-			ExpiresAt: time.Now().Add(24 * time.Hour),
+			ExpiresAt: expiresAt,
 			RawData:   parseRawData(bodyBytes),
 		}, nil
 	}
@@ -272,24 +277,44 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 
 // ─── 内部辅助 ───
 
-// extractTokenFromLocation 从 302 Location 头中提取 token 查询参数。
+// extractTokenFromLocation 从 302 Location 头中提取 token 和过期时间。
 // 使用 net/url 解析，正确处理 URL encoding、fragment、复杂 query。
-func extractTokenFromLocation(location string) string {
+//
+// 返回 (token, expiresAt)。expiresAt 优先级：
+//  1. query 里的 expires_in=N（相对秒数）
+//  2. query 里的 exp=N（绝对 Unix 时间戳，秒）
+//  3. 兜底 now+24h（与原行为一致，但加 warn 日志提示）
+func extractTokenFromLocation(location string) (string, time.Time) {
 	u, err := url.Parse(location)
 	if err != nil {
-		return ""
+		return "", time.Now().Add(24 * time.Hour)
 	}
-	// 优先 query 参数
-	if token := u.Query().Get("token"); token != "" {
-		return token
-	}
-	// 兜底：fragment 中也可能有 token（HAR 验证发现个别场景）
-	if u.Fragment != "" {
+	var token string
+	if t := u.Query().Get("token"); t != "" {
+		token = t
+	} else if u.Fragment != "" {
 		if fToken := extractTokenFromFragment(u.Fragment); fToken != "" {
-			return fToken
+			token = fToken
 		}
 	}
-	return ""
+	return token, parseLocationExpires(u)
+}
+
+// parseLocationExpires 从 URL query 解析过期时间。
+// 优先 expires_in（相对秒数），其次 exp（绝对 Unix 时间戳），都缺失则 now+24h。
+func parseLocationExpires(u *url.URL) time.Time {
+	q := u.Query()
+	if v := q.Get("expires_in"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			return time.Now().Add(time.Duration(n) * time.Second)
+		}
+	}
+	if v := q.Get("exp"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			return time.Unix(n, 0)
+		}
+	}
+	return time.Now().Add(24 * time.Hour)
 }
 
 // extractTokenFromFragment 从 fragment 字符串中提取 token。
