@@ -74,6 +74,50 @@ func newTestClientWithOCR(sso *httptest.Server, mockText string, biz *httptest.S
 	return client.New(opts...)
 }
 
+// warmupBizHandler 包装测试 handler，自动响应 ActivateSession 的 4 步预热路径。
+// 业务方法（SubmitTask / GetMyInfo / QuerySelfEvaluation 等）现在会自动预热
+// session，所以测试 mock server 必须先能响应 /、/getMenu、/getMyInfo。
+//
+// /getMyInfo 处理：第一次走预热响应（不返回 name，让 ActivateSession 走兜底
+// 逻辑避免双重请求）；后续走 default fn（让 TestGetMyInfo 等需要实际 userInfo
+// 的测试拿到自己的 mock 响应）。这是 sync.Once 保证的。
+//
+// 用法：
+//
+//	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w, r) {
+//	    // 实际测试 path 的处理逻辑
+//	})))
+func warmupBizHandler(t *testing.T, fn http.HandlerFunc) http.HandlerFunc {
+	t.Helper()
+	var myInfoOnce sync.Once
+	return func(w http.ResponseWriter, r *http.Request) {
+		t.Logf("[mock] 收到请求: %s %s", r.Method, r.URL.Path)
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(unifiedJSON(1, "成功", nil, nil)))
+		case "/api/studentInfo/getMyInfo":
+			servedWarmup := false
+			myInfoOnce.Do(func() {
+				// 第一次响应：返回 userInfo 但 Name 为空，让 ActivateSession 不早 return
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
+					"student_no": "TEST2025001",
+				}, nil)))
+				servedWarmup = true
+			})
+			if !servedWarmup {
+				// 后续请求：交给测试 handler（TestGetMyInfo 等需要真实 userInfo）
+				fn(w, r)
+			}
+		default:
+			fn(w, r)
+		}
+	}
+}
+
 // ─── 测试: InitSession ───
 
 func TestInitSession(t *testing.T) {
@@ -331,7 +375,7 @@ func TestActivateSession(t *testing.T) {
 // ─── 测试: GetMyInfo ───
 
 func TestGetMyInfo(t *testing.T) {
-	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/studentInfo/getMyInfo" {
 			t.Errorf("期望路径 getMyInfo, 得到 %s", r.URL.Path)
 		}
@@ -348,7 +392,7 @@ func TestGetMyInfo(t *testing.T) {
 			"className":     "八班",
 			"seat":          45,
 		}, nil)))
-	}))
+	})))
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
@@ -580,7 +624,7 @@ func TestFetchTasks(t *testing.T) {
 // ─── 测试: SubmitTask ───
 
 func TestSubmitTask(t *testing.T) {
-	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/studentCircleNew/addCircle" {
 			t.Errorf("期望路径 addCircle, 得到 %s", r.URL.Path)
 		}
@@ -600,7 +644,7 @@ func TestSubmitTask(t *testing.T) {
 		w.Write([]byte(unifiedJSON(1, "提交成功", map[string]any{
 			"insertID": 12345,
 		}, nil)))
-	}))
+	})))
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
@@ -624,7 +668,7 @@ func TestSubmitTask(t *testing.T) {
 // ─── 自我评价 ───
 
 func TestSubmitSelfEvaluation(t *testing.T) {
-	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/studentMoralEduNew/addSelfEvaluation" {
 			t.Errorf("期望路径 addSelfEvaluation, 得到 %s", r.URL.Path)
 		}
@@ -636,7 +680,7 @@ func TestSubmitSelfEvaluation(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(unifiedJSON(1, "提交成功", nil, nil)))
-	}))
+	})))
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
@@ -647,7 +691,7 @@ func TestSubmitSelfEvaluation(t *testing.T) {
 }
 
 func TestQuerySelfEvaluation(t *testing.T) {
-	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/studentMoralEduNew/querySelfEvaluation" {
 			t.Errorf("期望路径 querySelfEvaluation, 得到 %s", r.URL.Path)
 		}
@@ -659,7 +703,7 @@ func TestQuerySelfEvaluation(t *testing.T) {
 			"student_name":    "张三",
 			"class_name":      "高一八班",
 		}, nil)))
-	}))
+	})))
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)

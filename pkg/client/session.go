@@ -54,7 +54,9 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	defer menuResp.Body.Close()
 
 	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
-	userInfo, err := c.GetMyInfo(ctx, token)
+	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免外层 sessionOnce.Do
+	// 持锁时再次进入 sessionOnce.Do 死锁（reentrancy 限制）。
+	userInfo, err := c.getMyInfoRaw(ctx, token)
 	if err != nil {
 		// 最佳努力：getMyInfo 失败不中断，仅 warn
 		c.logDebug("ActivateSession 步骤4（getMyInfo）失败: %v", err)
