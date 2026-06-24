@@ -80,7 +80,10 @@ func NewPool(preload int) *Pool {
 	}
 	for i := 0; i < preload; i++ {
 		// 预热：先 Get 触发 New，初始化 session，再 Put 回 pool
-		o := p.pool.Get().(*OCR)
+		o, ok := p.pool.Get().(*OCR)
+		if !ok {
+			o = &OCR{}
+		}
 		p.pool.Put(o)
 	}
 	return p
