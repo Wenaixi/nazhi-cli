@@ -64,7 +64,7 @@ func loadCreds(t *testing.T) (string, string, string, string) {
 // newClient 构造一个真实环境 Client。
 func newClient(t *testing.T, ssoBase, bizBase string) *client.Client {
 	t.Helper()
-	c := client.New(
+	c, _ := client.New(
 		client.WithSSOBase(ssoBase),
 		client.WithBaseURL(bizBase),
 		client.WithUploadURL(defaultUploadBase),
@@ -370,7 +370,7 @@ func TestHAR_FetchTasks(t *testing.T) {
 	defer srv.Close()
 
 	// 用真 SDK 跑！baseURL 指向 mock server
-	c2 := client.New(
+	c2, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token-for-har-test"),
@@ -470,7 +470,7 @@ func TestHAR_SubmitTask(t *testing.T) {
 	srv := startHARMockServer(t, fixtures)
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
@@ -545,7 +545,7 @@ func TestHAR_SubmitSelfEvaluation(t *testing.T) {
 	srv := startHARMockServer(t, fixtures)
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
@@ -588,7 +588,7 @@ func TestHAR_SubmitTask_Military(t *testing.T) {
 	srv := startHARMockServer(t, fixtures)
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
@@ -646,7 +646,7 @@ func TestHAR_SubmitTask_ClassMeeting(t *testing.T) {
 	srv := startHARMockServer(t, fixtures)
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
@@ -703,7 +703,7 @@ func TestHAR_SubmitTask_Labor(t *testing.T) {
 	srv := startHARMockServer(t, fixtures)
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
