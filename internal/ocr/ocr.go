@@ -42,6 +42,12 @@ type OCR struct {
 	ocr         *ddddocr.DdddOcr
 	tempDir     string
 	mu          sync.Mutex // 保护 Classification 调用，支持单例并发安全
+
+	// closeHook 仅用于测试：在实例 Close 实际工作执行前注入观测点。
+	// 生产代码不会触碰此字段（始终为零值）。加 closeHook 是为了让
+	// TestPool_Close_ConcurrentIsIdempotent 能复现并发 Close 的窗口期，
+	// 验证 sync.Once 真正只让一次 Close 进入临界区。
+	closeHook func()
 }
 
 // New 创建独立的 OCR 识别器（惰性初始化，首次调用时才提取模型文件）。
@@ -68,9 +74,12 @@ func GetDefault() *OCR {
 // 内存代价：每个实例约 50MB（ONNX 模型 + 原生库解压到独立 tempDir），n=4 ≈ 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单 Login 调一次用 1 实例足够。
 type Pool struct {
-	pool    sync.Pool
-	initsMu sync.Mutex
-	inits   map[*OCR]struct{} // 跟踪所有完成过惰性初始化的实例，供 Close() 释放
+	pool      sync.Pool
+	initsMu   sync.Mutex
+	inits     map[*OCR]struct{} // 跟踪所有完成过惰性初始化的实例，供 Close() 释放
+	closeMu   sync.Mutex        // 保护 closed 翻转（同时配合 sync.Once 保证只跑一次 Close 工作）
+	closeOnce sync.Once         // 保证 Close 工作（排空 map + 迭代 Close）只执行一次
+	closed    bool              // true = Close() 已完成（或正在收尾），后续 Close 是 no-op
 }
 
 // NewPool 创建 OCR 实例池。preload=0 或 1 表示懒加载单实例（默认行为）。
@@ -119,22 +128,34 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 // 池内只跟踪首次完成初始化 (Recognize 后) 的实例, 避免漏释放或重复释放。
 //
 // 多实例池 (NewPool(N>1)) 下, 每个实例对应独立 tempDir, Close 会释放全部。
+//
+// 并发安全（F1 修复）：用 sync.Once 保证"排空 map + 迭代 Close 实例"这一段
+// 关键路径只跑一次。即使多个 goroutine 同时调 Close，第一次调用的协程
+// 负责全部释放工作，后续调用立即返回 nil，避免同一实例被 Close 两次。
 func (p *Pool) Close() error {
-	p.initsMu.Lock()
-	inits := p.inits
-	p.inits = make(map[*OCR]struct{})
-	p.initsMu.Unlock()
+	var firstErr error
+	p.closeOnce.Do(func() {
+		p.initsMu.Lock()
+		inits := p.inits
+		p.inits = make(map[*OCR]struct{})
+		p.initsMu.Unlock()
 
-	var errs []error
-	for o := range inits {
-		if err := o.Close(); err != nil {
-			errs = append(errs, err)
+		var errs []error
+		for o := range inits {
+			if err := o.Close(); err != nil {
+				errs = append(errs, err)
+			}
 		}
-	}
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	return nil
+
+		p.closeMu.Lock()
+		p.closed = true
+		p.closeMu.Unlock()
+
+		if len(errs) > 0 {
+			firstErr = errors.Join(errs...)
+		}
+	})
+	return firstErr
 }
 
 var (
@@ -237,7 +258,12 @@ func (o *OCR) Close() error {
 	o.ocr = nil
 	tempDir := o.tempDir
 	o.tempDir = ""
+	hook := o.closeHook
 	o.initMu.Unlock()
+
+	if hook != nil {
+		hook()
+	}
 
 	var errs []error
 	if ocr != nil {
