@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
@@ -22,43 +20,28 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	headers := c.bizHeaders(token)
 
 	// 步骤1：GET /（首页，建立业务域 session）
-	resp, err := c.doRequestWithResp(ctx, http.MethodGet, c.baseURL+"/", nil, headers, "")
-	if err != nil {
+	if _, err := c.doBizGet(ctx, c.baseURL+"/", headers); err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤1（首页）失败: %w", err)
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
 
 	// 步骤2：GET /api/studentInfo/getMenu（Referer: /homepage?token=xxx）
 	menuURL := c.bizURL("/api/studentInfo/getMenu")
 	step2Headers := copyMap(headers)
 	step2Headers["Referer"] = c.baseURL + "/homepage?token=" + token
 
-	step2Resp, err := c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, step2Headers, "")
-	if err != nil {
+	if _, err := c.doBizGet(ctx, menuURL, step2Headers); err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤2（getMenu）失败: %w", err)
 	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, step2Resp.Body)
-		_ = step2Resp.Body.Close()
-	}()
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
+	// 关键：保留 body 供步骤 4 兜底解析（getMyInfo 失败时使用 getMenu 响应中的 name）。
 	step3Headers := copyMap(headers)
 	step3Headers["Referer"] = c.baseURL + "/home"
 
-	menuResp, err := c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, step3Headers, "")
+	menuBytes, err := c.doBizGet(ctx, menuURL, step3Headers)
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤3（getMenu）失败: %w", err)
 	}
-	defer func() {
-		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
-		//（未 drain 的 body 在 Close 时强制关闭 TCP 连接，无法复用）
-		_, _ = io.Copy(io.Discard, menuResp.Body)
-		_ = menuResp.Body.Close()
-	}()
 
 	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免外层 sessionOnce.Do
@@ -74,9 +57,8 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	}
 
 	// 尝试从步骤3的 getMenu 响应中兜底解析
-	bodyBytes, _ := io.ReadAll(menuResp.Body)
 	var unified types.UnifiedResponse
-	if json.Unmarshal(bodyBytes, &unified) == nil && unified.Code == 1 {
+	if json.Unmarshal(menuBytes, &unified) == nil && unified.Code == 1 {
 		info, err := types.DecodeReturnData[types.UserInfo](unified)
 		if err == nil && info != nil {
 			info.Raw = parseRawData(*unified.ReturnData)
@@ -86,7 +68,7 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 
 	// 最坏情况：返回最少信息
 	return &types.UserInfo{
-		Raw: parseRawData(bodyBytes),
+		Raw: parseRawData(menuBytes),
 	}, nil
 }
 

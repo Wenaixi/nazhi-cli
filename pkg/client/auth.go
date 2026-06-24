@@ -21,16 +21,8 @@ import (
 // 内部流程中自动调用，一般不需要外部显式调用。
 func (c *Client) InitSession(ctx context.Context) error {
 	url := c.ssoURL("/uiStudentLogin/login")
-	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, c.ssoHeaders(), "")
-	if err != nil {
+	if _, err := c.doBizGet(ctx, url, c.ssoHeaders()); err != nil {
 		return fmt.Errorf("InitSession 失败: %w", err)
-	}
-	defer func() {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("InitSession 返回非 200: %d", resp.StatusCode)
 	}
 	return nil
 }
@@ -265,20 +257,12 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 // fetchCaptchaImage 拉取一张新的验证码图片。
 func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	url := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
-	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, c.ssoHeaders(), "")
+	imgBytes, err := c.doBizGet(ctx, url, c.ssoHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("获取验证码图片失败: %w", err)
 	}
-	defer resp.Body.Close()
-
-	imgBytes, err := io.ReadAll(resp.Body)
-	// 读取失败时先 drain body 再返回，避免 TCP 连接无法归还 keep-alive 池
-	if err != nil {
-		_, _ = io.Copy(io.Discard, resp.Body)
-		return nil, fmt.Errorf("读取验证码图片失败: %w", err)
-	}
-	if resp.StatusCode != http.StatusOK || len(imgBytes) == 0 {
-		return nil, fmt.Errorf("获取验证码图片响应异常 status=%d len=%d", resp.StatusCode, len(imgBytes))
+	if len(imgBytes) == 0 {
+		return nil, fmt.Errorf("获取验证码图片响应为空 status=200")
 	}
 	return imgBytes, nil
 }

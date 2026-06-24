@@ -154,3 +154,41 @@ func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body
 	c.logDebug("→ %s %s", method, url)
 	return c.http.Do(req)
 }
+
+// ─── 业务侧请求辅助 ───
+
+// doBizGet 是业务侧"GET + drain + close + readall + status check"的标准 helper。
+//
+// 封装以下 4 步, 消除 session.go / auth.go 中的 boilerplate:
+//  1. doRequestWithResp 发起请求 (返回 *http.Response, 调用方负责 body)
+//  2. defer drain+close (让 net/http 把连接归还 keep-alive 池)
+//  3. io.ReadAll 读 body
+//  4. 检查 status 200, 非 200 返回包装错误
+//
+// 错误:
+//   - 网络层失败 (连接拒绝/超时等) → 包装为 ErrNetwork
+//   - 非 200 状态码 → 返回错误并附上 body 内容, 方便排查 server 端异常
+//   - body 读取失败 → 包装为 ErrNetwork
+//
+// 注意: 这是"一次性消费" helper, 调用方拿到 []byte 后 body 已关闭。
+// 如需保留 body 在函数返回后继续使用, 请直接用 doRequestWithResp。
+func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]string) ([]byte, error) {
+	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, headers, "")
+	if err != nil {
+		return nil, fmt.Errorf("%w: GET %s 失败: %w", ErrNetwork, url, err)
+	}
+	defer func() {
+		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+	}()
+
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, url, err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return bodyBytes, fmt.Errorf("GET %s 返回非 200: %d body=%s", url, resp.StatusCode, string(bodyBytes))
+	}
+	return bodyBytes, nil
+}
