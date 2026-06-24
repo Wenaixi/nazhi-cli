@@ -51,7 +51,7 @@ func TestSubmitTask_AutoActivatesSession(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithSSOBase(srv.URL),
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(5*time.Second),

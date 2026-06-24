@@ -54,7 +54,10 @@ func buildClient(cmd *cobra.Command) (*client.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	c := client.New(opts...)
+	c, err := client.New(opts...)
+	if err != nil {
+		return nil, err
+	}
 	trackClient(c)
 	return c, nil
 }
@@ -71,7 +74,10 @@ func buildBizClient(cmd *cobra.Command) (*client.Client, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	c := client.New(opts...)
+	c, err := client.New(opts...)
+	if err != nil {
+		return nil, "", err
+	}
 	trackClient(c)
 	return c, token, nil
 }

@@ -105,7 +105,7 @@ func TestUploadFile_ReadAllErrorIsWrappedAsErrNetwork(t *testing.T) {
 
 	jpegPath := makeJpegTempFile(t)
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithUploadURL(brokenURL),
 		client.WithTimeout(3*time.Second),
 	)
@@ -134,7 +134,7 @@ func TestUploadFile_ReadAllErrorNotSwallowed(t *testing.T) {
 
 	jpegPath := makeJpegTempFile(t)
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithUploadURL(brokenURL),
 		client.WithTimeout(3*time.Second),
 	)

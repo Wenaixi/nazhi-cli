@@ -28,7 +28,7 @@ func TestWithToken_LateBinding(t *testing.T) {
 	defer srv.Close()
 
 	// 关键：WithToken 在 WithSSOBase 之前调用（之前会写错 host）
-	c := New(
+	c, _ := New(
 		WithToken("jwt-late-bind"),
 		WithSSOBase(srv.URL),
 		WithBaseURL(srv.URL),
