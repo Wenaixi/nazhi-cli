@@ -26,7 +26,8 @@ import (
 
 func main() {
     // 创建 Client（OCR 默认启用、进程级单例）
-    c := client.New(
+    // v0.3.1+ 返回 (*Client, error) — 错误来自 WithHTTPClient 自定义 Jar 时的 syncCookieToken 失败
+    c, _ := client.New(
         client.WithSSOBase("https://www.nazhisoft.com"),
         client.WithBaseURL("http://139.159.205.146:8280"),
         client.WithUploadURL("http://doc.nazhisoft.com"),
@@ -66,7 +67,22 @@ func main() {
 ## Client 构造
 
 ```go
-func New(opts ...Option) *Client
+func New(opts ...Option) (*Client, error)  // v0.3.1+ 增加 error 返回
+```
+
+`error` 在 `syncCookieToken` 失败时返回（典型场景：用 `WithHTTPClient` 传入的自定义 `*http.Client` 的 `Jar` 字段不是 `*cookiejar.Jar`，导致 `X-Auth-Token` 无法同步到 Cookie，业务接口会返回空数据）。生产代码应检查 error：
+
+```go
+c, err := client.New(client.WithToken("xxx"))
+if err != nil {
+    log.Fatalf("Client 初始化失败：%v", err)
+}
+```
+
+或使用默认 HTTP 客户端（自带 cookie jar），不传 `WithHTTPClient` 时永不返回 error：
+
+```go
+c, _ := client.New(client.WithToken("xxx"))  // 默认配置下 err 始终为 nil
 ```
 
 ### Option 模式
@@ -324,7 +340,7 @@ case errors.Is(err, client.ErrInvalidPayload):
 ### 替换 HTTP 客户端
 
 ```go
-c := client.New(
+c, _ := client.New(
     client.WithHTTPClient(&http.Client{
         Timeout: 30 * time.Second,
         Transport: &http.Transport{
@@ -336,7 +352,7 @@ c := client.New(
 )
 ```
 
-注意：替换后 `syncCookieToken` 假设新 client 有 `*cookiejar.Jar`，否则 token 同步会失败。
+注意：替换后 `syncCookieToken` 假设新 client 有 `*cookiejar.Jar`。如果新 client 没设置 `Jar` 字段（零值 nil），`client.New()` 会直接返回 error，提示需要 `&http.Client{Jar: cookiejar.New(nil)}`。
 
 ### 自定义 Logger
 
@@ -344,7 +360,7 @@ c := client.New(
 import "log/slog"
 
 logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-c := client.New(
+c, _ := client.New(
     client.WithLogger(logger),
     client.WithToken(token),
 )
@@ -357,7 +373,7 @@ c := client.New(
 type mockOCR struct{ text string }
 func (m *mockOCR) Recognize(_ []byte) (string, error) { return m.text, nil }
 
-c := client.New(
+c, _ := client.New(
     client.WithCustomOCR(&mockOCR{text: "AB12"}),
 )
 ```

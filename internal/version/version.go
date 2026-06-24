@@ -9,4 +9,5 @@ package version
 //	0.2.1 — 多图多试 OCR 优化（1×99 策略）+ CI 全平台修复 + 文档完善
 //	0.2.2 — Shell 自动补全 + 版本子命令 + Session bug 修复 + 测试补充 + 代码质量修复
 //	0.3.0 — 全仓库代码审查修复（panic 风险/ExpiresAt 零值/session token 感知/代码结构重构）
-var Version = "0.3.0"
+//	0.3.1 — 二轮 review-tdd：13 findings 修复 + client.New 改 error 返回 + 并发安全 + ctx 退出
+var Version = "0.3.1"
