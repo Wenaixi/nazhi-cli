@@ -191,9 +191,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		}
 		// Cookie 同步
 		// 302 路径同上：token 已拿到，syncCookieToken 失败只 Warn 不阻断
-		if err := c.syncCookieToken(token); err != nil {
-			c.logger.Warn("Login 302 fallback 后同步 token 到 cookie 失败", "err", err.Error())
-		}
+		c.warnSyncCookieToken(token, "302 fallback")
 		return &types.LoginResponse{
 			Token:     token,
 			ExpiresAt: expiresAt,
@@ -422,4 +420,21 @@ func (c *Client) syncCookieToken(token string) error {
 	}
 	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", successCount)
 	return nil
+}
+
+// warnSyncCookieToken 是 Login 200/302 路径共用的 syncCookieToken 包装器。
+//
+// 提取动机：200 路径和 302 路径过去都是 copy-paste 的 "if err := c.syncCookieToken;
+// err != nil { c.logger.Warn(...) }"，语义相同（token 已拿到，cookie 同步失败只
+// Warn 不阻断），改 helper 后只需保证语义一致。
+//
+// 失败语义：syncCookieToken 返回 error 时输出 WARN（默认 LevelWarn 下用户可见），
+// 不阻断 Login 主流程（业务 token 仍有效，调用方能拿到 token 自己排查）。
+//
+// label 用于在日志中标识路径来源（如 "200"、"302 fallback"），便于排查时定位
+// 触发点。注意不要把 token 写入日志（避免泄露敏感凭据）。
+func (c *Client) warnSyncCookieToken(token, label string) {
+	if err := c.syncCookieToken(token); err != nil {
+		c.logger.Warn("Login "+label+" 后同步 token 到 cookie 失败", "err", err.Error())
+	}
 }
