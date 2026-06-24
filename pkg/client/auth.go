@@ -176,7 +176,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		}
 		// 兜底 expiresAt = now+24h 时 warn 出来（说明 server 真的没给 expires）
 		if time.Until(expiresAt) > 23*time.Hour {
-			c.logDebug("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
+			c.logger.Warn("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步
 		c.syncCookieToken(token)
