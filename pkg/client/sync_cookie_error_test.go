@@ -29,7 +29,9 @@ import (
 // error 让调用方立即感知，而不是只在 stderr Warn 静默吞掉。
 //
 // 修复前：syncCookieToken 只 Warn → 业务接口后续返回空 dataList
-//         跨多步调用难关联根因。
+//
+//	跨多步调用难关联根因。
+//
 // 修复后：syncCookieToken 返回 error → New() propagate → 调用方立即拿到 error。
 func TestNew_WithHTTPClient_NonCookieJar_ReturnsError(t *testing.T) {
 	// 自定义 http.Client：Jar 为 nil（不是 *cookiejar.Jar）
