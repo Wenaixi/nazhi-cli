@@ -251,6 +251,13 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 	var lastErr error
 	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
+		// 修复 review-tdd F11：循环顶部检查 ctx.Err()，ctx cancel 后立即返回。
+		// CGO OCR 调用无法响应 ctx，但 fetchCaptchaImage 走 doBizGet 已尊重 ctx，
+		// 循环顶部检查能让 ctx cancel 后不再发起新的图片请求（避免 ~99 次无意义 fetch）。
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			c.logDebug("OCR 循环顶部检测到 ctx cancel（img=%d）: %v", imgIdx+1, ctxErr)
+			return "", fmt.Errorf("OCR 识别被 ctx cancel（已重试 %d 次）: %w", imgIdx, ctxErr)
+		}
 		imgBytes, err := c.fetchCaptchaImage(ctx)
 		if err != nil {
 			lastErr = err
