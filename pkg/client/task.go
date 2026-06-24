@@ -47,6 +47,12 @@ func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix st
 // 并发拉取：多个维度的 getCircleStatistics 通过 goroutine 并发执行，
 // 维度 wall time 从 N × RTT 降到 ≈ RTT（受服务端并发上限约束）。
 //
+// 并发上限说明（review-tdd F12）：当前对每个 dimension 启一个 goroutine，
+// 无 semaphore / worker pool 限制。业务系统实际维度数通常 ≤ 20，
+// 单次 FetchTasks 并发度受维度数封顶，远低于 DoS 阈值。
+// 如未来接入会返回 > 50 维度的业务接口，需引入 semaphore
+// （如 golang.org/x/sync/semaphore，限制并发 = min(len(dimensions), 8)）。
+//
 // 单个维度失败时通过 c.logDebug() 记录（不会中断整体拉取），
 // 调用方可通过 client.WithLogger() 注入自定义 logger 捕获详细错误。
 func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, error) {
