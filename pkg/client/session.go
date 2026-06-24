@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
@@ -33,7 +34,10 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 
 	// 步骤2 响应体不参与兜底解析，但请求必须发出以满足 HAR 4 步契约。
 	// helper 内部已 drain+close，丢弃返回的 body 即可。
-	if _, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL+"/homepage?token="+token, "步骤2"); err != nil {
+	// F1 修复：token 走 url.Values 编码，避免 & / = / 空格等字符破坏
+	// Referer URL 结构（Referer 头会被浏览器/代理/服务端日志记录）。
+	step2Referer := c.baseURL + "/homepage?" + url.Values{"token": {token}}.Encode()
+	if _, err := c.doGetMenu(ctx, menuURL, headers, step2Referer, "步骤2"); err != nil {
 		return nil, err
 	}
 
