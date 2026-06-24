@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +16,10 @@ import (
 //  3. GET /api/studentInfo/getMenu（Referer: /home）
 //  4. GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 //
-// 返回用户基本信息（含座号）。
+// 返回用户基本信息（含座号）。4 步任一失败立即 propagate error：
+// 步骤 4（getMyInfo）是 4 步契约的一部分，失败不再走步骤 3 兜底掩盖
+// （F10：曾 logDebug + 兜底解析，导致 getMyInfo 服务降级被静默吞掉，
+// 后续业务接口返回空数据难以排查）。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
 
@@ -36,39 +38,15 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	}
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
-	// body 需保留以供步骤 4 失败时兜底解析。
-	step3Body, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL+"/home", "步骤3")
-	if err != nil {
+	if _, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL+"/home", "步骤3"); err != nil {
 		return nil, err
 	}
 
 	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免外层 sessionOnce.Do
 	// 持锁时再次进入 sessionOnce.Do 死锁（reentrancy 限制）。
-	userInfo, err := c.getMyInfoRaw(ctx, token)
-	if err != nil {
-		// 最佳努力：getMyInfo 失败不中断，仅 warn
-		c.logDebug("ActivateSession 步骤4（getMyInfo）失败: %v", err)
-	}
-
-	if userInfo != nil && userInfo.Name != "" {
-		return userInfo, nil
-	}
-
-	// 尝试从步骤3的 getMenu 响应中兜底解析
-	var unified types.UnifiedResponse
-	if json.Unmarshal(step3Body, &unified) == nil && unified.Code == 1 {
-		info, err := types.DecodeReturnData[types.UserInfo](unified)
-		if err == nil && info != nil {
-			info.Raw = parseRawData(*unified.ReturnData)
-			return info, nil
-		}
-	}
-
-	// 最坏情况：返回最少信息
-	return &types.UserInfo{
-		Raw: parseRawData(step3Body),
-	}, nil
+	// 失败 propagate：步骤 4 是 4 步 HAR 契约的一部分。
+	return c.getMyInfoRaw(ctx, token)
 }
 
 // doGetMenu 执行一次 getMenu 请求并返回响应体字节。

@@ -588,6 +588,14 @@ func TestFetchTasks(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, nil)))
+		case "/api/studentInfo/getMyInfo":
+			// 4 步预热步骤 4 必须返回 code=1，否则 F10 修复后步骤 4 错误会 propagate
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
+				"name":          "测试用户",
+				"studentNumber": "TEST2025001",
+			}, nil)))
 		case "/api/studentCircleNew/getDimensions":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
