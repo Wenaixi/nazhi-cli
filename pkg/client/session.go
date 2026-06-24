@@ -113,22 +113,32 @@ func copyMap(m map[string]string) map[string]string {
 // activateSessionIfNeeded 保证所有 biz 方法在第一次调用前完成
 // 4 步 session 预热（HAR 验证的强契约），后续调用 token 相同则直接返回。
 //
-// token-aware 守卫：用 sessionToken + sessionMu 替代原 sync.Once，
-// 解决 sync.Once 不感知 token 变更的问题——进程内 token 变化
-// （如重新 Login）时重新执行 4 步激活，不会返回旧 session cookie。
+// 并发语义（double-checked locking 完整模式）：
+//   - 首次进入持锁检查 sessionToken；相同则直接放行，零开销
+//   - 不同则继续持锁，串行执行 4 步 ActivateSession
+//   - 期间 sessionToken 仍为旧值，其他 goroutine 继续排队等待
+//   - 4 步成功后才把 sessionToken 写为新 token，再放锁
+//
+// 为何必须持锁激活：4 步会写入共享 c.http.Jar cookie jar，并发激活
+// 会导致 cookie 状态机污染（thundering herd + 脏 cookie）。
+// 持锁时间 ≈ 4 步网络 RTT（200-500ms），可接受。
+//
+// 与 sync.Once 的区别：sync.Once.Do(f) 保证 f 进程内只执行一次；本
+// 实现感知 token 变化——同一 Client 上 token 变更（如重新 Login）时
+// 会重新执行 4 步激活，确保 cookie jar 与当前 token 一致。
 func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) error {
 	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+
+	// 双检：持锁状态下再次确认 token，避免重复激活
 	if c.sessionToken == token {
-		c.sessionMu.Unlock()
 		return nil
 	}
-	c.sessionMu.Unlock()
 
-	_, err := c.ActivateSession(ctx, token)
-	if err == nil {
-		c.sessionMu.Lock()
-		c.sessionToken = token
-		c.sessionMu.Unlock()
+	// 持锁激活：4 步串行执行，写 cookie jar 互斥
+	if _, err := c.ActivateSession(ctx, token); err != nil {
+		return err
 	}
-	return err
+	c.sessionToken = token
+	return nil
 }
