@@ -8,7 +8,18 @@ import (
 	"sync"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
+	"golang.org/x/sync/errgroup"
 )
+
+// fetchTasksConcurrentLimit 是 FetchTasks 并发拉取维度的上限（F2 修复）。
+//
+// 设计权衡：业务系统实际维度数通常 ≤ 20，单次 FetchTasks 并发度受维度数封顶，
+// 远低于 DoS 阈值。限制 = min(len(dimensions), 8) 平衡 wall time 与服务端压力：
+//   - 8 路并发足够让 20 维度在 ~3 RTT 内完成（vs 串行 20 RTT）
+//   - 不会因下游抖动放大熔断风险
+//
+// 如未来业务接口维度数 > 50，可考虑调到此常量或暴露为 Client 字段。
+const fetchTasksConcurrentLimit = 8
 
 // fetchDimensions 拉取任务维度列表（FetchTasks / GetDimensions 共用）。
 // 内部包含 session 预热 + 4 段响应解析，错误信息前缀由 caller 决定。
@@ -44,14 +55,10 @@ func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix st
 // FetchTasks 拉取目标平台全部维度的任务列表。
 // 内部流程：ActivateSession → getDimensions → 遍历维度 getCircleStatistics → 聚合。
 //
-// 并发拉取：多个维度的 getCircleStatistics 通过 goroutine 并发执行，
-// 维度 wall time 从 N × RTT 降到 ≈ RTT（受服务端并发上限约束）。
-//
-// 并发上限说明（review-tdd F12）：当前对每个 dimension 启一个 goroutine，
-// 无 semaphore / worker pool 限制。业务系统实际维度数通常 ≤ 20，
-// 单次 FetchTasks 并发度受维度数封顶，远低于 DoS 阈值。
-// 如未来接入会返回 > 50 维度的业务接口，需引入 semaphore
-// （如 golang.org/x/sync/semaphore，限制并发 = min(len(dimensions), 8)）。
+// 并发拉取（F2 修复）：多个维度的 getCircleStatistics 通过 errgroup 并发执行，
+// 并发上限 = min(len(dimensions), fetchTasksConcurrentLimit)。
+// 既享受并发提速（20 维度 ≈ 3 RTT vs 串行 20 RTT），
+// 又防止 > 50 维度的业务接口把服务端打爆（无限制 goroutine fan-out 风险）。
 //
 // 单个维度失败时通过 c.logDebug() 记录（不会中断整体拉取），
 // 调用方可通过 client.WithLogger() 注入自定义 logger 捕获详细错误。
@@ -63,32 +70,40 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 
 	headers := c.bizHeaders(token)
 
-	// 3. 并发遍历每个维度获取任务统计。
-	// 用 WaitGroup + 收集器；每个 goroutine 独立处理单维度错误（logDebug 记录后跳过）。
-	results := make(chan []types.Task, len(dimensions))
-	var wg sync.WaitGroup
+	// 3. 并发遍历每个维度获取任务统计，上限由 errgroup.SetLimit 守护。
+	// 用 errgroup 替代裸 WaitGroup + channel：
+	//   - SetLimit 自动阻塞后续 goroutine 启动直到有空槽
+	//   - 简化收集器：直接 g.Go() 内部写共享切片（受同一 errgroup 同步保护）
+	limit := len(dimensions)
+	if limit > fetchTasksConcurrentLimit {
+		limit = fetchTasksConcurrentLimit
+	}
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(limit)
+
+	// 每个 goroutine 写各自的本地切片，errgroup 不保护共享切片写入，
+	// 所以最后在主线程用 mutex 串行合并，避免 race。
+	var mu sync.Mutex
+	var allTasks []types.Task
 	for _, dim := range dimensions {
 		// 跳过"全部"维度（id=0），它只是汇总
 		if dim.ID == 0 {
 			continue
 		}
 		dim := dim // 捕获循环变量
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			tasks := c.fetchTasksForDimension(ctx, dim, headers)
-			if tasks != nil {
-				results <- tasks
+		g.Go(func() error {
+			tasks := c.fetchTasksForDimension(gctx, dim, headers)
+			if tasks == nil {
+				return nil
 			}
-		}()
+			mu.Lock()
+			allTasks = append(allTasks, tasks...)
+			mu.Unlock()
+			return nil
+		})
 	}
-	wg.Wait()
-	close(results)
-
-	// 4. 聚合结果（顺序由 channel 决定，不保证业务顺序；保留原行为）。
-	var allTasks []types.Task
-	for tasks := range results {
-		allTasks = append(allTasks, tasks...)
+	if err := g.Wait(); err != nil {
+		return nil, fmt.Errorf("FetchTasks 并发拉取失败: %w", err)
 	}
 
 	return allTasks, nil
