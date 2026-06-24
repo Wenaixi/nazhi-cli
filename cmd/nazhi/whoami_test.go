@@ -43,7 +43,7 @@ func makeWhoamiTestCmd(t *testing.T, token string) (*cobra.Command, *client.Clie
 	}))
 	t.Cleanup(srv.Close)
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithSSOBase(srv.URL),
 		client.WithToken(token),

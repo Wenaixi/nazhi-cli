@@ -38,7 +38,7 @@ func TestActivateSession_Step4ErrorPropagates(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	_, err := c.ActivateSession(context.Background(), "test-token")
 	if err == nil {
 		t.Fatal("步骤 4（getMyInfo）失败应 propagate error，实际返回 nil")
@@ -74,7 +74,7 @@ func TestActivateSession_Step4NetworkErrorPropagates(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(time.Second))
 	_, err := c.ActivateSession(context.Background(), "test-token")
 	if err == nil {
 		t.Fatal("步骤 4 网络失败应返回 error，实际 nil")
