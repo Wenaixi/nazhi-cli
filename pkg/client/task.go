@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
@@ -43,6 +44,9 @@ func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix st
 // FetchTasks 拉取目标平台全部维度的任务列表。
 // 内部流程：ActivateSession → getDimensions → 遍历维度 getCircleStatistics → 聚合。
 //
+// 并发拉取：多个维度的 getCircleStatistics 通过 goroutine 并发执行，
+// 维度 wall time 从 N × RTT 降到 ≈ RTT（受服务端并发上限约束）。
+//
 // 单个维度失败时通过 c.logDebug() 记录（不会中断整体拉取），
 // 调用方可通过 client.WithLogger() 注入自定义 logger 捕获详细错误。
 func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, error) {
@@ -53,43 +57,63 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 
 	headers := c.bizHeaders(token)
 
-	// 3. 遍历每个维度获取任务统计
-	var allTasks []types.Task
+	// 3. 并发遍历每个维度获取任务统计。
+	// 用 WaitGroup + 收集器；每个 goroutine 独立处理单维度错误（logDebug 记录后跳过）。
+	results := make(chan []types.Task, len(dimensions))
+	var wg sync.WaitGroup
 	for _, dim := range dimensions {
 		// 跳过"全部"维度（id=0），它只是汇总
 		if dim.ID == 0 {
 			continue
 		}
+		dim := dim // 捕获循环变量
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tasks := c.fetchTasksForDimension(ctx, dim, headers)
+			if tasks != nil {
+				results <- tasks
+			}
+		}()
+	}
+	wg.Wait()
+	close(results)
 
-		statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
-		statBody, err := c.doRequest(ctx, http.MethodGet, statURL, nil, headers, "")
-		if err != nil {
-			// 单个维度失败不中断，记录到 logger 供诊断
-			c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
-			continue
-		}
-
-		statResp, err := types.DecodeResponse(statBody)
-		if err != nil || statResp.Code != 1 {
-			c.logDebug("FetchTasks 维度 %d(%s) 响应异常: parseErr=%v code=%d", dim.ID, dim.Name, err, statResp.Code)
-			continue
-		}
-
-		tasks, err := types.DecodeDataList[types.Task](statResp)
-		if err != nil {
-			c.logDebug("FetchTasks 维度 %d(%s) 任务解析失败: %v", dim.ID, dim.Name, err)
-			continue
-		}
-
-		// 注入维度名称
-		for i := range tasks {
-			tasks[i].DimensionName = dim.Name
-		}
-
+	// 4. 聚合结果（顺序由 channel 决定，不保证业务顺序；保留原行为）。
+	var allTasks []types.Task
+	for tasks := range results {
 		allTasks = append(allTasks, tasks...)
 	}
 
 	return allTasks, nil
+}
+
+// fetchTasksForDimension 拉取单个维度的任务列表并注入维度名称。
+// 任何错误都通过 logDebug 记录后返回 nil（FetchTasks 整体不中断）。
+func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension, headers map[string]string) []types.Task {
+	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
+	statBody, err := c.doRequest(ctx, http.MethodGet, statURL, nil, headers, "")
+	if err != nil {
+		c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
+		return nil
+	}
+
+	statResp, err := types.DecodeResponse(statBody)
+	if err != nil || statResp.Code != 1 {
+		c.logDebug("FetchTasks 维度 %d(%s) 响应异常: parseErr=%v code=%d", dim.ID, dim.Name, err, statResp.Code)
+		return nil
+	}
+
+	tasks, err := types.DecodeDataList[types.Task](statResp)
+	if err != nil {
+		c.logDebug("FetchTasks 维度 %d(%s) 任务解析失败: %v", dim.ID, dim.Name, err)
+		return nil
+	}
+
+	for i := range tasks {
+		tasks[i].DimensionName = dim.Name
+	}
+	return tasks
 }
 
 // SubmitTask 提交一次任务。
