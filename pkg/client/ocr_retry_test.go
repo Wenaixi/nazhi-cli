@@ -41,6 +41,9 @@ func (m *countMockOCR) Recognize(_ []byte) (string, error) {
 	return m.returnText, nil
 }
 
+// Close 是 captchaRecognizer 接口的占位实现, mock 无资源需释放。
+func (m *countMockOCR) Close() error { return nil }
+
 // errOCRMockFailed 是 mock 专用错误，区别于真实 OCR 错误。
 var errOCRMockFailed = &mockOCRErr{msg: "mock OCR 模拟识别失败"}
 
@@ -234,6 +237,9 @@ func (m *blankThenSuccessMock) Recognize(_ []byte) (string, error) {
 	}
 	return m.returnText, nil
 }
+
+// Close 是 captchaRecognizer 接口的占位实现, mock 无资源需释放。
+func (m *blankThenSuccessMock) Close() error { return nil }
 
 // TestOCRRetry_ImageFetchFails 验证：图片获取失败也换图。
 // 期望：尝试 11 次图片获取都失败。
