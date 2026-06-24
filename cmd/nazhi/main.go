@@ -37,10 +37,13 @@ func main() {
 	}()
 	// F7 修复：printError 不再 os.Exit，改为设 pendingExitCode。
 	// 这里把 Execute 返回 error 和 pendingExitCode 合并判断退出码。
+	//
+	// F2 修复：用 printError(execErr) 代替 fmt.Fprintln(os.Stderr, execErr)，
+	// 让 cobra parse error 走与 Run 回调相同的 JSON envelope 路径。
+	// 配合 init() 里的 SilenceErrors + SilenceUsage，根除 stderr 重复输出。
 	execErr := rootCmd.Execute()
 	if execErr != nil {
-		fmt.Fprintln(os.Stderr, execErr)
-		markError()
+		printError(execErr)
 	}
 	if pendingExitCode.Load() != 0 {
 		os.Exit(1)
@@ -48,6 +51,12 @@ func main() {
 }
 
 func init() {
+	// F2 修复：静音 cobra 默认的错误打印与 usage 打印。
+	// 让 main.go 用 printError(execErr) 单一来源输出错误，
+	// 避免用户看到 "Error: ..." + Usage + 另一遍 "unknown flag" 的重复。
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = true
+
 	// 全局标志
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "详细日志输出到 stderr")
 	rootCmd.PersistentFlags().BoolVar(&quiet, "quiet", false, "静默模式，关闭所有 stderr 输出")
