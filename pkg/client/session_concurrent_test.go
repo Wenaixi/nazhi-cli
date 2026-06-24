@@ -5,6 +5,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -36,7 +37,7 @@ func TestActivateSessionIfNeeded_ConcurrentSameToken(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 		case "/api/studentInfo/getMenu":
 			// 步骤 2/3 共用路径——通过 Referer 区分计数
-			if r.Header.Get("Referer") != "" && contains(r.Header.Get("Referer"), "/homepage") {
+			if r.Header.Get("Referer") != "" && strings.Contains(r.Header.Get("Referer"), "/homepage") {
 				atomic.AddInt32(&step2Count, 1)
 			} else {
 				atomic.AddInt32(&step3Count, 1)
@@ -161,13 +162,6 @@ func TestActivateSessionIfNeeded_ConcurrentDifferentTokens(t *testing.T) {
 	}
 }
 
-// contains 是 strings.Contains 的局部拷贝，避免导入 strings 触发
-// 编译器对其他测试文件的额外感知。
-func contains(s, substr string) bool {
-	for i := 0; i+len(substr) <= len(s); i++ {
-		if s[i:i+len(substr)] == substr {
-			return true
-		}
-	}
-	return false
-}
+// contains 已被删除（F2 修复）：改用标准库 strings.Contains。
+// 原自造 contains 注释称"避免导入 strings 触发额外编译器感知"，
+// 与 Go test 文件实践不符——本包 10+ 测试文件已 import strings。
