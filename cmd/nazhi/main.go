@@ -35,8 +35,14 @@ func main() {
 			fmt.Fprintln(os.Stderr, "警告: 关闭 Client 资源失败:", err)
 		}
 	}()
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	// F7 修复：printError 不再 os.Exit，改为设 pendingExitCode。
+	// 这里把 Execute 返回 error 和 pendingExitCode 合并判断退出码。
+	execErr := rootCmd.Execute()
+	if execErr != nil {
+		fmt.Fprintln(os.Stderr, execErr)
+		markError()
+	}
+	if pendingExitCode.Load() != 0 {
 		os.Exit(1)
 	}
 }

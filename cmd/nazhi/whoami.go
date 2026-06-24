@@ -28,10 +28,8 @@ var whoamiCmd = &cobra.Command{
 			printError(fmt.Errorf("获取用户信息失败: %w", err))
 			return
 		}
-		if info == nil {
-			printError(fmt.Errorf("未找到用户信息"))
-			return
-		}
+		// SDK "最佳努力设计"：GetMyInfo 成功但业务未返回用户数据时返回 (nil, nil)，
+		// 这不是错误——输出空 JSON（null）让上层管道/脚本正常处理。
 
 		printJSON(info)
 	},
