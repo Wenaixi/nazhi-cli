@@ -148,7 +148,12 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	// 5. 优先解析 200 JSON 响应（HAR 验证：登录响应 HTTP 200，body 含 returnData.token）
 	if httpResp.StatusCode == http.StatusOK {
 		var loginResp types.UnifiedResponse
-		if json.Unmarshal(bodyBytes, &loginResp) == nil && loginResp.Code == 1 {
+		if err := json.Unmarshal(bodyBytes, &loginResp); err == nil {
+			// 业务错误优先：code != 1 时直接返回业务 msg（如"密码错误"），
+			// 避免被"未找到 token"低语义错误吞噬（修复 review-tdd finding #3）。
+			if loginResp.Code != 1 {
+				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, stringPtrOr(loginResp.Msg, "登录失败"))
+			}
 			token, expiresAt, err := extractTokenFromReturnData(loginResp)
 			if err == nil {
 				// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
