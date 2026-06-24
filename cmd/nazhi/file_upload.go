@@ -45,7 +45,11 @@ SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。
 		if uploadURL != "" {
 			opts = append(opts, client.WithUploadURL(uploadURL))
 		}
-		c := client.New(opts...)
+		c, err := client.New(opts...)
+		if err != nil {
+			printError(fmt.Errorf("构造 Client 失败: %w", err))
+			return
+		}
 
 		printVerbose("正在上传文件（无 token 模式）...")
 		id, err := c.UploadFile(cmd.Context(), filePath)

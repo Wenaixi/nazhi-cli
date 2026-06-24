@@ -30,7 +30,7 @@ func TestDoGetMenu_SendsReferer(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(5*time.Second),
 	)
@@ -70,7 +70,7 @@ func TestDoGetMenu_Step2And3Refactor(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(
+	c, _ := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(5*time.Second),
 	)

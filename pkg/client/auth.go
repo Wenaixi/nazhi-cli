@@ -130,7 +130,11 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if err != nil {
 		return nil, fmt.Errorf("Login 请求失败: %w", err)
 	}
-	defer httpResp.Body.Close()
+	defer func() {
+		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
+		_, _ = io.Copy(io.Discard, httpResp.Body)
+		_ = httpResp.Body.Close()
+	}()
 
 	bodyBytes, err := io.ReadAll(httpResp.Body)
 	if err != nil {
@@ -140,22 +144,33 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	// 5. 优先解析 200 JSON 响应（HAR 验证：登录响应 HTTP 200，body 含 returnData.token）
 	if httpResp.StatusCode == http.StatusOK {
 		var loginResp types.UnifiedResponse
-		if err := json.Unmarshal(bodyBytes, &loginResp); err == nil {
+		if err := json.Unmarshal(bodyBytes, &loginResp); err != nil {
+			// unmarshal 失败时 logDebug 保留原始 body 上下文，便于排查非 JSON 错误响应
+			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, string(bodyBytes))
+		} else {
 			// 业务错误优先：code != 1 时直接返回业务 msg（如"密码错误"），
 			// 避免被"未找到 token"低语义错误吞噬（修复 review-tdd finding #3）。
 			if loginResp.Code != 1 {
 				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, stringPtrOr(loginResp.Msg, "登录失败"))
 			}
 			token, expiresAt, err := extractTokenFromReturnData(loginResp)
-			if err == nil {
-				// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
-				c.syncCookieToken(token)
-				return &types.LoginResponse{
-					Token:     token,
-					ExpiresAt: expiresAt,
-					RawData:   parseRawData(bodyBytes),
-				}, nil
+			if err != nil {
+				// extractToken 失败时 logDebug 保留原始 body 上下文，便于排查
+				// (修复 review-tdd F6: 200 路径吞掉 unmarshal/extractToken 错误)
+				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
+				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 			}
+			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
+			// Login 路径中 token 已从 server 拿到，syncCookieToken 失败时只 Warn
+			// 不阻断（业务 token 仍有效），让调用方能拿到 token 自己排查。
+			if err := c.syncCookieToken(token); err != nil {
+				c.logger.Warn("Login 后同步 token 到 cookie 失败", "err", err.Error())
+			}
+			return &types.LoginResponse{
+				Token:     token,
+				ExpiresAt: expiresAt,
+				RawData:   parseRawData(bodyBytes),
+			}, nil
 		}
 		return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
 	}
@@ -172,10 +187,13 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		}
 		// 兜底 expiresAt = now+24h 时 warn 出来（说明 server 真的没给 expires）
 		if time.Until(expiresAt) > 23*time.Hour {
-			c.logDebug("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
+			c.logger.Warn("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步
-		c.syncCookieToken(token)
+		// 302 路径同上：token 已拿到，syncCookieToken 失败只 Warn 不阻断
+		if err := c.syncCookieToken(token); err != nil {
+			c.logger.Warn("Login 302 fallback 后同步 token 到 cookie 失败", "err", err.Error())
+		}
 		return &types.LoginResponse{
 			Token:     token,
 			ExpiresAt: expiresAt,
@@ -233,6 +251,13 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 	var lastErr error
 	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
+		// 修复 review-tdd F11：循环顶部检查 ctx.Err()，ctx cancel 后立即返回。
+		// CGO OCR 调用无法响应 ctx，但 fetchCaptchaImage 走 doBizGet 已尊重 ctx，
+		// 循环顶部检查能让 ctx cancel 后不再发起新的图片请求（避免 ~99 次无意义 fetch）。
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			c.logDebug("OCR 循环顶部检测到 ctx cancel（img=%d）: %v", imgIdx+1, ctxErr)
+			return "", fmt.Errorf("OCR 识别被 ctx cancel（已重试 %d 次）: %w", imgIdx, ctxErr)
+		}
 		imgBytes, err := c.fetchCaptchaImage(ctx)
 		if err != nil {
 			lastErr = err
@@ -365,14 +390,21 @@ func stringPtrOr(s *string, def string) string {
 
 // syncCookieToken 将 X-Auth-Token 同步写入 cookie jar，
 // 使其在业务 API 请求中自动携带（参考 v1 session.cookies.set 模式）。
-func (c *Client) syncCookieToken(token string) {
+//
+// 返回 error 让调用方感知 cookie 同步失败：
+//   - 类型断言失败（非 *cookiejar.Jar，如用户自定义 http.Client 无 Jar）
+//     → 返回包装错误，提示用 client.New() 默认或显式 cookiejar.New(nil)
+//   - base URL 解析失败 → 已 Warn 不返回（业务 URL 通常可控，单个失败不影响主流程）
+func (c *Client) syncCookieToken(token string) error {
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
-	// Bug 4 fix：类型断言失败时输出实际类型 + 修复提示，帮助排查自定义 client 兼容问题
+	// 修复 review-tdd F8：类型断言失败时返回 error 而不是仅 Warn。
+	// WithHTTPClient 自定义 Jar（非 *cookiejar.Jar）时 X-Auth-Token 同步失败，
+	// 业务接口返回空 dataList 但根因在 build client 阶段的 stderr Warn，
+	// 跨多步调用难关联。让 New() propagate error 让调用方立即拿到根因。
 	if !ok {
-		c.logger.Warn("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar，X-Auth-Token 无法同步到 cookie",
-			"actual_type", fmt.Sprintf("%T", c.http.Jar),
-			"tip", "用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建")
-		return
+		return fmt.Errorf("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar（实际类型 %T），X-Auth-Token 无法同步到 cookie。"+
+			"修复：用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建",
+			c.http.Jar)
 	}
 	successCount := 0
 	for _, raw := range []string{c.ssoBaseURL, c.baseURL} {
@@ -389,4 +421,5 @@ func (c *Client) syncCookieToken(token string) {
 		successCount++
 	}
 	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", successCount)
+	return nil
 }
