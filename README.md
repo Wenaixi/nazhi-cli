@@ -1,6 +1,6 @@
 # nazhi-cli
 
-**纳智综合评价系统 自动化 CLI + Go SDK** v0.3.0
+**纳智综合评价系统 自动化 CLI + Go SDK** v0.3.1
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
@@ -149,7 +149,7 @@ import (
     "github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-c := client.New(
+c, _ := client.New(  // v0.3.1+ 返回 (*Client, error)，错误来自 WithHTTPClient 自定义 Jar 时的 syncCookieToken 失败
     client.WithSSOBase("https://www.nazhisoft.com"),
     client.WithTimeout(30 * time.Second),
 )

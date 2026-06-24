@@ -7,6 +7,51 @@
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-06-25
+
+### Added
+
+- **二轮全仓库 code-review 流程** — 10 angles 并行扫描（line-scan/removed-behavior/cross-file/Go-pitfalls/wrapper-proxy/reuse/simplification/efficiency/altitude/conventions）+ 1-vote verify + sweep + final cut。
+- **多 worktree 并行 TDD 修复** — 4 个 git worktree（auth / session+client / cmd / task）同时跑 RED→GREEN→REFACTOR→COMMIT。
+- **新回归测试 11 个** — `auth_drain_test.go`、`auth_warn_test.go`、`auth_unmarshal_log_test.go`、`sync_cookie_error_test.go`、`ocr_ctx_test.go`、`session_concurrent_test.go`、`session_step4_error_test.go`、`with_timeout_test.go` 追加、`output_test.go`、`whoami_test.go`。
+
+### Fixed
+
+- **`auth.go:133` Login 缺 drain+close** — 6 个 early-return 路径通过 `defer httpResp.Body.Close()` 但未 drain body，net/http 强制关闭 TCP 连接无法归还 keep-alive 池。修复：与 `request.go:132-136` 一致，close 前 `io.Copy(io.Discard, httpResp.Body)`。
+- **`auth.go:174` expiresAt 兜底告警降级静默** — `c.logDebug()` 输出 Warn 级别意图的告警，但默认 `slog.LevelWarn` 过滤 Debug，普通 CLI 调用完全静默，24h 后神秘失效无任何告警。修复：改回 `c.logger.Warn`。
+- **`auth.go:142` 200 路径吞掉 unmarshal 错误** — `if err == nil` 守卫吞掉 unmarshal 失败，错误信息只说"未找到 token"，丢失关键诊断上下文。修复：拆 if 守卫 + `logDebug` 输出 body 摘要（与 line 191-194 非预期状态码路径处理一致）。
+- **`auth.go:368` syncCookieToken 静默 warn** — 类型断言失败仅 Warn 不返回 error，`WithHTTPClient` 自定义 Jar 时业务接口返回空 dataList 但根因在 build client 阶段的 stderr Warn，跨多步调用难关联。修复：改返回 `error`，`client.New()` 签名改 `(*Client, error)` propagate。
+- **`auth.go:233` ocrRecognizeWithRetry ctx 不退出** — 99 次循环顶部无 `ctx.Err()` 检查，`c.ocr.Recognize()` 是 CGO 阻塞调用不响应 ctx cancel，业务 ctx cancel 后还会跑完所有 99 次同步识别。修复：for 循环顶部加 `ctx.Err()` 检查。
+- **`session.go:119` activateSessionIfNeeded TOCTOU + thundering-herd** — 经典 double-checked locking 缺陷：检查后立即放锁，4 步 ActivateSession 在无锁状态下执行。N 个并发 goroutine 触发 4N 步冗余请求 + cookie jar 污染。修复：持锁激活的完整 double-checked locking。
+- **`session.go:48` ActivateSession 步骤 4 错误掩盖** — getMyInfoRaw 失败仅 logDebug，最坏情况返回仅有 Raw 的 UserInfo + nil error，调用方误判激活成功。修复：propagate error，删除步骤 3 兜底分支。
+- **`client.go:72` WithTimeout nil 静默 + 0 清零** — `c.http == nil` 时静默 return；`d == 0` 仅 warn 但仍 `c.http.Timeout = 0` 覆盖任何已有正数值。修复：nil 时 warn，d=0 阻断赋值。
+- **`whoami.go:31` GetMyInfo (nil,nil) 误处理为 error** — SDK 设计契约"最佳努力设计"返回 (nil,nil) 时 cmd 层调用 `printError` + `os.Exit(1)`，误导用户。修复：直接 `printJSON(info)` 输出 `null`。
+- **`output.go:29,35` printError 内 os.Exit 绕过 defer Close** — `os.Exit(1)` 跳过 goroutine 栈展开，`defer closeAllClients()` 永不执行，ONNX session + 临时目录 + keep-alive 连接全部泄漏。修复：printError 标记 `pendingExitCode atomic.Int32`，main 收尾统一退出。
+
+### Changed
+
+- **`client.New(opts ...Option) *Client` → `(*Client, error)`** — **BREAKING API**。`error` 来自 `syncCookieToken` 失败（典型场景：`WithHTTPClient` 自定义 Jar 字段不是 `*cookiejar.Jar`）。12 个 cmd 调用点已用 `c, _ := client.New(...)` 适配；生产代码应改用 `c, err := client.New(...); if err != nil { ... }`。
+- **`task.go:52` FetchTasks 并发上限** — PLAUSIBLE finding（业务系统维度数 ≤ 20 远低于 DoS 阈值），加 TODO 注释守卫说明已知设计取舍，不引入 semaphore 保持代码简洁。
+- **PR 文档 README/SDK 同步更新** — `client.New` 新签名 + 错误处理示例 + Cookie jar 注意事项。
+
+### Tests
+
+- **F8 syncCookieToken 错误返回** — `TestNew_WithHTTPClient_NonCookieJar_ReturnsError` + 3 个 baseline。
+- **F3 activateSessionIfNeeded 并发** — `session_concurrent_test.go` 同 token/不同 token 并发测试。
+- **F1 Login drain** — `TestLogin_DrainsBody_On200UnexpectedEOFPath`。
+- **F2 expiresAt 兜底 Warn** — `TestLogin_302Fallback_ExpiresAtFallback_LogsAtWarn`。
+- **F6 200 路径 logDebug** — `TestLogin_200Path_LogsUnmarshalFailure` + `TestLogin_200Path_LogsNonJSONBody`。
+- **F11 OCR ctx 退出** — `TestOCRRetry_RespectsContextCancel`。
+- **F9 WithTimeout 校验** — `TestWithTimeout_ZeroDoesNotOverwriteExisting` + `TestWithTimeout_NilHTTPWarns`。
+- **F10 ActivateSession 步骤 4 错误** — `TestActivateSession_Step4FailsPropagates`（重写旧的 `TestActivateSession_Step4FallsBack`）。
+- **F5 whoami (nil,nil)** — `TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError`。
+- **F7 printError 不 os.Exit** — `TestPrintError_DoesNotCallOsExit`。
+- **F7 main 退出码** — `TestMain_DeferCloseStillRuns`。
+
+### Build
+
+- 版本号：`0.3.1`
+
 ## [0.3.0] - 2026-06-24
 
 ### Added
