@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -17,7 +16,10 @@ import (
 //  3. GET /api/studentInfo/getMenu（Referer: /home）
 //  4. GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 //
-// 返回用户基本信息（含座号）。
+// 返回用户基本信息（含座号）。4 步任一失败立即 propagate error：
+// 步骤 4（getMyInfo）是 4 步契约的一部分，失败不再走步骤 3 兜底掩盖
+// （F10：曾 logDebug + 兜底解析，导致 getMyInfo 服务降级被静默吞掉，
+// 后续业务接口返回空数据难以排查）。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
 
@@ -36,39 +38,15 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	}
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
-	// body 需保留以供步骤 4 失败时兜底解析。
-	step3Body, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL+"/home", "步骤3")
-	if err != nil {
+	if _, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL+"/home", "步骤3"); err != nil {
 		return nil, err
 	}
 
 	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免外层 sessionOnce.Do
 	// 持锁时再次进入 sessionOnce.Do 死锁（reentrancy 限制）。
-	userInfo, err := c.getMyInfoRaw(ctx, token)
-	if err != nil {
-		// 最佳努力：getMyInfo 失败不中断，仅 warn
-		c.logDebug("ActivateSession 步骤4（getMyInfo）失败: %v", err)
-	}
-
-	if userInfo != nil && userInfo.Name != "" {
-		return userInfo, nil
-	}
-
-	// 尝试从步骤3的 getMenu 响应中兜底解析
-	var unified types.UnifiedResponse
-	if json.Unmarshal(step3Body, &unified) == nil && unified.Code == 1 {
-		info, err := types.DecodeReturnData[types.UserInfo](unified)
-		if err == nil && info != nil {
-			info.Raw = parseRawData(*unified.ReturnData)
-			return info, nil
-		}
-	}
-
-	// 最坏情况：返回最少信息
-	return &types.UserInfo{
-		Raw: parseRawData(step3Body),
-	}, nil
+	// 失败 propagate：步骤 4 是 4 步 HAR 契约的一部分。
+	return c.getMyInfoRaw(ctx, token)
 }
 
 // doGetMenu 执行一次 getMenu 请求并返回响应体字节。
@@ -113,22 +91,32 @@ func copyMap(m map[string]string) map[string]string {
 // activateSessionIfNeeded 保证所有 biz 方法在第一次调用前完成
 // 4 步 session 预热（HAR 验证的强契约），后续调用 token 相同则直接返回。
 //
-// token-aware 守卫：用 sessionToken + sessionMu 替代原 sync.Once，
-// 解决 sync.Once 不感知 token 变更的问题——进程内 token 变化
-// （如重新 Login）时重新执行 4 步激活，不会返回旧 session cookie。
+// 并发语义（double-checked locking 完整模式）：
+//   - 首次进入持锁检查 sessionToken；相同则直接放行，零开销
+//   - 不同则继续持锁，串行执行 4 步 ActivateSession
+//   - 期间 sessionToken 仍为旧值，其他 goroutine 继续排队等待
+//   - 4 步成功后才把 sessionToken 写为新 token，再放锁
+//
+// 为何必须持锁激活：4 步会写入共享 c.http.Jar cookie jar，并发激活
+// 会导致 cookie 状态机污染（thundering herd + 脏 cookie）。
+// 持锁时间 ≈ 4 步网络 RTT（200-500ms），可接受。
+//
+// 与 sync.Once 的区别：sync.Once.Do(f) 保证 f 进程内只执行一次；本
+// 实现感知 token 变化——同一 Client 上 token 变更（如重新 Login）时
+// 会重新执行 4 步激活，确保 cookie jar 与当前 token 一致。
 func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) error {
 	c.sessionMu.Lock()
+	defer c.sessionMu.Unlock()
+
+	// 双检：持锁状态下再次确认 token，避免重复激活
 	if c.sessionToken == token {
-		c.sessionMu.Unlock()
 		return nil
 	}
-	c.sessionMu.Unlock()
 
-	_, err := c.ActivateSession(ctx, token)
-	if err == nil {
-		c.sessionMu.Lock()
-		c.sessionToken = token
-		c.sessionMu.Unlock()
+	// 持锁激活：4 步串行执行，写 cookie jar 互斥
+	if _, err := c.ActivateSession(ctx, token); err != nil {
+		return err
 	}
-	return err
+	c.sessionToken = token
+	return nil
 }
