@@ -65,7 +65,7 @@ func TestPrintError_DoesNotCallOsExit(t *testing.T) {
 // 列表被清空（证明 Close 真的被调用，不被 os.Exit 跳过）。
 func TestMain_DeferCloseStillRuns(t *testing.T) {
 	// 构造一个真实 client 并注册
-	c := client.New()
+	c, _ := client.New()
 	trackClient(c)
 	// 兜底：测试结束前确保清空（不污染其它测试）
 	defer func() {

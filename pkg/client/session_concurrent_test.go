@@ -51,7 +51,7 @@ func TestActivateSessionIfNeeded_ConcurrentSameToken(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(
+	c, _ := New(
 		WithBaseURL(srv.URL),
 		WithTimeout(5*time.Second),
 	)
@@ -116,7 +116,7 @@ func TestActivateSessionIfNeeded_ConcurrentDifferentTokens(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := New(
+	c, _ := New(
 		WithBaseURL(srv.URL),
 		WithTimeout(5*time.Second),
 	)
