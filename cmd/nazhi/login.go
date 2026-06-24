@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -25,8 +23,6 @@ var loginCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		username, _ := cmd.Flags().GetString("username")
 		password, _ := cmd.Flags().GetString("password")
-		ssoBase, _ := cmd.Flags().GetString("sso-base")
-		timeoutSec, _ := cmd.Flags().GetInt("timeout")
 
 		// 环境变量 fallback（命令行标志优先）
 		if username == "" {
@@ -35,24 +31,18 @@ var loginCmd = &cobra.Command{
 		if password == "" {
 			password = envString("NAZHI_PASSWORD", "")
 		}
-		if ssoBase == "" {
-			ssoBase = envString("NAZHI_SSO_BASE", "")
-		}
-		if !flagChanged(cmd, "timeout") {
-			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
-		}
 
 		if username == "" || password == "" {
 			printError(fmt.Errorf("--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
 			return
 		}
 
-		opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
-		if ssoBase != "" {
-			opts = append(opts, client.WithSSOBase(ssoBase))
+		// SSO 命令（login/school）不要求 token，复用 buildClient 共享 env fallback。
+		c, err := buildClient(cmd)
+		if err != nil {
+			printError(err)
+			return
 		}
-		c := client.New(opts...)
-		trackClient(c)
 
 		printVerbose("正在自动识别验证码并登录（OCR）...")
 		resp, err := c.Login(cmd.Context(), types.LoginRequest{
