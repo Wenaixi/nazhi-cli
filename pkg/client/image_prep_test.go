@@ -17,7 +17,8 @@ import (
 
 // internalNewTestClient 是 newTestClient 的内部版本（同包访问）。
 func internalNewTestClient() *Client {
-	return New(WithTimeout(5 * time.Second))
+	c, _ := New(WithTimeout(5 * time.Second))
+	return c
 }
 
 // ─── 测试: PNG → JPG 转换 + RGBA 合成白底 ───
@@ -170,7 +171,7 @@ func TestUploadFile_NoAuthHeaders(t *testing.T) {
 	defer upload.Close()
 
 	// 创建带 X-Auth-Token 的 Client（模拟"复用了已登录 Client"的最坏情况）
-	c := New(WithUploadURL(upload.URL), WithTimeout(5*time.Second))
+	c, _ := New(WithUploadURL(upload.URL), WithTimeout(5*time.Second))
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
 	if ok {
 		u, _ := url.Parse(upload.URL)

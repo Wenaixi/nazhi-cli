@@ -15,7 +15,7 @@ import (
 // doRequestWithResp 只对网络层错误（连接拒绝、超时等）返回 error，HTTP 5xx 不触发。
 func TestActivateSession_Step1Fails(t *testing.T) {
 	// 用不存在的地址触发网络层错误
-	c := client.New(client.WithBaseURL("http://127.0.0.1:1"), client.WithTimeout(time.Second))
+	c, _ := client.New(client.WithBaseURL("http://127.0.0.1:1"), client.WithTimeout(time.Second))
 	_, err := c.ActivateSession(context.Background(), "test-token")
 	if err == nil {
 		t.Fatal("步骤 1 网络失败应返回 error")
@@ -48,7 +48,7 @@ func TestActivateSession_Step2Fails(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(time.Second))
 	_, err := c.ActivateSession(context.Background(), "test-token")
 	if err == nil {
 		t.Fatal("步骤 2 应触发网络错误")
@@ -75,7 +75,7 @@ func TestActivateSession_AllStepsSucceed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	userInfo, err := c.ActivateSession(context.Background(), "test-token")
 	if err != nil {
 		t.Fatalf("ActivateSession 失败: %v", err)
@@ -114,7 +114,7 @@ func TestActivateSession_Step4FallsBack(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	userInfo, err := c.ActivateSession(context.Background(), "test-token")
 	if err != nil {
 		t.Logf("ActivateSession 步骤 4 预期失败（兜底处理）: %v", err)
@@ -147,7 +147,7 @@ func TestActivateSession_Step3BodyClosed(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	// 正常情况下不 panic
 	_, err := c.ActivateSession(context.Background(), "test-token")
 	if err != nil {
@@ -178,7 +178,7 @@ func TestActivateSession_WithCustomReferer(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	_, err := c.ActivateSession(context.Background(), "test-token")
 	if err != nil {
 		t.Fatalf("ActivateSession 失败: %v", err)
@@ -202,7 +202,7 @@ func TestActivateSession_CallOrder(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	_, err := c.ActivateSession(context.Background(), "test-token")
 	if err != nil {
 		t.Fatalf("ActivateSession 失败: %v", err)

@@ -30,9 +30,12 @@ func (m *closeMockOCR) Close() error {
 func TestClient_Close_ReleasesOCR(t *testing.T) {
 	mock := &closeMockOCR{}
 
-	c := client.New(
+	c, err := client.New(
 		client.WithCustomOCR(mock),
 	)
+	if err != nil {
+		t.Fatalf("New() 返回错误: %v", err)
+	}
 
 	if err := c.Close(); err != nil {
 		t.Fatalf("Close() 返回错误: %v", err)
@@ -50,11 +53,14 @@ func TestClient_Close_PropagatesOCRCloseError(t *testing.T) {
 		closeErr: errors.New("simulated remove-all failure"),
 	}
 
-	c := client.New(
+	c, err := client.New(
 		client.WithCustomOCR(mock),
 	)
+	if err != nil {
+		t.Fatalf("New() 返回错误: %v", err)
+	}
 
-	err := c.Close()
+	err = c.Close()
 	if err == nil {
 		t.Fatal("Close() 应传播 OCR 错误")
 	}
@@ -70,12 +76,14 @@ func TestClient_Close_PropagatesOCRCloseError(t *testing.T) {
 // 默认实现应仅在自定义 OCR 时 Close(), 避免误杀进程级单例。
 // 但本测试只验证 Close() 调用本身不出错, 不验证是否实际清理。
 func TestClient_Close_DefaultOCR(t *testing.T) {
-	c := client.New()
+	c, err := client.New()
+	if err != nil {
+		t.Fatalf("New() 返回错误: %v", err)
+	}
 
 	// 默认 OCR 是 *ocr.Pool (单例), Close() 可能释放单例资源。
 	// 为避免污染同进程后续测试, 用子测试隔离。
-	err := c.Close()
-	if err != nil {
+	if err := c.Close(); err != nil {
 		t.Logf("默认 OCR Close() 返回错误 (可能因并发测试已释放): %v", err)
 	}
 }

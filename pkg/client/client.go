@@ -153,7 +153,12 @@ func WithToken(token string) Option {
 //
 // Option 处理顺序：所有 Options 跑完后，若有 WithToken 注入，则在最终 c.http.Jar /
 // c.ssoBaseURL / c.baseURL 已知的前提下统一 syncCookieToken（避免顺序敏感性 bug）。
-func New(opts ...Option) *Client {
+//
+// 返回 error：当 WithHTTPClient 自定义 Jar + WithToken 时，Jar 必须支持 cookie 写入。
+// 若 Jar 不是 *cookiejar.Jar，syncCookieToken 会返回 error 让调用方立即感知
+// （修复 review-tdd F8：避免业务接口返回空 dataList 但根因在 build client 阶段
+// 静默 Warn，跨多步调用难关联）。
+func New(opts ...Option) (*Client, error) {
 	c := &Client{
 		ssoBaseURL: defaultSSOBase,
 		baseURL:    defaultBaseURL,
@@ -167,9 +172,11 @@ func New(opts ...Option) *Client {
 	}
 	// 所有 Options 跑完后统一注入 cookie（baseURL / Jar 都是最终值）
 	if c.pendingToken != "" {
-		c.syncCookieToken(c.pendingToken)
+		if err := c.syncCookieToken(c.pendingToken); err != nil {
+			return c, err // 仍返回 c 让调用方能 Close() 清理资源，但 error 必须 propagate
+		}
 	}
-	return c
+	return c, nil
 }
 
 // ─── 内部辅助 ───
