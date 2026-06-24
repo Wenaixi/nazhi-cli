@@ -91,13 +91,12 @@ func TestActivateSession_AllStepsSucceed(t *testing.T) {
 	}
 }
 
-// TestActivateSession_Step4FallsBack 验证步骤 4（getMyInfo）失败时走兜底路径，
-// 从步骤 3（getMenu 第二次）响应中解析用户信息。
+// TestActivateSession_Step4FailsPropagates 回归测试（F10）：
+// 步骤 4（getMyInfo）业务错误时 ActivateSession 必须返回 error。
 //
-// 历史 bug：session.go 步骤 3 的 defer 在函数返回前 Close 了 body，
-// 步骤 4 失败后兜底解析 io.ReadAll(menuResp.Body) 读到的始终是空数据。
-// 修复后 body 数据在 defer 前已被保存，兜底路径可读到 getMenu 响应中的 name。
-func TestActivateSession_Step4FallsBack(t *testing.T) {
+// 历史 bug：session.go 步骤 4 失败时仅 logDebug，继续走步骤 3 兜底解析。
+// 修复后 4 步 HAR 契约中任一失败 propagate，调用方能立即看到根因。
+func TestActivateSession_Step4FailsPropagates(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
@@ -107,7 +106,7 @@ func TestActivateSession_Step4FallsBack(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"兜底用户","studentNumber":"TEST2025001"}}`))
 		case strings.HasSuffix(r.URL.Path, "/getMyInfo"):
-			// getMyInfo 返回业务错误，触发兜底路径
+			// getMyInfo 返回业务错误——应 propagate，不再走兜底
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":0,"msg":"模拟失败","returnData":null}`))
 		}
@@ -116,16 +115,13 @@ func TestActivateSession_Step4FallsBack(t *testing.T) {
 
 	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	userInfo, err := c.ActivateSession(context.Background(), "test-token")
-	if err != nil {
-		t.Logf("ActivateSession 步骤 4 预期失败（兜底处理）: %v", err)
+	if err == nil {
+		t.Fatal("步骤 4 业务错误应 propagate error，实际 nil")
 	}
-	if userInfo == nil {
-		t.Fatal("兜底路径返回 nil")
+	if userInfo != nil && userInfo.Name == "兜底用户" {
+		t.Error("步骤 4 失败不应再走步骤 3 兜底解析（F10 修复）")
 	}
-	t.Logf("兜底解析: name=%s studentNumber=%s", userInfo.Name, userInfo.StudentNumber)
-	if userInfo.Name == "" {
-		t.Error("兜底路径未能从 getMenu 响应中解析出 name（body 可能在 defer 前已被 Close）")
-	}
+	t.Logf("步骤 4 错误正确 propagate: %v", err)
 }
 
 // TestActivateSession_Step3BodyClosed 验证步骤 3 的 body 在步骤 4 失败后
