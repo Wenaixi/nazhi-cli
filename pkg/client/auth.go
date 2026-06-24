@@ -193,10 +193,12 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	// 非预期状态码
 	var errResp types.UnifiedResponse
-	if json.Unmarshal(bodyBytes, &errResp) == nil {
-		if errResp.Code != 1 {
-			return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, stringPtrOr(errResp.Msg, "登录失败"))
-		}
+	if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
+		// unmarshal 失败时 logDebug 保留原始 body 上下文，便于排查非 JSON 错误响应
+		// 修复 review-tdd finding #12：避免错误信息完全丢失根因
+		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, string(bodyBytes))
+	} else if errResp.Code != 1 {
+		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, stringPtrOr(errResp.Msg, "登录失败"))
 	}
 	return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
 }
