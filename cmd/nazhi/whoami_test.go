@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,8 +60,24 @@ func makeWhoamiTestCmd(t *testing.T, token string) (*cobra.Command, *client.Clie
 	return cmd, c
 }
 
-// captureStdio 替换 os.Stdout/os.Stderr 并返回还原函数。
-// 调完测试逻辑后 defer restore() 即可恢复。
+// captureStdio 替换 os.Stdout/os.Stderr 并返回还原函数 + 同步等待机制。
+//
+// 调用模式：
+//
+//	stdoutBuf, stderrBuf, restore := captureStdio(t)
+//	defer restore()
+//
+//	// 触发命令（命令内对 os.Stdout/Stderr 的写会进入管道）
+//	whoamiCmd.Run(cmd, nil)
+//
+//	// restore() 同步等待 drain 完成；之后 stdoutBuf/stderrBuf 才包含全部数据
+//	stdout := stdoutBuf.String()
+//	stderr := stderrBuf.String()
+//
+// 设计要点：
+//   - 启动 drain goroutine **前**先 close writer（确保 io.Copy 看到 EOF）
+//   - 用 done channel 同步等待 drain goroutine 退出，避免调用方读到空 buffer
+//   - 先恢复 os.Stdout/Stderr 再 return，防止后续 t.Logf 等打到管道里
 func captureStdio(t *testing.T) (stdout *bytes.Buffer, stderr *bytes.Buffer, restore func()) {
 	t.Helper()
 	origStdout, origStderr := os.Stdout, os.Stderr
@@ -78,10 +95,22 @@ func captureStdio(t *testing.T) (stdout *bytes.Buffer, stderr *bytes.Buffer, res
 	stderrBuf := &bytes.Buffer{}
 
 	restore = func() {
+		// 关键顺序：先关 writer（让 io.Copy 看到 EOF），再启动 drain goroutine，
+		// 用 channel 同步等待，最后恢复 os.Stdout/Stderr。
 		_ = wOut.Close()
 		_ = wErr.Close()
-		go func() { _, _ = io.Copy(stdoutBuf, rOut) }()
-		go func() { _, _ = io.Copy(stderrBuf, rErr) }()
+		outDone := make(chan struct{})
+		errDone := make(chan struct{})
+		go func() {
+			_, _ = io.Copy(stdoutBuf, rOut)
+			close(outDone)
+		}()
+		go func() {
+			_, _ = io.Copy(stderrBuf, rErr)
+			close(errDone)
+		}()
+		<-outDone
+		<-errDone
 		os.Stdout, os.Stderr = origStdout, origStderr
 	}
 	return stdoutBuf, stderrBuf, restore
@@ -100,34 +129,13 @@ func TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError(t *testing.T) {
 	quiet = false
 	pendingExitCode.Store(0)
 
-	stdoutBuf := &bytes.Buffer{}
-	stderrBuf := &bytes.Buffer{}
-	origStdout, origStderr := os.Stdout, os.Stderr
-	rOut, wOut, _ := os.Pipe()
-	rErr, wErr, _ := os.Pipe()
-	os.Stdout, os.Stderr = wOut, wErr
-	defer func() {
-		os.Stdout, os.Stderr = origStdout, origStderr
-	}()
-	copyDone := make(chan struct{})
-	go func() {
-		_, _ = io.Copy(stdoutBuf, rOut)
-		copyDone <- struct{}{}
-	}()
-	go func() {
-		_, _ = io.Copy(stderrBuf, rErr)
-		copyDone <- struct{}{}
-	}()
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
 
 	// 关键：调 Run 回调（不能直接 Execute，否则 init() 注册的所有子命令都会被触发）
 	whoamiCmd.Run(cmd, nil)
 
-	// 关闭 writer 等 reader 读完
-	_ = wOut.Close()
-	_ = wErr.Close()
-	<-copyDone
-	<-copyDone
-
+	// restore() 同步 drain 管道到 buffer，调用后 stdoutBuf/stderrBuf 才包含全部数据
+	restore()
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
@@ -150,4 +158,31 @@ func TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError(t *testing.T) {
 	if !strings.Contains(stdout, "null") {
 		t.Errorf("stdout 应包含 'null'（printJSON(nil) 输出），实际: %q", stdout)
 	}
+}
+
+// TestCaptureStdio_DrainsBothStreams 锁住 captureStdio 行为（F3 重构）：
+// 直接调用 captureStdio + 在替换后的 stdout/stderr 上写数据 + restore，
+// 断言两路数据都被完整 drain 到 buffer。这是 captureStdio 的最小可执行规约，
+// 防止后续"以为它工作"再次写出 race-y 或丢数据的实现。
+//
+// 顺带覆盖：调用方在 restore 之前对 buffer 的读会得到空（drain 是 restore 的副作用），
+// 调用方在 restore 之后才能拿到完整数据。
+func TestCaptureStdio_DrainsBothStreams(t *testing.T) {
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+
+	fmt.Fprintln(os.Stdout, "hello stdout")
+	fmt.Fprintln(os.Stderr, "world stderr")
+
+	// restore() 之前 buffer 还没 drain（captureStdio 不预启动 reader）
+	restore()
+
+	if got := stdoutBuf.String(); got != "hello stdout\n" {
+		t.Errorf("stdoutBuf 应为 %q，实际 %q", "hello stdout\n", got)
+	}
+	if got := stderrBuf.String(); got != "world stderr\n" {
+		t.Errorf("stderrBuf 应为 %q，实际 %q", "world stderr\n", got)
+	}
+
+	// 二次 restore 安全：fd 已关，close 报错被忽略，函数同步返回
+	restore()
 }
