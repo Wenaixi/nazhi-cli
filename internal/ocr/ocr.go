@@ -35,11 +35,13 @@ var charsetJSON []byte
 // OCR 是验证码识别器，一旦初始化可重复使用。
 // 多 Client 推荐使用 GetDefault() 共享进程级单例，避免重复解压模型。
 type OCR struct {
-	once    sync.Once
-	initErr error
-	ocr     *ddddocr.DdddOcr
-	tempDir string
-	mu      sync.Mutex // 保护 Classification 调用，支持单例并发安全
+	initMu      sync.Mutex // 保护初始化路径和 closed 翻转
+	initialized bool      // true = 初始化已完成（成功或失败由 initErr 决定）
+	closed      bool      // true = Close() 已调用，禁止后续识别
+	initErr     error
+	ocr         *ddddocr.DdddOcr
+	tempDir     string
+	mu          sync.Mutex // 保护 Classification 调用，支持单例并发安全
 }
 
 // New 创建独立的 OCR 识别器（惰性初始化，首次调用时才提取模型文件）。
@@ -121,10 +123,20 @@ func platformLibName() string {
 // Recognize 对图片字节进行验证码识别，返回识别出的文本。
 // imageData 应为 JPEG 或 PNG 编码的字节。
 func (o *OCR) Recognize(imageData []byte) (string, error) {
-	o.once.Do(func() {
+	// 用 initMu 保护整个初始化路径，确保多 goroutine 下也只解压一次。
+	// 关键设计：Close() 会把 closed=true、initErr=nil、initialized=false、
+	// o.ocr=nil，之后调 Recognize 走「重新初始化」分支（除非已 close）。
+	o.initMu.Lock()
+	if o.closed {
+		o.initMu.Unlock()
+		return "", errors.New("OCR 已关闭")
+	}
+	if !o.initialized {
 		o.tempDir, o.initErr = o.extractModels()
 		if o.initErr != nil {
-			return
+			o.initialized = true
+			o.initMu.Unlock()
+			return "", fmt.Errorf("OCR 初始化失败: %w", o.initErr)
 		}
 
 		// 设置 ONNX Runtime 路径为解压出的原生库
@@ -137,22 +149,32 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 		ocr, err := ddddocr.New(opts)
 		if err != nil {
 			o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
-			return
+			o.initialized = true
+			o.initMu.Unlock()
+			return "", o.initErr
 		}
 
 		// 限制字符范围为 大写+小写+数字（验证码通常包含这些）
 		ocr.SetRanges(ddddocr.RangeLowerUpperDigit)
 
 		o.ocr = ocr
-	})
+		o.initialized = true
+	}
+	initErr := o.initErr
+	ocr := o.ocr
+	o.initMu.Unlock()
 
-	if o.initErr != nil {
-		return "", fmt.Errorf("OCR 初始化失败: %w", o.initErr)
+	if initErr != nil {
+		return "", fmt.Errorf("OCR 初始化失败: %w", initErr)
+	}
+	// 防御：initialized=true 但 ocr=nil 是不一致状态（Close 后、初始化中途异常等）
+	if ocr == nil {
+		return "", errors.New("OCR 不可用：识别器为 nil")
 	}
 
 	// 单例场景下保护 Classification 调用，并发请求时串行执行识别
 	o.mu.Lock()
-	result, err := o.ocr.Classification(imageData)
+	result, err := ocr.Classification(imageData)
 	o.mu.Unlock()
 	if err != nil {
 		return "", fmt.Errorf("OCR 识别失败: %w", err)
@@ -164,19 +186,29 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 // Close 释放 OCR 资源并清理临时文件。
 // 返回任何清理过程中遇到的错误（Windows AV 持锁、Linux 权限拒绝等场景），
 // 让调用方知情，避免临时目录永久泄漏到 %TEMP%。
+//
+// Close 后再次调用 Recognize 会返回 "OCR 已关闭" 错误，而不是触发 nil panic。
 func (o *OCR) Close() error {
+	o.initMu.Lock()
+	o.closed = true
+	o.initialized = false
+	o.initErr = nil
+	ocr := o.ocr
+	o.ocr = nil
+	tempDir := o.tempDir
+	o.tempDir = ""
+	o.initMu.Unlock()
+
 	var errs []error
-	if o.ocr != nil {
-		if err := o.ocr.Close(); err != nil {
+	if ocr != nil {
+		if err := ocr.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("关闭 ddddocr 引擎: %w", err))
 		}
-		o.ocr = nil
 	}
-	if o.tempDir != "" {
-		if err := os.RemoveAll(o.tempDir); err != nil {
-			errs = append(errs, fmt.Errorf("清理临时目录 %s: %w", o.tempDir, err))
+	if tempDir != "" {
+		if err := os.RemoveAll(tempDir); err != nil {
+			errs = append(errs, fmt.Errorf("清理临时目录 %s: %w", tempDir, err))
 		}
-		o.tempDir = ""
 	}
 	if len(errs) > 0 {
 		return errors.Join(errs...)
