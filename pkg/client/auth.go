@@ -144,22 +144,29 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	// 5. 优先解析 200 JSON 响应（HAR 验证：登录响应 HTTP 200，body 含 returnData.token）
 	if httpResp.StatusCode == http.StatusOK {
 		var loginResp types.UnifiedResponse
-		if err := json.Unmarshal(bodyBytes, &loginResp); err == nil {
+		if err := json.Unmarshal(bodyBytes, &loginResp); err != nil {
+			// unmarshal 失败时 logDebug 保留原始 body 上下文，便于排查非 JSON 错误响应
+			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, string(bodyBytes))
+		} else {
 			// 业务错误优先：code != 1 时直接返回业务 msg（如"密码错误"），
 			// 避免被"未找到 token"低语义错误吞噬（修复 review-tdd finding #3）。
 			if loginResp.Code != 1 {
 				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, stringPtrOr(loginResp.Msg, "登录失败"))
 			}
 			token, expiresAt, err := extractTokenFromReturnData(loginResp)
-			if err == nil {
-				// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
-				c.syncCookieToken(token)
-				return &types.LoginResponse{
-					Token:     token,
-					ExpiresAt: expiresAt,
-					RawData:   parseRawData(bodyBytes),
-				}, nil
+			if err != nil {
+				// extractToken 失败时 logDebug 保留原始 body 上下文，便于排查
+				// (修复 review-tdd F6: 200 路径吞掉 unmarshal/extractToken 错误)
+				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
+				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 			}
+			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
+			c.syncCookieToken(token)
+			return &types.LoginResponse{
+				Token:     token,
+				ExpiresAt: expiresAt,
+				RawData:   parseRawData(bodyBytes),
+			}, nil
 		}
 		return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
 	}
