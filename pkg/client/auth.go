@@ -160,12 +160,17 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
 				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 			}
+			// F1 invariant：200 路径 expiresAt 兜底（now+24h）时 warn 出来，
+			// 与 302 路径 (auth.go:189-191) 语义对称。extractTokenFromReturnData
+			// 当前不解析 returnData.exp/expires_in 字段，总是返回 now+24h，
+			// 所以 200 路径必然走兜底——告警让用户知道 server 没给 expires 信息。
+			if time.Until(expiresAt) > 23*time.Hour {
+				c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
+			}
 			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
 			// Login 路径中 token 已从 server 拿到，syncCookieToken 失败时只 Warn
 			// 不阻断（业务 token 仍有效），让调用方能拿到 token 自己排查。
-			if err := c.syncCookieToken(token); err != nil {
-				c.logger.Warn("Login 后同步 token 到 cookie 失败", "err", err.Error())
-			}
+			c.warnSyncCookieToken(token, "200")
 			return &types.LoginResponse{
 				Token:     token,
 				ExpiresAt: expiresAt,
