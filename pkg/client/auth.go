@@ -161,7 +161,11 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 			}
 			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
-			c.syncCookieToken(token)
+			// Login 路径中 token 已从 server 拿到，syncCookieToken 失败时只 Warn
+			// 不阻断（业务 token 仍有效），让调用方能拿到 token 自己排查。
+			if err := c.syncCookieToken(token); err != nil {
+				c.logger.Warn("Login 后同步 token 到 cookie 失败", "err", err.Error())
+			}
 			return &types.LoginResponse{
 				Token:     token,
 				ExpiresAt: expiresAt,
@@ -186,7 +190,10 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			c.logger.Warn("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步
-		c.syncCookieToken(token)
+		// 302 路径同上：token 已拿到，syncCookieToken 失败只 Warn 不阻断
+		if err := c.syncCookieToken(token); err != nil {
+			c.logger.Warn("Login 302 fallback 后同步 token 到 cookie 失败", "err", err.Error())
+		}
 		return &types.LoginResponse{
 			Token:     token,
 			ExpiresAt: expiresAt,
@@ -376,14 +383,21 @@ func stringPtrOr(s *string, def string) string {
 
 // syncCookieToken 将 X-Auth-Token 同步写入 cookie jar，
 // 使其在业务 API 请求中自动携带（参考 v1 session.cookies.set 模式）。
-func (c *Client) syncCookieToken(token string) {
+//
+// 返回 error 让调用方感知 cookie 同步失败：
+//   - 类型断言失败（非 *cookiejar.Jar，如用户自定义 http.Client 无 Jar）
+//     → 返回包装错误，提示用 client.New() 默认或显式 cookiejar.New(nil)
+//   - base URL 解析失败 → 已 Warn 不返回（业务 URL 通常可控，单个失败不影响主流程）
+func (c *Client) syncCookieToken(token string) error {
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
-	// Bug 4 fix：类型断言失败时输出实际类型 + 修复提示，帮助排查自定义 client 兼容问题
+	// 修复 review-tdd F8：类型断言失败时返回 error 而不是仅 Warn。
+	// WithHTTPClient 自定义 Jar（非 *cookiejar.Jar）时 X-Auth-Token 同步失败，
+	// 业务接口返回空 dataList 但根因在 build client 阶段的 stderr Warn，
+	// 跨多步调用难关联。让 New() propagate error 让调用方立即拿到根因。
 	if !ok {
-		c.logger.Warn("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar，X-Auth-Token 无法同步到 cookie",
-			"actual_type", fmt.Sprintf("%T", c.http.Jar),
-			"tip", "用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建")
-		return
+		return fmt.Errorf("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar（实际类型 %T），X-Auth-Token 无法同步到 cookie。"+
+			"修复：用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建",
+			c.http.Jar)
 	}
 	successCount := 0
 	for _, raw := range []string{c.ssoBaseURL, c.baseURL} {
@@ -400,4 +414,5 @@ func (c *Client) syncCookieToken(token string) {
 		successCount++
 	}
 	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", successCount)
+	return nil
 }

@@ -29,11 +29,14 @@ func TestRegression_QuerySelfGradEvaluation_PropagatesError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(
+	c, err := client.New(
 		client.WithBaseURL(srv.URL),
 		client.WithToken("fake"),
 	)
-	_, err := c.QuerySelfGradEvaluation(context.Background(), "fake")
+	if err != nil {
+		t.Fatalf("New() 返回错误: %v", err)
+	}
+	_, err = c.QuerySelfGradEvaluation(context.Background(), "fake")
 	if err == nil {
 		t.Fatal("期望返回错误（响应体无效 JSON），但 err 为 nil")
 	}
@@ -56,22 +59,25 @@ func TestRegression_UploadFile_NoRedirectFollow(t *testing.T) {
 	}))
 	defer uploadSrv.Close()
 
-	c := client.New(
+	c, err := client.New(
 		client.WithUploadURL(uploadSrv.URL),
 		client.WithSSOBase("http://sso.example"),
 	)
+	if err != nil {
+		t.Fatalf("New() 返回错误: %v", err)
+	}
 	tmpFile := t.TempDir() + "/test.png"
 	if err := writeSimplePNG(tmpFile); err != nil {
 		t.Fatal(err)
 	}
 
-	_, err := c.UploadFile(context.Background(), tmpFile)
+	_, uploadErr := c.UploadFile(context.Background(), tmpFile)
 	// 应该返回错误（302 非 200），而不是成功
-	if err == nil {
+	if uploadErr == nil {
 		t.Fatal("UploadFile 在 302 时应返回错误，但 err 为 nil")
 	}
-	if !strings.Contains(err.Error(), "302") && !strings.Contains(err.Error(), "status=") {
-		t.Errorf("错误信息应指出 302 状态: %v", err)
+	if !strings.Contains(uploadErr.Error(), "302") && !strings.Contains(uploadErr.Error(), "status=") {
+		t.Errorf("错误信息应指出 302 状态: %v", uploadErr)
 	}
 	// 读取 atomic.Bool 避免 vet 报的 noCopy 警告
 	_ = attackerHit.Load()
@@ -98,17 +104,25 @@ func writeSimplePNG(path string) error {
 
 // TestRegression_WithHTTPClient_NoJar_DoesNotPanic 验证传入无 cookie jar
 // 的 http.Client 时 syncCookieToken 不会 panic。
+//
+// 修复 review-tdd F8 后升级：syncCookieToken 返回 error，New() 也返回 error，
+// 测试断言 c 不为 nil（仍能 Close() 清理资源）且 err 非 nil 提示 cookie jar 问题。
 func TestRegression_WithHTTPClient_NoJar_DoesNotPanic(t *testing.T) {
 	customHTTP := &http.Client{} // 无 Jar
 
-	c := client.New(
+	c, err := client.New(
 		client.WithHTTPClient(customHTTP),
 		client.WithToken("test-token"),
 	)
 	if c == nil {
-		t.Fatal("New returned nil")
+		t.Fatal("New returned nil client")
 	}
-	// 验证：调用 New 不会 panic，syncCookieToken 能优雅处理 nil jar
+	if err == nil {
+		t.Fatal("New(WithHTTPClient(no-jar)+WithToken) 应返回 error（cookie jar 缺失），但 err 为 nil")
+	}
+	if !strings.Contains(err.Error(), "cookie") && !strings.Contains(err.Error(), "Jar") {
+		t.Errorf("error 应提示 cookie/Jar 问题，实际: %v", err)
+	}
 }
 
 // ─── HIGH #9: extractTokenFromLocation URL 解析 ───
@@ -137,10 +151,13 @@ func TestRegression_Login_TruncatesTokenAtAmpersand(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := client.New(
+	c, err := client.New(
 		client.WithSSOBase(srv.URL),
 		client.WithCustomOCR(&mockOCR{text: "AB12"}),
 	)
+	if err != nil {
+		t.Fatalf("New() 返回错误: %v", err)
+	}
 	resp, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "u", Password: "p",
 	})

@@ -61,7 +61,8 @@ func newTestClient(ssoServer *httptest.Server, bizServer *httptest.Server, uploa
 	if uploadServer != nil {
 		opts = append(opts, client.WithUploadURL(uploadServer.URL))
 	}
-	return client.New(opts...)
+	c, _ := client.New(opts...)
+	return c
 }
 
 // newTestClientWithOCR 创建 Client 并注入 mock OCR。
@@ -74,7 +75,8 @@ func newTestClientWithOCR(sso *httptest.Server, mockText string, biz *httptest.S
 	if biz != nil {
 		opts = append(opts, client.WithBaseURL(biz.URL))
 	}
-	return client.New(opts...)
+	c, _ := client.New(opts...)
+	return c
 }
 
 // warmupBizHandler 包装测试 handler，自动响应 ActivateSession 的 4 步预热路径。
