@@ -66,7 +66,9 @@ func GetDefault() *OCR {
 // 内存代价：每个实例约 50MB（ONNX 模型 + 原生库解压到独立 tempDir），n=4 ≈ 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单 Login 调一次用 1 实例足够。
 type Pool struct {
-	pool sync.Pool
+	pool    sync.Pool
+	initsMu sync.Mutex
+	inits   map[*OCR]struct{} // 跟踪所有完成过惰性初始化的实例，供 Close() 释放
 }
 
 // NewPool 创建 OCR 实例池。preload=0 或 1 表示懒加载单实例（默认行为）。
@@ -74,14 +76,24 @@ type Pool struct {
 // 注意：sync.Pool 在 GC 后可能回收对象，到时惰性初始化兜底。
 func NewPool(preload int) *Pool {
 	p := &Pool{
-		pool: sync.Pool{New: func() any { return &OCR{} }},
+		pool:  sync.Pool{New: func() any { return &OCR{} }},
+		inits: make(map[*OCR]struct{}),
 	}
 	for i := 0; i < preload; i++ {
 		// 预热：先 Get 触发 New，初始化 session，再 Put 回 pool
 		o := p.pool.Get().(*OCR)
+		p.trackInit(o)
 		p.pool.Put(o)
 	}
 	return p
+}
+
+// trackInit 记录首次完成惰性初始化的 OCR 实例。
+// 重复 Put 同一对象 (Get/Put 对) 不会重复入 map。
+func (p *Pool) trackInit(o *OCR) {
+	p.initsMu.Lock()
+	p.inits[o] = struct{}{}
+	p.initsMu.Unlock()
 }
 
 // Recognize 从池中取一个 OCR 实例识别图片，用完归还。
@@ -91,8 +103,33 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 	if !ok {
 		o = &OCR{}
 	}
+	p.trackInit(o)
 	defer p.pool.Put(o)
 	return o.Recognize(imageData)
+}
+
+// Close 释放池中所有已完成惰性初始化的 OCR 实例 (ONNX session + 临时目录)。
+//
+// 注意：sync.Pool 持有的是结构体, 真正需要 Close 的是初始化过 session 的实例。
+// 池内只跟踪首次完成初始化 (Recognize 后) 的实例, 避免漏释放或重复释放。
+//
+// 多实例池 (NewPool(N>1)) 下, 每个实例对应独立 tempDir, Close 会释放全部。
+func (p *Pool) Close() error {
+	p.initsMu.Lock()
+	inits := p.inits
+	p.inits = make(map[*OCR]struct{})
+	p.initsMu.Unlock()
+
+	var errs []error
+	for o := range inits {
+		if err := o.Close(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }
 
 var (

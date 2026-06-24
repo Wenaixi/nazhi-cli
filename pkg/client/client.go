@@ -1,6 +1,8 @@
 package client
 
 import (
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"os"
@@ -11,9 +13,12 @@ import (
 )
 
 // captchaRecognizer 是验证码识别器接口。
-// *ocr.OCR 实现了该接口，测试时可注入 mock。
+// *ocr.Pool 实现了该接口，测试时可注入 mock。
 type captchaRecognizer interface {
 	Recognize([]byte) (string, error)
+	// Close 释放识别器占用的资源 (ONNX session + 临时目录)。
+	// 默认 *ocr.Pool 已实现; mock 必须实现。
+	Close() error
 }
 
 // ─── Client ───
@@ -187,4 +192,32 @@ func (c *Client) bizURL(path string) string {
 // uploadServiceURL 拼接文件上传路径。
 func (c *Client) uploadServiceURL(path string) string {
 	return c.uploadURL + path
+}
+
+// ─── 资源释放 ───
+
+// Close 释放 Client 持有的资源：
+//   - 底层 OCR 识别器 (ONNX session + %TEMP%/nazhi-cli-ocr-XXXX/ 临时目录)
+//   - HTTP Transport 的空闲 keep-alive 连接 (避免进程退出前留有 half-closed 连接)
+//
+// 用法: CLI 入口处 defer c.Close(), 让每次执行不留垃圾。
+//
+// 错误: 聚合所有清理错误返回。常见原因: Windows AV 持锁 / Linux 权限拒绝
+// 临时目录; 业务上可以 log 出来警告, 但不应阻塞退出。
+func (c *Client) Close() error {
+	var errs []error
+	if c.ocr != nil {
+		if err := c.ocr.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭 OCR 识别器: %w", err))
+		}
+	}
+	if c.http != nil {
+		if t, ok := c.http.Transport.(*http.Transport); ok && t != nil {
+			t.CloseIdleConnections()
+		}
+	}
+	if len(errs) > 0 {
+		return errors.Join(errs...)
+	}
+	return nil
 }

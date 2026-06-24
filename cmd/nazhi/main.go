@@ -28,6 +28,13 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
+	defer func() {
+		// 关闭所有 Client (ONNX session + 临时目录 + keep-alive 连接)
+		// 错误仅记录, 不影响 exit code (Close 失败不应改变用户感知的执行结果)
+		if err := closeAllClients(); err != nil {
+			fmt.Fprintln(os.Stderr, "警告: 关闭 Client 资源失败:", err)
+		}
+	}()
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
