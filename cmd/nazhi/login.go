@@ -52,6 +52,7 @@ var loginCmd = &cobra.Command{
 			opts = append(opts, client.WithSSOBase(ssoBase))
 		}
 		c := client.New(opts...)
+		trackClient(c)
 
 		printVerbose("正在自动识别验证码并登录（OCR）...")
 		resp, err := c.Login(cmd.Context(), types.LoginRequest{
