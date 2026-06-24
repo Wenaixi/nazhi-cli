@@ -75,7 +75,14 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		_ = resp.Body.Close()
 	}()
 
-	bodyBytes, _ := io.ReadAll(resp.Body)
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		// 关键修复: 之前用 `bodyBytes, _ := io.ReadAll(resp.Body)` 吞噬错误,
+		// 当服务端断网 (connection reset / unexpected EOF) 时 bodyBytes 为空,
+		// 后续 json.Unmarshal([]) 返回 EOF, 报「解析上传响应失败: EOF」丢失根因。
+		// 现在包装为 ErrNetwork 哨兵, 上层可 errors.Is 识别。
+		return 0, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
+	}
 
 	if resp.StatusCode != http.StatusOK {
 		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, string(bodyBytes))
