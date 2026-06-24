@@ -245,22 +245,20 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 			c.logDebug("OCR 获取第 %d 张验证码失败: %v", imgIdx+1, err)
 			continue
 		}
-		for attempt := 0; attempt < maxOCRAttemptsPerImage; attempt++ {
-			text, err := c.ocr.Recognize(imgBytes)
-			if err != nil {
-				lastErr = err
-				c.logDebug("OCR 第 %d 张图 第 %d 次失败: %v", imgIdx+1, attempt+1, err)
-				continue
-			}
-			if text == "" {
-				lastErr = fmt.Errorf("空白结果")
-				c.logDebug("OCR 第 %d 张图 第 %d 次结果为空白", imgIdx+1, attempt+1)
-				continue
-			}
-			c.logDebug("OCR 识别成功: img=%d attempt=%d result=%s", imgIdx+1, attempt+1, text)
+		// ddddocr 对同一张图是确定性的，OCR 一次即终态（maxOCRAttemptsPerImage=1），
+		// 故去掉内层循环，单层结构更清晰表达"换图"语义。
+		// 修复 review-tdd finding #5：消除内层死循环（结构表达意图而非假装重试）。
+		text, err := c.ocr.Recognize(imgBytes)
+		if err != nil {
+			lastErr = err
+			c.logDebug("OCR 第 %d 张图失败: %v", imgIdx+1, err)
+		} else if text == "" {
+			lastErr = fmt.Errorf("空白结果")
+			c.logDebug("OCR 第 %d 张图结果为空白", imgIdx+1)
+		} else {
+			c.logDebug("OCR 识别成功: img=%d result=%s", imgIdx+1, text)
 			return text, nil
 		}
-		c.logDebug("OCR 当前图识别失败，换新图")
 	}
 	return "", fmt.Errorf("OCR 识别 %d 张图 × %d 次（共 %d 次）均失败，最后错误: %w",
 		maxOCRImagesTotal, maxOCRAttemptsPerImage,
