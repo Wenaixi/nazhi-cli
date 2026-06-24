@@ -7,7 +7,9 @@
 // 但 OCR CGO 期间不响应，ctx cancel 后还在死等 OCR 返回。
 //
 // 修复后：在 ocrRecognizeWithRetry 的 for 循环顶部加
-//   if err := ctx.Err(); err != nil { return lastResult, err }
+//
+//	if err := ctx.Err(); err != nil { return lastResult, err }
+//
 // 让 ctx cancel 后能立即退出循环（CGO 调用无法打断，但循环顶部检查能避免
 // 下一次 OCR 调用 + 让 fetchCaptchaImage 也走 ctx 路径）。
 //
@@ -45,17 +47,23 @@ func (m *fetchBlockingMockOCR) Close() error { return nil }
 // 后能立即退出循环，而不是跑满 99 次。
 //
 // 修复前：循环顶部无 ctx 检查 → 即使 ctx 50ms 就 cancel，循环仍会跑
-//         ~99 次（每次 fetchCaptchaImage 立即失败但 continue）。
+//
+//	~99 次（每次 fetchCaptchaImage 立即失败但 continue）。
+//
 // 修复后：循环顶部 ctx.Err() 检查 → 第 1 次循环 OCR 阻塞 500ms 后返回 →
-//         continue → 顶部检测到 ctx cancel → 立即返回。
+//
+//	continue → 顶部检测到 ctx cancel → 立即返回。
 //
 // 验证策略：本测试断言"修复后"行为——ctx 提前 cancel 时，循环返回的 error
 // 应显式标注 ctx cancel（而不是"均失败"的累加错误）。
 //
 // 修复前：返回 "OCR 识别 99 张图 × 1 次（共 99 次）均失败，最后错误: ..."，
-//         错误信息不提及 ctx。
+//
+//	错误信息不提及 ctx。
+//
 // 修复后：循环顶部检测到 ctx → 返回 "OCR 识别被 ctx cancel ..." 错误，
-//         错误信息显式包含 ctx.Err() 字符串。
+//
+//	错误信息显式包含 ctx.Err() 字符串。
 //
 // 真实场景中 mock OCR 阻塞 500ms（模拟 CGO），server 立即返回（让第 1 次
 // fetchCaptchaImage 成功）。修复后总耗时 ≈ 500ms，错误信息含 ctx 字样。

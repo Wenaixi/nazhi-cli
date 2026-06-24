@@ -32,9 +32,10 @@ import (
 // 必须 logDebug 输出原始 body 摘要（便于排查非 UnifiedResponse 错误响应）。
 //
 // 场景 1：body 是空对象 {} → json.Unmarshal 成功但 loginResp.ReturnData 为 nil
-//         → extractTokenFromReturnData 返回 "returnData 为空" 错误
-//         → 当前实现：吞掉错误，错误信息只说"未找到 token"
-//         → 修复后：logDebug 输出 body + 错误
+//
+//	→ extractTokenFromReturnData 返回 "returnData 为空" 错误
+//	→ 当前实现：吞掉错误，错误信息只说"未找到 token"
+//	→ 修复后：logDebug 输出 body + 错误
 func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
