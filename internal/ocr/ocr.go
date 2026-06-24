@@ -36,8 +36,8 @@ var charsetJSON []byte
 // 多 Client 推荐使用 GetDefault() 共享进程级单例，避免重复解压模型。
 type OCR struct {
 	initMu      sync.Mutex // 保护初始化路径和 closed 翻转
-	initialized bool      // true = 初始化已完成（成功或失败由 initErr 决定）
-	closed      bool      // true = Close() 已调用，禁止后续识别
+	initialized bool       // true = 初始化已完成（成功或失败由 initErr 决定）
+	closed      bool       // true = Close() 已调用，禁止后续识别
 	initErr     error
 	ocr         *ddddocr.DdddOcr
 	tempDir     string
