@@ -53,6 +53,9 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 			userInfo.Raw = parseRawData(*resp.ReturnData)
 			return userInfo, nil
 		}
+		if err != nil {
+			c.logDebug("GetMyInfo DecodeReturnData 失败: %v", err)
+		}
 	}
 
 	// 尝试从 dataMap 解析
@@ -61,6 +64,9 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 		if err == nil && userInfo != nil {
 			userInfo.Raw = parseRawData(*resp.DataMap)
 			return userInfo, nil
+		}
+		if err != nil {
+			c.logDebug("GetMyInfo DecodeDataMap 失败: %v", err)
 		}
 	}
 
