@@ -7,6 +7,41 @@
 
 ## [Unreleased]
 
+## [0.3.2] - 2026-06-25
+
+### Fixed
+
+- **CI 集成测试编译 break** (`test/integration/integration_test.go` 7 处) — v0.3.1 BREAKING API `client.New() (*Client, error)` 后，`test/integration/integration_test.go` 7 处 `c := client.New(opts...)` 未适配新签名。CI workflow `.github/workflows/ci.yml:85` 必跑的 `go test -tags=integration -run=^$ ./test/integration/...` 因此 FAIL，**会阻塞所有 PR**。修复：沿用 v0.3.1 `e286134` 模式，7 处统一改为 `c, _ := client.New(...)` (或 `c2, _ :=`)。Commit `efcd09b`。
+- **CLI stderr 双重输出** (`cmd/nazhi/main.go:42`) — v0.3.1 F7 修复把 `printError` 改非 `os.Exit` 后，cobra 默认行为 + main `fmt.Fprintln(os.Stderr, execErr)` 同时输出错误（cobra 写 `Error: unknown flag: --badflag` + main 写 `unknown flag: --badflag`，违反 CLAUDE.md "CLI 输出统一使用 JSON 格式"）。修复：`init()` 设 `rootCmd.SilenceErrors = true` + `SilenceUsage = true`；main:42 改 `printError(execErr)` 统一 JSON 信封。Commit `bd27332`。
+- **auth.go F2 invariant 不对称** (`pkg/client/auth.go:163-169`) — `expiresAt` 兜底 warn (`time.Until(expiresAt) > 23*time.Hour`) 仅 302 fallback 路径有，200 路径 (`extractTokenFromReturnData`) 缺。`extractTokenFromReturnData` 当前总返回 `now+24h` 兜底（不解析 exp/expires_in），200 路径必走兜底却静默。修复：在 200 路径加相同 warn 守卫，与 302 路径对称。Commit `9a7f8b9`。
+- **session.go step2 Referer token 未 URL 编码** (`pkg/client/session.go:36`) — `c.baseURL+"/homepage?token="+token` 直接拼接，若 token 含 `&`/`=`/`?` 等 URL 保留字符会破坏 Referer 的 query 结构。虽然 JWT 是 base64url URL-safe，defensive coding 应使用 `url.Values{"token": {token}}.Encode()`。Commit `0db0200`。
+- **internal/ocr Pool.Close 并发不安全** (`internal/ocr/ocr.go:122`) — `Pool.Close()` 取 `initsMu` 拷贝 inits map 后放锁，但并发 Close 时第二个 goroutine 拿到空 map 立即 return nil，期间第一个 goroutine 仍在调 `o.Close()` 并发释放同一 OCR 实例 → 底层 CGO `onnxruntime_go` Close 未声明并发安全。修复：Pool 加 `sync.Once` 包裹 Close 闭包，确保只有一次实际 Close 逻辑跑。Commit `54ddee6`。
+- **F12 FetchTasks 并发上限从 TODO 升级为真修复** (`pkg/client/task.go:50-95`) — v0.3.1 F12 仅加 6 行 TODO 注释守卫（业务维度 ≤ 20），review-tdd 二轮认为应真修。修复：引入 `errgroup.SetLimit(8)`，常量 `fetchTasksConcurrentLimit = 8`；结果聚合用 `sync.Mutex` 串行化（errgroup goroutine 间共享切片需同步）。新增 `golang.org/x/sync v0.21.0` 依赖。Commit `cd27383`。
+
+### Refactored
+
+- **auth.go 提取 `warnSyncCookieToken` helper** (`pkg/client/auth.go`) — 200 路径 (`auth.go:166`) 和 302 fallback 路径 (`auth.go:194`) 的 `if err := c.syncCookieToken(token); err != nil { c.logger.Warn(...) }` 完全相同，copy-paste 重复。提取 `(c *Client) warnSyncCookieToken(token, label string)` helper，两处统一调用。新增 `pkg/client/warn_sync_cookie_test.go` 直接单元测试 helper（含"日志不泄漏 token 字面值"反向断言）。Commit `1d3f04e`。
+- **测试代码清理**:
+  - `pkg/client/session_concurrent_test.go:166` — 删除自造 `func contains(s, substr string) bool` 函数（注释称"避免导入 strings 触发编译器对其他测试文件的额外感知"，但本包 10+ 测试文件已成功导入 strings），改用 `strings.Contains`。Commit `29b2848`。
+  - `cmd/nazhi/whoami_test.go:103-129` — 内联 `os.Pipe` + goroutine `io.Copy` 模板替换为同文件已定义的 `captureStdio` helper。顺手修复了 `captureStdio` 隐藏的 drain 异步 race（goroutine drain 没同步等待，调用方读 buffer 时数据可能未到达）。Commit `7406e7f`。
+
+### Added
+
+- **新回归测试 6 个**:
+  - `pkg/client/auth_200_expires_warn_test.go` — 验证 200 路径 `now+24h` 兜底时 WARN 级别日志输出
+  - `pkg/client/warn_sync_cookie_test.go` — `warnSyncCookieToken` helper 直接单元测试（含 token 不泄漏反向断言）
+  - `pkg/client/session_referer_encode_test.go` — `&` 和 `=` token 编码为 `%26` / `%3D`
+  - `pkg/client/f2_strings_contains_test.go` — 锁入 `strings.Contains` 标准库语义
+  - `internal/ocr/ocr_pool_close_test.go` — 8 goroutine 并发 Close 断言 `closeHook` 触发 = 4 次（实际 close 的实例数）
+  - `pkg/client/task_concurrent_limit_test.go` — 20 维度场景断言 peak ≤ 8、≥ 2
+  - `cmd/nazhi/main_test.go` — 验证 stderr 单一错误输出（非 cobra 默认 + main Fprintln 双重）
+
+### Build
+
+- 版本号：`0.3.2`
+- 新增依赖：`golang.org/x/sync v0.21.0`（for `errgroup.SetLimit`）
+- 5 平台二进制跨平台构建流程不变（CI workflow 触发条件 `v*` tag）
+
 ## [0.3.1] - 2026-06-25
 
 ### Added

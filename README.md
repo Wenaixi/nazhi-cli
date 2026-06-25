@@ -1,6 +1,6 @@
 # nazhi-cli
 
-**纳智综合评价系统 自动化 CLI + Go SDK** v0.3.1
+**纳智综合评价系统 自动化 CLI + Go SDK** v0.3.2
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)

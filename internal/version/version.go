@@ -10,4 +10,5 @@ package version
 //	0.2.2 — Shell 自动补全 + 版本子命令 + Session bug 修复 + 测试补充 + 代码质量修复
 //	0.3.0 — 全仓库代码审查修复（panic 风险/ExpiresAt 零值/session token 感知/代码结构重构）
 //	0.3.1 — 二轮 review-tdd：13 findings 修复 + client.New 改 error 返回 + 并发安全 + ctx 退出
-var Version = "0.3.1"
+//	0.3.2 — 三轮 review-tdd：9 findings 修复 + CI 集成测试编译 break + 5 worktree 并行 TDD
+var Version = "0.3.2"
