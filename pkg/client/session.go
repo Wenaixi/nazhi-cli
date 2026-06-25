@@ -69,12 +69,7 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession %s（getMenu）失败: %w", stepLabel, err)
 	}
-	defer func() {
-		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
-		//（未 drain 的 body 在 Close 时强制关闭 TCP 连接，无法复用）
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer drainAndClose(resp.Body)
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
