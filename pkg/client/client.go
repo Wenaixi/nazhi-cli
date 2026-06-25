@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -49,18 +50,61 @@ type Client struct {
 type Option func(*Client)
 
 // WithSSOBase 设置 SSO 根地址。
+//
+// 行为约定：
+//   - url == ""：拒绝设置并 warn，保持当前 ssoBaseURL（防止空字符串
+//     静默覆盖 New() 已设的 defaultSSOBase，导致 ssoURL() 拼接出畸形 URL）
+//   - 否则：设置 ssoBaseURL
+//
+// 设计一致：与 WithTimeout 一样是「runtime degraded-warn + 不修改字段」，
+// 而非 build-time fail-fast——保持与 F8/F9 修复的 Option 校验风格一致。
 func WithSSOBase(url string) Option {
-	return func(c *Client) { c.ssoBaseURL = url }
+	return func(c *Client) {
+		if url == "" {
+			c.logger.Warn("WithSSOBase: 空字符串被拒绝，保持当前值",
+				"current", c.ssoBaseURL)
+			return
+		}
+		c.ssoBaseURL = url
+	}
 }
 
 // WithBaseURL 设置业务 API 根地址。
+//
+// 行为约定：
+//   - url == ""：拒绝设置并 warn，保持当前 baseURL（防止空字符串
+//     静默覆盖 New() 已设的 defaultBaseURL，导致 bizURL() 拼出畸形 URL）
+//   - 否则：设置 baseURL
+//
+// 设计一致：与 WithSSOBase / WithTimeout 同款 warn + 不修改字段守卫。
 func WithBaseURL(url string) Option {
-	return func(c *Client) { c.baseURL = url }
+	return func(c *Client) {
+		if url == "" {
+			c.logger.Warn("WithBaseURL: 空字符串被拒绝，保持当前值",
+				"current", c.baseURL)
+			return
+		}
+		c.baseURL = url
+	}
 }
 
 // WithUploadURL 设置文件上传服务器地址。
+//
+// 行为约定：
+//   - url == ""：拒绝设置并 warn，保持当前 uploadURL（防止空字符串
+//     静默覆盖 New() 已设的 defaultUploadURL，导致 uploadServiceURL() 拼出畸形 URL）
+//   - 否则：设置 uploadURL
+//
+// 设计一致：与 WithSSOBase / WithBaseURL 同款 warn + 不修改字段守卫。
 func WithUploadURL(url string) Option {
-	return func(c *Client) { c.uploadURL = url }
+	return func(c *Client) {
+		if url == "" {
+			c.logger.Warn("WithUploadURL: 空字符串被拒绝，保持当前值",
+				"current", c.uploadURL)
+			return
+		}
+		c.uploadURL = url
+	}
 }
 
 // WithTimeout 设置 HTTP 客户端超时（包括连接、TLS 握手、响应体读取）。
@@ -101,8 +145,22 @@ func WithLogger(l *slog.Logger) Option {
 
 // WithHTTPClient 设置自定义 HTTP 客户端（完全替换默认客户端）。
 // 注意：替换后 cookie jar 由调用者负责。
+//
+// 行为约定：
+//   - hc == nil：拒绝设置并 warn，保持当前 c.http（防止 nil 静默覆盖
+//     默认带 cookie jar 的客户端，导致后续请求 0 cookie → 空 dataList）
+//   - 否则：完全替换 c.http
+//
+// 设计一致：与 WithTimeout 的「c.http == nil 拒绝」对称守卫。
 func WithHTTPClient(hc *http.Client) Option {
-	return func(c *Client) { c.http = hc }
+	return func(c *Client) {
+		if hc == nil {
+			c.logger.Warn("WithHTTPClient: nil 客户端被拒绝，保持当前值",
+				"tip", "如需禁用 HTTP 客户端请直接调用 Close() 或不构造 Client")
+			return
+		}
+		c.http = hc
+	}
 }
 
 // WithCustomOCR 是测试用 Option，注入自定义验证码识别器。
@@ -117,13 +175,18 @@ func WithCustomOCR(r captchaRecognizer) Option {
 //   - 0 或 1 = 默认懒加载单实例（与原单例行为一致，1 路串行识别）
 //   - N > 1 = 预分配 N 个 OCR 结构体，ONNX session 惰性初始化，
 //     首次调用 Recognize 时触发完整模型加载
+//   - n < 0：拒绝设置并 warn，保持当前 c.ocr（防止负数被静默截 0
+//     后用默认值覆盖调用方已注入的自定义识别器，如 WithCustomOCR mock）
 //
 // 内存代价：每个 ONNX session 约 50MB（模型 + 原生库），N=4 约 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单次 Login 用 1 实例足够。
 func WithOCRConcurrency(n int) Option {
 	return func(c *Client) {
 		if n < 0 {
-			n = 0
+			c.logger.Warn("WithOCRConcurrency: 负数被拒绝，保持当前 OCR 实例",
+				"n", n,
+				"tip", "用 0/1 = 单实例，N>1 = 并发池")
+			return
 		}
 		c.ocr = ocr.NewPool(n)
 	}
@@ -138,10 +201,21 @@ func WithOCRConcurrency(n int) Option {
 // 业务服务器要求 X-Auth-Token 同时存在于 Header 和 Cookie（参见 auth-flow.md），
 // 仅设置 Header 会导致后续接口返回空数据。
 //
+// 行为约定：
+//   - token 是空字符串或纯空白：拒绝设置并 warn，保持当前 pendingToken
+//     （防止空 token 静默覆盖已有有效 token，后续 syncCookieToken 写入空
+//     cookie 导致业务鉴权失败）
+//   - 否则：存到 c.pendingToken，延迟到 New() 末尾统一 syncCookieToken
+//
 // 注意：实际 cookie 注入延迟到 New() 末尾执行，确保 WithSSOBase / WithBaseURL /
 // WithHTTPClient 在 WithToken 之后调用也能正确生效（避免 Option 顺序敏感性 bug）。
 func WithToken(token string) Option {
 	return func(c *Client) {
+		if strings.TrimSpace(token) == "" {
+			c.logger.Warn("WithToken: 空字符串或纯空白 token 被拒绝，保持当前值",
+				"current_empty", c.pendingToken == "")
+			return
+		}
 		c.pendingToken = token
 	}
 }
