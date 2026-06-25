@@ -6,9 +6,15 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
+
+// defaultSessionBackoff 是激活失败后禁止重试的默认时间窗口。
+// 默认 5 秒：大部分瞬时故障（网络抖动、服务端短时 5xx）在 5 秒内
+// 恢复的概率低，回退重试可有效抑制 thundering herd 放大效应。
+const defaultSessionBackoff = 5 * time.Second
 
 // ActivateSession 初始化目标平台业务 Session。
 // HAR 验证（登录.har + 首页访问.har）：必须按以下 4 步顺序激活，否则后续接口返回空数据：
@@ -112,10 +118,26 @@ func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) erro
 		return nil
 	}
 
+	// 激活失败 backoff 保护：上次失败后短时间内直接返回缓存错误，
+	// 避免 N 个 goroutine 各自重试 4 步激活（thundering herd
+	// 放大服务端压力：无 backoff 时 N=10 导致 10 组 × 4 步 = 40
+	// 次 HTTP 请求，有 backoff 时只需 1 组即被缓存抑制）。
+	backoff := c.sessionBackoff
+	if backoff <= 0 {
+		backoff = defaultSessionBackoff
+	}
+	if c.lastActivationErr != nil && time.Since(c.lastAttemptAt) < backoff {
+		return fmt.Errorf("激活 session 失败（上次重试 %v 前）: %w",
+			time.Since(c.lastAttemptAt), c.lastActivationErr)
+	}
+
 	// 持锁激活：4 步串行执行，写 cookie jar 互斥
 	if _, err := c.ActivateSession(ctx, token); err != nil {
+		c.lastActivationErr = err
+		c.lastAttemptAt = time.Now()
 		return err
 	}
 	c.sessionToken = token
+	c.lastActivationErr = nil
 	return nil
 }
