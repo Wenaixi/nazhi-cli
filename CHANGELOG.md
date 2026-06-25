@@ -7,6 +7,55 @@
 
 ## [Unreleased]
 
+## [0.3.4] - 2026-06-26
+
+五轮 review-tdd 修复 18 findings — round-4（15 findings 8 worktree）+ round-5（3 deferred findings 3 worktree）。累计 5 轮 47 findings 全部解决。
+
+### Fixed
+
+- **auth.go G1+G2+G3: 24h magic number 3 处抽常量 + 200 路径 exp/expires_in 解析 + Login validate 错误上下文** (`auth.go`) — 3 处 `24*time.Hour` 提取为 `defaultTokenTTL`；`extractTokenFromReturnData` 新增 `parseReturnDataExpires` 解析服务端 `exp`/`expires_in` 字段（200 路径之前每次都走 now+24h 兜底 + Warn 噪声）；`Login` validate 路径 `io.ReadAll` 错误加 `status=%d read=%d bytes` 上下文。
+- **auth.go M1: GetSchoolID else-if 死分支删除** — `else if school_name` 分支从未触发（HAR fixture + 真实平台只返 NAME），删除。
+- **auth.go M2: stringPtrOr 重命名并简化** — 改名 `derefOr`，5 行 → 3 行。`cmp.Or` 不可行（`*nil` 解引用 panic）。
+- **types.go H1: LoginResponse.RefreshAfter 死字段删除** — 与 v0.3.3 F8 删 UserInfo 同病，从未被填充。
+- **response.go H2: UnifiedResponse 6 个孤儿字段删除** — DataString/PageBean/Note/InsertID/UpdateCount/IsAttendance（0 引用）。
+- **request.go A: drainAndClose helper 彻底落地** — `doRequest` + `doBizGet` 内联 defer 改用 drainAndClose，F6 重构目标 5/5 全部完成。
+- **self_eval.go/user.go/task.go E: 5+1 处 CheckCode 改用 ErrBusinessRejected 包装** — `SubmitSelfEvaluation`、`QuerySelfEvaluation`、`QuerySelfGradEvaluation`、`GetMyInfo`、`fetchDimensions`、`GetCircleTypeByTaskId`。关键陷阱：不能用 `*BusinessError` 作 `%w` 位，改用 `resp.Code`/`resp.Msg` 拼字符串。
+- **task.go F: fetchTasksForDimension CheckCode != 1 改 return error** — 之前 logDebug + return nil 静默吞错误。
+- **file.go B1: newCleanClient 50 次握手回归修复** — Client 加 `cleanTransportInit sync.Once` + `cleanTransport *http.Transport` 字段缓存克隆的 Transport。保留 F9 隔离语义：Close() 同时 `cleanTransport.CloseIdleConnections()`。
+- **client.go D1: 6 个 Option 加对称守卫** — WithSSOBase/BaseURL/UploadURL（空字符串 warn+保留原值）、WithHTTPClient（nil warn）、WithOCRConcurrency（负数 warn）、WithToken（空白 warn）。
+- **cmd/nazhi C1+C2+C3: buildClient 扩展 urlType 参数** — school.go + file_upload.go 改用统一 helper；C3 副作用：自动获得 `trackClient(c)`，ONNX 延迟释放问题顺带修。
+- **whoami.go W1: (nil,nil) 输出状态字段** — `{"status":"empty","reason":"get_my_info_empty"}` 替代裸 `null`，三种场景可通过 JSON status 区分。
+- **session.go S1: 激活失败背压 + 缓存** — 失败缓存 + 5s backoff 窗口，N 个并发 goroutine 共享 1 次尝试。
+- **task.go T1: FetchTasks partial failures 聚合** — 全失败 `return nil, ErrBusinessRejected("全部 N 个维度均失败")`；部分失败 `return allTasks, fmt.Errorf("N 个维度部分失败")`；全成功 `return allTasks, nil`。
+
+### Refactored
+
+- **ocr.go I1: 删除 GetDefault/defaultOCR/defaultOnce 进程级单例** — 0 调用方，Pool 替代。
+- **ocr.go I2: closeHook 字段删除** — 仅测试使用，改 sync.Once + Pool state 三组 invariant 等价替代。
+- **ocr.go O7: trackInit 从 mutex+map 改为 sync.Map+LoadOrStore** — 99 次串行 Lock 写 map → LoadOrStore（key 已存在 lock-free 跳过）。
+- **output.go L: 新增 printPrompt 函数** — quiet 静默 + non-TTY 静默，不受 verbose 守卫。self_eval_submit.go 改用。
+- **cmd/nazhi: school.go + file_upload.go 去重** — inline envString/envInt/flagChanged + client.New → `buildClient(cmd, urlType, timeoutEnv)`。
+- **derefOr helper 简化** — 5 行 → 3 行，nil-safe `*string` 解引用。
+
+### Added
+
+- **新守卫测试**：
+  - `TestGetSchoolID_NoDeadBranch` — else-if 死分支不触发
+  - `TestLogin_200Path_ParsesExpiresIn` — exp/expires_in 解析
+  - `TestUnifiedResponse_OrphanFieldsAreNotDeserializable` — 旧 API 响应兼容性
+  - `TestOption_Guardrails` — 6 个 Option 对称守卫
+
+### Changed
+
+- **`pkg/types.LoginResponse.RefreshAfter` 字段删除** — **BREAKING API**。v0.3.4 起 SDK 调用方不再有该字段，JSON 序列化不输出 `refresh_after`。
+- **`pkg/types.UnifiedResponse` 6 个孤儿字段删除** — **BREAKING API**。DataString/PageBean/Note/InsertID/UpdateCount/IsAttendance 不再存在。全仓库 grep 确认 0 引用，旧 API 响应体仍可兼容反序列化（JSON 忽略未知字段）。
+
+### Build
+
+- 版本号：`0.3.4`
+- 依赖不变
+- 5 平台二进制跨平台构建流程不变（CI workflow 触发条件 `v*` tag）
+
 ## [0.3.3] - 2026-06-25
 
 四轮 review-tdd 修复 7 findings — 应用新版 SKILL.md（协调者模式，主代理派 10 angle finder + 10 verifier + 4 worktree 并行 fixer agent）。
