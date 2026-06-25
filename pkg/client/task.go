@@ -123,15 +123,31 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		return nil, fmt.Errorf("FetchTasks 并发拉取失败: %w", err)
 	}
 
-	// F-GroupD-F 修复：业务错误通过 errors.Join 聚合后包装 ErrBusinessRejected。
+	// T1 round-5 修复：partial failures 聚合，区分全失败与部分失败。
+	//
+	// 错误信息枚举每个失败维度的 ID/name/code/msg（从 fetchTasksForDimension
+	// 的 error 消息中带出），调用方通过 errors.Is(err, ErrBusinessRejected)
+	// 统一判定业务错误，通过 err.Error() 区分严重程度：
+	//   - "全部 ... 均失败"：所有维度都未能获取任务
+	//   - "部分失败"：仍有成功维度数据可用
+	//
 	// 保留语义：
 	//   - 成功维度的任务仍聚合到 allTasks（不 fail-fast）
 	//   - 错误统一包装为 ErrBusinessRejected，errors.Is 命中
-	//   - 错误信息包含所有失败维度的诊断详情（id/name/code/msg）
+	//   - errors.Join 保留每个维度独立的诊断详情
 	if len(dimErrs) > 0 {
 		joined := errors.Join(dimErrs...)
-		summary := fmt.Sprintf("FetchTasks: %d 个维度拉取失败", len(dimErrs))
-		return allTasks, fmt.Errorf("%w: %s: %w", ErrBusinessRejected, summary, joined)
+		failedCount := len(dimErrs)
+
+		if len(allTasks) == 0 {
+			// 全维度业务失败（或与网络错误混合导致无成功数据）
+			return nil, fmt.Errorf("%w: FetchTasks 全部 %d 个维度均失败: %w",
+				ErrBusinessRejected, failedCount, joined)
+		}
+
+		// 部分维度失败：仍有成功任务可用，附带 partial failure 错误信号
+		return allTasks, fmt.Errorf("%w: FetchTasks %d 个维度部分失败: %w",
+			ErrBusinessRejected, failedCount, joined)
 	}
 
 	return allTasks, nil
