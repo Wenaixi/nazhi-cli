@@ -152,7 +152,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			// 业务错误优先：code != 1 时直接返回业务 msg（如"密码错误"），
 			// 避免被"未找到 token"低语义错误吞噬（修复 review-tdd finding #3）。
 			if loginResp.Code != 1 {
-				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, stringPtrOr(loginResp.Msg, "登录失败"))
+				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, derefOr(loginResp.Msg, "登录失败"))
 			}
 			token, expiresAt, err := extractTokenFromReturnData(loginResp)
 			if err != nil {
@@ -208,7 +208,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		// 修复 review-tdd finding #12：避免错误信息完全丢失根因
 		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, string(bodyBytes))
 	} else if errResp.Code != 1 {
-		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, stringPtrOr(errResp.Msg, "登录失败"))
+		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, derefOr(errResp.Msg, "登录失败"))
 	}
 	return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
 }
@@ -456,8 +456,23 @@ func parseRawData(data []byte) map[string]any {
 	return m
 }
 
-// stringPtrOr 返回字符串指针的值，如果为 nil 则返回默认值。
-func stringPtrOr(s *string, def string) string {
+// M2 (review-tdd round-4)：stringPtrOr 改为 derefOr（同名 helper 太通用，
+// 新名说明用途：解引用 *string 取值，nil 时返回 def）。
+//
+// 为什么不直接用 cmp.Or(*s, def) (Go 1.22+ stdlib)：
+//   - cmp.Or(*s, def) 在 s == nil 时会 panic（解引用 nil 指针）
+//   - UnifiedResponse.Msg 是 *string，server 偶尔漏返 msg（如纯 {code:0}
+//     无 msg 字段）时 Msg 为 nil，需要 nil-safe 兜底
+//   - 业务契约：错误信息永远有值（即使 server 不给也有"登录失败"兜底），
+//     所以 nil 检查不能省略
+//
+// derefOr 保持 1 行实现 + 1 行 doc = 2 行，比原 6 行精简 4 行，比 cmp.Or
+// 替代方案（需调用方先 nil 判断）少 N 行（N = 调用方数量）。
+//
+// 调用方 (auth.go:156, 212) 改用 derefOr(loginResp.Msg, "登录失败")。
+
+// derefOr 解引用 *string 取值，nil 时返回 def。
+func derefOr(s *string, def string) string {
 	if s == nil {
 		return def
 	}
