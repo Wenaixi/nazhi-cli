@@ -104,7 +104,18 @@ func (p *Pool) trackInit(o *OCR) {
 
 // Recognize 从池中取一个 OCR 实例识别图片，用完归还。
 // 不同实例并发安全（每个实例内部有独立 mu 保护 Classification）。
+//
+// Pool.Close 后调用 Recognize 返回"OCR 池已关闭"错误，防止新创建的
+// OCR 实例泄漏 tempDir（Pool.Close 的 inits.Range 排空后再创建的实例
+// 不会被 Close 路径清理）。
 func (p *Pool) Recognize(imageData []byte) (string, error) {
+	p.closeMu.Lock()
+	closed := p.closed
+	p.closeMu.Unlock()
+	if closed {
+		return "", errors.New("OCR 池已关闭")
+	}
+
 	o, ok := p.pool.Get().(*OCR)
 	if !ok {
 		o = &OCR{}

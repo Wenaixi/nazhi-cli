@@ -162,7 +162,11 @@ func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body
 	}
 
 	c.logDebug("→ %s %s", method, url)
-	return c.http.Do(req)
+	resp, err := c.http.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)
+	}
+	return resp, nil
 }
 
 // ─── 业务侧请求辅助 ───
@@ -185,7 +189,7 @@ func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body
 func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]string) ([]byte, error) {
 	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, headers, "")
 	if err != nil {
-		return nil, fmt.Errorf("%w: GET %s 失败: %w", ErrNetwork, url, err)
+		return nil, err
 	}
 	defer drainAndClose(resp.Body)
 
