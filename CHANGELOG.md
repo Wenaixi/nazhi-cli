@@ -7,6 +7,43 @@
 
 ## [Unreleased]
 
+## [0.3.3] - 2026-06-25
+
+四轮 review-tdd 修复 7 findings — 应用新版 SKILL.md（协调者模式，主代理派 10 angle finder + 10 verifier + 4 worktree 并行 fixer agent）。
+
+### Fixed
+
+- **HAR fixture 真实 PII 泄露** (`test/integration/har_fixtures/self_eval.json:14,35`) — `student_number`/`studentName` 仍含真实学号 TEST2025001 与真实姓名"张三"，违反 CLAUDE.md 第 281-291 行"敏感凭据记录"条款（git-filter-repo 补救目标）。修复：替换为 `TEST2025001` / `张三` 占位值。新增 `test/integration/har_pii_redacted_test.go`（integration tag）扫描全部 5 个 fixture，含真实 PII 直接 fail。Commit `e6a235a`。
+- **pkg/client/image_prep.go 69 行 dead code chain** — `prepareImageWithStats` + `prepResult` + `PrepStats` struct (14 字段) + `CompressionRatio` method 共 4 个定义合计 ~50 行只为透传一个切片，唯一 caller `prepareImageForUpload` 丢弃 Stats 字段（仅用 Data/MIME），零外部消费者。修复：删除 4 个 dead 定义 + 移除 `os.Stat` 调用，inline 核心逻辑到 `prepareImageForUpload`，外部签名 `([]byte, string, error)` 不变。Commit `6f4529e`。
+- **pkg/client/auth.go syncCookieToken baseURL 解析失败静默** (`auth.go:413-417`) — F8 round1 修复时把 Jar 类型断言失败 propagate error，但 baseURL 解析失败仍 `c.logger.Warn + continue + return nil`，invariant 不对称：调用方同样无法在 build client 阶段感知失败（如畸形 URL `http://[::1` 漏右括号、`%zz` 非法转义）。修复：URL 解析失败改为 `return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", raw, err)`，与 Jar 类型断言失败契约对齐。Commit `d763661`。
+- **pkg/client/task.go SubmitTask 业务错误用 ErrLoginRejected 包装** (`task.go:177`) — 业务 code≠1（如 500/参数错）被 wrap 进 `ErrLoginRejected`，但 `ErrLoginRejected` 语义是"登录被拒绝（凭证无效或验证码错误）"，SDK 用户按 `docs/sdk/README.md` 推荐 `errors.Is(err, ErrLoginRejected)` 判定后错误地走重新登录流程。修复：新增 `ErrBusinessRejected = errors.New("business rejected: invalid request or server error")` 哨兵，SubmitTask 业务错误改用其包装；errors.Is(err, ErrLoginRejected) 仍专用于登录场景。Commit `8037e7b`。
+- **pkg/client/file.go newCleanClient 共享 Transport 连接池污染** (`file.go:130` + `client.go:229`) — `newCleanClient` 通过 `c.http.Transport` 复用连接池（设计意图：批量上传 50 张图仅 1 次 DNS+TCP+TLS 握手），但 `Client.Close()` 的 `t.CloseIdleConnections()` 会关闭该 Transport 上**所有** idle 连接（含业务 Client 已 keep-alive 的到 sso/api 主机连接），后续业务请求强制重连 TLS。修复：`newCleanClient` 用 `(*http.Transport).Clone()` 复制独立 Transport（共享 Dialer/TLSConfig/PROXY 但 idle 池独立）；`type switch` 处理 3 种 Transport 情形（`*http.Transport` Clone / `nil` 回退 `http.DefaultTransport` / 自定义 `RoundTripper` 透传）。Commit `9e5dfc3`。
+
+### Refactored
+
+- **pkg/client/request.go 抽 drainAndClose helper** (`request.go` + `auth.go:133` + `file.go:72` + `session.go:72`) — 5 处 `defer func(){io.Copy(io.Discard, body); body.Close()}()` 中 3 处业务侧（Login / UploadFile / doGetMenu）verbatim 复制粘贴，注释都重复"先 drain body 再 close 让 net/http 把连接归还 keep-alive 池"。修复：在 base 层 `request.go` 加 `drainAndClose(body io.ReadCloser)` helper，3 处业务侧改用 helper；base 层 `doRequest`/`doBizGet` 内部保留内联（避免跨文件依赖）。净收益：-9 行 boilerplate + 新增 POST/streaming endpoint 不会重演 F1 修复的"漏 drain"bug 类。Commit `c8ba35f`。
+- **pkg/types/types.go 删除 LoginResponse.UserInfo 死字段** (`types.go:24`) — `types.LoginResponse.UserInfo *UserInfo` 字段公开声明但 `Login()` 函数两条成功路径（200 OK / 302 Fallback）都从未填充，SDK 用户读 `resp.UserInfo` 永远拿到 nil，JSON 序列化为 `user_info:null` 误导。修复：删除字段，godoc 注明"用户基本信息请通过 `Client.GetMyInfo(ctx, token)` 获取"，收敛到 Token/ExpiresAt/RawData 三件套（实际被填充的字段）。**BREAKING API** — 见下方 Changed 段。Commit `aaf7425`。
+
+### Added
+
+- **新守卫测试 4 个**:
+  - `test/integration/har_pii_redacted_test.go` — 扫描全部 5 个 HAR fixture 禁含 `TEST2025001` / `张三`
+  - `pkg/client/sync_cookie_url_error_test.go` — 3 用例（单 URL 畸形 propagate / 双 URL 畸形短链路 / happy path 不受影响）
+  - `pkg/client/login_response_no_userinfo_test.go` — JSON 序列化不再含 `"user_info"` 键
+  - `pkg/client/drain_helper_test.go` — `drainAndClose` helper 单元测试
+  - `pkg/client/submit_task_error_type_test.go` — httptest mock 验证 `errors.Is(err, ErrBusinessRejected) == true && errors.Is(err, ErrLoginRejected) == false`
+  - `pkg/client/clean_client_test.go` — 3 组精确断言（Clone / 透传 / 回退 DefaultTransport）
+
+### Changed
+
+- **`pkg/types.LoginResponse.UserInfo` 字段删除** — **BREAKING API**。v0.3.3 起 SDK 调用方请改用 `Client.GetMyInfo(ctx, token)` 获取用户完整信息（`LoginResponse` 现在只包含登录 token + expires 信息）。影响范围：`pkg/types.LoginResponse` JSON 序列化输出不再含 `user_info` 键；用 `resp.UserInfo` 的旧代码会编译失败（字段不存在）。CHANGELOG v0.3.3 release note 标注。
+
+### Build
+
+- 版本号：`0.3.3`
+- 依赖不变（仍为 `golang.org/x/sync v0.21.0`）
+- 5 平台二进制跨平台构建流程不变（CI workflow 触发条件 `v*` tag）
+
 ## [0.3.2] - 2026-06-25
 
 ### Fixed
