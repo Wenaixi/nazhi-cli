@@ -16,7 +16,8 @@ import (
 //
 // 关键不变量：未读完的 body 在 Close 时会强制关闭底层 TCP 连接，
 // 下次请求必须重新 TLS 握手，keep-alive 失效。集中 helper 防止
-// 3+ 处业务侧 verbatim defer（review-tdd F6 重构目标）。
+// 业务侧 verbatim defer（review-tdd F6 重构目标，同文件 doRequest/doBizGet
+// 也复用此 helper）。
 //
 // nil 安全：body 为 nil 时直接返回，避免 nil pointer panic。
 func drainAndClose(body io.ReadCloser) {
@@ -142,11 +143,7 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 	if err != nil {
 		return nil, fmt.Errorf("%w: 请求失败: %w", ErrNetwork, err)
 	}
-	defer func() {
-		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer drainAndClose(resp.Body)
 
 	respBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -190,11 +187,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 	if err != nil {
 		return nil, fmt.Errorf("%w: GET %s 失败: %w", ErrNetwork, url, err)
 	}
-	defer func() {
-		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer drainAndClose(resp.Body)
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
