@@ -35,6 +35,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 2. 构造 multipart 请求体
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
+	defer writer.Close()
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
 	if err != nil {
@@ -43,7 +44,6 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	if _, err := part.Write(fileData); err != nil {
 		return 0, fmt.Errorf("写入图片到 multipart 失败: %w", err)
 	}
-	writer.Close()
 
 	// 3. 构造请求
 	uploadURL := c.uploadServiceURL("/common/upload/uploadImage?bussinessType=12&groupName=other")

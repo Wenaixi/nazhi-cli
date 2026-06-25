@@ -113,7 +113,8 @@ func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) erro
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
 
-	// 双检：持锁状态下再次确认 token，避免重复激活
+	// 持锁确认当前 token，避免重复激活（锁内单次检查，无外层 fast-path）。
+	// 调用方无需先自行检查，本函数会在持有锁后判断。
 	if c.sessionToken == token {
 		return nil
 	}
