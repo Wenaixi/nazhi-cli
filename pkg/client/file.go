@@ -104,9 +104,17 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		return 0, fmt.Errorf("解析 returnData 失败: %w", err)
 	}
 
-	id, ok := result["id"].(float64)
-	if !ok {
+	// J2 修复：先区分字段是否存在，再做类型断言。
+	// 修复前 `id, ok := result["id"].(float64); if !ok` 把「字段不存在」与
+	// 「类型不匹配」两种根因合并成同一条「缺少 id 字段」，导致 type mismatch
+	// 误导用户去检查协议而非数据类型。
+	rawID, exists := result["id"]
+	if !exists {
 		return 0, fmt.Errorf("%w: returnData 中缺少 id 字段", ErrUploadRejected)
+	}
+	id, ok := rawID.(float64)
+	if !ok {
+		return 0, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 实际 %T", ErrUploadRejected, rawID)
 	}
 
 	return int64(id), nil
