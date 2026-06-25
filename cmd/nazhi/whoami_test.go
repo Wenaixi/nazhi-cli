@@ -17,25 +17,40 @@ import (
 
 // unifiedOKEmpty 模拟业务 API 返回 code=1 但 returnData/dataMap 都为 nil 的响应。
 // SDK 文档明确：GetMyInfo "最佳努力设计：失败返回 nil，不中断主流程"。
-// 此时 cmd 层不应打印 error。
+// 此时 cmd 层不应打印 error，应输出 {"status":"empty","reason":"get_my_info_empty"}。
 const unifiedOKEmpty = `{"code":1,"msg":"成功"}`
 
-// makeWhoamiTestCmd 构造 whoami 命令的测试用 cobra.Command，
-// 通过 cmd.SetContext 注入一个带 mock server 的 bizURL。
-func makeWhoamiTestCmd(t *testing.T, token string) (*cobra.Command, *client.Client) {
+// unifiedUserInfo 模拟 getMyInfo 返回完整用户信息的响应。
+const unifiedUserInfo = `{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"福清一中","className":"高一八班","seat":45}}`
+
+// makeWhoamiTestCmd 创建 whoami 命令的测试用 cobra.Command + mock server。
+// getMyInfoBody 是 /api/studentInfo/getMyInfo 的响应体 JSON，空字符串时默认 unifiedOKEmpty。
+// bizOK 控制 session 预热路径（首页+/getMenu）是否返回 200 OK（false 则返回 500 模拟激活失败）。
+func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK ...bool) (*cobra.Command, *client.Client) {
 	t.Helper()
+	if getMyInfoBody == "" {
+		getMyInfoBody = unifiedOKEmpty
+	}
+	ok := true
+	if len(bizOK) > 0 {
+		ok = bizOK[0]
+	}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// session 预热路径必须先响应
 		switch r.URL.Path {
 		case "/", "/api/studentInfo/getMenu":
+			if !ok {
+				http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+				return
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
 		case "/api/studentInfo/getMyInfo":
-			// 业务响应：code=1 但 returnData/dataMap 都为 nil → SDK 返回 (nil, nil)
+			// 业务响应由调用方控制
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(unifiedOKEmpty))
+			_, _ = w.Write([]byte(getMyInfoBody))
 		default:
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -118,12 +133,14 @@ func captureStdio(t *testing.T) (stdout *bytes.Buffer, stderr *bytes.Buffer, res
 
 // TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError 回归测试：GetMyInfo 返回
 // (nil, nil)（HTTP 200 + code=1 + returnData/dataMap 都为 nil）时，
-// whoami 命令必须输出 JSON（null），**不**打印错误并走 os.Exit 路径。
+// whoami 命令必须输出 {"status":"empty","reason":"get_my_info_empty"}，
+// **不**打印错误并走 os.Exit 路径。
 //
 // 历史 bug（F5）：whoami.go:31 把 (nil, nil) 误当成 fatal error，调
 // printError("未找到用户信息")，违反 SDK "最佳努力设计" 契约。
+// W1 修复：改输出带 status 字段的 JSON 而非 bare null。
 func TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError(t *testing.T) {
-	cmd, _ := makeWhoamiTestCmd(t, "test-token")
+	cmd, _ := makeWhoamiTestCmd(t, "test-token", "")
 
 	// 抑制 quiet 防止 printError 吞 stderr
 	quiet = false
@@ -144,19 +161,84 @@ func TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError(t *testing.T) {
 		t.Errorf("GetMyInfo 返回 (nil, nil) 不应触发 pendingExitCode=1，实际 %d", got)
 	}
 
-	// 关键断言 1：stderr 不应包含 "未找到用户信息"（修复前会）
-	if strings.Contains(stderr, "未找到用户信息") {
-		t.Errorf("stderr 不应包含 '未找到用户信息'（F5: SDK nil 不算 error），实际: %q", stderr)
-	}
-	// 关键断言 2：stderr 不应包含 error JSON 标记
+	// 关键断言 1：stderr 不应包含 error JSON 标记
 	if strings.Contains(stderr, `"error": true`) {
 		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
 	}
 
-	// 关键断言 3：stdout 应输出 nil JSON（printJSON(nil) → "null\n"）
-	// 允许两种合理输出："null" 或 "null\n"（JSON encoder 会加换行）
-	if !strings.Contains(stdout, "null") {
-		t.Errorf("stdout 应包含 'null'（printJSON(nil) 输出），实际: %q", stdout)
+	// 关键断言 2：stdout 应输出带 status 字段的 JSON 而非 bare null
+	if !strings.Contains(stdout, `"status": "empty"`) {
+		t.Errorf("stdout 应包含 status: empty（W1 修复后），实际: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"reason": "get_my_info_empty"`) {
+		t.Errorf("stdout 应包含 reason: get_my_info_empty，实际: %q", stdout)
+	}
+
+	// 关键断言 3：stdout **不** 包含 "null" 裸值（修复前是裸 null）
+	if strings.TrimSpace(stdout) == "null" {
+		t.Errorf("stdout 不应是裸 null（W1 修复后输出 status 对象），实际: %q", stdout)
+	}
+}
+
+// TestWhoami_GetMyInfoReturnsValid_OutputsUserInfo 回归测试：GetMyInfo 返回
+// 有效用户信息时，whoami 命令直接输出 UserInfo JSON（向后兼容）。
+func TestWhoami_GetMyInfoReturnsValid_OutputsUserInfo(t *testing.T) {
+	cmd, _ := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo)
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+	whoamiCmd.Run(cmd, nil)
+	restore()
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+
+	// 退出码必须保持 0
+	if got := pendingExitCode.Load(); got != 0 {
+		t.Errorf("正常输出不应触发 pendingExitCode=1，实际 %d", got)
+	}
+
+	// stderr 不应有 error 标记
+	if strings.Contains(stderr, `"error": true`) {
+		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	}
+
+	// stdout 应包含用户信息字段
+	if !strings.Contains(stdout, `"name": "张三"`) {
+		t.Errorf("stdout 应包含 name 字段，实际: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"studentNumber": "TEST2025001"`) {
+		t.Errorf("stdout 应包含 studentNumber 字段，实际: %q", stdout)
+	}
+}
+
+// TestWhoami_SessionActivationFails_OutputsError 回归测试：session 激活失败时，
+// whoami 命令必须输出 error，退出码标记为 1。
+func TestWhoami_SessionActivationFails_OutputsError(t *testing.T) {
+	// bizOK=false 模拟 session 激活失败（首页返回 500）
+	cmd, _ := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo, false)
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+	whoamiCmd.Run(cmd, nil)
+	restore()
+	stderr := stderrBuf.String()
+	_ = stdoutBuf
+
+	// 退出码必须标记为 1（失败路径）
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("session 激活失败应触发 pendingExitCode=1，实际 %d", got)
+	}
+
+	// stderr 应包含 error 标记
+	if !strings.Contains(stderr, `"error": true`) {
+		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	}
+	if !strings.Contains(stderr, "ActivateSession") {
+		t.Errorf("stderr 应包含激活失败原因，实际: %q", stderr)
 	}
 }
 
