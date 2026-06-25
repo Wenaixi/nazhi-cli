@@ -174,7 +174,10 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 	}
 
 	if resp.Code != 1 {
-		return result, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, resp.Code, result.Msg)
+		// F7 修复：用 ErrBusinessRejected 包装而非 ErrLoginRejected。
+		// 业务错误（任务已提交/参数错/服务端 5xx）与登录状态无关，
+		// 用户 errors.Is(err, ErrLoginRejected) 不应误判为需重新登录。
+		return result, fmt.Errorf("%w: code=%d msg=%s", ErrBusinessRejected, resp.Code, result.Msg)
 	}
 
 	return result, nil
