@@ -12,7 +12,20 @@ import (
 	"strings"
 )
 
-// ─── HTTP 客户端构造 ───
+// drainAndClose 先 drain response body 再 Close，让 net/http 把连接归还 keep-alive 池。
+//
+// 关键不变量：未读完的 body 在 Close 时会强制关闭底层 TCP 连接，
+// 下次请求必须重新 TLS 握手，keep-alive 失效。集中 helper 防止
+// 3+ 处业务侧 verbatim defer（review-tdd F6 重构目标）。
+//
+// nil 安全：body 为 nil 时直接返回，避免 nil pointer panic。
+func drainAndClose(body io.ReadCloser) {
+	if body == nil {
+		return
+	}
+	_, _ = io.Copy(io.Discard, body)
+	_ = body.Close()
+}
 
 // defaultSSOBase 是 SSO 域名默认值。
 const defaultSSOBase = "https://www.nazhisoft.com"
