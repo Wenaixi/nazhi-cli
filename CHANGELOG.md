@@ -69,7 +69,7 @@
   - `pkg/client/warn_sync_cookie_test.go` — `warnSyncCookieToken` helper 直接单元测试（含 token 不泄漏反向断言）
   - `pkg/client/session_referer_encode_test.go` — `&` 和 `=` token 编码为 `%26` / `%3D`
   - `pkg/client/f2_strings_contains_test.go` — 锁入 `strings.Contains` 标准库语义
-  - `internal/ocr/ocr_pool_close_test.go` — 8 goroutine 并发 Close 断言 `closeHook` 触发 = 4 次（实际 close 的实例数）
+  - `internal/ocr/ocr_pool_close_test.go` — 8 goroutine 并发 Close 断言三组 invariant（tempDir 被删 + Pool.closed=true + Pool.inits 排空）
   - `pkg/client/task_concurrent_limit_test.go` — 20 维度场景断言 peak ≤ 8、≥ 2
   - `cmd/nazhi/main_test.go` — 验证 stderr 单一错误输出（非 cobra 默认 + main Fprintln 双重）
 

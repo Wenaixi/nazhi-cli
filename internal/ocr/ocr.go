@@ -43,12 +43,6 @@ type OCR struct {
 	ocr         *ddddocr.DdddOcr
 	tempDir     string
 	mu          sync.Mutex // 保护 Classification 调用，支持单例并发安全
-
-	// closeHook 仅用于测试：在实例 Close 实际工作执行前注入观测点。
-	// 生产代码不会触碰此字段（始终为零值）。加 closeHook 是为了让
-	// TestPool_Close_ConcurrentIsIdempotent 能复现并发 Close 的窗口期，
-	// 验证 sync.Once 真正只让一次 Close 进入临界区。
-	closeHook func()
 }
 
 // New 创建独立的 OCR 识别器（惰性初始化，首次调用时才提取模型文件）。
@@ -245,12 +239,7 @@ func (o *OCR) Close() error {
 	o.ocr = nil
 	tempDir := o.tempDir
 	o.tempDir = ""
-	hook := o.closeHook
 	o.initMu.Unlock()
-
-	if hook != nil {
-		hook()
-	}
 
 	var errs []error
 	if ocr != nil {
