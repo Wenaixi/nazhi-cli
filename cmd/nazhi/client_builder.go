@@ -132,7 +132,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 
 	timeoutSec, _ := cmd.Flags().GetInt("timeout")
 	if !flagChanged(cmd, "timeout") {
-		timeoutSec = envInt(timeoutEnv, 15)
+		timeoutSec = envInt(timeoutEnv, timeoutSec)
 	}
 
 	opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
