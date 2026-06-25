@@ -397,7 +397,14 @@ func stringPtrOr(s *string, def string) string {
 // 返回 error 让调用方感知 cookie 同步失败：
 //   - 类型断言失败（非 *cookiejar.Jar，如用户自定义 http.Client 无 Jar）
 //     → 返回包装错误，提示用 client.New() 默认或显式 cookiejar.New(nil)
-//   - base URL 解析失败 → 已 Warn 不返回（业务 URL 通常可控，单个失败不影响主流程）
+//   - base URL 解析失败 → 返回包装错误（review-tdd F5，invariant 对称性补全）
+//
+// F5 修复动机：F8 round1 修了 Jar 类型断言失败 propagate error，但 baseURL
+// 解析失败仍 c.logger.Warn + continue + return nil。两条失败路径契约不
+// 对称：调用方在 build client 阶段只能感知类型断言失败，对畸形 baseURL
+// 毫无感知（Warn 默认 LevelWarn 静默，业务 URL 仍可控）。改为 propagate
+// error 后，New() 路径可在 build 阶段拒绝畸形配置，warnSyncCookieToken
+// helper 继续 WARN 不阻断（业务 token 仍有效，调用方能拿到 token 自己排查）。
 func (c *Client) syncCookieToken(token string) error {
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
 	// 修复 review-tdd F8：类型断言失败时返回 error 而不是仅 Warn。
@@ -409,21 +416,21 @@ func (c *Client) syncCookieToken(token string) error {
 			"修复：用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建",
 			c.http.Jar)
 	}
-	successCount := 0
 	for _, raw := range []string{c.ssoBaseURL, c.baseURL} {
 		u, err := url.Parse(raw)
 		if err != nil {
-			c.logger.Warn("syncCookieToken: 解析 base URL 失败", "url", raw, "err", err)
-			continue
+			// 修复 review-tdd F5：URL 解析失败 propagate error（与 Jar 类型断言
+			// 失败契约对称）。成功循环计数改用 len(URLs) - 失败次数，调用方可在
+			// build 阶段感知畸形 baseURL。
+			return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", raw, err)
 		}
 		jar.SetCookies(u, []*http.Cookie{{
 			Name:  "X-Auth-Token",
 			Value: token,
 			Path:  "/",
 		}})
-		successCount++
 	}
-	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", successCount)
+	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", len([]string{c.ssoBaseURL, c.baseURL}))
 	return nil
 }
 
