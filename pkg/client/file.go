@@ -69,11 +69,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	if err != nil {
 		return 0, fmt.Errorf("%w: 上传请求失败: %w", ErrNetwork, err)
 	}
-	defer func() {
-		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer drainAndClose(resp.Body)
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -121,16 +117,32 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // 安全保证：独立 http.Client（不共享 c.http.Jar），不发送任何 Cookie /
 // Authorization 头，杜绝业务域鉴权信息泄露到文件上传公共服务。
 //
-// 性能优化：共享 c.http.Transport（连接池、TLS 配置、代理、Dialer），
-// 批量上传 50 张图时仅需 1 次 DNS+TCP+TLS 握手，后续 keep-alive 复用。
+// 性能优化（F9 修复）：Clone c.http.Transport 共享 Dialer/TLSConfig/代理
+// 配置，但 idle 连接池独立。批量上传 50 张图时仍只 1 次 DNS+TCP+TLS 握手
+// （Clone 不影响配置复用），但 Client.Close() 的 CloseIdleConnections
+// 只关闭 clean client 自己的 idle 池，不殃及业务 Client 到 sso/api 主机的
+// keep-alive 连接。修复前共享同一 Transport，Close 会清空业务 idle 池导致
+// 后续业务请求强制重连 TLS。
 //
 // 同时禁用自动重定向（与 SSO 流程策略一致），防止 302 跳转到第三方主机
 // 时附带请求头。
 func newCleanClient(c *Client) *http.Client {
 	transport := c.http.Transport
-	if transport == nil {
+	switch t := transport.(type) {
+	case nil:
+		// 原 Client 没设置 Transport，回退到 http.DefaultTransport
+		//（不 Clone DefaultTransport——它是全局共享进程单例，
+		// Clone 会复制状态反而污染 DefaultTransport 的行为）
 		transport = http.DefaultTransport
+	case *http.Transport:
+		// Clone 出独立 Transport：配置共享但 idle 池独立
+		cloned := t.Clone()
+		transport = cloned
+	default:
+		// 自定义 RoundTripper（如 mock 测试用）无法 Clone，直接透传
+		// 此时不存在 idle 池共享问题（mock 通常不维护连接池）
 	}
+
 	timeout := c.http.Timeout
 	if timeout == 0 {
 		timeout = 30 * time.Second // 文件上传的合理兜底超时

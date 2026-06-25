@@ -23,4 +23,17 @@ var (
 
 	// ErrInvalidPayload 任务请求体格式错误。
 	ErrInvalidPayload = errors.New("invalid task payload")
+
+	// ErrBusinessRejected 业务请求被服务端拒绝（非登录场景）。
+	//
+	// 与 ErrLoginRejected 的语义边界：
+	//   - ErrLoginRejected：登录请求被拒绝（凭证无效/验证码错误），
+	//     SDK 用户应触发重新登录流程
+	//   - ErrBusinessRejected：已通过鉴权的业务请求被服务端拒绝
+	//     （如任务已提交、参数错误、服务端 5xx），与登录状态无关，
+	//     SDK 用户应只展示服务端 msg 或重试，不必重新登录
+	//
+	// F7 修复：SubmitTask 等业务方法应使用本哨兵而非 ErrLoginRejected，
+	// 否则 SDK 用户按 errors.Is(err, ErrLoginRejected) 判定后会错误地走重新登录。
+	ErrBusinessRejected = errors.New("business request rejected by server")
 )
