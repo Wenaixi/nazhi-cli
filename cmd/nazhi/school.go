@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -19,30 +17,18 @@ var schoolCmd = &cobra.Command{
   nazhi school -u 学号 --sso-base https://www.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
 		username, _ := cmd.Flags().GetString("username")
-		ssoBase, _ := cmd.Flags().GetString("sso-base")
-		timeoutSec, _ := cmd.Flags().GetInt("timeout")
-
-		// 环境变量 fallback
+		// 环境变量 fallback（命令行标志优先）
 		if username == "" {
 			username = envString("NAZHI_USERNAME", "")
 		}
-		if ssoBase == "" {
-			ssoBase = envString("NAZHI_SSO_BASE", "")
-		}
-		if !flagChanged(cmd, "timeout") {
-			timeoutSec = envInt("NAZHI_TIMEOUT", 15)
-		}
-
 		if username == "" {
 			printError(fmt.Errorf("--username 为必填（也可通过 NAZHI_USERNAME 环境变量设置）"))
 			return
 		}
 
-		opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
-		if ssoBase != "" {
-			opts = append(opts, client.WithSSOBase(ssoBase))
-		}
-		c, err := client.New(opts...)
+		// SSO 命令（login/school）不要求 token，复用 buildClient 共享 env fallback。
+		// C1 修复（group-H round-4）：消除 inline client.New + 自动获得 trackClient。
+		c, err := buildClient(cmd, "sso", "NAZHI_TIMEOUT")
 		if err != nil {
 			printError(fmt.Errorf("构造 Client 失败: %w", err))
 			return
