@@ -133,9 +133,9 @@ func TestFindingE_FetchDimensions_BizError(t *testing.T) {
 	assertBusinessError(t, err, "GetDimensions")
 }
 
-// TestFindingE_GetCircleTypeByTaskId_BizError 验证 GetCircleTypeByTaskId
+// TestFindingE_GetCircleTypeByTaskID_BizError 验证 GetCircleTypeByTaskID
 // 在 server 返回 code != 1 时包装为 ErrBusinessRejected。
-func TestFindingE_GetCircleTypeByTaskId_BizError(t *testing.T) {
+func TestFindingE_GetCircleTypeByTaskID_BizError(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.URL.Path == "/api/studentCircleNew/getCircleTypeByTaskId":
@@ -149,6 +149,6 @@ func TestFindingE_GetCircleTypeByTaskId_BizError(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	_, err := c.GetCircleTypeByTaskId(context.Background(), "test-token", 12345)
-	assertBusinessError(t, err, "GetCircleTypeByTaskId")
+	_, err := c.GetCircleTypeByTaskID(context.Background(), "test-token", 12345)
+	assertBusinessError(t, err, "GetCircleTypeByTaskID")
 }
