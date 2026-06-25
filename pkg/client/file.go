@@ -138,6 +138,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 //
 // 同时禁用自动重定向（与 SSO 流程策略一致），防止 302 跳转到第三方主机
 // 时附带请求头。
+//
+// 注意：cleanTransport 通过 sync.Once 缓存一次后不再感知运行时
+// c.http.Transport 的变更。典型场景：测试中第一次 UploadFile 后动态替换
+// Transport（如 mock RoundTripper），新 Transport 不会生效。此限制是 B1
+// 缓存设计的有意取舍——运行时 Transport 变更在业务实践中极罕见，且需重建
+// Client（sync.Once 重置不可逆）。
 func newCleanClient(c *Client) *http.Client {
 	// B1：懒加载 cloned Transport，sync.Once 保证并发安全且只 Clone 一次
 	c.cleanTransportInit.Do(func() {
