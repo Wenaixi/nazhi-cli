@@ -65,7 +65,7 @@ func TestBuildClient_DefaultsToNoError(t *testing.T) {
 		"timeout":  0,
 	})
 
-	c, err := buildClient(cmd)
+	c, err := buildClient(cmd, "base", "NAZHI_TIMEOUT")
 	if err != nil {
 		t.Fatalf("buildClient 应在无 token 场景下不报错，实际: %v", err)
 	}
@@ -87,7 +87,7 @@ func TestBuildClient_HonorsBaseURLFlag(t *testing.T) {
 		"timeout":  0,
 	})
 
-	c, err := buildClient(cmd)
+	c, err := buildClient(cmd, "base", "NAZHI_TIMEOUT")
 	if err != nil {
 		t.Fatalf("buildClient 应接受 base-url flag: %v", err)
 	}
@@ -108,7 +108,7 @@ func TestBuildClient_HonorsSSOBaseFlag(t *testing.T) {
 		"timeout":  0,
 	})
 
-	c, err := buildClient(cmd)
+	c, err := buildClient(cmd, "sso", "NAZHI_TIMEOUT")
 	if err != nil {
 		t.Fatalf("buildClient 应接受 sso-base flag: %v", err)
 	}
@@ -129,7 +129,7 @@ func TestBuildClient_EnvFallback(t *testing.T) {
 		"timeout":  0,
 	})
 
-	c, err := buildClient(cmd)
+	c, err := buildClient(cmd, "sso", "NAZHI_TIMEOUT")
 	if err != nil {
 		t.Fatalf("buildClient 应在 env 存在时不报错: %v", err)
 	}
@@ -181,5 +181,104 @@ func TestBuildBizClient_HappyPath(t *testing.T) {
 	}
 	if tok != "test-token-abc" {
 		t.Errorf("token = %q, 期望 %q", tok, "test-token-abc")
+	}
+}
+
+// TestBuildClient_UploadURLType 验证 urlType="upload" 路径（file_upload 命令用）。
+// C2 回归测试：确保 --upload-url flag + NAZHI_UPLOAD_URL env 被正确处理。
+func TestBuildClient_UploadURLType(t *testing.T) {
+	_ = os.Unsetenv("NAZHI_UPLOAD_URL")
+	_ = os.Unsetenv("NAZHI_TIMEOUT")
+
+	cmd := makeTestCmdWithFlags(t, map[string]any{
+		"upload-url": "http://upload.example.com",
+		"timeout":    0,
+	})
+
+	c, err := buildClient(cmd, "upload", "NAZHI_TIMEOUT")
+	if err != nil {
+		t.Fatalf("buildClient 应接受 upload-url flag: %v", err)
+	}
+	if c == nil {
+		t.Fatal("buildClient 返回 nil client")
+	}
+}
+
+// TestBuildClient_UploadURLEnvFallback 验证 urlType="upload" 走 NAZHI_UPLOAD_URL env。
+func TestBuildClient_UploadURLEnvFallback(t *testing.T) {
+	t.Setenv("NAZHI_UPLOAD_URL", "http://env-upload.example.com")
+	_ = os.Unsetenv("NAZHI_TIMEOUT")
+
+	cmd := makeTestCmdWithFlags(t, map[string]any{
+		"upload-url": "",
+		"timeout":    0,
+	})
+
+	c, err := buildClient(cmd, "upload", "NAZHI_TIMEOUT")
+	if err != nil {
+		t.Fatalf("buildClient 应在 upload-url env 存在时不报错: %v", err)
+	}
+	if c == nil {
+		t.Fatal("buildClient 返回 nil client")
+	}
+}
+
+// TestBuildClient_UnknownURLTypeRejected 验证未知 urlType 被拒绝（fail-fast）。
+// 防止"调用方写错 urlType 时悄无声息丢 URL"。
+func TestBuildClient_UnknownURLTypeRejected(t *testing.T) {
+	_ = os.Unsetenv("NAZHI_TIMEOUT")
+
+	cmd := makeTestCmdWithFlags(t, map[string]any{
+		"sso-base": "",
+		"base-url": "",
+		"timeout":  0,
+	})
+
+	_, err := buildClient(cmd, "bogus", "NAZHI_TIMEOUT")
+	if err == nil {
+		t.Fatal("buildClient 收到未知 urlType 应报错")
+	}
+	if !strings.Contains(err.Error(), "urlType") {
+		t.Errorf("错误信息应提及 urlType，实际: %v", err)
+	}
+}
+
+// TestBuildClient_TrackedInPendingClients C3 回归测试：buildClient 构造的 Client
+// 必须自动注册到 pendingClients（main 退出前 defer closeAllClients 会释放）。
+// 这是 C1+C2 修复的核心目的——消除 inline client.New 让 trackClient 路径统一。
+func TestBuildClient_TrackedInPendingClients(t *testing.T) {
+	_ = os.Unsetenv("NAZHI_SSO_BASE")
+	_ = os.Unsetenv("NAZHI_BASE_URL")
+	_ = os.Unsetenv("NAZHI_TIMEOUT")
+
+	// 记录测试前的 baseline
+	pendingClientsMu.Lock()
+	baseline := len(pendingClients)
+	pendingClientsMu.Unlock()
+
+	cmd := makeTestCmdWithFlags(t, map[string]any{
+		"sso-base": "",
+		"base-url": "",
+		"timeout":  0,
+	})
+
+	c, err := buildClient(cmd, "sso", "NAZHI_TIMEOUT")
+	if err != nil {
+		t.Fatalf("buildClient 失败: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = c.Close()
+		// 清掉这次注册避免污染其他测试
+		pendingClientsMu.Lock()
+		pendingClients = pendingClients[:baseline]
+		pendingClientsMu.Unlock()
+	})
+
+	pendingClientsMu.Lock()
+	after := len(pendingClients)
+	pendingClientsMu.Unlock()
+
+	if after != baseline+1 {
+		t.Errorf("buildClient 后 pendingClients 应 +1，实际 baseline=%d after=%d", baseline, after)
 	}
 }
