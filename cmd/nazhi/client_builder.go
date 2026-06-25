@@ -64,6 +64,9 @@ func buildClient(cmd *cobra.Command, urlType string, timeoutEnv string) (*client
 	}
 	c, err := client.New(opts...)
 	if err != nil {
+		if c != nil {
+			c.Close()
+		}
 		return nil, err
 	}
 	trackClient(c)
@@ -84,6 +87,9 @@ func buildBizClient(cmd *cobra.Command) (*client.Client, string, error) {
 	}
 	c, err := client.New(opts...)
 	if err != nil {
+		if c != nil {
+			c.Close()
+		}
 		return nil, "", err
 	}
 	trackClient(c)
