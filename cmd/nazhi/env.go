@@ -18,6 +18,7 @@ import (
 //   NAZHI_SSO_BASE     — SSO 根地址（login、school）
 //   NAZHI_BASE_URL     — 业务 API 根地址（session/whoami/task/self-eval）
 //   NAZHI_TIMEOUT      — HTTP 超时（秒，所有命令）
+//   NAZHI_UPLOAD_URL   — 文件上传 API 根地址（file upload）
 //
 // 推荐在 CI/集成测试中通过 `.env` 文件或 secret 注入。
 
