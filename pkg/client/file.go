@@ -69,11 +69,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	if err != nil {
 		return 0, fmt.Errorf("%w: 上传请求失败: %w", ErrNetwork, err)
 	}
-	defer func() {
-		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
-		_, _ = io.Copy(io.Discard, resp.Body)
-		_ = resp.Body.Close()
-	}()
+	defer drainAndClose(resp.Body)
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {

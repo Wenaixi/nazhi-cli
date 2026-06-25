@@ -130,11 +130,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if err != nil {
 		return nil, fmt.Errorf("Login 请求失败: %w", err)
 	}
-	defer func() {
-		// 关键：先 drain body 再 close，让 net/http 把连接归还 keep-alive 池
-		_, _ = io.Copy(io.Discard, httpResp.Body)
-		_ = httpResp.Body.Close()
-	}()
+	defer drainAndClose(httpResp.Body)
 
 	bodyBytes, err := io.ReadAll(httpResp.Body)
 	if err != nil {
