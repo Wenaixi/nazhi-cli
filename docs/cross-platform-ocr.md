@@ -74,26 +74,13 @@ Go 编译时按 `(GOOS, GOARCH)` 只取对应文件嵌入。
 
 ## 进程级单例
 
-`ocr.GetDefault()` 进程共享一个 OCR 引擎：
+历史上 `ocr.GetDefault()` 提供进程级单例，多个 `client.New()` 共享同一个
+`*OCR` 实例，模型只解压一次（约 14 MB → 临时目录），内部 `sync.Mutex`
+保证并发安全。
 
-```go
-var (
-    defaultOCR *OCR
-    defaultOnce sync.Once
-)
-
-func GetDefault() *OCR {
-    defaultOnce.Do(func() {
-        defaultOCR = &OCR{}
-    })
-    return defaultOCR
-}
-```
-
-- 多个 `client.New()` 共享同一 `*OCR` 实例
-- 模型只解压一次（约 14 MB → 临时目录）
-- 内部 `sync.Mutex` 保证并发安全
-- 99 次重试机制（同一张图片）提高识别准确率
+**v0.3.4+ 变更**：删除 `ocr.GetDefault()` 0 调用方的进程级单例 API。
+现在多个 Client 通过 `Pool` 实例共享引擎——`pkg/client` 的 `client.New`
+默认构造一个 `ocr.NewPool(0)`（懒加载单实例），业务代码无需关心单例。
 
 ## CI 矩阵
 
