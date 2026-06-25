@@ -17,11 +17,18 @@ type LoginRequest struct {
 }
 
 // LoginResponse 是 SSO 登录成功后的响应。
+//
+// 字段约定（review-tdd F8 修复）：本结构只包含登录 token + expires 信息，
+// **不再** 提供用户基本信息字段。用户基本信息请通过 Client.GetMyInfo()
+// 单独获取（GetMyInfo 返回 *UserInfo，含完整 51 字段）。
+//
+// 历史注：旧版本曾带 UserInfo *UserInfo 字段，但 Login() 函数两条成功路径
+// （200 OK / 302 Fallback）都从未填充该字段，JSON 序列化为 "user_info":null
+// 误导 SDK 用户。修复后收敛到 Token/ExpiresAt/RawData 三件套（实际被填充的字段）。
 type LoginResponse struct {
 	Token        string         `json:"token"`         // X-Auth-Token
 	RefreshAfter time.Time      `json:"refresh_after"` // 推荐刷新时间
 	ExpiresAt    time.Time      `json:"expires_at"`    // 过期时间
-	UserInfo     *UserInfo      `json:"user_info"`     // 用户基本信息
 	RawData      map[string]any `json:"-"`             // 登录响应完整原始数据
 }
 
