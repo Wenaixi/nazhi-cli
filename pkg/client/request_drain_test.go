@@ -27,7 +27,7 @@ func TestDoRequest_DrainsAndClosesForKeepAlive(t *testing.T) {
 		mu      sync.Mutex
 		idleHit int
 	)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		// 关键：body 必须 > 4KB 以确保 ReadAll 不会一次性吞完，
 		// 才能验证 defer 路径真的在 ReadAll 之后还能 drain 剩余字节。
 		w.Header().Set("Content-Length", "8192")
@@ -41,8 +41,8 @@ func TestDoRequest_DrainsAndClosesForKeepAlive(t *testing.T) {
 			_, _ = w.Write(chunk)
 		}
 	}))
-	defer srv.Close()
-
+	// ConnState 必须在 Start() 之前设置，否则 httptest.Server 已开始接受连接，
+	// 服务器 goroutine 读 ConnState 的同时测试 goroutine 写 → data race。
 	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
 		if state == http.StateIdle {
 			mu.Lock()
@@ -50,6 +50,8 @@ func TestDoRequest_DrainsAndClosesForKeepAlive(t *testing.T) {
 			mu.Unlock()
 		}
 	}
+	srv.Start()
+	defer srv.Close()
 
 	c := &Client{
 		ssoBaseURL: srv.URL,
@@ -88,7 +90,7 @@ func TestDoBizGet_DrainsAndClosesForKeepAlive(t *testing.T) {
 		mu      sync.Mutex
 		idleHit int
 	)
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+	srv := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Length", "8192")
 		w.WriteHeader(http.StatusOK)
 		chunk := make([]byte, 64)
@@ -99,8 +101,6 @@ func TestDoBizGet_DrainsAndClosesForKeepAlive(t *testing.T) {
 			_, _ = w.Write(chunk)
 		}
 	}))
-	defer srv.Close()
-
 	srv.Config.ConnState = func(_ net.Conn, state http.ConnState) {
 		if state == http.StateIdle {
 			mu.Lock()
@@ -108,6 +108,8 @@ func TestDoBizGet_DrainsAndClosesForKeepAlive(t *testing.T) {
 			mu.Unlock()
 		}
 	}
+	srv.Start()
+	defer srv.Close()
 
 	c := &Client{
 		ssoBaseURL: srv.URL,
