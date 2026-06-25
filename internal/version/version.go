@@ -12,4 +12,6 @@ package version
 //	0.3.1 — 二轮 review-tdd：13 findings 修复 + client.New 改 error 返回 + 并发安全 + ctx 退出
 //	0.3.2 — 三轮 review-tdd：9 findings 修复 + CI 集成测试编译 break + 5 worktree 并行 TDD
 //	0.3.3 — 四轮 review-tdd：7 findings 修复 + HAR fixture PII 清理 + image_prep -69 行 dead code + syncCookieToken baseURL propagate + LoginResponse.UserInfo 删除 + drainAndClose helper + ErrBusinessRejected + Transport Clone 隔离
-var Version = "0.3.4"
+//	0.3.4 — 四轮 review-tdd（续）：15 findings 修复 + 8 worktree 并行 + sync.Map trackInit + 全面 Option 校验
+//	0.3.5 — 六轮 review-tdd：4 findings 修复（Pool.Close 泄漏 / ErrNetwork 双重包装 / 注释失实 / 缓存文档化）
+var Version = "0.3.5"

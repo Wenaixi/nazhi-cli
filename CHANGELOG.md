@@ -7,6 +7,28 @@
 
 ## [Unreleased]
 
+## [0.3.5] - 2026-06-26
+
+六轮 review-tdd 修复 4 findings — F1 Pool.Close 后新实例泄漏 tempDir（CRITICAL）+ F2 ErrNetwork 双重包装（HIGH）+ F3 注释失实误导（LOW）+ F4 缓存设计文档化（LOW）。
+
+### Fixed
+
+- **ocr.go F1: Pool.Close 后 Recognize 泄漏 tempDir（CRITICAL）** — `Pool.Recognize` 不检查 `Pool.closed` 标记，`Pool.Close` 的 `closeOnce` 触发后 `sync.Pool` 仍能创建新 `*OCR` 实例，`trackInit` 将其加入 `inits` 但 `Range` 已结束，tempDir 永久泄漏。修复：`Recognize` 入口加 `Pool.closed` 检查，返回 `"OCR 池已关闭"` 错误。新增回归测试 2 个（返回错误 + inits map 无泄漏）。
+- **request.go F2: doBizGet 双重重包装 ErrNetwork（HIGH）** — `doRequestWithResp` 透传 `buildRequest` 已含 `ErrNetwork` 的错误，`doBizGet` 再以 `"%w: GET %s 失败"` 包一层，导致 `errors.Is` 链中 `ErrNetwork` 出现两次。修复：`doBizGet` 透传错误不再自包装；`doRequestWithResp` 的 `c.http.Do` 错误同时统一包装 `ErrNetwork`（此前裸传）。
+- **session.go F3: activateSessionIfNeeded 注释失实误导（LOW）** — 注释声称 "double-checked locking 完整模式"，但代码只有持锁单检（无锁外 fast path）。修复：改写为 "持锁单检"，阐明为何不适用 DCL（锁内模式，外层预检无意义）。
+- **file.go F4: newCleanClient 缓存设计文档化（LOW）** — `cleanTransport` 经 `sync.Once` 缓存后不感知运行时 `c.http.Transport` 变更，此前无注释说明。修复：补充文档注释，阐明为 B1 缓存设计的有意取舍，非遗漏。
+
+### Added
+
+- `internal/ocr/ocr_pool_after_close_test.go` — F1 回归测试（Close 后 Recognize 返回错误 + inits map 无泄漏）。
+- `internal/ocr/ocr.go` 注释 — `Pool.closed` 读写语义完整覆盖。
+
+### Build
+
+- 版本号：`0.3.5`
+- 依赖不变
+- 5 平台二进制跨平台构建流程不变（CI workflow 触发条件 `v*` tag）
+
 ## [0.3.4] - 2026-06-26
 
 五轮 review-tdd 修复 18 findings — round-4（15 findings 8 worktree）+ round-5（3 deferred findings 3 worktree）。累计 5 轮 47 findings 全部解决。
