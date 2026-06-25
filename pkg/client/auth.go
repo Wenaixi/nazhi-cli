@@ -62,9 +62,10 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 
 	school := schools[0]
 	schoolID = fmt.Sprintf("%v", school["school_id"])
+	// M1 (review-tdd round-4)：删除 school_name 兜底死分支。
+	// 历史：HAR fixture + 真实平台响应都只返 NAME 键，school_name 从未出现。
+	// 死分支误导后来者以为平台有两条学校名字段，删除后语义更清晰。
 	if v, ok := school["NAME"]; ok {
-		schoolName = fmt.Sprintf("%v", v)
-	} else if v, ok := school["school_name"]; ok {
 		schoolName = fmt.Sprintf("%v", v)
 	}
 
