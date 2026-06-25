@@ -21,8 +21,8 @@ import (
 // InitSession 访问登录页建立 JSESSIONID Cookie。
 // 内部流程中自动调用，一般不需要外部显式调用。
 func (c *Client) InitSession(ctx context.Context) error {
-	url := c.ssoURL("/uiStudentLogin/login")
-	if _, err := c.doBizGet(ctx, url, c.ssoHeaders()); err != nil {
+	u := c.ssoURL("/uiStudentLogin/login")
+	if _, err := c.doBizGet(ctx, u, c.ssoHeaders()); err != nil {
 		return fmt.Errorf("InitSession 失败: %w", err)
 	}
 	return nil
@@ -32,12 +32,12 @@ func (c *Client) InitSession(ctx context.Context) error {
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
 func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID string, schoolName string, err error) {
-	url := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?userName=" + username)
+	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?userName=" + username)
 
 	headers := c.ssoHeaders()
 	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?userName=" + username
 
-	bodyBytes, err := c.doRequest(ctx, http.MethodPost, url, map[string]string{"key": ""}, headers, "application/json")
+	bodyBytes, err := c.doRequest(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
 		return "", "", fmt.Errorf("GetSchoolID 请求失败: %w", err)
 	}
@@ -286,8 +286,8 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 
 // fetchCaptchaImage 拉取一张新的验证码图片。
 func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
-	url := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
-	imgBytes, err := c.doBizGet(ctx, url, c.ssoHeaders())
+	u := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
+	imgBytes, err := c.doBizGet(ctx, u, c.ssoHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("获取验证码图片失败: %w", err)
 	}
@@ -434,7 +434,10 @@ func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, 
 	if err := dec.Decode(&data); err != nil {
 		return "", time.Time{}, err
 	}
-	token, _ := data["token"].(string)
+	token, ok := data["token"].(string)
+	if !ok {
+		return "", time.Time{}, fmt.Errorf("returnData 中 token 字段类型异常（期望 string）")
+	}
 	if token == "" {
 		return "", time.Time{}, fmt.Errorf("returnData 中无 token 字段")
 	}
