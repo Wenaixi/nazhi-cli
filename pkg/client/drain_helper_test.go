@@ -12,9 +12,9 @@ import (
 //   - Close() 增加计数器
 //   - drained 用于检测 drainAndClose 真的读了所有数据
 type fakeReadCloser struct {
-	data      io.Reader
-	closeCnt  int
-	drained   bool // 记录是否被 io.Copy 完整读到底
+	data     io.Reader
+	closeCnt int
+	drained  bool // 记录是否被 io.Copy 完整读到底
 }
 
 func (f *fakeReadCloser) Read(p []byte) (int, error) {
