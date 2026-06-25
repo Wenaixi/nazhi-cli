@@ -45,9 +45,7 @@ import (
 func TestPool_Close_ConcurrentIsIdempotent(t *testing.T) {
 	const instanceCount = 4
 
-	p := &Pool{
-		inits: make(map[*OCR]struct{}),
-	}
+	p := NewPool(0) // 用 NewPool 而非裸 struct，确保 inits sync.Map 已初始化
 
 	// 每个实例一个独立 tempDir，便于断言 Close 是否跑到 RemoveAll。
 	tempDirs := make([]string, instanceCount)
@@ -62,7 +60,7 @@ func TestPool_Close_ConcurrentIsIdempotent(t *testing.T) {
 
 		o := &OCR{tempDir: dir}
 		ocrs[i] = o
-		p.inits[o] = struct{}{}
+		p.inits.Store(o, struct{}{})
 	}
 
 	const closers = 8
@@ -93,16 +91,17 @@ func TestPool_Close_ConcurrentIsIdempotent(t *testing.T) {
 		t.Error("Pool.Close 后 closed 标记应为 true")
 	}
 
-	// Invariant C：Pool.inits 在 Close 后被清空（排空分支执行过）
-	p.initsMu.Lock()
-	remaining := len(p.inits)
-	p.initsMu.Unlock()
+	// Invariant C：Pool.inits 在 Close 后被排空（排空分支执行过）
+	remaining := 0
+	p.inits.Range(func(_, _ any) bool {
+		remaining++
+		return true
+	})
 	if remaining != 0 {
 		t.Errorf("Pool.Close 后 inits 应被排空，剩余 %d 个实例未释放", remaining)
 	}
 
 	// Invariant D：Pool.inits 排空后再次 Close 不应改变任何状态
-	// （隐含 invariant C 的补集——再次 Close 走 no-op 分支）
 	ocrs[0].tempDir = "" // 防止重复 RemoveAll（dir 已被清）触发出错
 	beforeClosed := func() bool {
 		p.closeMu.Lock()
@@ -110,9 +109,9 @@ func TestPool_Close_ConcurrentIsIdempotent(t *testing.T) {
 		return p.closed
 	}()
 	beforeInits := func() int {
-		p.initsMu.Lock()
-		defer p.initsMu.Unlock()
-		return len(p.inits)
+		n := 0
+		p.inits.Range(func(_, _ any) bool { n++; return true })
+		return n
 	}()
 
 	if err := p.Close(); err != nil {
@@ -125,9 +124,9 @@ func TestPool_Close_ConcurrentIsIdempotent(t *testing.T) {
 		return p.closed
 	}()
 	afterInits := func() int {
-		p.initsMu.Lock()
-		defer p.initsMu.Unlock()
-		return len(p.inits)
+		n := 0
+		p.inits.Range(func(_, _ any) bool { n++; return true })
+		return n
 	}()
 	if beforeClosed != afterClosed || beforeInits != afterInits {
 		t.Errorf("重复 Close 不应改变 Pool 状态：closed %v→%v，inits %d→%d",
@@ -141,13 +140,11 @@ func TestPool_Close_ConcurrentIsIdempotent(t *testing.T) {
 // 这覆盖 sync.Once.Do 内部的 errors.Join 路径——即使所有实例 Close 都失败
 // （firstErr != nil），closed 标记也要翻成 true，inits 也要被清空。
 func TestPool_Close_FirstCloserWins(t *testing.T) {
-	p := &Pool{
-		inits: make(map[*OCR]struct{}),
-	}
+	p := NewPool(0)
 
 	// 故意给 null byte 路径让 OCR.Close 必失败
 	o := &OCR{tempDir: "\x00invalid-tempdir"}
-	p.inits[o] = struct{}{}
+	p.inits.Store(o, struct{}{})
 
 	// 首次 Close 返回错误
 	firstErr := p.Close()
@@ -169,9 +166,8 @@ func TestPool_Close_FirstCloserWins(t *testing.T) {
 		t.Error("即使 Close 失败，closed 标记也应翻为 true")
 	}
 
-	p.initsMu.Lock()
-	remaining := len(p.inits)
-	p.initsMu.Unlock()
+	remaining := 0
+	p.inits.Range(func(_, _ any) bool { remaining++; return true })
 	if remaining != 0 {
 		t.Errorf("即使 Close 失败，inits 也应被排空，剩余 %d 个", remaining)
 	}

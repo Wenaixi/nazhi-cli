@@ -59,13 +59,19 @@ func New() *OCR {
 // 启用并发：NewPool(n) 预热 n 个独立 session 实例，允许 n 路真并发。
 // 内存代价：每个实例约 50MB（ONNX 模型 + 原生库解压到独立 tempDir），n=4 ≈ 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单 Login 调一次用 1 实例足够。
+//
+// inits 字段用 sync.Map 存储已注册实例，原因：
+//   - O7 修复：99 次串行 Recognize = 99 次 trackInit(同一 *OCR)
+//   - sync.Map.LoadOrStore 在 key 已存在时是 lock-free 路径，
+//     避免 mutex.Lock + map 写入的固定开销
+//   - sync.Map 读写并发安全，无需额外的 initsMu 保护
+//   - Close 路径用 Range 迭代，配合 closeOnce 仍保证只跑一次 Close 工作
 type Pool struct {
 	pool      sync.Pool
-	initsMu   sync.Mutex
-	inits     map[*OCR]struct{} // 跟踪所有完成过惰性初始化的实例，供 Close() 释放
-	closeMu   sync.Mutex        // 保护 closed 翻转（同时配合 sync.Once 保证只跑一次 Close 工作）
-	closeOnce sync.Once         // 保证 Close 工作（排空 map + 迭代 Close）只执行一次
-	closed    bool              // true = Close() 已完成（或正在收尾），后续 Close 是 no-op
+	inits     sync.Map // key=*OCR, value=struct{}：跟踪所有完成过惰性初始化的实例
+	closeMu   sync.Mutex
+	closeOnce sync.Once
+	closed    bool
 }
 
 // NewPool 创建 OCR 实例池。preload=0 或 1 表示懒加载单实例（默认行为）。
@@ -73,8 +79,7 @@ type Pool struct {
 // 注意：sync.Pool 在 GC 后可能回收对象，到时惰性初始化兜底。
 func NewPool(preload int) *Pool {
 	p := &Pool{
-		pool:  sync.Pool{New: func() any { return &OCR{} }},
-		inits: make(map[*OCR]struct{}),
+		pool: sync.Pool{New: func() any { return &OCR{} }},
 	}
 	for i := 0; i < preload; i++ {
 		// 预热：先 Get 触发 New，初始化 session，再 Put 回 pool
@@ -89,11 +94,12 @@ func NewPool(preload int) *Pool {
 }
 
 // trackInit 记录首次完成惰性初始化的 OCR 实例。
-// 重复 Put 同一对象 (Get/Put 对) 不会重复入 map。
+// 用 sync.Map.LoadOrStore 实现「key 已存在时 lock-free 跳过」——
+//
+//	O7 优化：99 次串行 Recognize(同一 *OCR) 只触发 1 次实际 Store，
+//	其余 98 次走 LoadOrStore 的「已存在」快速路径（无 mutex.Lock 开销）。
 func (p *Pool) trackInit(o *OCR) {
-	p.initsMu.Lock()
-	p.inits[o] = struct{}{}
-	p.initsMu.Unlock()
+	p.inits.LoadOrStore(o, struct{}{})
 }
 
 // Recognize 从池中取一个 OCR 实例识别图片，用完归还。
@@ -118,20 +124,26 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 // 并发安全（F1 修复）：用 sync.Once 保证"排空 map + 迭代 Close 实例"这一段
 // 关键路径只跑一次。即使多个 goroutine 同时调 Close，第一次调用的协程
 // 负责全部释放工作，后续调用立即返回 nil，避免同一实例被 Close 两次。
+//
+// O7 优化：Pool.inits 是 sync.Map（无独立 initsMu），Close 路径用 Range
+// 原子快照迭代——sync.Map.Range 在迭代期间对后续 Load/Store 安全，
+// 配合 sync.Once 保证排空分支只跑一次。
 func (p *Pool) Close() error {
 	var firstErr error
 	p.closeOnce.Do(func() {
-		p.initsMu.Lock()
-		inits := p.inits
-		p.inits = make(map[*OCR]struct{})
-		p.initsMu.Unlock()
-
 		var errs []error
-		for o := range inits {
+		p.inits.Range(func(key, _ any) bool {
+			o, ok := key.(*OCR)
+			if !ok {
+				return true
+			}
+			// 排空：Range 期间对已访问 key 做 Delete，下次 Range 不再返回
+			p.inits.Delete(o)
 			if err := o.Close(); err != nil {
 				errs = append(errs, err)
 			}
-		}
+			return true
+		})
 
 		p.closeMu.Lock()
 		p.closed = true
