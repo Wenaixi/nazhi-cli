@@ -63,3 +63,27 @@ func printVerbose(format string, args ...any) {
 		fmt.Fprintf(os.Stderr, format+"\n", args...)
 	}
 }
+
+// printPrompt 向 stderr 写入交互提示，**不**受 verbose/quiet 守卫。
+//
+// 用途：self-eval submit 等从 stdin 读取输入的命令，需要在用户终端看到
+// "请输入 xxx: " 提示符才能知道要敲字。如果走 printVerbose（受 verbose 守卫）
+// 用户没加 -v 就看不到提示；如果走 printError（受 quiet 守卫 + 走 JSON envelope）
+// 又会污染 stderr 错误流。
+//
+// 守卫：
+//   - 仅在 isTerminalStdin()==true 时输出（CI / 管道环境下无意义）
+//   - quiet 模式也不输出（用户显式要求静默）
+//
+// L finding 修复（group-H round-4）：self_eval_submit.go:35 原生
+// `fmt.Fprint(os.Stderr, ...)` 绕过统一通道，且不看 quiet，统一收口到本函数。
+// 新增「交互提示例外」条款到 CLAUDE.md / env.go 注释。
+func printPrompt(prompt string) {
+	if quiet {
+		return
+	}
+	if !isTerminalStdin() {
+		return
+	}
+	fmt.Fprint(os.Stderr, prompt)
+}
