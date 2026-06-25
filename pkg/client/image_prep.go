@@ -42,36 +42,6 @@ var ErrImageTooLarge = errors.New("image: 压缩后仍超过目标大小")
 // ErrUnsupportedFormat 不支持的图片格式。
 var ErrUnsupportedFormat = errors.New("image: 不支持的格式")
 
-// PrepStats 记录图片预处理的统计信息（便于调试和日志）。
-type PrepStats struct {
-	OriginalSize   int    // 原始文件大小（字节）
-	OutputSize     int    // 压缩后大小（字节）
-	OriginalWidth  int    // 原始宽度
-	OriginalHeight int    // 原始高度
-	OutputWidth    int    // 输出宽度
-	OutputHeight   int    // 输出高度
-	InputFormat    string // 输入格式（png/jpeg/gif/webp）
-	OutputFormat   string // 输出格式（固定 jpeg）
-	QualityUsed    int    // 最终使用的质量（40/60/80/92）
-	Scaled         bool   // 是否经过缩放
-	Flattened      bool   // 是否经过透明合成
-}
-
-// CompressionRatio 返回压缩比（0-1，0.3 表示压缩到 30%）。
-func (s PrepStats) CompressionRatio() float64 {
-	if s.OriginalSize == 0 {
-		return 1
-	}
-	return float64(s.OutputSize) / float64(s.OriginalSize)
-}
-
-// prepResult 内部结果（包含字节流和统计）。
-type prepResult struct {
-	Data  []byte
-	MIME  string
-	Stats PrepStats
-}
-
 // prepareImageForUpload 读取本地图片，预处理为符合平台要求的 JPG 字节流。
 //
 // 流程：
@@ -82,31 +52,9 @@ type prepResult struct {
 //
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
-	result, err := c.prepareImageWithStats(path)
-	if err != nil {
-		return nil, "", err
-	}
-	return result.Data, result.MIME, nil
-}
-
-// prepareImageWithStats 与 prepareImageForUpload 相同但返回详细统计。
-func (c *Client) prepareImageWithStats(path string) (*prepResult, error) {
-	fileInfo, err := os.Stat(path)
-	if err != nil {
-		return nil, fmt.Errorf("文件不存在: %w", err)
-	}
-
 	img, format, err := decodeImage(path)
 	if err != nil {
-		return nil, err
-	}
-
-	stats := PrepStats{
-		OriginalSize:   int(fileInfo.Size()),
-		OriginalWidth:  img.Bounds().Dx(),
-		OriginalHeight: img.Bounds().Dy(),
-		InputFormat:    format,
-		OutputFormat:   "jpeg",
+		return nil, "", err
 	}
 
 	// 动画取首帧 + 透明合成
@@ -117,36 +65,27 @@ func (c *Client) prepareImageWithStats(path string) (*prepResult, error) {
 	}
 	if flattened {
 		img = flattenOnWhite(img)
-		stats.Flattened = true
 	}
 
 	// 尝试用 92 起步
 	data, err := encodeJPEG(img, 92)
 	if err != nil {
-		return nil, fmt.Errorf("JPG 编码失败: %w", err)
+		return nil, "", fmt.Errorf("JPG 编码失败: %w", err)
 	}
 
 	// 已满足
 	if len(data) <= MaxImageSize {
-		stats.QualityUsed = 92
-		stats.OutputSize = len(data)
-		stats.OutputWidth = img.Bounds().Dx()
-		stats.OutputHeight = img.Bounds().Dy()
-		return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
+		return data, "image/jpeg", nil
 	}
 
 	// 质量级联
 	for _, q := range qualitySteps {
 		data, err = encodeJPEG(img, q)
 		if err != nil {
-			return nil, fmt.Errorf("质量 %d 编码失败: %w", q, err)
+			return nil, "", fmt.Errorf("质量 %d 编码失败: %w", q, err)
 		}
 		if len(data) <= MaxImageSize {
-			stats.QualityUsed = q
-			stats.OutputSize = len(data)
-			stats.OutputWidth = img.Bounds().Dx()
-			stats.OutputHeight = img.Bounds().Dy()
-			return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
+			return data, "image/jpeg", nil
 		}
 	}
 
@@ -164,29 +103,21 @@ func (c *Client) prepareImageWithStats(path string) (*prepResult, error) {
 			continue
 		}
 		if len(data) <= MaxImageSize {
-			stats.QualityUsed = 40
-			stats.Scaled = true
-			stats.OutputSize = len(data)
-			stats.OutputWidth = resized.Bounds().Dx()
-			stats.OutputHeight = resized.Bounds().Dy()
-			return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
+			return data, "image/jpeg", nil
 		}
 		// 关键：下一轮基于当前 resized 而非原图（累乘语义）
 		current = resized
 	}
 
 	// 兜底：返回当前最小结果
-	stats.QualityUsed = 40
-	stats.Scaled = true
 	if data == nil {
-		return nil, ErrImageTooLarge
+		return nil, "", ErrImageTooLarge
 	}
-	stats.OutputSize = len(data)
 	// 兜底前检查大小，若仍超限返回错误（避免首次 break 就兜底的边界 bug）
 	if len(data) > MaxImageSize {
-		return nil, ErrImageTooLarge
+		return nil, "", ErrImageTooLarge
 	}
-	return &prepResult{Data: data, MIME: "image/jpeg", Stats: stats}, nil
+	return data, "image/jpeg", nil
 }
 
 // decodeImage sniff 文件 magic bytes 解码任意格式。
