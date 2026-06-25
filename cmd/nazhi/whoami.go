@@ -29,7 +29,20 @@ var whoamiCmd = &cobra.Command{
 			return
 		}
 		// SDK "最佳努力设计"：GetMyInfo 成功但业务未返回用户数据时返回 (nil, nil)，
-		// 这不是错误——输出空 JSON（null）让上层管道/脚本正常处理。
+		// 这不是错误或异常——输出带 status 字段的 JSON 让上层管道/脚本可区分原因。
+		//
+		// W1 修复（round-5）：改裸 null 为 status 对象，三种场景：
+		//   1. {"status":"empty","reason":"get_my_info_empty"} — 业务无数据
+		//   2. error 路径（printError）                         — 网络/业务错误
+		//   3. {"status":"ok","user":{...}}                     — 正常（直接输出 UserInfo）
+		// 不破坏 quiet 契约（无 stderr）和 best-effort 契约（nil 不算 error）。
+		if info == nil {
+			printJSON(map[string]string{
+				"status": "empty",
+				"reason": "get_my_info_empty",
+			})
+			return
+		}
 
 		printJSON(info)
 	},
