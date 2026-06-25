@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -134,7 +135,10 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	bodyBytes, err := io.ReadAll(httpResp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("Login 读取响应体失败: %w", err)
+		// G3 (review-tdd round-4)：包装 status code + 已读字节数上下文，便于排查
+		// server 端异常（如部分返回 200 后连接 reset、Content-Length 与实际不符）。
+		return nil, fmt.Errorf("Login 读取响应体失败: status=%d read=%d bytes: %w",
+			httpResp.StatusCode, len(bodyBytes), err)
 	}
 
 	// 5. 优先解析 200 JSON 响应（HAR 验证：登录响应 HTTP 200，body 含 returnData.token）
@@ -156,11 +160,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
 				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 			}
-			// F1 invariant：200 路径 expiresAt 兜底（now+24h）时 warn 出来，
-			// 与 302 路径 (auth.go:189-191) 语义对称。extractTokenFromReturnData
-			// 当前不解析 returnData.exp/expires_in 字段，总是返回 now+24h，
-			// 所以 200 路径必然走兜底——告警让用户知道 server 没给 expires 信息。
-			if time.Until(expiresAt) > 23*time.Hour {
+			if expiresAtToFallbackWarn(expiresAt) {
 				c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
 			}
 			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
@@ -187,7 +187,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
 		}
 		// 兜底 expiresAt = now+24h 时 warn 出来（说明 server 真的没给 expires）
-		if time.Until(expiresAt) > 23*time.Hour {
+		if expiresAtToFallbackWarn(expiresAt) {
 			c.logger.Warn("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步
@@ -304,11 +304,11 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 // 返回 (token, expiresAt)。expiresAt 优先级：
 //  1. query 里的 expires_in=N（相对秒数）
 //  2. query 里的 exp=N（绝对 Unix 时间戳，秒）
-//  3. 兜底 now+24h（与原行为一致，但加 warn 日志提示）
+//  3. 兜底 now+defaultTokenTTL（与原行为一致，但加 warn 日志提示）
 func extractTokenFromLocation(location string) (string, time.Time) {
 	u, err := url.Parse(location)
 	if err != nil {
-		return "", time.Now().Add(24 * time.Hour)
+		return "", time.Now().Add(defaultTokenTTL)
 	}
 	var token string
 	if t := u.Query().Get("token"); t != "" {
@@ -321,21 +321,92 @@ func extractTokenFromLocation(location string) (string, time.Time) {
 	return token, parseLocationExpires(u)
 }
 
+// defaultTokenTTL 是 server 未返回 expires_in/exp 时 token 过期时间的兜底值。
+//
+// 提取动机：v0.3.3 之前 24*time.Hour 散落在 auth.go 311/338/367 三处，含义都是
+// "server 没告诉咱 token 多久过期，先按 24h 兜底"，重复且语义模糊。统一常量后
+// 三处共享，review 时一眼能看穿"全是兜底分支"。
+//
+// 业务含义：纳智 SSO JWT 实际有效期约 8 小时，但 server 从不返回 expires 字段，
+// 24h 是保守估算（避免 8h 后用户进程突然 401 无感知）。
+const defaultTokenTTL = 24 * time.Hour
+
+// expiresFallbackThreshold 是判定"expiresAt 是否走了 now+defaultTokenTTL 兜底"的阈值。
+//
+// 用途：Login 200/302 路径在 expiresAt 接近 defaultTokenTTL 时输出 WARN，让调用方知道
+// server 没返回 expires 信息。阈值取 defaultTokenTTL - 1h：兜底值误差在 1h 内才认。
+const expiresFallbackThreshold = 1 * time.Hour
+
 // parseLocationExpires 从 URL query 解析过期时间。
-// 优先 expires_in（相对秒数），其次 exp（绝对 Unix 时间戳），都缺失则 now+24h。
+// 优先 expires_in（相对秒数），其次 exp（绝对 Unix 时间戳），都缺失则 now+defaultTokenTTL。
 func parseLocationExpires(u *url.URL) time.Time {
-	q := u.Query()
-	if v := q.Get("expires_in"); v != "" {
+	return parseExpiresMap(u.Query())
+}
+
+// parseReturnDataExpires 从 UnifiedResponse.returnData (map[string]any) 中
+// 解析过期时间。优先 expires_in（相对秒数），其次 exp（绝对 Unix 时间戳），
+// 都缺失则 now+defaultTokenTTL。
+//
+// G2 (review-tdd round-4) 修复动机：extractTokenFromReturnData 原本总返回
+// now+24h（不解析 server 返回的 expires 字段），导致 200 路径每次合法登录都
+// 触发"now+24h 兜底" WARN。补上解析后 200 路径与 302 路径语义对称。
+//
+// exp 字段注意：json.Unmarshal 默认把数字解析成 float64，1.9e9 量级的 Unix
+// 时间戳（int32 边界）会丢精度。本函数用 json.Number 重新解析 exp/expires_in，
+// 保证 int64 完整还原（与 302 路径 parseLocationExpires 一致：query 字符串
+// 直接 Atoi/ParseInt，无精度问题）。
+func parseReturnDataExpires(data map[string]any) time.Time {
+	q := make(map[string][]string, len(data))
+	for k, v := range data {
+		switch x := v.(type) {
+		case string:
+			q[k] = []string{x}
+		case json.Number:
+			q[k] = []string{x.String()}
+		case float64:
+			// float64 → int64 → string，绕过 json 默认精度损失
+			q[k] = []string{strconv.FormatInt(int64(x), 10)}
+		default:
+			q[k] = []string{fmt.Sprintf("%v", v)}
+		}
+	}
+	return parseExpiresMap(q)
+}
+
+// parseExpiresMap 是 302 Location query 与 200 returnData 共用的过期时间解析器。
+//
+// 优先级：
+//  1. expires_in=N（相对秒数，正整数）→ now + N 秒
+//  2. exp=N（绝对 Unix 时间戳，秒，正整数）→ time.Unix(N, 0)
+//  3. 都缺失或非法 → now + defaultTokenTTL
+func parseExpiresMap(q map[string][]string) time.Time {
+	if v := first(q, "expires_in"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			return time.Now().Add(time.Duration(n) * time.Second)
 		}
 	}
-	if v := q.Get("exp"); v != "" {
+	if v := first(q, "exp"); v != "" {
 		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
 			return time.Unix(n, 0)
 		}
 	}
-	return time.Now().Add(24 * time.Hour)
+	return time.Now().Add(defaultTokenTTL)
+}
+
+// first 返回 query 第一个值（map[string][]string 简写）。
+func first(q map[string][]string, key string) string {
+	if vs, ok := q[key]; ok && len(vs) > 0 {
+		return vs[0]
+	}
+	return ""
+}
+
+// expiresAtToFallbackWarn 判断 expiresAt 是否走了 defaultTokenTTL 兜底（≥ defaultTokenTTL - 1h）。
+//
+// 用于 Login 200/302 路径在 expiresAt 走兜底时输出 WARN，让调用方知道 server 没返回
+// expires 信息。200/302 复用同一判定保证语义对称。
+func expiresAtToFallbackWarn(expiresAt time.Time) bool {
+	return time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold
 }
 
 // extractTokenFromFragment 从 fragment 字符串中提取 token。
@@ -354,17 +425,22 @@ func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, 
 	if resp.ReturnData == nil {
 		return "", time.Time{}, fmt.Errorf("returnData 为空")
 	}
+	// 用 decoder.UseNumber() 解析，避免 float64 在 int32 边界（exp ≈ 2e9）
+	// 处精度损失（json.Unmarshal 默认 float64，1.9e9 会被截断）。
 	var data map[string]any
-	if err := json.Unmarshal(*resp.ReturnData, &data); err != nil {
+	dec := json.NewDecoder(bytes.NewReader(*resp.ReturnData))
+	dec.UseNumber()
+	if err := dec.Decode(&data); err != nil {
 		return "", time.Time{}, err
 	}
 	token, _ := data["token"].(string)
 	if token == "" {
 		return "", time.Time{}, fmt.Errorf("returnData 中无 token 字段")
 	}
-	// Bug 3 fix：返回兜底 now+24h 而非零值 time.Time{}
-	// 零值 time.Time 会被 ExpiresAt.Before(now) 误判为「已过期」
-	return token, time.Now().Add(24 * time.Hour), nil
+	// G2 (review-tdd round-4)：解析 returnData.expires_in / .exp（与 302 路径
+	// parseLocationExpires 语义对称），都缺失才 fallback now+defaultTokenTTL。
+	// Bug 3 fix：返回兜底 defaultTokenTTL 而非零值 time.Time{}。
+	return token, parseReturnDataExpires(data), nil
 }
 
 // parseRawData 将原始 JSON 字节解析为 map 用于保留完整数据。
