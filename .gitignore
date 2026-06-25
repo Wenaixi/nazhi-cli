@@ -42,6 +42,9 @@ debug-*
 .omc/
 .omc.*
 
+# Claude Code 本地工作目录
+.claude/
+
 # 本地开发笔记（含敏感信息，绝不提交）
 CLAUDE.md
 
