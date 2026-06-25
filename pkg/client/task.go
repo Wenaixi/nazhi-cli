@@ -248,22 +248,22 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 	return c.fetchDimensions(ctx, token, "GetDimensions")
 }
 
-// GetCircleTypeByTaskId 确认任务类型信息。
-func (c *Client) GetCircleTypeByTaskId(ctx context.Context, token string, taskID int64) (*map[string]any, error) {
+// GetCircleTypeByTaskID 确认任务类型信息。
+func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*map[string]any, error) {
 	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskId 预热 session 失败: %w", err)
+		return nil, fmt.Errorf("GetCircleTypeByTaskID 预热 session 失败: %w", err)
 	}
 	headers := c.bizHeaders(token)
 
 	url := c.bizURL("/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10))
 	bodyBytes, err := c.doRequest(ctx, http.MethodGet, url, nil, headers, "")
 	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskId 请求失败: %w", err)
+		return nil, fmt.Errorf("GetCircleTypeByTaskID 请求失败: %w", err)
 	}
 
 	resp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskId 响应解析失败: %w", err)
+		return nil, fmt.Errorf("GetCircleTypeByTaskID 响应解析失败: %w", err)
 	}
 
 	if err := types.CheckCode(resp); err != nil {
@@ -274,12 +274,12 @@ func (c *Client) GetCircleTypeByTaskId(ctx context.Context, token string, taskID
 		if resp.Msg != nil {
 			msg = *resp.Msg
 		}
-		return nil, fmt.Errorf("%w: GetCircleTypeByTaskId 业务错误: code=%d msg=%s", ErrBusinessRejected, resp.Code, msg)
+		return nil, fmt.Errorf("%w: GetCircleTypeByTaskID 业务错误: code=%d msg=%s", ErrBusinessRejected, resp.Code, msg)
 	}
 
 	result, err := types.DecodeReturnData[map[string]any](resp)
 	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskId returnData 解析失败: %w", err)
+		return nil, fmt.Errorf("GetCircleTypeByTaskID returnData 解析失败: %w", err)
 	}
 
 	return result, nil
