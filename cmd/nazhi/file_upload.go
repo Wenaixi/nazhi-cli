@@ -2,9 +2,7 @@ package main
 
 import (
 	"fmt"
-	"time"
 
-	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -25,27 +23,14 @@ SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。
   nazhi file upload -f ./photo.jpg --upload-url http://doc.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath, _ := cmd.Flags().GetString("file")
-		uploadURL, _ := cmd.Flags().GetString("upload-url")
-		timeoutSec, _ := cmd.Flags().GetInt("timeout")
-
-		// 环境变量 fallback
-		if uploadURL == "" {
-			uploadURL = envString("NAZHI_UPLOAD_URL", "")
-		}
-		if !flagChanged(cmd, "timeout") {
-			timeoutSec = envInt("NAZHI_TIMEOUT", 30)
-		}
-
 		if filePath == "" {
 			printError(fmt.Errorf("--file 为必填"))
 			return
 		}
 
-		opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
-		if uploadURL != "" {
-			opts = append(opts, client.WithUploadURL(uploadURL))
-		}
-		c, err := client.New(opts...)
+		// C2 修复（group-H round-4）：消除 inline client.New + 自动获得 trackClient。
+		// urlType="upload" 走 --upload-url flag + NAZHI_UPLOAD_URL env。
+		c, err := buildClient(cmd, "upload", "NAZHI_TIMEOUT")
 		if err != nil {
 			printError(fmt.Errorf("构造 Client 失败: %w", err))
 			return
