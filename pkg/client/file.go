@@ -117,30 +117,44 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // 安全保证：独立 http.Client（不共享 c.http.Jar），不发送任何 Cookie /
 // Authorization 头，杜绝业务域鉴权信息泄露到文件上传公共服务。
 //
-// 性能优化（F9 修复）：Clone c.http.Transport 共享 Dialer/TLSConfig/代理
-// 配置，但 idle 连接池独立。批量上传 50 张图时仍只 1 次 DNS+TCP+TLS 握手
-// （Clone 不影响配置复用），但 Client.Close() 的 CloseIdleConnections
-// 只关闭 clean client 自己的 idle 池，不殃及业务 Client 到 sso/api 主机的
-// keep-alive 连接。修复前共享同一 Transport，Close 会清空业务 idle 池导致
-// 后续业务请求强制重连 TLS。
+// 性能优化（F9 + B1）：
+//   - F9：Clone c.http.Transport 共享 Dialer/TLSConfig/代理配置，
+//     但 idle 连接池独立。Client.Close() 的 CloseIdleConnections
+//     只关闭 clean client 自己的 idle 池，不殃及业务 Client 到 sso/api 主机的
+//     keep-alive 连接。
+//   - B1：clonedTransport 缓存在 c.cleanTransport 字段，由 sync.Once 保护，
+//     首次 Clone 后复用同一实例。修复前每次 UploadFile 都 t.Clone() 一次，
+//     50 张图 = 50 次完整 DNS+TCP+TLS 握手（每次 Clone 都产生新 Transport 实例，
+//     累加的 idle 连接池被丢弃，keep-alive 完全失效）。修复后 50 张图共享同一
+//     clean idle 池，TLS 握手仅 1 次。
 //
 // 同时禁用自动重定向（与 SSO 流程策略一致），防止 302 跳转到第三方主机
 // 时附带请求头。
 func newCleanClient(c *Client) *http.Client {
-	transport := c.http.Transport
-	switch t := transport.(type) {
-	case nil:
+	// B1：懒加载 cloned Transport，sync.Once 保证并发安全且只 Clone 一次
+	c.cleanTransportInit.Do(func() {
+		switch t := c.http.Transport.(type) {
+		case *http.Transport:
+			// Clone 出独立 Transport：配置共享但 idle 池独立
+			c.cleanTransport = t.Clone()
+		default:
+			// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不缓存
+			//  - http.DefaultTransport 是进程单例，多 Client 共享缓存会引入隐性耦合
+			//  - 自定义 RT 无法 Clone
+		}
+	})
+
+	var transport http.RoundTripper
+	if c.cleanTransport != nil {
+		transport = c.cleanTransport
+	} else if c.http.Transport == nil {
 		// 原 Client 没设置 Transport，回退到 http.DefaultTransport
-		//（不 Clone DefaultTransport——它是全局共享进程单例，
-		// Clone 会复制状态反而污染 DefaultTransport 的行为）
+		//（不 Clone DefaultTransport——它是全局共享进程单例）
 		transport = http.DefaultTransport
-	case *http.Transport:
-		// Clone 出独立 Transport：配置共享但 idle 池独立
-		cloned := t.Clone()
-		transport = cloned
-	default:
+	} else {
 		// 自定义 RoundTripper（如 mock 测试用）无法 Clone，直接透传
 		// 此时不存在 idle 池共享问题（mock 通常不维护连接池）
+		transport = c.http.Transport
 	}
 
 	timeout := c.http.Timeout

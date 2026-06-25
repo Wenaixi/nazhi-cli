@@ -41,6 +41,13 @@ type Client struct {
 	// cookie 与当前 token 一致，避免后续业务接口返回空数据。
 	sessionToken string
 	sessionMu    sync.Mutex
+
+	// cleanTransportInit 保证 clonedTransport 只 Clone 一次。
+	// 解决 B1：原实现每次 UploadFile 都 t.Clone() → 50 张图 50 次完整 DNS+TCP+TLS
+	// 握手（每次 Clone 出独立对象，丢失累加的 idle 连接池，keep-alive 失效）。
+	// 修复后首次 Clone 缓存，后续复用同一 Transport 实例，clean idle 池跨上传累积。
+	cleanTransportInit sync.Once
+	cleanTransport     *http.Transport // 懒加载的 cloned Transport（仅 *http.Transport 路径）
 }
 
 // ─── Option 模式 ───
@@ -229,6 +236,12 @@ func (c *Client) Close() error {
 		if t, ok := c.http.Transport.(*http.Transport); ok && t != nil {
 			t.CloseIdleConnections()
 		}
+	}
+	// B1：清理 UploadFile 用的 cached cloned Transport 独立 idle 池
+	// （保留 F9 隔离语义：只关闭 clean client 自己的 idle 池，
+	//  不殃及业务 Client 到 sso/api 主机的 keep-alive 连接）
+	if c.cleanTransport != nil {
+		c.cleanTransport.CloseIdleConnections()
 	}
 	if len(errs) > 0 {
 		return errors.Join(errs...)
