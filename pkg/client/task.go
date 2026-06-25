@@ -42,7 +42,14 @@ func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix st
 		return nil, fmt.Errorf("%s 响应解析失败: %w", errPrefix, err)
 	}
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("%s 业务错误: %w", errPrefix, err)
+		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
+		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
+		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
+		msg := ""
+		if resp.Msg != nil {
+			msg = *resp.Msg
+		}
+		return nil, fmt.Errorf("%w: %s 业务错误: code=%d msg=%s", ErrBusinessRejected, errPrefix, resp.Code, msg)
 	}
 
 	dimensions, err := types.DecodeDataList[types.Dimension](resp)
@@ -207,7 +214,14 @@ func (c *Client) GetCircleTypeByTaskId(ctx context.Context, token string, taskID
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskId 业务错误: %w", err)
+		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
+		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
+		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
+		msg := ""
+		if resp.Msg != nil {
+			msg = *resp.Msg
+		}
+		return nil, fmt.Errorf("%w: GetCircleTypeByTaskId 业务错误: code=%d msg=%s", ErrBusinessRejected, resp.Code, msg)
 	}
 
 	result, err := types.DecodeReturnData[map[string]any](resp)

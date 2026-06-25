@@ -39,8 +39,10 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		// 最佳努力设计：失败返回 nil 不中断主流程
-		return nil, fmt.Errorf("获取用户信息业务错误: %w", err)
+		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
+		// 即便 GetMyInfo 是「最佳努力」设计（调用方通常吞错），仍保留
+		// 业务错误语义信号——SDK 用户需要按 errors.Is 精细分支时不会被误导。
+		return nil, fmt.Errorf("%w: 获取用户信息业务错误: %v", ErrBusinessRejected, err)
 	}
 
 	// 尝试从 returnData 解析

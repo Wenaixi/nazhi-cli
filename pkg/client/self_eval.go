@@ -30,7 +30,11 @@ func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return fmt.Errorf("自我评价提交失败: %w", err)
+		// F-GroupD-E：业务错误统一用 ErrBusinessRejected 包装（与 SubmitTask 对齐），
+		// 让 SDK 用户能 errors.Is(err, ErrBusinessRejected) 精确判定，不会被误
+		// 导为 ErrLoginRejected 而错误地走重新登录流程。
+		// 不能用 err 作 %w（否则 ErrBusinessRejected 不在 err 链上，errors.Is 失败）。
+		return fmt.Errorf("%w: 自我评价提交失败: %v", ErrBusinessRejected, err)
 	}
 
 	return nil
@@ -57,7 +61,8 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("查询自我评价失败: %w", err)
+		// F-GroupD-E：业务错误统一用 ErrBusinessRejected 包装。
+		return nil, fmt.Errorf("%w: 查询自我评价失败: %v", ErrBusinessRejected, err)
 	}
 
 	// 尝试从 returnData 解析
@@ -108,7 +113,8 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("查询学期评价失败: %w", err)
+		// F-GroupD-E：业务错误统一用 ErrBusinessRejected 包装。
+		return nil, fmt.Errorf("%w: 查询学期评价失败: %v", ErrBusinessRejected, err)
 	}
 
 	// 优先尝试 returnData
