@@ -71,6 +71,9 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		if err == nil && status != nil {
 			return status, nil
 		}
+		if err != nil {
+			c.logDebug("QuerySelfEvaluation DecodeReturnData 失败: %v", err)
+		}
 	}
 
 	// 尝试从 dataMap 解析
@@ -79,6 +82,9 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		if err == nil && status != nil {
 			return status, nil
 		}
+		if err != nil {
+			c.logDebug("QuerySelfEvaluation DecodeDataMap 失败: %v", err)
+		}
 	}
 
 	// 尝试从 dataList 解析（可能只有一条记录）
@@ -86,6 +92,9 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		statuses, err := types.DecodeDataList[types.SelfEvalStatus](resp)
 		if err == nil && len(statuses) > 0 {
 			return &statuses[0], nil
+		}
+		if err != nil {
+			c.logDebug("QuerySelfEvaluation DecodeDataList 失败: %v", err)
 		}
 	}
 
