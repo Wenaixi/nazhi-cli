@@ -33,7 +33,8 @@ var charsetJSON []byte
 // ─── OCR 服务 ───
 
 // OCR 是验证码识别器，一旦初始化可重复使用。
-// 多 Client 推荐使用 GetDefault() 共享进程级单例，避免重复解压模型。
+// 多 Client 推荐共享同一个 Pool 实例（见 client.New 的 WithOCRConcurrency），
+// 避免重复解压模型。
 type OCR struct {
 	initMu      sync.Mutex // 保护初始化路径和 closed 翻转
 	initialized bool       // true = 初始化已完成（成功或失败由 initErr 决定）
@@ -51,18 +52,9 @@ type OCR struct {
 }
 
 // New 创建独立的 OCR 识别器（惰性初始化，首次调用时才提取模型文件）。
-// 业务代码一般用 GetDefault() 共享单例；测试可以用 New() 创建隔离实例。
+// 业务代码一般用 Pool 实例共享单例引擎；测试可以用 New() 创建隔离实例。
 func New() *OCR {
 	return &OCR{}
-}
-
-// GetDefault 返回进程级 OCR 单例。所有 Client 共享同一引擎，
-// 模型只解压一次，多个 Client 不再产生多个临时目录。
-func GetDefault() *OCR {
-	defaultOnce.Do(func() {
-		defaultOCR = &OCR{}
-	})
-	return defaultOCR
 }
 
 // Pool 是多个 OCR 实例的池，允许并发识别（默认 1 实例，兼容单例行为）。
@@ -157,11 +149,6 @@ func (p *Pool) Close() error {
 	})
 	return firstErr
 }
-
-var (
-	defaultOCR  *OCR
-	defaultOnce sync.Once
-)
 
 // ─── 平台文件名 ───
 
