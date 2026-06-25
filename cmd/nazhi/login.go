@@ -38,7 +38,7 @@ var loginCmd = &cobra.Command{
 		}
 
 		// SSO 命令（login/school）不要求 token，复用 buildClient 共享 env fallback。
-		c, err := buildClient(cmd)
+		c, err := buildClient(cmd, "sso", "NAZHI_TIMEOUT")
 		if err != nil {
 			printError(err)
 			return
