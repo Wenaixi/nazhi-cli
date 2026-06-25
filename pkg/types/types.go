@@ -24,12 +24,15 @@ type LoginRequest struct {
 //
 // 历史注：旧版本曾带 UserInfo *UserInfo 字段，但 Login() 函数两条成功路径
 // （200 OK / 302 Fallback）都从未填充该字段，JSON 序列化为 "user_info":null
-// 误导 SDK 用户。修复后收敛到 Token/ExpiresAt/RawData 三件套（实际被填充的字段）。
+// 误导 SDK 用户。
+//
+// 历史注：旧版本曾带 RefreshAfter time.Time 字段，但全仓 0 引用（没有代码
+// 读或写该字段），JSON 序列化为 "refresh_after":"0001-01-01T00:00:00Z" 误导
+// SDK 用户。修复后收敛到 Token/ExpiresAt/RawData 三件套（实际被填充的字段）。
 type LoginResponse struct {
-	Token        string         `json:"token"`         // X-Auth-Token
-	RefreshAfter time.Time      `json:"refresh_after"` // 推荐刷新时间
-	ExpiresAt    time.Time      `json:"expires_at"`    // 过期时间
-	RawData      map[string]any `json:"-"`             // 登录响应完整原始数据
+	Token     string         `json:"token"`      // X-Auth-Token
+	ExpiresAt time.Time      `json:"expires_at"` // 过期时间
+	RawData   map[string]any `json:"-"`          // 登录响应完整原始数据
 }
 
 // ─── 用户 ───
