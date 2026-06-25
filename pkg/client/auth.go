@@ -434,7 +434,10 @@ func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, 
 	if err := dec.Decode(&data); err != nil {
 		return "", time.Time{}, err
 	}
-	token, _ := data["token"].(string)
+	token, ok := data["token"].(string)
+	if !ok {
+		return "", time.Time{}, fmt.Errorf("returnData 中 token 字段类型异常（期望 string）")
+	}
 	if token == "" {
 		return "", time.Time{}, fmt.Errorf("returnData 中无 token 字段")
 	}
