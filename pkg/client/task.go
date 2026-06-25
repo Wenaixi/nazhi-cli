@@ -164,9 +164,19 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 // 区分意义：网络抖动是「临时性、可重试」，业务错误是「服务端明确拒绝」，
 // SDK 用户需要知道业务错误才能做精确处理（提示用户、报告 bug 等）。
 func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension, headers map[string]string) ([]types.Task, error) {
+	// G1 round-6 修复：上下文取消（Canceled/DeadlineExceeded）直接 propagate，
+	// 不吞掉走 best-effort——调用方需要知道 context 信号已触发，才能正确区分
+	// 「真空数据」与「被取消」。
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
 	statBody, err := c.doRequest(ctx, http.MethodGet, statURL, nil, headers, "")
 	if err != nil {
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return nil, err // 上下文取消应 propagate，不做 best-effort 吞没
+		}
 		c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
 		return nil, nil // 网络错误走 best-effort
 	}
