@@ -100,13 +100,15 @@ nazhi login -u 学号 -p 密码
 ```json
 {
   "token": "eyJhbGciOiJIUzUxMiJ9...",
-  "refresh_after": "...",
-  "expires_at": "...",
-  "user_info": null
+  "expires_at": "..."
 }
 ```
 
 > Token 有效期 14 天，存到环境变量复用。
+>
+> **字段历史注**（v0.3.3+）：旧版本曾输出 `refresh_after`（推荐刷新时间）和
+> `user_info`（用户基本信息）两个字段，因全仓 0 引用 / 全 0 填充，于 v0.3.3
+> 移除。需要用户基本信息请改用 `nazhi whoami` 命令。
 
 ## nazhi school
 
