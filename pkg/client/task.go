@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -92,6 +93,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	// 所以最后在主线程用 mutex 串行合并，避免 race。
 	var mu sync.Mutex
 	var allTasks []types.Task
+	var dimErrs []error // F-GroupD-F 修复：业务错误不再静默，累积而非 fail-fast
 	for _, dim := range dimensions {
 		// 跳过"全部"维度（id=0），它只是汇总
 		if dim.ID == 0 {
@@ -99,7 +101,15 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		}
 		dim := dim // 捕获循环变量
 		g.Go(func() error {
-			tasks := c.fetchTasksForDimension(gctx, dim, headers)
+			tasks, dimErr := c.fetchTasksForDimension(gctx, dim, headers)
+			if dimErr != nil {
+				mu.Lock()
+				dimErrs = append(dimErrs, dimErr)
+				mu.Unlock()
+				// 不返回 error：保留"单维度失败不影响其他维度"语义，
+				// 失败信息通过 dimErrs 聚合后整体 propagate。
+				return nil
+			}
 			if tasks == nil {
 				return nil
 			}
@@ -113,35 +123,62 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		return nil, fmt.Errorf("FetchTasks 并发拉取失败: %w", err)
 	}
 
+	// F-GroupD-F 修复：业务错误通过 errors.Join 聚合后包装 ErrBusinessRejected。
+	// 保留语义：
+	//   - 成功维度的任务仍聚合到 allTasks（不 fail-fast）
+	//   - 错误统一包装为 ErrBusinessRejected，errors.Is 命中
+	//   - 错误信息包含所有失败维度的诊断详情（id/name/code/msg）
+	if len(dimErrs) > 0 {
+		joined := errors.Join(dimErrs...)
+		summary := fmt.Sprintf("FetchTasks: %d 个维度拉取失败", len(dimErrs))
+		return allTasks, fmt.Errorf("%w: %s: %w", ErrBusinessRejected, summary, joined)
+	}
+
 	return allTasks, nil
 }
 
 // fetchTasksForDimension 拉取单个维度的任务列表并注入维度名称。
-// 任何错误都通过 logDebug 记录后返回 nil（FetchTasks 整体不中断）。
-func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension, headers map[string]string) []types.Task {
+//
+// 错误处理双路径（F-GroupD-F 修复）：
+//   - HTTP / 网络错误（如连接超时、500）：走 logDebug + return (nil, nil)，
+//     best-effort 模式不中断整体拉取（网络抖动不应当 fail-fast）
+//   - 业务错误（code != 1）：return error，由 FetchTasks errgroup 聚合后
+//     包装为 ErrBusinessRejected propagate，**不**静默吞咽
+//
+// 区分意义：网络抖动是「临时性、可重试」，业务错误是「服务端明确拒绝」，
+// SDK 用户需要知道业务错误才能做精确处理（提示用户、报告 bug 等）。
+func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension, headers map[string]string) ([]types.Task, error) {
 	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
 	statBody, err := c.doRequest(ctx, http.MethodGet, statURL, nil, headers, "")
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
-		return nil
+		return nil, nil // 网络错误走 best-effort
 	}
 
 	statResp, err := types.DecodeResponse(statBody)
-	if err != nil || statResp.Code != 1 {
-		c.logDebug("FetchTasks 维度 %d(%s) 响应异常: parseErr=%v code=%d", dim.ID, dim.Name, err, statResp.Code)
-		return nil
+	if err != nil {
+		c.logDebug("FetchTasks 维度 %d(%s) 响应解析失败: %v", dim.ID, dim.Name, err)
+		return nil, nil // 解析错误也走 best-effort（不归类为业务错误）
+	}
+	if statResp.Code != 1 {
+		// F-GroupD-F：业务错误 propagate，不再静默。
+		msg := ""
+		if statResp.Msg != nil {
+			msg = *statResp.Msg
+		}
+		return nil, fmt.Errorf("维度 %d(%s) 业务错误: code=%d msg=%s", dim.ID, dim.Name, statResp.Code, msg)
 	}
 
 	tasks, err := types.DecodeDataList[types.Task](statResp)
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 任务解析失败: %v", dim.ID, dim.Name, err)
-		return nil
+		return nil, nil
 	}
 
 	for i := range tasks {
 		tasks[i].DimensionName = dim.Name
 	}
-	return tasks
+	return tasks, nil
 }
 
 // SubmitTask 提交一次任务。
