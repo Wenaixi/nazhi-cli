@@ -125,8 +125,21 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	var token string
 	switch urlType {
 	case "base":
-		token, _ = cmd.Flags().GetString("token")
-		if token == "" {
+		// F7 修复（group-F round-8）：用 flagChanged() 守卫 token 读取，
+		// 避免用户显式传 --token "" 时 env fallback 静默覆盖。
+		//
+		// 原代码无 Changed 检查：cmd.Flags().GetString("token") 显式空字符串
+		// 与未传 flag 行为完全一致（都返回 ""），env fallback 无法区分这两种意图。
+		// 哨兵默认 + env 覆盖是反模式——用户期望"显式空字符串"被尊重。
+		//
+		// 设计契约：
+		//   - Changed("token")=true → 用户显式传过 flag，flag 值生效（含显式空字符串）
+		//   - Changed("token")=false → 未传 flag，走 env fallback
+		//
+		// 与 round-4 C2 timeout 修复保持对称（cmd/nazhi/env.go:45 flagChanged）。
+		if flagChanged(cmd, "token") {
+			token, _ = cmd.Flags().GetString("token")
+		} else {
 			token = envString("NAZHI_TOKEN", "")
 		}
 	}

@@ -77,7 +77,11 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 
 	cmd := &cobra.Command{Use: "task-list"}
 	cmd.SetContext(context.Background())
-	cmd.Flags().String("token", "test-token", "")
+	cmd.Flags().String("token", "", "")
+	// F7 适配（group-F round-8）：必须 Set 让 Changed()=true。
+	if err := cmd.Flags().Set("token", "test-token"); err != nil {
+		t.Fatalf("set token: %v", err)
+	}
 	cmd.Flags().String("base-url", srv.URL, "")
 	cmd.Flags().Int("timeout", 5, "")
 
@@ -157,7 +161,11 @@ func TestTaskList_AllFailure_StillPrintsError(t *testing.T) {
 
 	cmd := &cobra.Command{Use: "task-list"}
 	cmd.SetContext(context.Background())
-	cmd.Flags().String("token", "test-token", "")
+	cmd.Flags().String("token", "", "")
+	// F7 适配（group-F round-8）：必须 Set 让 Changed()=true。
+	if err := cmd.Flags().Set("token", "test-token"); err != nil {
+		t.Fatalf("set token: %v", err)
+	}
 	cmd.Flags().String("base-url", srv.URL, "")
 	cmd.Flags().Int("timeout", 5, "")
 

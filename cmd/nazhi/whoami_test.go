@@ -69,7 +69,12 @@ func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK .
 
 	cmd := &cobra.Command{Use: "whoami"}
 	cmd.SetContext(context.Background())
-	cmd.Flags().String("token", token, "")
+	cmd.Flags().String("token", "", "")
+	// F7 适配（group-F round-8）：buildClientOpts 用 flagChanged() 守卫 token 读取。
+	// 必须调 Set 才能让 Changed()=true，否则走 env fallback 会因 env 未设而报缺 token。
+	if err := cmd.Flags().Set("token", token); err != nil {
+		t.Fatalf("set token flag: %v", err)
+	}
 	cmd.Flags().String("base-url", srv.URL, "")
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd, c
