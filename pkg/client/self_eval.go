@@ -65,29 +65,16 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		return nil, fmt.Errorf("%w: 查询自我评价失败: %v", ErrBusinessRejected, err)
 	}
 
-	// 尝试从 returnData 解析
-	if resp.ReturnData != nil {
-		status, err := types.DecodeReturnData[types.SelfEvalStatus](resp)
-		if err == nil && status != nil {
-			return status, nil
-		}
-		if err != nil {
-			c.logDebug("QuerySelfEvaluation DecodeReturnData 失败: %v", err)
-		}
+	// 三段 fallback（returnData → dataMap → dataList），用 tryDecodeFallback 消除重复
+	v := tryDecodeFallback(c, "QuerySelfEvaluation", &resp,
+		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](resp) },
+		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](resp) },
+	)
+	if v != nil {
+		return v, nil
 	}
 
-	// 尝试从 dataMap 解析
-	if resp.DataMap != nil {
-		status, err := types.DecodeDataMap[types.SelfEvalStatus](resp)
-		if err == nil && status != nil {
-			return status, nil
-		}
-		if err != nil {
-			c.logDebug("QuerySelfEvaluation DecodeDataMap 失败: %v", err)
-		}
-	}
-
-	// 尝试从 dataList 解析（可能只有一条记录）
+	// dataList 兜底（可能只返回一条记录）
 	if resp.DataList != nil {
 		statuses, err := types.DecodeDataList[types.SelfEvalStatus](resp)
 		if err == nil && len(statuses) > 0 {
@@ -126,20 +113,13 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 		return nil, fmt.Errorf("%w: 查询学期评价失败: %v", ErrBusinessRejected, err)
 	}
 
-	// 优先尝试 returnData
-	if resp.ReturnData != nil {
-		result, err := types.DecodeReturnData[map[string]any](resp)
-		if err == nil && result != nil {
-			return result, nil
-		}
-	}
-
-	// 兜底尝试 dataMap
-	if resp.DataMap != nil {
-		result, err := types.DecodeDataMap[map[string]any](resp)
-		if err == nil && result != nil {
-			return result, nil
-		}
+	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
+	v := tryDecodeFallback(c, "QuerySelfGradEvaluation", &resp,
+		func() (*map[string]any, error) { return types.DecodeReturnData[map[string]any](resp) },
+		func() (*map[string]any, error) { return types.DecodeDataMap[map[string]any](resp) },
+	)
+	if v != nil {
+		return v, nil
 	}
 
 	// 所有路径都为空是合法的"无学期评价"，但有 body 解析不了就是 bug
