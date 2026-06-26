@@ -25,14 +25,14 @@ func TestNoRealPII(t *testing.T) {
 	// 禁止模式：CLAUDE.md 第 281-291 行明文列出的真实凭据 + 数字 ID
 	// 注意：禁值用字符拼接构造，避免守卫自身的字符串字面量被自身 AST 扫描到
 	const (
-		realStudentNumber    = "REDACTED"
-		realIDCard           = "REDACTED"
-		realStudentName      = "REDACTED"
-		realNamePinyin       = "REDACTED"
-		realNameInitials     = "REDACTED"
-		realStudentID        = "REDACTED"
-		realUserID           = "REDACTED"
-		realStudyNumber      = "REDACTED"
+		realStudentNumber = "REDACTED"
+		realIDCard        = "REDACTED"
+		realStudentName   = "REDACTED"
+		realNamePinyin    = "REDACTED"
+		realNameInitials  = "REDACTED"
+		realStudentID     = "REDACTED"
+		realUserID        = "REDACTED"
+		realStudyNumber   = "REDACTED"
 	)
 
 	forbidden := []string{
