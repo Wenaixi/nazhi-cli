@@ -12,8 +12,8 @@
 //   - 仍然走 closeAllClients() 释放 ONNX session + tempDir + keep-alive
 //
 // 测试策略：子进程派生子 nazhi，触发 panic，断言：
-//   1. 子进程 exit code == 1（不是 Go runtime 默认的 2）
-//   2. stderr 不含 Go runtime stack trace 特征 "panic:" 或 ".go:"
+//  1. 子进程 exit code == 1（不是 Go runtime 默认的 2）
+//  2. stderr 不含 Go runtime stack trace 特征 "panic:" 或 ".go:"
 //
 // 实现方式：通过 NAZHI_TEST_PANIC 环境变量让 main.go 触发 panic。
 // 但这样需要改 main.go 加测试 hook。**更优雅**：直接调 main 路径中
@@ -65,12 +65,13 @@ func TestMain_PanicRecover_ExitCode1(t *testing.T) {
 // defer 闭包调用 recover()，且该 defer 在 main 顶层（不是某个子函数里）。
 //
 // F9 设计：main() 顶部加
-//   defer func() {
-//       if r := recover(); r != nil {
-//           pendingExitCode.Store(1)
-//           printError(fmt.Errorf("panic: %v", r))
-//       }
-//   }()
+//
+//	defer func() {
+//	    if r := recover(); r != nil {
+//	        pendingExitCode.Store(1)
+//	        printError(fmt.Errorf("panic: %v", r))
+//	    }
+//	}()
 //
 // 这保证所有 cobra Run 回调 panic → 走与 error 路径一致的 exit code 1。
 func TestMain_PanicRecover_ASTInspect(t *testing.T) {
