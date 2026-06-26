@@ -27,14 +27,13 @@ const MaxImageSize = 5 * 1024 * 1024
 // MinImageDimension 缩放下限（像素），低于此值停止缩放。
 const MinImageDimension = 10
 
-// qualitySteps 质量级联：先降质量后缩尺寸。
-// 92 起步是默认值，平台 56-79KB 实测用 40 足够。
-var qualitySteps = []int{80, 60, 40}
+// getQualitySteps 返回质量级联切片（每次返回新副本，保证不可变）。
+// G4 修复：从包级可变 var 改为函数返回，防止测试修改污染全局。
+func getQualitySteps() []int { return []int{80, 60, 40} }
 
-// scaleFactors 缩放级联（每步在前一步基础上 ×0.7 累乘，7 步总比例 ~8%）。
-// 累乘语义：4000×3000 → 2800×2100 → 1960×1470 → ... → 329×247。
-// 这是真正"级联"，比 7 步独立绝对比例更渐进式缩小，文件大小更可控。
-var scaleFactors = []float64{0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7}
+// getScaleFactors 返回缩放级联切片（每次返回新副本，保证不可变）。
+// G4 修复：从包级可变 var 改为函数返回，防止测试修改污染全局。
+func getScaleFactors() []float64 { return []float64{0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7} }
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
 var ErrImageTooLarge = errors.New("image: 压缩后仍超过目标大小")
@@ -87,7 +86,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 	}
 
 	// 质量级联
-	for _, q := range qualitySteps {
+	for _, q := range getQualitySteps() {
 		data, err = encodeJPEG(img, q)
 		if err != nil {
 			return nil, "", fmt.Errorf("质量 %d 编码失败: %w", q, err)
@@ -99,7 +98,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 	// 缩放级联（保持质量 40，每步基于上一步结果累乘 ×scale）
 	current := img
-	for _, scale := range scaleFactors {
+	for _, scale := range getScaleFactors() {
 		w := int(float64(current.Bounds().Dx()) * scale)
 		h := int(float64(current.Bounds().Dy()) * scale)
 		if w < MinImageDimension || h < MinImageDimension {
