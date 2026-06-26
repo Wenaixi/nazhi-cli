@@ -66,6 +66,17 @@ func New() *OCR {
 //     避免 mutex.Lock + map 写入的固定开销
 //   - sync.Map 读写并发安全，无需额外的 initsMu 保护
 //   - Close 路径用 Range 迭代，配合 closeOnce 仍保证只跑一次 Close 工作
+//
+// F2 + F22 合并修复：用 closeMu 保护整个「read closed + Get + trackInit」
+//
+//	原子临界区 + Close 的「Range(inits) + 翻 closed」原子临界区。
+//	两个临界区互斥（同一把 mutex），保证并发 Recognize 不会被 close window 切断。
+//	为什么不用 atomic.Bool.Load：atomic.Load + Get + trackInit 在 Go 内存模型下
+//	不是原子的（Load 之后到后续语句之间 goroutine 可被调度走，Close 在此期间
+//	完成 Range + 翻 closed，但 goroutine 已被 Load(false) 误导，仍会 trackInit
+//	到 inits map 内 → 泄漏）。所以需要 mutex 临界区。
+//	简化：closeOnce 仍然存在（保证 Close 关键路径只跑一次 + 错误聚合），
+//	closeMu 在 Close 内现在只保护临界区入口（进/出 closeMu），与 closeOnce 配合。
 type Pool struct {
 	pool      sync.Pool
 	inits     sync.Map // key=*OCR, value=struct{}：跟踪所有完成过惰性初始化的实例
@@ -108,19 +119,34 @@ func (p *Pool) trackInit(o *OCR) {
 // Pool.Close 后调用 Recognize 返回"OCR 池已关闭"错误，防止新创建的
 // OCR 实例泄漏 tempDir（Pool.Close 的 inits.Range 排空后再创建的实例
 // 不会被 Close 路径清理）。
+//
+// F2 关键修复：close 检查 + pool.Get + trackInit 必须在同一 mutex 临界区内。
+//
+//	否则并发 Recognize 可穿过 Close 的 Range 完成窗口，向 inits map
+//	注册新实例但 Close 已不会再次访问 → tempDir 永久泄漏。
+//	具体场景：
+//	  T0 Close 进入 closeOnce → 拿 closeMu → Range(inits) → 翻 closed → 放 closeMu
+//	  T1 Recognize 拿 closeMu（在 T0 之后）→ 看到 closed=true → 直接返回错误
+//	  T1' Recognize 拿 closeMu（在 T0 之前）→ 看到 closed=false → Get + trackInit
+//	       → 放 closeMu → Close 路径（拿 closeMu）→ Range 包含 T1' 注册的实例
+//	保证：T1 要么被 Close 之前完整处理（被 Close 清理），要么被 Close 之后拒绝。
 func (p *Pool) Recognize(imageData []byte) (string, error) {
+	// 临界区：close 检查 + Get + trackInit 原子完成
+	// （不能调 o.Recognize，避免 ONNX 识别阻塞在临界区内）
+	var o *OCR
 	p.closeMu.Lock()
-	closed := p.closed
+	if !p.closed {
+		o, _ = p.pool.Get().(*OCR)
+		if o == nil {
+			o = &OCR{}
+		}
+		p.trackInit(o)
+	}
 	p.closeMu.Unlock()
-	if closed {
+	if o == nil {
 		return "", errors.New("OCR 池已关闭")
 	}
 
-	o, ok := p.pool.Get().(*OCR)
-	if !ok {
-		o = &OCR{}
-	}
-	p.trackInit(o)
 	defer p.pool.Put(o)
 	return o.Recognize(imageData)
 }
@@ -136,12 +162,20 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 // 关键路径只跑一次。即使多个 goroutine 同时调 Close，第一次调用的协程
 // 负责全部释放工作，后续调用立即返回 nil，避免同一实例被 Close 两次。
 //
+// F2 修复：closeMu 保护「Range(inits) + 翻 closed」原子临界区，与 Recognize
+//
+//	路径的「读 closed + Get + trackInit」临界区互斥。任何并发 Recognize 要么：
+//	  1) 在 Close 临界区之前完成 trackInit → 被 Range 清理
+//	  2) 在 Close 临界区之后拿 closeMu → 看到 closed=true → 直接返回错误
+//	不会有"漏网"的 trackInit 留下幽灵实例。
+//
 // O7 优化：Pool.inits 是 sync.Map（无独立 initsMu），Close 路径用 Range
 // 原子快照迭代——sync.Map.Range 在迭代期间对后续 Load/Store 安全，
 // 配合 sync.Once 保证排空分支只跑一次。
 func (p *Pool) Close() error {
 	var firstErr error
 	p.closeOnce.Do(func() {
+		p.closeMu.Lock()
 		var errs []error
 		p.inits.Range(func(key, _ any) bool {
 			o, ok := key.(*OCR)
@@ -155,8 +189,6 @@ func (p *Pool) Close() error {
 			}
 			return true
 		})
-
-		p.closeMu.Lock()
 		p.closed = true
 		p.closeMu.Unlock()
 
