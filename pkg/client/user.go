@@ -32,7 +32,9 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 // 公开 SDK 用户请使用 GetMyInfo。
 func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
-	headers["Referer"] = c.baseURL + "/modify"
+	// r9-D8 修复：Referer 走 c.bizURL() helper，与其他业务接口对称
+	// （避免 baseURL 拼接分散在多处，未来 baseURL 变更只需改 helper 一处）
+	headers["Referer"] = c.bizURL("/modify")
 
 	bodyBytes, err := c.doRequest(ctx, http.MethodGet,
 		c.bizURL("/api/studentInfo/getMyInfo"),
