@@ -25,8 +25,21 @@ func TestDoGetMenu_SendsReferer(t *testing.T) {
 			gotReferer = r.Header.Get("Referer")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		switch {
+		case r.URL.Path == "/":
+			w.WriteHeader(http.StatusOK)
+		case strings.HasSuffix(r.URL.Path, "/getMenu"):
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		case strings.HasSuffix(r.URL.Path, "/getMyInfo"):
+			// F10 修复（round-7）：mock 必须返回有效 returnData，否则
+			// 触发 ErrEmptyUserInfo 路径导致 ActivateSession 返回 error。
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三"}}`))
+		default:
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		}
 	}))
 	defer srv.Close()
 
@@ -65,8 +78,18 @@ func TestDoGetMenu_Step2And3Refactor(t *testing.T) {
 			referers = append(referers, r.Header.Get("Referer"))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		switch {
+		case r.URL.Path == "/":
+			w.WriteHeader(http.StatusOK)
+		case strings.HasSuffix(r.URL.Path, "/getMenu"):
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		case strings.HasSuffix(r.URL.Path, "/getMyInfo"):
+			// F10 修复（round-7）：mock 必须返回有效 returnData，否则
+			// 触发 ErrEmptyUserInfo 路径导致 ActivateSession 返回 error。
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三"}}`))
+		}
 	}))
 	defer srv.Close()
 

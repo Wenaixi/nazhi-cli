@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -25,25 +27,26 @@ var whoamiCmd = &cobra.Command{
 		printVerbose("正在获取用户信息...")
 		info, err := c.GetMyInfo(cmd.Context(), token)
 		if err != nil {
+			// F10 修复（round-7）：ErrEmptyUserInfo 是「业务成功但无数据」状态
+			//（非错误），按 status envelope 输出而非走 printError。
+			//
+			// 修复前：GetMyInfo 返回 (nil, nil) → info == nil → 输出 status envelope
+			//（W1 round-5 已修）。但 SDK 现在改返回 (nil, ErrEmptyUserInfo) →
+			// 不再是 (nil,nil)，info 仍 nil 但 err 非 nil，必须用 errors.Is 分支。
+			//
+			// 与 session activate 契约对称：两个 cmd 在「业务成功无数据」时
+			// 都输出 {status: empty, reason: get_my_info_empty}。
+			if errors.Is(err, client.ErrEmptyUserInfo) {
+				printJSON(map[string]string{
+					"status": "empty",
+					"reason": "get_my_info_empty",
+				})
+				return
+			}
 			printError(fmt.Errorf("获取用户信息失败: %w", err))
 			return
 		}
-		// SDK "最佳努力设计"：GetMyInfo 成功但业务未返回用户数据时返回 (nil, nil)，
-		// 这不是错误或异常——输出带 status 字段的 JSON 让上层管道/脚本可区分原因。
-		//
-		// W1 修复（round-5）：改裸 null 为 status 对象，三种场景：
-		//   1. {"status":"empty","reason":"get_my_info_empty"} — 业务无数据
-		//   2. error 路径（printError）                         — 网络/业务错误
-		//   3. {"status":"ok","user":{...}}                     — 正常（直接输出 UserInfo）
-		// 不破坏 quiet 契约（无 stderr）和 best-effort 契约（nil 不算 error）。
-		if info == nil {
-			printJSON(map[string]string{
-				"status": "empty",
-				"reason": "get_my_info_empty",
-			})
-			return
-		}
-
+		// info 非 nil 但 err 为 nil：正常路径
 		printJSON(info)
 	},
 }
