@@ -107,9 +107,28 @@ func buildBizClient(cmd *cobra.Command) (*client.Client, string, error) {
 //
 // 所有 env fallback 在这里统一处理。
 func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requireToken bool) ([]client.Option, string, error) {
-	token, _ := cmd.Flags().GetString("token")
-	if token == "" {
-		token = envString("NAZHI_TOKEN", "")
+	// F16 修复（round-7）：token 读取下沉到 urlType 分支，upload/sso 短路。
+	//
+	// 原代码无条件读 --token flag + NAZHI_TOKEN env，即使 file upload 命令
+	// 显式不提供 --token flag，NAZHI_TOKEN 仍会被注入到 pendingToken →
+	// syncCookieToken 写 cookie jar 到 sso/api 域，违反 fileUploadCmd 文档
+	// 契约「本命令不接受 --token 参数」。
+	//
+	// 新语义（按 urlType 分流）：
+	//   - urlType=="base"   读 --token flag + NAZHI_TOKEN env（业务 API 命令）
+	//   - urlType=="upload" 跳过 token 读取（file upload 命令契约无 token）
+	//   - urlType=="sso"    跳过 token 读取（SSO 命令不需要预置 token，
+	//                       由 Login 流程获取并同步）
+	//
+	// requireToken 参数对 upload/sso 仍兼容——它们不传 true，所以
+	// 即使短路也不会因 requireToken 报错。
+	var token string
+	switch urlType {
+	case "base":
+		token, _ = cmd.Flags().GetString("token")
+		if token == "" {
+			token = envString("NAZHI_TOKEN", "")
+		}
 	}
 	if requireToken && token == "" {
 		return nil, "", fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）")
