@@ -235,7 +235,7 @@ func WithToken(token string) Option {
 				"current_empty", c.pendingToken == "")
 			return
 		}
-		c.pendingToken = token
+		c.pendingToken = strings.TrimSpace(token)
 	}
 }
 
