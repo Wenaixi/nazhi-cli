@@ -71,38 +71,41 @@ func (e *BusinessError) Error() string {
 	return fmt.Sprintf("业务错误 (code=%d): %s", e.Code, e.Msg)
 }
 
-// DecodeReturnData 将 returnData 解析为目标类型。
-func DecodeReturnData[T any](resp UnifiedResponse) (*T, error) {
-	if resp.ReturnData == nil {
+// decodeField 内部辅助，消除 DecodeReturnData / DecodeDataMap 重复。
+func decodeField[T any](raw *json.RawMessage, name string) (*T, error) {
+	if raw == nil {
 		return nil, nil
 	}
 	var v T
-	if err := json.Unmarshal(*resp.ReturnData, &v); err != nil {
-		return nil, fmt.Errorf("解析 returnData 失败: %w", err)
+	if err := json.Unmarshal(*raw, &v); err != nil {
+		return nil, fmt.Errorf("解析 %s 失败: %w", name, err)
 	}
 	return &v, nil
 }
 
-// DecodeDataList 将 dataList 解析为切片。
-func DecodeDataList[T any](resp UnifiedResponse) ([]T, error) {
-	if resp.DataList == nil {
+// decodeFieldSlice 内部辅助，消除 DecodeDataList 重复。
+func decodeFieldSlice[T any](raw *json.RawMessage, name string) ([]T, error) {
+	if raw == nil {
 		return nil, nil
 	}
 	var v []T
-	if err := json.Unmarshal(*resp.DataList, &v); err != nil {
-		return nil, fmt.Errorf("解析 dataList 失败: %w", err)
+	if err := json.Unmarshal(*raw, &v); err != nil {
+		return nil, fmt.Errorf("解析 %s 失败: %w", name, err)
 	}
 	return v, nil
 }
 
+// DecodeReturnData 将 returnData 解析为目标类型。
+func DecodeReturnData[T any](resp UnifiedResponse) (*T, error) {
+	return decodeField[T](resp.ReturnData, "returnData")
+}
+
+// DecodeDataList 将 dataList 解析为切片。
+func DecodeDataList[T any](resp UnifiedResponse) ([]T, error) {
+	return decodeFieldSlice[T](resp.DataList, "dataList")
+}
+
 // DecodeDataMap 将 dataMap 解析为目标类型。
 func DecodeDataMap[T any](resp UnifiedResponse) (*T, error) {
-	if resp.DataMap == nil {
-		return nil, nil
-	}
-	var v T
-	if err := json.Unmarshal(*resp.DataMap, &v); err != nil {
-		return nil, fmt.Errorf("解析 dataMap 失败: %w", err)
-	}
-	return &v, nil
+	return decodeField[T](resp.DataMap, "dataMap")
 }
