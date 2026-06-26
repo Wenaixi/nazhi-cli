@@ -29,7 +29,8 @@ func makeSchoolTestCmd(t *testing.T, username string) *cobra.Command {
 	if username != "" {
 		_ = cmd.Flags().Set("username", username)
 	}
-	cmd.Flags().String("sso-base", srv.URL, "")
+	cmd.Flags().String("sso-base", "", "")
+	_ = cmd.Flags().Set("sso-base", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd
 }

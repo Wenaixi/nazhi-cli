@@ -47,7 +47,8 @@ func makeFileUploadTestCmd(t *testing.T, filePath string) (*cobra.Command, *http
 	if filePath != "" {
 		_ = cmd.Flags().Set("file", filePath)
 	}
-	cmd.Flags().String("upload-url", srv.URL, "")
+	cmd.Flags().String("upload-url", "", "")
+	_ = cmd.Flags().Set("upload-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd, srv
 }

@@ -42,7 +42,8 @@ func makeSelfEvalSubmitTestCmd(t *testing.T, comment string) (*cobra.Command, *h
 	if comment != "" {
 		_ = cmd.Flags().Set("comment", comment)
 	}
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd, srv
 }
@@ -168,7 +169,8 @@ func TestSelfEvalSubmitCmd_ServerError(t *testing.T) {
 	_ = cmd.Flags().Set("token", "test-token")
 	cmd.Flags().String("comment", "测试评价", "")
 	_ = cmd.Flags().Set("comment", "测试评价")
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
 
 	quiet = false
