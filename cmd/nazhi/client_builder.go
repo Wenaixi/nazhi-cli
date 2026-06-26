@@ -3,6 +3,8 @@ package main
 import (
 	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -197,6 +199,13 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
 	if token != "" {
 		opts = append(opts, client.WithToken(token))
+	}
+	// G2 修复：--verbose 时让 SDK logger 输出 Debug 级别日志，
+	// 否则 c.logDebug 被 slog LevelWarn 过滤，用户看不到 SDK 内部细节。
+	if verbose {
+		opts = append(opts, client.WithLogger(
+			slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		))
 	}
 	switch urlType {
 	case "sso":
