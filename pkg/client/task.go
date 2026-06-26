@@ -129,22 +129,40 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 
 	// T1 round-5 修复：partial failures 聚合，区分全失败与部分失败。
 	//
-	// 错误信息枚举每个失败维度的 ID/name/code/msg（从 fetchTasksForDimension
-	// 的 error 消息中带出），调用方通过 errors.Is(err, ErrBusinessRejected)
-	// 统一判定业务错误，通过 err.Error() 区分严重程度：
-	//   - "全部 ... 均失败"：所有维度都未能获取任务
-	//   - "部分失败"：仍有成功维度数据可用
+	// B11 修复：区分 context 取消错误与业务错误。
+	// context.Canceled/DeadlineExceeded 不应包装为 ErrBusinessRejected，
+	// 否则调用方通过 errors.Is(err, ErrBusinessRejected) 判定时会误判
+	// 为业务拒绝，而非 context 截断，导致无法正确区分「完整成功」与
+	// 「cancel 截断」两种语义。
 	//
-	// 保留语义：
-	//   - 成功维度的任务仍聚合到 allTasks（不 fail-fast）
-	//   - 错误统一包装为 ErrBusinessRejected，errors.Is 命中
-	//   - errors.Join 保留每个维度独立的诊断详情
+	// 分离逻辑：
+	//   - context 错误 → 跳过 ErrBusinessRejected 包装，直接 errors.Join 返回
+	//   - 业务错误 → 保持原样包装（全失败/部分失败分支不变）
 	if len(dimErrs) > 0 {
-		joined := errors.Join(dimErrs...)
-		failedCount := len(dimErrs)
+		// 将 context 取消错误分离出来
+		var bizErrs []error
+		for _, de := range dimErrs {
+			if errors.Is(de, context.Canceled) || errors.Is(de, context.DeadlineExceeded) {
+				continue
+			}
+			bizErrs = append(bizErrs, de)
+		}
+
+		// 仅有 context 取消错误：裸返回，不包装 ErrBusinessRejected
+		if len(bizErrs) == 0 {
+			joined := errors.Join(dimErrs...)
+			if len(allTasks) == 0 {
+				return nil, joined
+			}
+			return allTasks, joined
+		}
+
+		// 有真正的业务错误，保持原 ErrBusinessRejected 包装语义
+		joined := errors.Join(bizErrs...)
+		failedCount := len(bizErrs)
 
 		if len(allTasks) == 0 {
-			// 全维度业务失败（或与网络错误混合导致无成功数据）
+			// 全维度业务失败
 			return nil, fmt.Errorf("%w: FetchTasks 全部 %d 个维度均失败: %w",
 				ErrBusinessRejected, failedCount, joined)
 		}
@@ -178,6 +196,9 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 		return nil, err
 	}
 
+	// C13 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全，
+	// 无需 URL 编码（数字不包含特殊字符）。如需未来扩展为字符串参数，
+	// 应改用 url.Values.Encode()。
 	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
 	statBody, err := c.doRequest(ctx, http.MethodGet, statURL, nil, headers, "")
 	if err != nil {
@@ -262,9 +283,8 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 		Code: resp.Code,
 		Raw:  parseRawData(bodyBytes),
 	}
-	if resp.Msg != nil {
-		result.Msg = *resp.Msg
-	}
+	// C2 修复：用 derefOr 替代手动 nil 检查（与 auth.go:156/212 对齐）。
+	result.Msg = derefOr(resp.Msg, "")
 
 	if resp.Code != 1 {
 		// F7 修复：用 ErrBusinessRejected 包装而非 ErrLoginRejected。
@@ -288,6 +308,7 @@ func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID
 	}
 	headers := c.bizHeaders(token)
 
+	// C13 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全。
 	url := c.bizURL("/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10))
 	bodyBytes, err := c.doRequest(ctx, http.MethodGet, url, nil, headers, "")
 	if err != nil {
