@@ -45,7 +45,8 @@ func makeSelfEvalStatusTestCmd(t *testing.T, bizOK bool) *cobra.Command {
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
 	_ = cmd.Flags().Set("token", "test-token")
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd
 }

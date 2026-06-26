@@ -42,7 +42,8 @@ func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) (*cobra.Command, *ht
 	if payloadRaw != "" {
 		_ = cmd.Flags().Set("payload", payloadRaw)
 	}
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd, srv
 }
@@ -153,7 +154,8 @@ func TestTaskSubmitCmd_ServerError(t *testing.T) {
 	_ = cmd.Flags().Set("token", "test-token")
 	cmd.Flags().String("payload", `{"circleTaskId":1001,"circleTypeId":9256,"name":"测试任务","hours":1}`, "")
 	_ = cmd.Flags().Set("payload", `{"circleTaskId":1001,"circleTypeId":9256,"name":"测试任务","hours":1}`)
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
 
 	quiet = false

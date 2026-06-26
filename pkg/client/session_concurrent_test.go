@@ -1,4 +1,4 @@
-﻿// Package client 内部白盒测试。
+// Package client 内部白盒测试。
 package client
 
 import (

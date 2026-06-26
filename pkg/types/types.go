@@ -265,4 +265,4 @@ type SelfEvalStatus struct {
 	SchoolID       int64  `json:"school_id"`
 	IsGrad         string `json:"is_grad"`
 	EvalRecordID   int64  `json:"id"`
-	}
+}

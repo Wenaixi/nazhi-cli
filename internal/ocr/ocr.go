@@ -382,8 +382,3 @@ func writeModelFile(dir, name string, data []byte) error {
 	}
 	return nil
 }
-
-// writeFile 写入文件，设置 0644 权限。
-func writeFile(path string, data []byte) error {
-	return os.WriteFile(path, data, 0644)
-}
