@@ -9,9 +9,11 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	"github.com/Wenaixi/nazhi-cli/internal/ocr"
 )
+
+// captchaRecognizer 由 build tag 决定：
+//   - !ddddocr: nil 默认（见 client_ocr_disabled.go），调用方必须 WithCustomOCR
+//   - ddddocr:  ocr.NewPool(0) 默认（见 client_ocr_enabled.go）
 
 // captchaRecognizer 是验证码识别器接口。
 // *ocr.Pool 实现了该接口，测试时可注入 mock。
@@ -203,17 +205,11 @@ func WithCustomOCR(r captchaRecognizer) Option {
 //
 // 内存代价：每个 ONNX session 约 50MB（模型 + 原生库），N=4 约 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单次 Login 用 1 实例足够。
-func WithOCRConcurrency(n int) Option {
-	return func(c *Client) {
-		if n < 0 {
-			c.logger.Warn("WithOCRConcurrency: 负数被拒绝，保持当前 OCR 实例",
-				"n", n,
-				"tip", "用 0/1 = 单实例，N>1 = 并发池")
-			return
-		}
-		c.ocr = ocr.NewPool(n)
-	}
-}
+//
+// 实现按 build tag 分发：见 client_ocr_enabled.go（ddddocr）和
+// client_ocr_disabled.go（!ddddocr — 仅返回 warn 占位实现）。
+//
+// 函数签名在两个文件中保持一致（(int) Option），保证 Option 接口契约。
 
 // WithToken 预置 X-Auth-Token（同时写入 Header 和 Cookie）。
 //
@@ -269,7 +265,7 @@ func New(opts ...Option) (*Client, error) {
 		uploadURL:  defaultUploadURL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:        ocr.NewPool(0), // 默认懒加载单实例（兼容原行为）
+		ocr:        defaultOCR(), // build tag 决定：!ddddocr → nil, ddddocr → ocr.NewPool(0)
 	}
 	for _, opt := range opts {
 		opt(c)
