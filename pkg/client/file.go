@@ -33,6 +33,15 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	c.logDebug("图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 
 	// 2. 构造 multipart 请求体
+	//
+	// F14 修复（round-7）：必须显式 writer.Close()，不能在 http.NewRequestWithContext
+	// 之后。multipart writer 的终结边界 `--{boundary}--\r\n` 只在 Close() 时追加，
+	// 若只 defer Close()，则 wire 上发出去的 body 缺终止边界，server 端 multipart
+	// parser 报 EOF 错误，100% 上传失败。
+	//
+	// 这里保留 defer Close() 兜底（C10 round-3 设计意图：错误路径也要 Close
+	// 释放内部 buffer），与显式 Close 共同防御——显式调用负责正确路径，
+	// defer 负责任何早退路径。multipart.Writer.Close 是幂等的，可重复调用。
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
 	defer writer.Close()
@@ -43,6 +52,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 	if _, err := part.Write(fileData); err != nil {
 		return 0, fmt.Errorf("写入图片到 multipart 失败: %w", err)
+	}
+
+	// 显式 Close：在 NewRequest 之前写入终结边界到 buf。
+	// defer 的 Close 兜底处理本行之后的早退路径（虽然此处已无早退可能，
+	// 但保持 C10 设计的对称防御层）。
+	if err := writer.Close(); err != nil {
+		return 0, fmt.Errorf("关闭 multipart writer 失败: %w", err)
 	}
 
 	// 3. 构造请求
