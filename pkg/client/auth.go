@@ -33,10 +33,10 @@ func (c *Client) InitSession(ctx context.Context) error {
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
 func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID string, schoolName string, err error) {
-	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?userName=" + username)
+	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?" + url.Values{"userName": {username}}.Encode())
 
 	headers := c.ssoHeaders()
-	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?userName=" + username
+	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode()
 
 	bodyBytes, err := c.doRequest(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
