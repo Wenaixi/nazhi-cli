@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -30,45 +31,56 @@ func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		// F-GroupD-E：业务错误统一用 ErrBusinessRejected 包装（与 SubmitTask 对齐），
-		// 让 SDK 用户能 errors.Is(err, ErrBusinessRejected) 精确判定，不会被误
-		// 导为 ErrLoginRejected 而错误地走重新登录流程。
-		// 不能用 err 作 %w（否则 ErrBusinessRejected 不在 err 链上，errors.Is 失败）。
-		return fmt.Errorf("%w: 自我评价提交失败: %v", ErrBusinessRejected, err)
+		// B14: errors.Join 同时支持 errors.Is(ErrBusinessRejected) 和
+		// errors.As(*BusinessError)，避免 %v 断开链。
+		return errors.Join(ErrBusinessRejected, fmt.Errorf("自我评价提交失败: %w", err))
 	}
 
 	return nil
 }
 
-// QuerySelfEvaluation 查询自我评价状态 + 教师评语。
-func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.SelfEvalStatus, error) {
+// selfEvalGet 内部辅助，消除 QuerySelfEvaluation / QuerySelfGradEvaluation 中
+// session 预热 -> bizHeaders -> doRequest -> DecodeResponse -> CheckCode 公共管道。
+//
+// 返回值：解码后的 UnifiedResponse（通过 CheckCode 确认 code=1），可直接供 tryDecodeFallback 使用。
+func (c *Client) selfEvalGet(ctx context.Context, token string, path string, opName string) (*types.UnifiedResponse, error) {
 	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return nil, fmt.Errorf("QuerySelfEvaluation 预热 session 失败: %w", err)
+		return nil, fmt.Errorf("%s 预热 session 失败: %w", opName, err)
 	}
 	headers := c.bizHeaders(token)
 
 	bodyBytes, err := c.doRequest(ctx, http.MethodGet,
-		c.bizURL("/api/studentMoralEduNew/querySelfEvaluation"),
+		c.bizURL(path),
 		nil, headers, "",
 	)
 	if err != nil {
-		return nil, fmt.Errorf("QuerySelfEvaluation 请求失败: %w", err)
+		return nil, fmt.Errorf("%s 请求失败: %w", opName, err)
 	}
 
 	resp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("QuerySelfEvaluation 响应解析失败: %w", err)
+		return nil, fmt.Errorf("%s 响应解析失败: %w", opName, err)
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		// F-GroupD-E：业务错误统一用 ErrBusinessRejected 包装。
-		return nil, fmt.Errorf("%w: 查询自我评价失败: %v", ErrBusinessRejected, err)
+		// B14: errors.Join 同时支持 errors.Is(ErrBusinessRejected) 和
+		// errors.As(*BusinessError)。
+		return nil, errors.Join(ErrBusinessRejected, fmt.Errorf("%s失败: %w", opName, err))
+	}
+	return &resp, nil
+}
+
+// QuerySelfEvaluation 查询自我评价状态 + 教师评语。
+func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.SelfEvalStatus, error) {
+	resp, err := c.selfEvalGet(ctx, token, "/api/studentMoralEduNew/querySelfEvaluation", "QuerySelfEvaluation")
+	if err != nil {
+		return nil, err
 	}
 
-	// 三段 fallback（returnData → dataMap → dataList），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "QuerySelfEvaluation", &resp,
-		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](resp) },
-		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](resp) },
+	// 三段 fallback（returnData -> dataMap -> dataList），用 tryDecodeFallback 消除重复
+	v := tryDecodeFallback(c, "QuerySelfEvaluation", resp,
+		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](*resp) },
+		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](*resp) },
 	)
 	if v != nil {
 		return v, nil
@@ -76,7 +88,7 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 
 	// dataList 兜底（可能只返回一条记录）
 	if resp.DataList != nil {
-		statuses, err := types.DecodeDataList[types.SelfEvalStatus](resp)
+		statuses, err := types.DecodeDataList[types.SelfEvalStatus](*resp)
 		if err == nil && len(statuses) > 0 {
 			return &statuses[0], nil
 		}
@@ -90,33 +102,15 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 
 // QuerySelfGradEvaluation 查询毕业状态。
 func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error) {
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return nil, fmt.Errorf("QuerySelfGradEvaluation 预热 session 失败: %w", err)
-	}
-	headers := c.bizHeaders(token)
-
-	bodyBytes, err := c.doRequest(ctx, http.MethodGet,
-		c.bizURL("/api/studentMoralEduNew/querySelfGradEvaluation"),
-		nil, headers, "",
-	)
+	resp2, err := c.selfEvalGet(ctx, token, "/api/studentMoralEduNew/querySelfGradEvaluation", "QuerySelfGradEvaluation")
 	if err != nil {
-		return nil, fmt.Errorf("QuerySelfGradEvaluation 请求失败: %w", err)
+		return nil, err
 	}
 
-	resp, err := types.DecodeResponse(bodyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("QuerySelfGradEvaluation 响应解析失败: %w", err)
-	}
-
-	if err := types.CheckCode(resp); err != nil {
-		// F-GroupD-E：业务错误统一用 ErrBusinessRejected 包装。
-		return nil, fmt.Errorf("%w: 查询学期评价失败: %v", ErrBusinessRejected, err)
-	}
-
-	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "QuerySelfGradEvaluation", &resp,
-		func() (*map[string]any, error) { return types.DecodeReturnData[map[string]any](resp) },
-		func() (*map[string]any, error) { return types.DecodeDataMap[map[string]any](resp) },
+	// 两段 fallback（returnData -> dataMap），用 tryDecodeFallback 消除重复
+	v := tryDecodeFallback(c, "QuerySelfGradEvaluation", resp2,
+		func() (*map[string]any, error) { return types.DecodeReturnData[map[string]any](*resp2) },
+		func() (*map[string]any, error) { return types.DecodeDataMap[map[string]any](*resp2) },
 	)
 	if v != nil {
 		return v, nil
