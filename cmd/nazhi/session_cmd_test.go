@@ -51,7 +51,11 @@ func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string
 
 	cmd := &cobra.Command{Use: "session-activate"}
 	cmd.SetContext(context.Background())
-	cmd.Flags().String("token", token, "")
+	cmd.Flags().String("token", "", "")
+	// F7 适配（group-F round-8）：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	if err := cmd.Flags().Set("token", token); err != nil {
+		t.Fatalf("set token flag: %v", err)
+	}
 	cmd.Flags().String("base-url", srv.URL, "")
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd, c

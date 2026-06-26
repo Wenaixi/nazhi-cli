@@ -21,14 +21,21 @@ var loginCmd = &cobra.Command{
 	Example: `  nazhi login -u 学号 -p 密码                       # 全自动 OCR
   nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
-		username, _ := cmd.Flags().GetString("username")
-		password, _ := cmd.Flags().GetString("password")
-
-		// 环境变量 fallback（命令行标志优先）
-		if username == "" {
+		// F7 修复（group-F round-8）：username/password 用 flagChanged() 守卫
+		// env fallback，避免用户显式传 --username "" 时 NAZHI_USERNAME 静默覆盖。
+		//
+		// 与 client_builder.go token 读取对称（round-4 C2 timeout 修复同源）：
+		//   - Changed=true → 用户显式传过 flag，flag 值生效（含显式空字符串）
+		//   - Changed=false → 未传 flag，走 env fallback
+		var username, password string
+		if flagChanged(cmd, "username") {
+			username, _ = cmd.Flags().GetString("username")
+		} else {
 			username = envString("NAZHI_USERNAME", "")
 		}
-		if password == "" {
+		if flagChanged(cmd, "password") {
+			password, _ = cmd.Flags().GetString("password")
+		} else {
 			password = envString("NAZHI_PASSWORD", "")
 		}
 
