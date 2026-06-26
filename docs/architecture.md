@@ -117,10 +117,13 @@ nazhi-cli/
 - linux/arm64
 - darwin/arm64
 
-### 3. OCR 引擎共享（Pool 实例）
+### 3. OCR 引擎共享（Pool 实例）+ 可选构建
 
-`client.New` 默认构造 `ocr.NewPool(0)`（懒加载单实例），多个 Client 通过
-共享同一个 Pool 实例复用 ONNX session，模型只解压一次。
+`client.New` 默认行为取决于构建标签：
+- `-tags ddddocr`：构造 `ocr.NewPool(0)`（懒加载单实例，开箱即用）
+- 无 `-tags ddddocr`：`c.ocr = nil`，Login() 返回 `ErrOCRNotConfigured`，需用 `WithCustomOCR` 注入
+
+Pool 实例共享 ONNX session，模型只解压一次。
 
 > 历史说明：早期版本曾提供 `ocr.GetDefault()` 进程级单例，但生产代码无
 > 调用方，已在 v0.3.4 删除。

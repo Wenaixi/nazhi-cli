@@ -25,8 +25,9 @@ import (
 )
 
 func main() {
-    // 创建 Client（OCR 默认启用、进程级单例）
+    // 创建 Client（OCR 默认启用根据构建标签：-tags ddddocr 时内嵌引擎，否则需 WithCustomOCR）
     // v0.3.1+ 返回 (*Client, error) — 错误来自 WithHTTPClient 自定义 Jar 时的 syncCookieToken 失败
+    // v0.3.5+ 支持 OCR 可选构建：不加 -tags ddddocr 时 Login() 返回 ErrOCRNotConfigured
     c, _ := client.New(
         client.WithSSOBase("https://www.nazhisoft.com"),
         client.WithBaseURL("http://139.159.205.146:8280"),
@@ -96,7 +97,8 @@ c, _ := client.New(client.WithToken("xxx"))  // 默认配置下 err 始终为 ni
 | `WithHTTPClient(hc)` | 自定义 http.Client | 默认带 cookie jar |
 | `WithLogger(l)` | 自定义 slog.Logger | stderr WARN 级别 |
 | `WithToken(t)` | 预置 X-Auth-Token（同时写 Header + Cookie） | 无 |
-| `WithCustomOCR(r)` | 自定义 OCR（仅测试用） | 进程级 ddddocr 单例 |
+| `WithCustomOCR(r)` | 自定义 OCR（测试用或 CGO-free 构建） | 默认 ddddocr 引擎 / nil（!ddddocr） |
+| `WithOCRConcurrency(n)` | 设置 OCR 并发池大小（仅 ddddocr 构建有效） | 0（懒加载单实例） |
 
 ### 并发安全
 
@@ -318,12 +320,20 @@ _, err := c.Login(ctx, req)
 switch {
 case errors.Is(err, client.ErrLoginRejected):
     // 学号/密码错误
+case errors.Is(err, client.ErrOCRNotConfigured):
+    // 未配置验证码识别器（!ddddocr 构建且未注入 WithCustomOCR）
 case errors.Is(err, client.ErrNetwork):
     // 网络问题（超时/DNS/断连）
 case errors.Is(err, client.ErrFileTooLarge):
     // 图片 > 5MB
 case errors.Is(err, client.ErrInvalidPayload):
     // payload 字段缺失
+case errors.Is(err, client.ErrBusinessRejected):
+    // 业务请求被服务端拒绝（非登录场景）
+case errors.Is(err, client.ErrSessionBackoff):
+    // session 激活在冷却窗口内（上次失败不久）
+case errors.Is(err, client.ErrEmptyUserInfo):
+    // 业务成功但无用户数据（空响应）
 }
 ```
 
@@ -334,6 +344,11 @@ case errors.Is(err, client.ErrInvalidPayload):
 | `ErrUploadRejected` | 上传被服务器拒绝 |
 | `ErrFileTooLarge` | 文件 > 5MB |
 | `ErrInvalidPayload` | 任务 payload 字段缺失 |
+| `ErrBusinessRejected` | 业务请求被拒绝（参数错/任务已提交） |
+| `ErrOCRNotConfigured` | OCR 未配置（!ddddocr 构建且未注入 WithCustomOCR） |
+| `ErrSessionBackoff` | session 激活在冷却窗口内 |
+| `ErrEmptyUserInfo` | 业务成功但无用户数据 |
+| `ErrLocationParseFailed` | Login 302 Location 头解析失败 |
 
 ## 高级用法
 
@@ -367,7 +382,7 @@ c, _ := client.New(
 失败时可通过 logger.Debug 看到详细 HTTP 请求
 ```
 
-### 注入 Mock OCR（测试用）
+### 注入 Mock OCR（测试用 / CGO-free 构建）
 
 ```go
 type mockOCR struct{ text string }
@@ -377,6 +392,9 @@ c, _ := client.New(
     client.WithCustomOCR(&mockOCR{text: "AB12"}),
 )
 ```
+
+> **CGO-free 场景**（不带 `-tags ddddocr` 构建）：必须使用 `WithCustomOCR` 注入识别器，
+> 否则 `Login()` 返回 `ErrOCRNotConfigured`。
 
 ## 类型定义 (pkg/types)
 

@@ -14,7 +14,7 @@ import (
 // 「敏感凭据记录」条款列出的真实姓名/学号/身份证/学号 ID，防止 PII 泄露回归。
 //
 // 背景：v0.3.2 修复轮发现 test/integration/har_fixtures/self_eval.json
-// 仍含真实学号 TEST2025001 + 真实姓名「张三」，
+// 仍含真实学号（已 git-filter-repo 占位）+ 真实姓名（已占位），
 // 与 client_test.go 占位约定（TEST2025001 / 张三）不一致。
 // 第 7 轮（v0.3.5+）扩展守卫范围：从仅 HAR fixtures 扩到整个 *_test.go，
 // 覆盖 pkg/client、pkg/types、cmd、test 等所有测试目录，

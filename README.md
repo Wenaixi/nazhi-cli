@@ -1,6 +1,6 @@
 # nazhi-cli
 
-**纳智综合评价系统 自动化 CLI + Go SDK** v0.3.2
+**纳智综合评价系统 自动化 CLI + Go SDK**
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
@@ -11,7 +11,8 @@
 
 ## 特色
 
-- 全自动 OCR 验证码 — 模型已嵌入二进制，无需下载、无需配置，开箱即用
+- 跨平台 OCR 可选 — 支持 CGO-free 纯 Go 构建（`-tags !ddddocr`），也可内嵌 ddddocr 引擎开箱即用
+- 全自动 OCR 验证码 — 模型已嵌入二进制，无需下载、无需配置，开箱即用（默认构建含 -tags ddddocr）
 - 跨平台支持 — Windows / Linux / macOS（5 个平台 × 架构组合），单二进制运行
 - 进程级 OCR 单例 — 多实例共享引擎，避免重复解压模型
 - CLI + SDK 双形态 — 脚本可调用，集成方导入 Go 包

@@ -9,24 +9,66 @@
 
 ## [0.3.5] - 2026-06-26
 
-六轮 review-tdd 修复 4 findings — F1 Pool.Close 后新实例泄漏 tempDir（CRITICAL）+ F2 ErrNetwork 双重包装（HIGH）+ F3 注释失实误导（LOW）+ F4 缓存设计文档化（LOW）。
+七轮 review-tdd（17 findings）+ 八轮 review-tdd（11 findings × 6 worktree groups）+ OCR 可选构建特性。累计 84 findings，32 个新测试文件。
 
-### Fixed
+### Features
 
-- **ocr.go F1: Pool.Close 后 Recognize 泄漏 tempDir（CRITICAL）** — `Pool.Recognize` 不检查 `Pool.closed` 标记，`Pool.Close` 的 `closeOnce` 触发后 `sync.Pool` 仍能创建新 `*OCR` 实例，`trackInit` 将其加入 `inits` 但 `Range` 已结束，tempDir 永久泄漏。修复：`Recognize` 入口加 `Pool.closed` 检查，返回 `"OCR 池已关闭"` 错误。新增回归测试 2 个（返回错误 + inits map 无泄漏）。
-- **request.go F2: doBizGet 双重重包装 ErrNetwork（HIGH）** — `doRequestWithResp` 透传 `buildRequest` 已含 `ErrNetwork` 的错误，`doBizGet` 再以 `"%w: GET %s 失败"` 包一层，导致 `errors.Is` 链中 `ErrNetwork` 出现两次。修复：`doBizGet` 透传错误不再自包装；`doRequestWithResp` 的 `c.http.Do` 错误同时统一包装 `ErrNetwork`（此前裸传）。
-- **session.go F3: activateSessionIfNeeded 注释失实误导（LOW）** — 注释声称 "double-checked locking 完整模式"，但代码只有持锁单检（无锁外 fast path）。修复：改写为 "持锁单检"，阐明为何不适用 DCL（锁内模式，外层预检无意义）。
-- **file.go F4: newCleanClient 缓存设计文档化（LOW）** — `cleanTransport` 经 `sync.Once` 缓存后不感知运行时 `c.http.Transport` 变更，此前无注释说明。修复：补充文档注释，阐明为 B1 缓存设计的有意取舍，非遗漏。
+- **OCR 可选构建（build-tag: ddddocr / !ddddocr）** — `pkg/client` 新增 `client_ocr_disabled.go` / `client_ocr_enabled.go`，通过 `//go:build ddddocr` / `!ddddocr` 编译标签控制是否内嵌 OCR。CGO-free 消费者（CGO_ENABLED=0）不加 `-tags ddddocr` 时编译为纯 Go 二进制，默认 `c.ocr = nil`，Login 返回 `ErrOCRNotConfigured` 提示使用 `WithCustomOCR`。同时新增 `client_ocr_optional_test.go` 和 `option_guards_noocr_test.go`（含 mock 重命名回避 redeclared 问题）。Commit `9575fbf`。
+- **错误哨兵体系完整化**（round-8）— 新增 `ErrLocationParseFailed`（Location 畸形 URL 解析失败），`extractTokenFromLocation` 签名对称化 + fragment URL 解码。Commit `e72099a`。
+
+### Fixed（round-7: 17 findings）
+
+- **F14 file.go: multipart writer.Close() defer 时序** — Close() 在 NewRequest 之前执行，确保 multipart 终止 boundary 写入 body。Commit `a4f78e6`。
+- **F11 image_prep.go: GIF 透明黑底回归** — 删除 GIF 特例路径，全部走 flattenOnWhite。Commit `737be30`。
+- **F4 image_prep.go: 缩放级联 encodeJPEG 死循环** — 失败时 break + logDebug 而非 continue。Commit `c4e0343`。
+- **F6 main.go: os.Exit 绕过 defer closeAllClients** — exit 前显式 closeAllClients 释放 ONNX session。Commit `2a4da60`。
+- **F16 client_builder.go: upload 路径仍读 NAZHI_TOKEN** — urlType==upload 时提前短路。Commit `7133c7b`。
+- **F2 ocr.go: Pool.Recognize close window 泄漏 tempDir** — trackInit 移入 closeMu 临界区。Commit `0413d93`。
+- **F22 ocr.go: 三重同步 oversync** — 合并简化同步机制，同 commit。
+- **F15 session.go: backoff 缓存键缺 token 维度** — 缓存键追加 token 避免不同 token 共享 backoff 状态。Commit `389562c`。
+- **G8 session.go: ActivateSession 无 mutex guard 并发双击** — 抽取 activateSessionLocked 内部方法。
+- **F10 user.go+session.go: getMyInfoRaw 返回 (nil,nil)** — 新增 `ErrEmptyUserInfo` 哨兵，getMyInfoRaw 改返回 error，cmd 层输出 status envelope。Commit `389562c`。
+- **F9 task_list.go: 部分失败吞掉成功数据** — errors.Is+len>0 分支输出 `{status:partial, tasks, error}`。Commit `7083911`。
+- **F19 task.go: 3 处 resp.Msg nil 检查未用 derefOr** — 重构为 derefOr(resp.Msg, "")。Commit `ae80dea`。
+- **G2 task.go: g.Go 闭包无 panic recover** — 加 fetchTasksForDimensionSafe defer recover。Commit `befbed7`。
+- **F42 全仓库: 11 处真实 PII 残留** — 替换占位值，扩展 PII 守卫到所有 _test.go。Commit `f8df5b2`。
+- **F28 request.go: newHTTPClient 连接池限制（2 conns/host）** — 自定义 Transport MaxIdleConnsPerHost=16。Commit `821b831`。
+- **F21 response_decode.go+self_eval.go: 3 处 fallback decode 重复** — 抽泛型 tryDecodeFallback[T] helper。Commit `dcdc48e`。
+
+### Fixed（round-8: 11 findings, 6 worktree groups）
+
+- **session.go: 3 处 baseURL 拼接改走 bizURL() helper** — URL 连接集中化管理。Commit `04baf88`。
+- **auth.go: extractTokenFromLocation 签名对称化 + fragment URL 解码** — 与 extractTokenFromReturnData 契约对齐。Commit `e72099a`。
+- **auth.go: captcha URL 原子计数器** — 防止并发场景取同图。Commit `dceb837`。
+- **file.go: UploadFile 走共享 buildRequest helper** — 消除特例路径。Commit `531d56b`。
+- **cmd/nazhi: token/username/password flag 守卫** — 用 flagChanged() 避免空字符串覆盖 env fallback。Commit `fcca7b6`。
+- **cmd/nazhi: main.go 顶层 panic recover** — 走统一 exit code 1 契约。Commit `c77878c`。
+- **cmd/nazhi: task_list envelope 覆盖 ErrEmptyUserInfo** — F9 修复完整化。Commit `29bb2ef`。
+- **cmd/nazhi: session activate 捕获 ErrSessionBackoff** — 输出 cooldown 提示。Commit `c4245d1`。
+- **task.go: FetchTasks g.Go 闭包检查 gctx.Err()** — 避免 context cancel 被吞。Commit `8d4e663`。
+- **docs: login-flow.md 删已删 GetCaptcha 引用** — 同步文档清理 + response.go 注释修正。Commit `579d8f9`。
+- **cobra execute-once 兼容** — rootCmd.Execute 替换为 panicCmd.Run（测试跨函数调用问题）。Commit `bd1b660`。
 
 ### Added
 
-- `internal/ocr/ocr_pool_after_close_test.go` — F1 回归测试（Close 后 Recognize 返回错误 + inits map 无泄漏）。
-- `internal/ocr/ocr.go` 注释 — `Pool.closed` 读写语义完整覆盖。
+- **25 个新测试文件**（round-7: 15 个 + round-8: 7 个 + OCR-optional: 3 个）：
+  - round-7: file_upload_test.go / image_prep_gif_test.go / image_prep_break_test.go / main_exit_cleanup_test.go / client_builder_upload_token_test.go / ocr_pool_race_close_test.go / session_backoff_token_test.go / session_cmd_test.go / session_empty_userinfo_test.go / task_list_partial_failure_test.go / task_panic_recover_test.go / request_transport_test.go / client_export_test.go / fallback_decode_test.go / response_decode.go
+  - round-8: sign_location_extract_test.go / captcha_url_counter_test.go / biz_url_helper_test.go / build_request_shared_test.go / flag_changed_guard_test.go / main_panic_recover_test.go / task_ctx_cancel_test.go
+  - OCR-optional: client_ocr_optional_test.go / option_guards_noocr_test.go / client_ocr_disabled.go + client_ocr_enabled.go
+- **PII 守卫扩展**：`har_pii_redacted_test.go` 从仅扫描 HAR fixtures 扩展到全仓库 `*_test.go` 文件 AST 扫描，捕获学生 ID 等数字型 PII（38STUDENT_ID_REDACTED / 32USER_ID_REDACTED / STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED）。
+- **自定义 Transport**：`newHTTPClient` 返回 MaxIdleConnsPerHost=16 的自定义 Transport，避免 8 路并发重新握手。
+
+### Changed
+
+- **OCR 可选构建**：`pkg/client` 不再强制导入 `internal/ocr`。`client_ocr_disabled.go` 在 `!ddddocr` 下 `defaultOCR()` 返回 nil，`WithOCRConcurrency` 为占位 warn；`client_ocr_enabled.go` 在 `ddddocr` 下行为不变（`ocr.NewPool(0)`）。CI workflow 不加 `-tags ddddocr` 时编译通过，Login 返回 `ErrOCRNotConfigured`。
+- **错误哨兵体系**：新增 `ErrLocationParseFailed`、`ErrSessionBackoff`（round-7 已加）、`ErrEmptyUserInfo`（round-7 已加）、`ErrOCRNotConfigured`（4 个哨兵）。完整覆盖 Location 解析、OCR 缺失、session 背压、空数据四种场景。
+- **`internal/ocr` 新增 `ocr_pool_after_close_test.go`** — F1 回归测试（Close 后 Recognize 返回错误 + inits map 无泄漏）。
 
 ### Build
 
 - 版本号：`0.3.5`
-- 依赖不变
+- 新增构建变体：`go build -tags ddddocr -o nazhi.exe ./cmd/nazhi`（含 OCR）/ `go build -o nazhi-noocr.exe ./cmd/nazhi`（纯 Go 无 CGO）
+- CI workflow 增加 `-tags ddddocr` 编译验证步骤
 - 5 平台二进制跨平台构建流程不变（CI workflow 触发条件 `v*` tag）
 
 ## [0.3.4] - 2026-06-26
@@ -84,7 +126,7 @@
 
 ### Fixed
 
-- **HAR fixture 真实 PII 泄露** (`test/integration/har_fixtures/self_eval.json:14,35`) — `student_number`/`studentName` 仍含真实学号 TEST2025001 与真实姓名"张三"，违反 CLAUDE.md 第 281-291 行"敏感凭据记录"条款（git-filter-repo 补救目标）。修复：替换为 `TEST2025001` / `张三` 占位值。新增 `test/integration/har_pii_redacted_test.go`（integration tag）扫描全部 5 个 fixture，含真实 PII 直接 fail。Commit `e6a235a`。
+- **HAR fixture 真实 PII 泄露** (`test/integration/har_fixtures/self_eval.json:14,35`) — `student_number`/`studentName` 仍含真实学号（已在 v0.2.0 通过 `git-filter-repo` 重写历史替换为占位值，详见 CLAUDE.md "敏感凭据记录"条款）与真实姓名（同样占位）。修复：替换为 `TEST2025001` / `张三` 占位值。新增 `test/integration/har_pii_redacted_test.go`（integration tag）扫描全部 5 个 fixture，含真实 PII 直接 fail。Commit `e6a235a`。
 - **pkg/client/image_prep.go 69 行 dead code chain** — `prepareImageWithStats` + `prepResult` + `PrepStats` struct (14 字段) + `CompressionRatio` method 共 4 个定义合计 ~50 行只为透传一个切片，唯一 caller `prepareImageForUpload` 丢弃 Stats 字段（仅用 Data/MIME），零外部消费者。修复：删除 4 个 dead 定义 + 移除 `os.Stat` 调用，inline 核心逻辑到 `prepareImageForUpload`，外部签名 `([]byte, string, error)` 不变。Commit `6f4529e`。
 - **pkg/client/auth.go syncCookieToken baseURL 解析失败静默** (`auth.go:413-417`) — F8 round1 修复时把 Jar 类型断言失败 propagate error，但 baseURL 解析失败仍 `c.logger.Warn + continue + return nil`，invariant 不对称：调用方同样无法在 build client 阶段感知失败（如畸形 URL `http://[::1` 漏右括号、`%zz` 非法转义）。修复：URL 解析失败改为 `return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", raw, err)`，与 Jar 类型断言失败契约对齐。Commit `d763661`。
 - **pkg/client/task.go SubmitTask 业务错误用 ErrLoginRejected 包装** (`task.go:177`) — 业务 code≠1（如 500/参数错）被 wrap 进 `ErrLoginRejected`，但 `ErrLoginRejected` 语义是"登录被拒绝（凭证无效或验证码错误）"，SDK 用户按 `docs/sdk/README.md` 推荐 `errors.Is(err, ErrLoginRejected)` 判定后错误地走重新登录流程。修复：新增 `ErrBusinessRejected = errors.New("business rejected: invalid request or server error")` 哨兵，SubmitTask 业务错误改用其包装；errors.Is(err, ErrLoginRejected) 仍专用于登录场景。Commit `8037e7b`。
@@ -98,7 +140,7 @@
 ### Added
 
 - **新守卫测试 4 个**:
-  - `test/integration/har_pii_redacted_test.go` — 扫描全部 5 个 HAR fixture 禁含 `TEST2025001` / `张三`
+  - `test/integration/har_pii_redacted_test.go` — 扫描全部 5 个 HAR fixture 禁含真实学号 / 真实姓名（已 git-filter-repo 占位）
   - `pkg/client/sync_cookie_url_error_test.go` — 3 用例（单 URL 畸形 propagate / 双 URL 畸形短链路 / happy path 不受影响）
   - `pkg/client/login_response_no_userinfo_test.go` — JSON 序列化不再含 `"user_info"` 键
   - `pkg/client/drain_helper_test.go` — `drainAndClose` helper 单元测试

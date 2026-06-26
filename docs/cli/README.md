@@ -48,7 +48,7 @@ nazhi version
 nazhi --version    # 等效
 ```
 
-**输出**：纯文本版本号（如 `0.2.2`）。
+**输出**：纯文本版本号（如 `0.3.5`）。
 
 ## nazhi completion
 
