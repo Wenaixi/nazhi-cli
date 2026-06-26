@@ -1,7 +1,5 @@
 package client
 
-import "github.com/Wenaixi/nazhi-cli/pkg/types"
-
 // tryDecodeFallback 按顺序尝试多个解码器，返回第一个成功解码的结果。
 // 全部失败时返回 nil。
 // 日志行为：
@@ -10,11 +8,11 @@ import "github.com/Wenaixi/nazhi-cli/pkg/types"
 //
 // 用法示例：
 //
-//	v := tryDecodeFallback(c, "QuerySelfEvaluation", resp,
+//	v := tryDecodeFallback(c, "QuerySelfEvaluation",
 //	    func() (*T, error) { return types.DecodeReturnData[T](resp) },
 //	    func() (*T, error) { return types.DecodeDataMap[T](resp) },
 //	)
-func tryDecodeFallback[T any](c *Client, opName string, resp *types.UnifiedResponse, decoders ...func() (*T, error)) *T {
+func tryDecodeFallback[T any](c *Client, opName string, decoders ...func() (*T, error)) *T {
 	for _, decode := range decoders {
 		v, err := decode()
 		if err == nil {

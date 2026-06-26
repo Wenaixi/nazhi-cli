@@ -1,4 +1,4 @@
-﻿package client
+package client
 
 import (
 	"context"
@@ -77,10 +77,10 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		return nil, err
 	}
 
-	// 三段 fallback（returnData -> dataMap -> dataList），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "QuerySelfEvaluation", resp,
-		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](*resp) },
-		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](*resp) },
+	// 三段 fallback（returnData → dataMap → dataList），用 tryDecodeFallback 消除重复
+	v := tryDecodeFallback(c, "QuerySelfEvaluation",
+		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](resp) },
+		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](resp) },
 	)
 	if v != nil {
 		return v, nil
@@ -88,7 +88,7 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 
 	// dataList 兜底（可能只返回一条记录）
 	if resp.DataList != nil {
-		statuses, err := types.DecodeDataList[types.SelfEvalStatus](*resp)
+		statuses, err := types.DecodeDataList[types.SelfEvalStatus](resp)
 		if err == nil && len(statuses) > 0 {
 			return &statuses[0], nil
 		}
@@ -107,10 +107,10 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 		return nil, err
 	}
 
-	// 两段 fallback（returnData -> dataMap），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "QuerySelfGradEvaluation", resp2,
-		func() (*map[string]any, error) { return types.DecodeReturnData[map[string]any](*resp2) },
-		func() (*map[string]any, error) { return types.DecodeDataMap[map[string]any](*resp2) },
+	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
+	v := tryDecodeFallback(c, "QuerySelfGradEvaluation",
+		func() (*map[string]any, error) { return types.DecodeReturnData[map[string]any](resp2) },
+		func() (*map[string]any, error) { return types.DecodeDataMap[map[string]any](resp2) },
 	)
 	if v != nil {
 		return v, nil
