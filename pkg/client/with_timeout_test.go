@@ -36,7 +36,7 @@ func TestWithTimeout_NegativeRejected(t *testing.T) {
 	}
 }
 
-// TestWithTimeout_ZeroWarns 验证 WithTimeout(0) 仍设置但 warn 提示风险。
+// TestWithTimeout_ZeroWarns 验证 WithTimeout(0) 被拒绝（保留原值）+ warn 提示风险。
 func TestWithTimeout_ZeroWarns(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
