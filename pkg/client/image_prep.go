@@ -52,17 +52,25 @@ var ErrUnsupportedFormat = errors.New("image: 不支持的格式")
 //
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
-	img, format, err := decodeImage(path)
+	// decodeImage 返回的 format 此前用于 `if format == "gif"` 特例分支，
+	// F11 修复后该分支已删除。format 保留在签名里以便未来按格式差异化处理
+	// （如 webp 编码、bmp 解码扩展），当前统一走 flattenOnWhite。
+	img, _, err := decodeImage(path)
 	if err != nil {
 		return nil, "", err
 	}
 
-	// 动画取首帧 + 透明合成
+	// 透明合成：所有含透明通道的图片（NRGBA/RGBA/Paletted/GIF）都走 flattenOnWhite。
+	//
+	// F11 修复（round-7）：删除 `if format == "gif" && flattened` 特例分支。
+	// 原特例做两件事——imaging.Clone(img) 丢弃透明 + flattened=false 跳过
+	// flattenOnWhite——结果 GIF 透明区域经 jpeg.Encode 被解析为黑色（黑底）。
+	// 失败场景：用户上传带透明 GIF → 服务端收到黑底 JPG → 视觉错误。
+	//
+	// hasTransparency 对 *image.Paletted 始终返回 true（GIF 解码几乎都是
+	// Paletted），删除特例后 GIF 透明索引会经 flattenOnWhite 合成到白底，
+	// 与 PNG/NRGBA 透明处理契约一致。
 	flattened := hasTransparency(img)
-	if format == "gif" && flattened {
-		img = imaging.Clone(img)
-		flattened = false
-	}
 	if flattened {
 		img = flattenOnWhite(img)
 	}
