@@ -287,8 +287,12 @@ func New(opts ...Option) (*Client, error) {
 // ─── 内部辅助 ───
 
 // logDebug 输出 debug 日志（通过 slog Debug 级别）。
+//
+// G1 修复（review-tdd round-1）：用 fmt.Sprintf 先格式化再传给 slog。
+// 原实现直接 c.logger.Debug(format, args...) 被 slog 当成 key-value 对，
+// 不会做 %s/%d 插值，导致日志输出原始的格式字符串而非插值结果。
 func (c *Client) logDebug(format string, args ...any) {
-	c.logger.Debug(format, args...)
+	c.logger.Debug(fmt.Sprintf(format, args...))
 }
 
 // ssoURL 拼接 SSO 路径。
