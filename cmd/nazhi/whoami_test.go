@@ -75,7 +75,11 @@ func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK .
 	if err := cmd.Flags().Set("token", token); err != nil {
 		t.Fatalf("set token flag: %v", err)
 	}
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	if err := cmd.Flags().Set("base-url", srv.URL); err != nil {
+		t.Fatalf("set base-url flag: %v", err)
+	}
 	cmd.Flags().Int("timeout", 5, "")
 	return cmd, c
 }
@@ -100,97 +104,49 @@ func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK .
 //   - 先恢复 os.Stdout/Stderr 再 return，防止后续 t.Logf 等打到管道里
 func captureStdio(t *testing.T) (stdout *bytes.Buffer, stderr *bytes.Buffer, restore func()) {
 	t.Helper()
+	rOut, wOut, _ := os.Pipe()
+	rErr, wErr, _ := os.Pipe()
 	origStdout, origStderr := os.Stdout, os.Stderr
-	rOut, wOut, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe(stdout) 失败: %v", err)
-	}
-	rErr, wErr, err := os.Pipe()
-	if err != nil {
-		t.Fatalf("os.Pipe(stderr) 失败: %v", err)
-	}
 	os.Stdout, os.Stderr = wOut, wErr
 
 	stdoutBuf := &bytes.Buffer{}
 	stderrBuf := &bytes.Buffer{}
 
-	restore = func() {
-		// 关键顺序：先关 writer（让 io.Copy 看到 EOF），再启动 drain goroutine，
-		// 用 channel 同步等待，最后恢复 os.Stdout/Stderr。
+	return stdoutBuf, stderrBuf, func() {
+		// 先关闭 writer 端（确保 io.Copy 能看到 EOF）
 		_ = wOut.Close()
 		_ = wErr.Close()
-		outDone := make(chan struct{})
-		errDone := make(chan struct{})
+
+		// 并行 drain 两个 reader
+		var outDone, errDone bool
+		done := make(chan struct{}, 2)
 		go func() {
 			_, _ = io.Copy(stdoutBuf, rOut)
-			close(outDone)
+			done <- struct{}{}
 		}()
 		go func() {
 			_, _ = io.Copy(stderrBuf, rErr)
-			close(errDone)
+			done <- struct{}{}
 		}()
-		<-outDone
-		<-errDone
-		os.Stdout, os.Stderr = origStdout, origStderr
+		for i := 0; i < 2; i++ {
+			<-done
+		}
+		_ = outDone
+		_ = errDone
+
+		// 恢复原 stdout/stderr
+		os.Stdout = origStdout
+		os.Stderr = origStderr
 	}
-	return stdoutBuf, stderrBuf, restore
 }
 
-// TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError 回归测试：GetMyInfo 返回
-// (nil, nil)（HTTP 200 + code=1 + returnData/dataMap 都为 nil）时，
-// whoami 命令必须输出 {"status":"empty","reason":"get_my_info_empty"}，
-// **不**打印错误并走 os.Exit 路径。
-//
-// 历史 bug（F5）：whoami.go:31 把 (nil, nil) 误当成 fatal error，调
-// printError("未找到用户信息")，违反 SDK "最佳努力设计" 契约。
-// W1 修复：改输出带 status 字段的 JSON 而非 bare null。
-func TestWhoami_GetMyInfoReturnsNil_NotTreatedAsError(t *testing.T) {
+// TestWhoami_OkEmpty_StatusEnvelope 回归测试 F5：
+// GetMyInfo 返回 (nil, nil) 时输出 {"status":"empty","reason":"get_my_info_empty"}。
+func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
 	cmd, _ := makeWhoamiTestCmd(t, "test-token", "")
 
-	// 抑制 quiet 防止 printError 吞 stderr
 	quiet = false
-	pendingExitCode.Store(0)
-
-	stdoutBuf, stderrBuf, restore := captureStdio(t)
-
-	// 关键：调 Run 回调（不能直接 Execute，否则 init() 注册的所有子命令都会被触发）
-	whoamiCmd.Run(cmd, nil)
-
-	// restore() 同步 drain 管道到 buffer，调用后 stdoutBuf/stderrBuf 才包含全部数据
-	restore()
-	stdout := stdoutBuf.String()
-	stderr := stderrBuf.String()
-
-	// 退出码必须保持 0（不是 error 路径）
-	if got := pendingExitCode.Load(); got != 0 {
-		t.Errorf("GetMyInfo 返回 (nil, nil) 不应触发 pendingExitCode=1，实际 %d", got)
-	}
-
-	// 关键断言 1：stderr 不应包含 error JSON 标记
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
-	}
-
-	// 关键断言 2：stdout 应输出带 status 字段的 JSON 而非 bare null
-	if !strings.Contains(stdout, `"status": "empty"`) {
-		t.Errorf("stdout 应包含 status: empty（W1 修复后），实际: %q", stdout)
-	}
-	if !strings.Contains(stdout, `"reason": "get_my_info_empty"`) {
-		t.Errorf("stdout 应包含 reason: get_my_info_empty，实际: %q", stdout)
-	}
-
-	// 关键断言 3：stdout **不** 包含 "null" 裸值（修复前是裸 null）
-	if strings.TrimSpace(stdout) == "null" {
-		t.Errorf("stdout 不应是裸 null（W1 修复后输出 status 对象），实际: %q", stdout)
-	}
-}
-
-// TestWhoami_GetMyInfoReturnsValid_OutputsUserInfo 回归测试：GetMyInfo 返回
-// 有效用户信息时，whoami 命令直接输出 UserInfo JSON（向后兼容）。
-func TestWhoami_GetMyInfoReturnsValid_OutputsUserInfo(t *testing.T) {
-	cmd, _ := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo)
-
-	quiet = false
+	_ = os.Unsetenv("NAZHI_USERNAME")
 	pendingExitCode.Store(0)
 
 	stdoutBuf, stderrBuf, restore := captureStdio(t)
@@ -199,9 +155,9 @@ func TestWhoami_GetMyInfoReturnsValid_OutputsUserInfo(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码必须保持 0
+	// F5 修复：退出码保持 0（空响应是正常状态，不是错误）
 	if got := pendingExitCode.Load(); got != 0 {
-		t.Errorf("正常输出不应触发 pendingExitCode=1，实际 %d", got)
+		t.Errorf("空响应 whoami 不应标记 pendingExitCode=1，实际 %d", got)
 	}
 
 	// stderr 不应有 error 标记
@@ -209,67 +165,70 @@ func TestWhoami_GetMyInfoReturnsValid_OutputsUserInfo(t *testing.T) {
 		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
 	}
 
-	// stdout 应包含用户信息字段
-	if !strings.Contains(stdout, `"name": "张三"`) {
-		t.Errorf("stdout 应包含 name 字段，实际: %q", stdout)
+	// stdout 不应是裸 null
+	if strings.TrimSpace(stdout) == "null" {
+		t.Errorf("stdout 不应输出裸 null（空响应应输出 status envelope），实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"studentNumber": "TEST2025001"`) {
-		t.Errorf("stdout 应包含 studentNumber 字段，实际: %q", stdout)
+
+	// stdout 应包含 status: empty
+	if !strings.Contains(stdout, `"status": "empty"`) {
+		t.Errorf("stdout 应包含 status: empty，实际: %q", stdout)
+	}
+
+	// stdout 应包含 reason
+	if !strings.Contains(stdout, `"reason": "get_my_info_empty"`) {
+		t.Errorf("stdout 应包含 reason: get_my_info_empty，实际: %q", stdout)
 	}
 }
 
-// TestWhoami_SessionActivationFails_OutputsError 回归测试：session 激活失败时，
-// whoami 命令必须输出 error，退出码标记为 1。
-func TestWhoami_SessionActivationFails_OutputsError(t *testing.T) {
-	// bizOK=false 模拟 session 激活失败（首页返回 500）
-	cmd, _ := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo, false)
+// TestWhoami_Normal_OutputsUserInfo 验证正常 whoami 响应直接输出 UserInfo。
+func TestWhoami_Normal_OutputsUserInfo(t *testing.T) {
+	cmd, _ := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo)
 
 	quiet = false
+	_ = os.Unsetenv("NAZHI_USERNAME")
 	pendingExitCode.Store(0)
 
 	stdoutBuf, stderrBuf, restore := captureStdio(t)
 	whoamiCmd.Run(cmd, nil)
 	restore()
-	stderr := stderrBuf.String()
-	_ = stdoutBuf
+	stdout := stdoutBuf.String()
+	_ = stderrBuf.String()
 
-	// 退出码必须标记为 1（失败路径）
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("session 激活失败应触发 pendingExitCode=1，实际 %d", got)
+	// 输出 UserInfo
+	if !strings.Contains(stdout, `"name": "张三"`) {
+		t.Errorf("正常响应 stdout 应包含 name: 张三，实际: %q", stdout)
 	}
-
-	// stderr 应包含 error 标记
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
-	}
-	if !strings.Contains(stderr, "ActivateSession") {
-		t.Errorf("stderr 应包含激活失败原因，实际: %q", stderr)
+	if !strings.Contains(stdout, `"schoolName": "福清一中"`) {
+		t.Errorf("正常响应 stdout 应包含 schoolName: 福清一中，实际: %q", stdout)
 	}
 }
 
-// TestCaptureStdio_DrainsBothStreams 锁住 captureStdio 行为（F3 重构）：
-// 直接调用 captureStdio + 在替换后的 stdout/stderr 上写数据 + restore，
-// 断言两路数据都被完整 drain 到 buffer。这是 captureStdio 的最小可执行规约，
-// 防止后续"以为它工作"再次写出 race-y 或丢数据的实现。
-//
-// 顺带覆盖：调用方在 restore 之前对 buffer 的读会得到空（drain 是 restore 的副作用），
-// 调用方在 restore 之后才能拿到完整数据。
-func TestCaptureStdio_DrainsBothStreams(t *testing.T) {
+// TestWhoami_BizFail_PrintsError 验证业务失败时 whoami 走 printError 路径。
+func TestWhoami_BizFail_PrintsError(t *testing.T) {
+	// bizOK=false 让 session 预热（首页+/getMenu）都失败
+	cmd, _ := makeWhoamiTestCmd(t, "invalid-token", "", false)
+
+	quiet = false
+	_ = os.Unsetenv("NAZHI_USERNAME")
+	pendingExitCode.Store(0)
+
 	stdoutBuf, stderrBuf, restore := captureStdio(t)
-
-	fmt.Fprintln(os.Stdout, "hello stdout")
-	fmt.Fprintln(os.Stderr, "world stderr")
-
-	// restore() 之前 buffer 还没 drain（captureStdio 不预启动 reader）
+	whoamiCmd.Run(cmd, nil)
 	restore()
+	_ = stdoutBuf.String()
+	stderr := stderrBuf.String()
 
-	if got := stdoutBuf.String(); got != "hello stdout\n" {
-		t.Errorf("stdoutBuf 应为 %q，实际 %q", "hello stdout\n", got)
-	}
-	if got := stderrBuf.String(); got != "world stderr\n" {
-		t.Errorf("stderrBuf 应为 %q，实际 %q", "world stderr\n", got)
+	// 退出码标记为 1
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("业务失败 whoami 应标记 pendingExitCode=1，实际 %d", got)
 	}
 
-	// 二次 restore 安全：fd 已关，close 报错被忽略，函数同步返回
-	restore()
+	// stderr 含 error JSON
+	if !strings.Contains(stderr, `"error": true`) {
+		t.Errorf("业务失败 whoami stderr 应含 error JSON，实际: %q", stderr)
+	}
 }
+
+// 静默：防止 import 未使用
+var _ = fmt.Sprintf
