@@ -48,11 +48,16 @@ type Client struct {
 	// 所有并发 goroutine 都触达 backoff 窗口。
 	sessionBackoff time.Duration
 
-	// lastActivationErr 和 lastAttemptAt 构成激活失败缓存。
-	// 当激活失败时记录错误和时间戳，后续 goroutine 在 backoff
-	// 窗口内直接返回缓存错误，避免 thundering herd 重试放大。
+	// lastActivationErr、lastAttemptAt 和 lastFailedToken 构成激活失败缓存。
+	// 当激活失败时记录错误、时间戳和失败的 token，后续 goroutine 在 backoff
+	// 窗口内且 token 相同时直接返回缓存错误，避免 thundering herd 重试放大。
+	//
+	// F15 修复（round-7）：缓存键必须包含 token 维度。同一 Client 切换 token
+	// 重新激活时（如 token 过期换新 token），新 token 不应被旧 token 的失败
+	// 缓存抑制 — 否则会返回 stale error 而不实际尝试新 token 激活。
 	lastActivationErr error
 	lastAttemptAt     time.Time
+	lastFailedToken   string
 
 	// cleanTransportInit 保证 clonedTransport 只 Clone 一次。
 	// 解决 B1：原实现每次 UploadFile 都 t.Clone() → 50 张图 50 次完整 DNS+TCP+TLS
