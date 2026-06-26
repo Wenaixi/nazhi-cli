@@ -79,6 +79,24 @@ type Client struct {
 // Option 是 Client 构造函数的选项函数。
 type Option func(*Client)
 
+// withURLGuard 提取 URL 型 Option（WithSSOBase / WithBaseURL / WithUploadURL）
+// 的通用守卫逻辑。
+//
+// 三者 guard 模式完全相同：空字符串 → warn + 保留原值；非空 → setter(c, url)。
+// name 用于 warn 消息前缀；getter 获取字段当前值（warn 时输出）；setter 负责赋值。
+func withURLGuard(name string, getter func(*Client) string, setter func(*Client, string)) func(string) Option {
+	return func(url string) Option {
+		return func(c *Client) {
+			if url == "" {
+				c.logger.Warn(name+": 空字符串被拒绝，保持当前值",
+					"current", getter(c))
+				return
+			}
+			setter(c, url)
+		}
+	}
+}
+
 // WithSSOBase 设置 SSO 根地址。
 //
 // 行为约定：
@@ -88,16 +106,10 @@ type Option func(*Client)
 //
 // 设计一致：与 WithTimeout 一样是「runtime degraded-warn + 不修改字段」，
 // 而非 build-time fail-fast——保持与 F8/F9 修复的 Option 校验风格一致。
-func WithSSOBase(url string) Option {
-	return func(c *Client) {
-		if url == "" {
-			c.logger.Warn("WithSSOBase: 空字符串被拒绝，保持当前值",
-				"current", c.ssoBaseURL)
-			return
-		}
-		c.ssoBaseURL = url
-	}
-}
+var WithSSOBase = withURLGuard("WithSSOBase",
+	func(c *Client) string { return c.ssoBaseURL },
+	func(c *Client, v string) { c.ssoBaseURL = v },
+)
 
 // WithBaseURL 设置业务 API 根地址。
 //
@@ -107,16 +119,10 @@ func WithSSOBase(url string) Option {
 //   - 否则：设置 baseURL
 //
 // 设计一致：与 WithSSOBase / WithTimeout 同款 warn + 不修改字段守卫。
-func WithBaseURL(url string) Option {
-	return func(c *Client) {
-		if url == "" {
-			c.logger.Warn("WithBaseURL: 空字符串被拒绝，保持当前值",
-				"current", c.baseURL)
-			return
-		}
-		c.baseURL = url
-	}
-}
+var WithBaseURL = withURLGuard("WithBaseURL",
+	func(c *Client) string { return c.baseURL },
+	func(c *Client, v string) { c.baseURL = v },
+)
 
 // WithUploadURL 设置文件上传服务器地址。
 //
@@ -126,16 +132,10 @@ func WithBaseURL(url string) Option {
 //   - 否则：设置 uploadURL
 //
 // 设计一致：与 WithSSOBase / WithBaseURL 同款 warn + 不修改字段守卫。
-func WithUploadURL(url string) Option {
-	return func(c *Client) {
-		if url == "" {
-			c.logger.Warn("WithUploadURL: 空字符串被拒绝，保持当前值",
-				"current", c.uploadURL)
-			return
-		}
-		c.uploadURL = url
-	}
-}
+var WithUploadURL = withURLGuard("WithUploadURL",
+	func(c *Client) string { return c.uploadURL },
+	func(c *Client, v string) { c.uploadURL = v },
+)
 
 // WithTimeout 设置 HTTP 客户端超时（包括连接、TLS 握手、响应体读取）。
 //
