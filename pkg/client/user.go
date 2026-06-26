@@ -70,5 +70,16 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 		}
 	}
 
-	return nil, nil
+	// F10 修复（round-7）：returnData + dataMap 都为 nil 时（业务成功响应
+	// 但确实无用户数据），返回 ErrEmptyUserInfo 哨兵而非 (nil, nil)。
+	//
+	// 设计动机：
+	//   - (nil, nil) 让 cmd 层只能裸输出 null，与 whoami 的 status envelope 不一致
+	//   - 返回 ErrEmptyUserInfo 让 cmd 层用 errors.Is 分支统一走 status envelope
+	//   - SDK 最佳努力契约保留（GetMyInfo 调用方通常吞错，但 err 提供语义信号）
+	//
+	// 与 ErrBusinessRejected 的语义边界：
+	//   - ErrEmptyUserInfo: 服务端成功（code=1）但确实无数据，不是错误
+	//   - ErrBusinessRejected: 服务端主动拒绝（code=0）
+	return nil, fmt.Errorf("%w: returnData 和 dataMap 都为空", ErrEmptyUserInfo)
 }
