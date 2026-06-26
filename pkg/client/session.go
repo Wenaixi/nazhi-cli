@@ -15,6 +15,11 @@ import (
 // defaultSessionBackoff 是激活失败后禁止重试的默认时间窗口。
 // 默认 5 秒：大部分瞬时故障（网络抖动、服务端短时 5xx）在 5 秒内
 // 恢复的概率低，回退重试可有效抑制 thundering herd 放大效应。
+//
+// B2 评估（round-9）：CLI 单进程场景下 backoff 永远 0 hit（CLI
+// 不会先失败再重试同一 token），但在 SDK 多 goroutine 并发场景中
+// backoff 可有效抑制 thundering herd——100 路并发 FetchTasks 仅首路
+// 触发一次完整 4 步，其余 99 路直接返回缓存错误。保留 backoff。
 const defaultSessionBackoff = 5 * time.Second
 
 // ActivateSession 初始化目标平台业务 Session。
