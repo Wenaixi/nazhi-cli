@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -57,6 +59,14 @@ var loginCmd = &cobra.Command{
 			Password: password,
 		})
 		if err != nil {
+			if errors.Is(err, client.ErrOCRNotConfigured) {
+				printVerbose("OCR 识别器未配置：当前构建无 -tags ddddocr。请使用预编译 release 二进制（nazhi-cli releases 页面），或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器")
+				printJSON(map[string]any{
+					"status":  "error",
+					"message": "登录失败：OCR 识别器未配置。当前构建未启用 -tags ddddocr，无法自动识别验证码。请下载预编译 release 二进制或注入自定义识别器。",
+				})
+				return
+			}
 			printError(fmt.Errorf("登录失败: %w", err))
 			return
 		}
