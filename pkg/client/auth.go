@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -49,7 +50,7 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return "", "", fmt.Errorf("GetSchoolID 业务错误: %w", err)
+		return "", "", fmt.Errorf("GetSchoolID 业务错误: %w", errors.Join(ErrBusinessRejected, err))
 	}
 
 	schools, err := types.DecodeDataList[map[string]any](resp)
@@ -247,7 +248,7 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return fmt.Errorf("验证码校验失败: %w", err)
+		return fmt.Errorf("验证码校验失败: %w", errors.Join(ErrBusinessRejected, err))
 	}
 
 	return nil
