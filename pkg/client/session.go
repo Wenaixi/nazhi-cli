@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"time"
@@ -135,7 +136,7 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 // stepLabel 是用于错误信息的人类可读标签（如 "步骤2" / "步骤3"），调用方
 // 需自行保证唯一性以便错误诊断。
 func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[string]string, referer, stepLabel string) ([]byte, error) {
-	stepHeaders := copyMap(baseHeaders)
+	stepHeaders := maps.Clone(baseHeaders)
 	stepHeaders["Referer"] = referer
 
 	resp, err := c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, stepHeaders, "")
@@ -151,14 +152,9 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 	return body, nil
 }
 
-// copyMap 复制 map[string]string。
-func copyMap(m map[string]string) map[string]string {
-	out := make(map[string]string, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
-}
+// copyMap 已被删除（B1 修复）：改为标准库 maps.Clone。
+// Go 1.21+ maps.Clone 等效手写循环且由 runtime 实现优化，
+// 维护负担更小（少 1 个内部函数需要 review/测试）。
 
 // activateSessionIfNeeded 保证所有 biz 方法在第一次调用前完成
 // 4 步 session 预热（HAR 验证的强契约），后续调用 token 相同则直接返回。
