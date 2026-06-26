@@ -89,7 +89,11 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 	if err := cmd.Flags().Set("token", "test-token"); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	if err := cmd.Flags().Set("base-url", srv.URL); err != nil {
+		_ = t
+	}
 	cmd.Flags().Int("timeout", 5, "")
 
 	// 抑制 quiet 防止 printError 吞 stderr
@@ -173,7 +177,11 @@ func TestTaskList_AllFailure_StillPrintsError(t *testing.T) {
 	if err := cmd.Flags().Set("token", "test-token"); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
-	cmd.Flags().String("base-url", srv.URL, "")
+	cmd.Flags().String("base-url", "", "")
+	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	if err := cmd.Flags().Set("base-url", srv.URL); err != nil {
+		_ = t
+	}
 	cmd.Flags().Int("timeout", 5, "")
 
 	quiet = false
