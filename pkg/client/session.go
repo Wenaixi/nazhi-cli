@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"context"
@@ -73,11 +73,16 @@ func (c *Client) activateWithBackoffCheck(ctx context.Context, token string) (*t
 		c.lastActivationErr = err
 		c.lastAttemptAt = time.Now()
 		c.lastFailedToken = token
+		c.cachedUserInfo = nil
 		return nil, err
 	}
 	c.sessionToken = token
 	c.lastActivationErr = nil
 	c.lastFailedToken = ""
+	// B10 修复：缓存步骤 4 的 UserInfo，供 GetMyInfo 复用
+	if info != nil {
+		c.cachedUserInfo = info
+	}
 	return info, nil
 }
 
@@ -178,16 +183,21 @@ func copyMap(m map[string]string) map[string]string {
 //
 // G8 + F15 修复（round-7）：统一走 activateWithBackoffCheck（持锁版本），
 // 共享 backoff 缓存与 sessionToken 更新逻辑，避免重复实现导致不一致。
-func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) error {
+func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) (*types.UserInfo, error) {
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
 
 	// fast path：sessionToken 已匹配 → 零额外开销
 	if c.sessionToken == token {
-		return nil
+		// B10 修复：返回缓存的 UserInfo（步骤 4 已获取），避免 GetMyInfo 额外请求。
+		return c.cachedUserInfo, nil
 	}
 
 	// 完整路径：backoff 检查 + 4 步激活 + 缓存更新（全部持锁）
-	_, err := c.activateWithBackoffCheck(ctx, token)
-	return err
+	info, err := c.activateWithBackoffCheck(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	// B10 修复：返回步骤 4 获取的 UserInfo，供 GetMyInfo 复用，避免冗余 HTTP 请求。
+	return info, nil
 }

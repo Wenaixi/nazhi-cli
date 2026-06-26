@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,10 +34,10 @@ func (c *Client) InitSession(ctx context.Context) error {
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
 func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID string, schoolName string, err error) {
-	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?userName=" + username)
+	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?" + url.Values{"userName": {username}}.Encode())
 
 	headers := c.ssoHeaders()
-	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?userName=" + username
+	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode()
 
 	bodyBytes, err := c.doRequest(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
@@ -49,7 +50,7 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return "", "", fmt.Errorf("GetSchoolID 业务错误: %w", err)
+		return "", "", fmt.Errorf("GetSchoolID 业务错误: %w", errors.Join(ErrBusinessRejected, err))
 	}
 
 	schools, err := types.DecodeDataList[map[string]any](resp)
@@ -175,12 +176,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
 			// Login 路径中 token 已从 server 拿到，syncCookieToken 失败时只 Warn
 			// 不阻断（业务 token 仍有效），让调用方能拿到 token 自己排查。
-			c.warnSyncCookieToken(token, "200")
-			return &types.LoginResponse{
-				Token:     token,
-				ExpiresAt: expiresAt,
-				RawData:   parseRawData(bodyBytes),
-			}, nil
+			return c.buildLoginResponse(token, expiresAt, bodyBytes, "200"), nil
 		}
 		return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
 	}
@@ -208,12 +204,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		}
 		// Cookie 同步
 		// 302 路径同上：token 已拿到，syncCookieToken 失败只 Warn 不阻断
-		c.warnSyncCookieToken(token, "302 fallback")
-		return &types.LoginResponse{
-			Token:     token,
-			ExpiresAt: expiresAt,
-			RawData:   parseRawData(bodyBytes),
-		}, nil
+		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback"), nil
 	}
 
 	// 非预期状态码
@@ -247,7 +238,7 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return fmt.Errorf("验证码校验失败: %w", err)
+		return fmt.Errorf("验证码校验失败: %w", errors.Join(ErrBusinessRejected, err))
 	}
 
 	return nil
@@ -555,21 +546,18 @@ func (c *Client) syncCookieToken(token string) error {
 			"修复：用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建",
 			c.http.Jar)
 	}
-	for _, raw := range []string{c.ssoBaseURL, c.baseURL} {
-		u, err := url.Parse(raw)
-		if err != nil {
-			// 修复 review-tdd F5：URL 解析失败 propagate error（与 Jar 类型断言
-			// 失败契约对称）。成功循环计数改用 len(URLs) - 失败次数，调用方可在
-			// build 阶段感知畸形 baseURL。
-			return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", raw, err)
-		}
-		jar.SetCookies(u, []*http.Cookie{{
-			Name:  "X-Auth-Token",
-			Value: token,
-			Path:  "/",
-		}})
+	// B9 修复：只向 c.baseURL（业务域）写入 X-Auth-Token，不向 c.ssoBaseURL（SSO 域）写入。
+	// SSO 域用 JSESSIONID 鉴权，不需要 X-Auth-Token。多余 cookie 无意义。
+	u, err := url.Parse(c.baseURL)
+	if err != nil {
+		return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", c.baseURL, err)
 	}
-	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", len([]string{c.ssoBaseURL, c.baseURL}))
+	jar.SetCookies(u, []*http.Cookie{{
+		Name:  "X-Auth-Token",
+		Value: token,
+		Path:  "/",
+	}})
+	c.logDebug("X-Auth-Token 已同步到 cookie jar（%s）", c.baseURL)
 	return nil
 }
 
@@ -587,5 +575,25 @@ func (c *Client) syncCookieToken(token string) error {
 func (c *Client) warnSyncCookieToken(token, label string) {
 	if err := c.syncCookieToken(token); err != nil {
 		c.logger.Warn("Login "+label+" 后同步 token 到 cookie 失败", "err", err.Error())
+	}
+}
+
+// buildLoginResponse 构造 LoginResponse，统一处理 cookie 同步。
+//
+// C7 提取：200 路径和 302 路径原来都 copy-paste 同样的
+//
+//	c.warnSyncCookieToken(token, label)
+//	return &types.LoginResponse{Token: token, ExpiresAt: expiresAt, RawData: ...}, nil
+//
+// 语义相同（构造 response + warn 不阻断的 cookie 同步），提取 helper 后
+// 调用方只需一行实现，同时保留 warnSyncCookieToken 的 label 区分能力。
+//
+// label 用于 warn 日志标识（如 "200" / "302 fallback"）。
+func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
+	c.warnSyncCookieToken(token, label)
+	return &types.LoginResponse{
+		Token:     token,
+		ExpiresAt: expiresAt,
+		RawData:   parseRawData(bodyBytes),
 	}
 }

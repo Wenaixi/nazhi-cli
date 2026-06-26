@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"context"
@@ -25,7 +25,7 @@ const fetchTasksConcurrentLimit = 8
 // fetchDimensions 拉取任务维度列表（FetchTasks / GetDimensions 共用）。
 // 内部包含 session 预热 + 4 段响应解析，错误信息前缀由 caller 决定。
 func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix string) ([]types.Dimension, error) {
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return nil, fmt.Errorf("%s 预热 session 失败: %w", errPrefix, err)
 	}
 	headers := c.bizHeaders(token)
@@ -236,7 +236,7 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 	headers := c.bizHeaders(token)
 
 	// session 预热（HAR 强契约：4 步激活后再发 biz 请求，否则返回空数据）
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return nil, fmt.Errorf("SubmitTask 预热 session 失败: %w", err)
 	}
 
@@ -283,7 +283,7 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 
 // GetCircleTypeByTaskID 确认任务类型信息。
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*map[string]any, error) {
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return nil, fmt.Errorf("GetCircleTypeByTaskID 预热 session 失败: %w", err)
 	}
 	headers := c.bizHeaders(token)

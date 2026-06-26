@@ -1,4 +1,4 @@
-// Package client 内部白盒测试。
+﻿// Package client 内部白盒测试。
 package client
 
 import (
@@ -65,7 +65,7 @@ func TestActivateSessionIfNeeded_ConcurrentSameToken(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if err := c.activateSessionIfNeeded(context.Background(), "shared-token"); err != nil {
+			if _, err := c.activateSessionIfNeeded(context.Background(), "shared-token"); err != nil {
 				t.Errorf("activateSessionIfNeeded 失败: %v", err)
 			}
 		}()
@@ -135,7 +135,7 @@ func TestActivateSessionIfNeeded_ConcurrentDifferentTokens(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if err := c.activateSessionIfNeeded(context.Background(), tokens[i]); err != nil {
+			if _, err := c.activateSessionIfNeeded(context.Background(), tokens[i]); err != nil {
 				t.Errorf("token=%s activateSessionIfNeeded 失败: %v", tokens[i], err)
 			}
 		}()

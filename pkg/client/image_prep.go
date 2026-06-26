@@ -116,7 +116,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 			// CPU 后才在 MinImageDimension 边界 break 返回 ErrImageTooLarge。
 			//
 			// 修复：break + logDebug，让失败原因可观测，立即进入兜底逻辑。
-			c.logDebug("缩放级联 encodeJPEG 失败，跳出循环", "scale", scale, "err", err.Error())
+			c.logDebug("缩放级联 encodeJPEG 失败，跳出循环：scale=%v err=%v", scale, err)
 			break
 		}
 		if len(data) <= MaxImageSize {

@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"context"
@@ -10,7 +10,7 @@ import (
 
 // SubmitSelfEvaluation 提交自我评价文本。
 func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment string) error {
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return fmt.Errorf("SubmitSelfEvaluation 预热 session 失败: %w", err)
 	}
 	headers := c.bizHeaders(token)
@@ -42,7 +42,7 @@ func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment
 
 // QuerySelfEvaluation 查询自我评价状态 + 教师评语。
 func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.SelfEvalStatus, error) {
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return nil, fmt.Errorf("QuerySelfEvaluation 预热 session 失败: %w", err)
 	}
 	headers := c.bizHeaders(token)
@@ -90,7 +90,7 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 
 // QuerySelfGradEvaluation 查询毕业状态。
 func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error) {
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return nil, fmt.Errorf("QuerySelfGradEvaluation 预热 session 失败: %w", err)
 	}
 	headers := c.bizHeaders(token)
