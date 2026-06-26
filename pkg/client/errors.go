@@ -60,4 +60,15 @@ var (
 	// 而非返回 (nil, nil) 让 cmd 层「裸 null」输出。cmd 层用 errors.Is 分支
 	// 输出对称的 {status: empty, reason: ...} envelope，与 whoami 契约一致。
 	ErrEmptyUserInfo = errors.New("getMyInfo returned no user data")
+
+	// ErrLocationParseFailed Login 302 Location 头解析失败（畸形 URL）。
+	//
+	// F2-EXTRACT-TOKEN-ASYM 修复（round-8）：对称化 extractTokenFromLocation
+	// 与 extractTokenFromReturnData 的错误处理契约——前者原本 url.Parse 失败时
+	// 静默返回 ("", now+24h)，让畸形 Location 悄无声息地走到"未找到 token"
+	// 错误，吞掉根因。改为 propagate 后 SDK 用户能看到具体 URL 解析错误。
+	//
+	// 调用方（auth.go Login 302 路径）只把 location 字符串写到 logDebug，
+	// 避免泄漏到 stderr 错误消息（location 可能含 token fragment）。
+	ErrLocationParseFailed = errors.New("login location header parse failed")
 )
