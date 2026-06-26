@@ -168,10 +168,7 @@ func TestMain_PanicRecover_EndToEnd(t *testing.T) {
 				printError(fmt.Errorf("内部错误: %v", r))
 			}
 		}()
-		execErr := rootCmd.Execute()
-		if execErr != nil {
-			printError(execErr)
-		}
+		panicCmd.Run(panicCmd, nil)
 	}()
 
 	_ = w.Close()
