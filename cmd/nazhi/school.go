@@ -16,9 +16,13 @@ var schoolCmd = &cobra.Command{
 	Example: `  nazhi school -u 学号
   nazhi school -u 学号 --sso-base https://www.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
-		username, _ := cmd.Flags().GetString("username")
-		// 环境变量 fallback（命令行标志优先）
-		if username == "" {
+		// B1 修复：用 flagChanged() 守卫 username 读取，
+		// 避免用户显式传 --username "" 时被 NAZHI_USERNAME 环境变量覆盖。
+		// 与 login.go:31-35 模式对称。
+		var username string
+		if flagChanged(cmd, "username") {
+			username, _ = cmd.Flags().GetString("username")
+		} else {
 			username = envString("NAZHI_USERNAME", "")
 		}
 		if username == "" {
