@@ -43,7 +43,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	}
 
 	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "GetMyInfo", &resp,
+	v := tryDecodeFallback(c, "GetMyInfo",
 		func() (*types.UserInfo, error) {
 			u, err := types.DecodeReturnData[types.UserInfo](resp)
 			if err == nil && u != nil {

@@ -38,6 +38,9 @@ const defaultBaseURL = "http://139.159.205.146:8280"
 // defaultUploadURL 是文件上传服务器默认地址。
 const defaultUploadURL = "http://doc.nazhisoft.com"
 
+// defaultUserAgent 是所有 HTTP 请求的 User-Agent 默认值。
+const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+
 // newHTTPClient 创建带独立 cookie jar 和自定义 Transport 的 HTTP 客户端。
 //
 // Transport 配置要点（F28）：
@@ -70,7 +73,7 @@ func newHTTPClient() *http.Client {
 func (c *Client) ssoHeaders() map[string]string {
 	return map[string]string{
 		"Accept":           "application/json, text/javascript, */*; q=0.01",
-		"User-Agent":       "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+		"User-Agent":       defaultUserAgent,
 		"Referer":          c.ssoBaseURL + "/uiStudentLogin/login",
 		"Origin":           c.ssoBaseURL,
 		"X-Requested-With": "XMLHttpRequest",
@@ -81,7 +84,7 @@ func (c *Client) ssoHeaders() map[string]string {
 func (c *Client) bizHeaders(token string) map[string]string {
 	return map[string]string{
 		"Accept":       "application/json, text/plain, */*",
-		"User-Agent":   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+		"User-Agent":   defaultUserAgent,
 		"X-Auth-Token": token,
 		"Referer":      c.baseURL + "/homepage",
 	}
@@ -142,6 +145,24 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 	return req, nil
 }
 
+// logRequestHeaders 在 debug 级别输出请求头，值长度 > 16 字符时自动截断脱敏。
+func (c *Client) logRequestHeaders(req *http.Request) {
+	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
+	for k, v := range req.Header {
+		if len(v) == 0 {
+			continue
+		}
+		val := v[0]
+		if len(val) > 16 {
+			c.logDebug("  Header: %s: %s...", k, val[:16])
+		} else {
+			c.logDebug("  Header: %s: %s", k, val)
+		}
+	}
+}
+
 // doRequest 执行 HTTP 请求，自动设置请求头，返回响应体字节。
 // headers 是可选的自定义请求头（合并到公共头之上）。
 // contentType 为空时默认 application/json。
@@ -152,22 +173,7 @@ func (c *Client) doRequest(ctx context.Context, method, url string, body any, he
 	}
 
 	c.logDebug("→ %s %s", method, url)
-	if c.logger.Enabled(context.Background(), slog.LevelDebug) {
-		for k, v := range req.Header {
-			if len(v) == 0 {
-				continue
-			}
-			val := v[0]
-			// 脱敏：所有 header value 长度 > 16 字符都截断到 16 字符
-			// 防止 X-Auth-Token、Authorization、Cookie、Set-Cookie、Referer 中嵌入的 token
-			// 等敏感信息泄漏到日志（参见 request_log_redact_test.go 回归测试）。
-			if len(val) > 16 {
-				c.logDebug("  Header: %s: %s...", k, val[:16])
-			} else {
-				c.logDebug("  Header: %s: %s", k, val)
-			}
-		}
-	}
+	c.logRequestHeaders(req)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -192,6 +198,7 @@ func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body
 	}
 
 	c.logDebug("→ %s %s", method, url)
+	c.logRequestHeaders(req)
 	resp, err := c.http.Do(req)
 	if err != nil {
 		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)

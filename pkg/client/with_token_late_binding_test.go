@@ -39,7 +39,7 @@ func TestWithToken_LateBinding(t *testing.T) {
 	if err != nil {
 		t.Fatalf("http.Get failed: %v", err)
 	}
-	_ = resp.Body.Close()
+	drainAndClose(resp.Body)
 
 	if receivedAuthToken != "jwt-late-bind" {
 		t.Errorf("请求未携带 X-Auth-Token=jwt-late-bind（实际收到 %q），WithToken cookie 写到了错误的 host",

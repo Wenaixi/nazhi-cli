@@ -66,7 +66,7 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 	}
 
 	// 三段 fallback（returnData → dataMap → dataList），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "QuerySelfEvaluation", &resp,
+	v := tryDecodeFallback(c, "QuerySelfEvaluation",
 		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](resp) },
 		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](resp) },
 	)
@@ -114,7 +114,7 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 	}
 
 	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "QuerySelfGradEvaluation", &resp,
+	v := tryDecodeFallback(c, "QuerySelfGradEvaluation",
 		func() (*map[string]any, error) { return types.DecodeReturnData[map[string]any](resp) },
 		func() (*map[string]any, error) { return types.DecodeDataMap[map[string]any](resp) },
 	)
