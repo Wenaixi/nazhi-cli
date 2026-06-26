@@ -108,7 +108,16 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		resized := imaging.Resize(current, w, h, imaging.Lanczos)
 		data, err = encodeJPEG(resized, 40)
 		if err != nil {
-			continue
+			// F4 修复（round-7）：break 而非 continue。
+			//
+			// 原代码 `continue` 会跳过下面的 `current = resized`，下一轮用
+			// 未更新的 current 计算 w/h → 同一尺寸重复 encodeJPEG 必然同样失败
+			// （jpeg encoder 内部错误是确定性的，重试无意义）→ 浪费 1-7 轮
+			// CPU 后才在 MinImageDimension 边界 break 返回 ErrImageTooLarge。
+			//
+			// 修复：break + logDebug，让失败原因可观测，立即进入兜底逻辑。
+			c.logDebug("缩放级联 encodeJPEG 失败，跳出循环", "scale", scale, "err", err.Error())
+			break
 		}
 		if len(data) <= MaxImageSize {
 			return data, "image/jpeg", nil
