@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
+	"time"
 )
 
 // drainAndClose 先 drain response body 再 Close，让 net/http 把连接归还 keep-alive 池。
@@ -37,7 +38,14 @@ const defaultBaseURL = "http://139.159.205.146:8280"
 // defaultUploadURL 是文件上传服务器默认地址。
 const defaultUploadURL = "http://doc.nazhisoft.com"
 
-// newHTTPClient 创建带独立 cookie jar 的 HTTP 客户端。
+// newHTTPClient 创建带独立 cookie jar 和自定义 Transport 的 HTTP 客户端。
+//
+// Transport 配置要点（F28）：
+//   - MaxIdleConnsPerHost=16：FetchTasks 8 路并发打到同一 biz host 时，
+//     第 3-8 路无需重新握手（http.DefaultTransport 默认=2，导致 6/8 请求需 TCP+TLS 握手）。
+//   - 共享 Transport 连接池：避免与 file.go cleanTransport 产生认知冲突，
+//     两者各自独立的 idle 池，但配置对齐。
+//   - 不设置 DisableCompression：平台返回 JSON 多数 < 1KB，压缩获益小但非有害。
 func newHTTPClient() *http.Client {
 	jar, _ := cookiejar.New(nil)
 	return &http.Client{
@@ -45,6 +53,13 @@ func newHTTPClient() *http.Client {
 		// 不自动跟随重定向——我们需要手动从 Location 头提取 token
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
+		},
+		Transport: &http.Transport{
+			MaxIdleConns:          100,
+			MaxIdleConnsPerHost:   16,
+			IdleConnTimeout:       90 * time.Second,
+			ExpectContinueTimeout: 1 * time.Second,
+			DisableCompression:    false,
 		},
 	}
 }
