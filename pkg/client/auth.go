@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -183,7 +184,14 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		if location == "" {
 			return nil, fmt.Errorf("%w: 302 响应中未找到 Location 头", ErrLoginRejected)
 		}
-		token, expiresAt := extractTokenFromLocation(location)
+		token, expiresAt, locErr := extractTokenFromLocation(location)
+		if locErr != nil {
+			// F2-EXTRACT-TOKEN-ASYM 修复：畸形 Location 走 logDebug 保留原始
+			// 字符串（含 token），用户 error 消息保持通用（避免泄漏）。
+			// 错误契约对称于 extractTokenFromReturnData。
+			c.logDebug("Login 302: Location 头解析失败: %v location=%s", locErr, location)
+			return nil, fmt.Errorf("%w: Location 头解析失败", ErrLoginRejected)
+		}
 		if token == "" {
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
 		}
@@ -284,9 +292,23 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 		maxOCRImagesTotal*maxOCRAttemptsPerImage, lastErr)
 }
 
+// captchaSeq 验证码图片 URL 序号生成器。
+//
+// F8-CAPTCHA-URL-COLLISION 修复（round-8）：原版用 time.Now().UnixMilli() 作为
+// kaptcha URL 的 cache-busting 参数，并发 Login 在同一毫秒调用 fetchCaptchaImage
+// 会生成完全相同的 URL，导致 8 路 OCR 拿到同一张验证码图片（同一字符集）→
+// 7 路必失败、浪费 7 次 OCR 预算。
+//
+// 用 atomic.Int64 累加 seq 追加到 URL query (&seq=N)，保证每次调用 URL 唯一。
+// 进程级单例而非 Client 字段：避免每个 Client 重复初始化，且 OCR 池（Pool）共享
+// 同一序号空间（F8 invariant：所有 Client 走相同 fetchCaptchaImage 路径，序号连续）。
+var captchaSeq atomic.Int64
+
 // fetchCaptchaImage 拉取一张新的验证码图片。
 func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
-	u := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()))
+	seq := captchaSeq.Add(1)
+	u := c.ssoURL("/kaptcha/kaptcha.jpg?t=" + fmt.Sprintf("%d", time.Now().UnixMilli()) +
+		"&seq=" + strconv.FormatInt(seq, 10))
 	imgBytes, err := c.doBizGet(ctx, u, c.ssoHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("获取验证码图片失败: %w", err)
@@ -302,14 +324,19 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 // extractTokenFromLocation 从 302 Location 头中提取 token 和过期时间。
 // 使用 net/url 解析，正确处理 URL encoding、fragment、复杂 query。
 //
-// 返回 (token, expiresAt)。expiresAt 优先级：
+// 返回 (token, expiresAt, err)。expiresAt 优先级：
 //  1. query 里的 expires_in=N（相对秒数）
 //  2. query 里的 exp=N（绝对 Unix 时间戳，秒）
 //  3. 兜底 now+defaultTokenTTL（与原行为一致，但加 warn 日志提示）
-func extractTokenFromLocation(location string) (string, time.Time) {
+//
+// F2-EXTRACT-TOKEN-ASYM 修复（round-8）：签名对称化 extractTokenFromReturnData。
+// 原签名 `(string, time.Time)` url.Parse 失败时静默返回 ("", now+24h)，
+// 让畸形 Location 悄无声息地走到"未找到 token"错误，吞掉根因。
+// 改为 propagate ErrLocationParseFailed 后 SDK 用户能感知具体 URL 解析失败。
+func extractTokenFromLocation(location string) (string, time.Time, error) {
 	u, err := url.Parse(location)
 	if err != nil {
-		return "", time.Now().Add(defaultTokenTTL)
+		return "", time.Time{}, fmt.Errorf("%w: %v", ErrLocationParseFailed, err)
 	}
 	var token string
 	if t := u.Query().Get("token"); t != "" {
@@ -319,7 +346,7 @@ func extractTokenFromLocation(location string) (string, time.Time) {
 			token = fToken
 		}
 	}
-	return token, parseLocationExpires(u)
+	return token, parseLocationExpires(u), nil
 }
 
 // defaultTokenTTL 是 server 未返回 expires_in/exp 时 token 过期时间的兜底值。
@@ -411,11 +438,25 @@ func expiresAtToFallbackWarn(expiresAt time.Time) bool {
 }
 
 // extractTokenFromFragment 从 fragment 字符串中提取 token。
+//
+// F10-FRAGMENT-URLDECODE 修复（round-8）：用 url.QueryUnescape 解码 value 部分。
+// 历史：strings.Split + TrimPrefix 只做字符串裁剪，JWT 含 URL 保留字符（+ / =）
+// 时直接拼接会损坏 token。原版依赖 server URL 编码 +，但实际平台偶尔返回
+// 原始 JWT（base64 序列含 + / =），需在客户端兜底解码。
+//
+// 解码失败时 fallback 到原始 value（best-effort：URL 编码异常不应阻断 token 提取）。
 func extractTokenFromFragment(fragment string) string {
 	parts := strings.Split(fragment, "&")
 	for _, p := range parts {
 		if strings.HasPrefix(p, "token=") {
-			return strings.TrimPrefix(p, "token=")
+			raw := strings.TrimPrefix(p, "token=")
+			decoded, err := url.QueryUnescape(raw)
+			if err != nil {
+				// best-effort fallback：URL 编码异常时返回原始 value，
+				// 避免 decode 错误掩盖"已找到 token"这一更关键的事实。
+				return raw
+			}
+			return decoded
 		}
 	}
 	return ""
