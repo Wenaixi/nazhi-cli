@@ -39,35 +39,28 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
-		// 即便 GetMyInfo 是「最佳努力」设计（调用方通常吞错），仍保留
-		// 业务错误语义信号——SDK 用户需要按 errors.Is 精细分支时不会被误导。
 		return nil, fmt.Errorf("%w: 获取用户信息业务错误: %v", ErrBusinessRejected, err)
 	}
 
-	// 尝试从 returnData 解析
-	if resp.ReturnData != nil {
-		userInfo, err := types.DecodeReturnData[types.UserInfo](resp)
-		if err == nil && userInfo != nil {
-			// 保留原始数据
-			userInfo.Raw = parseRawData(*resp.ReturnData)
-			return userInfo, nil
-		}
-		if err != nil {
-			c.logDebug("GetMyInfo DecodeReturnData 失败: %v", err)
-		}
-	}
-
-	// 尝试从 dataMap 解析
-	if resp.DataMap != nil {
-		userInfo, err := types.DecodeDataMap[types.UserInfo](resp)
-		if err == nil && userInfo != nil {
-			userInfo.Raw = parseRawData(*resp.DataMap)
-			return userInfo, nil
-		}
-		if err != nil {
-			c.logDebug("GetMyInfo DecodeDataMap 失败: %v", err)
-		}
+	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
+	v := tryDecodeFallback(c, "GetMyInfo", &resp,
+		func() (*types.UserInfo, error) {
+			u, err := types.DecodeReturnData[types.UserInfo](resp)
+			if err == nil && u != nil {
+				u.Raw = parseRawData(*resp.ReturnData)
+			}
+			return u, err
+		},
+		func() (*types.UserInfo, error) {
+			u, err := types.DecodeDataMap[types.UserInfo](resp)
+			if err == nil && u != nil {
+				u.Raw = parseRawData(*resp.DataMap)
+			}
+			return u, err
+		},
+	)
+	if v != nil {
+		return v, nil
 	}
 
 	return nil, nil
