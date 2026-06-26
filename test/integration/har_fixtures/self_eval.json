@@ -11,7 +11,7 @@
     "path": "/api/studentMoralEduNew/querySelfEvaluation",
     "request_body": "",
     "response_status": 200,
-    "response_body": "{\"code\":1,\"msg\":null,\"returnData\":null,\"note\":null,\"pageBean\":null,\"dataList\":null,\"dataMap\":{\"gender\":1,\"teacher_id\":8238,\"class_id\":150668,\"student_id\":38STUDENT_ID_REDACTED,\"term_id\":17,\"teacher_comment_time\":1767964178000,\"student_name\":\"张三\",\"school_id\":173,\"student_number\":\"TEST2025001\",\"teacher_comment\":\"你是一个爱学习，很懂事的孩子，平时能主动帮助学习上有困难的同学，班级工作认真负责，是老师的小助手，是同学学习的楷模，新年来临之际，老师希望你能继续发扬长处，课堂上大胆发言，更上一个新的台阶！\",\"grade_id\":26268,\"id\":331103,\"grade_name\":\"高一\",\"class_name\":\"八班\"},\"dataInt\":0,\"dataString\":null,\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+    "response_body": "{\"code\":1,\"msg\":null,\"returnData\":null,\"note\":null,\"pageBean\":null,\"dataList\":null,\"dataMap\":{\"gender\":1,\"teacher_id\":8238,\"class_id\":150668,\"student_id\":100002,\"term_id\":17,\"teacher_comment_time\":1767964178000,\"student_name\":\"张三\",\"school_id\":173,\"student_number\":\"TEST2025001\",\"teacher_comment\":\"你是一个爱学习，很懂事的孩子，平时能主动帮助学习上有困难的同学，班级工作认真负责，是老师的小助手，是同学学习的楷模，新年来临之际，老师希望你能继续发扬长处，课堂上大胆发言，更上一个新的台阶！\",\"grade_id\":26268,\"id\":331103,\"grade_name\":\"高一\",\"class_name\":\"八班\"},\"dataInt\":0,\"dataString\":null,\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
   },
   "GET__api_studentMoralEduNew_querySelfGradEvaluation": {
     "method": "GET",
@@ -32,7 +32,7 @@
     "path": "/api/teacher/fiveEvaluation/classManagerStatisticsAnalysis/getClassStarCountByClassIdAndTermId2",
     "request_body": "",
     "response_status": 200,
-    "response_body": "{\"code\":1,\"msg\":\"成功\",\"returnData\":null,\"note\":\"23\",\"pageBean\":null,\"dataList\":null,\"dataMap\":{\"studentId\":38STUDENT_ID_REDACTED,\"studentNumber\":\"TEST2025001\",\"studentName\":\"张三\",\"className\":\"高一八班\"},\"dataInt\":0,\"dataString\":\"\",\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
+    "response_body": "{\"code\":1,\"msg\":\"成功\",\"returnData\":null,\"note\":\"23\",\"pageBean\":null,\"dataList\":null,\"dataMap\":{\"studentId\":100002,\"studentNumber\":\"TEST2025001\",\"studentName\":\"张三\",\"className\":\"高一八班\"},\"dataInt\":0,\"dataString\":\"\",\"insertID\":0,\"updateCount\":0,\"isAttendance\":0}"
   },
   "POST__api_studentMoralEduNew_addSelfEvaluation": {
     "method": "POST",

@@ -48,7 +48,7 @@ type UserInfo struct {
 	// 基础身份
 	ID                    int64  `json:"id"`
 	Name                  string `json:"name"`
-	Initials              string `json:"initials"`              // 姓名首字母（如 "gNAME_INITIALS_REDACTED"）
+	Initials              string `json:"initials"`              // 姓名首字母（如 "zs"）
 	Pinyin                string `json:"pinyin"`                // 姓名全拼
 	StudentNumber         string `json:"studentNumber"`         // 学号
 	StudentID             int64  `json:"studentId"`             // 学生 ID
