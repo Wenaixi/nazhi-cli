@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
 )
 
@@ -31,6 +33,18 @@ var sessionActivateCmd = &cobra.Command{
 		printVerbose("激活 Session...")
 		info, err := c.ActivateSession(cmd.Context(), token)
 		if err != nil {
+			// F10 修复（round-7）：ErrEmptyUserInfo 是「业务成功但无数据」状态
+			//（非错误），与 whoami 对称输出 status envelope 而非裸 null。
+			//
+			// 失败场景（修复前）：printJSON(info) → 输出 `null\n`
+			// 与 whoami 的 {status: empty, reason: ...} 不一致。
+			if errors.Is(err, client.ErrEmptyUserInfo) {
+				printJSON(map[string]string{
+					"status": "empty",
+					"reason": "get_my_info_empty",
+				})
+				return
+			}
 			printError(fmt.Errorf("激活 Session 失败: %w", err))
 			return
 		}

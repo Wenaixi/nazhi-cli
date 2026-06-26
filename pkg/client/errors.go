@@ -36,4 +36,28 @@ var (
 	// F7 修复：SubmitTask 等业务方法应使用本哨兵而非 ErrLoginRejected，
 	// 否则 SDK 用户按 errors.Is(err, ErrLoginRejected) 判定后会错误地走重新登录。
 	ErrBusinessRejected = errors.New("business request rejected by server")
+
+	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。
+	//
+	// 与 ErrNetwork / ErrBusinessRejected 的语义边界：
+	//   - ErrSessionBackoff：上次激活失败后短时间内再次调用，
+	//     SDK 用户应等待 backoff 窗口结束或换 token 后重试
+	//   - ErrNetwork / ErrBusinessRejected：实际尝试过后的真实错误
+	//
+	// F15 修复（round-7）：backoff 命中时返回本哨兵（包装上一个错误），
+	// 而非直接返回 lastActivationErr。这样 SDK 用户能通过 errors.Is 识别
+	// 「这是被抑制的 stale 错误」并做出有意义的重试决策。
+	ErrSessionBackoff = errors.New("session activation backoff: in cooldown window")
+
+	// ErrEmptyUserInfo 业务无用户数据（getMyInfo 成功但 returnData + dataMap 都为 nil）。
+	//
+	// 与 ErrBusinessRejected 的语义边界：
+	//   - ErrEmptyUserInfo：服务端成功响应（HTTP 200 + code=1）但确实没有用户数据
+	//     （不是错误，只是空集）。SDK 用户的最佳实践是按 status envelope 渲染。
+	//   - ErrBusinessRejected：服务端主动拒绝（HTTP 200 + code=0，或业务校验失败）
+	//
+	// F10 修复（round-7）：getMyInfoRaw 在全 nil fallback 时返回本哨兵，
+	// 而非返回 (nil, nil) 让 cmd 层「裸 null」输出。cmd 层用 errors.Is 分支
+	// 输出对称的 {status: empty, reason: ...} envelope，与 whoami 契约一致。
+	ErrEmptyUserInfo = errors.New("getMyInfo returned no user data")
 )

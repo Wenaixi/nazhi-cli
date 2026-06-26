@@ -194,7 +194,9 @@ func TestActivateSession_CallOrder(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		callOrder = append(callOrder, r.URL.Path)
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		// F10 修复（round-7）：mock 必须返回有效 returnData，否则
+		// 触发 ErrEmptyUserInfo 路径导致 ActivateSession 返回 error。
+		_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三"}}`))
 	}))
 	defer srv.Close()
 
