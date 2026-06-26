@@ -3,9 +3,9 @@
 ## SSO 完整流程
 
 ```
-InitSession → GetSchoolID → GetCaptcha → OCR识别 → ValidateCaptcha → Login
-                                                                       ↓
-                                                                  302 → 提取 token
+InitSession → GetSchoolID → OCR识别（内部含获取验证码图片 + 多图多试）→ ValidateCaptcha → Login
+                                                                                   ↓
+                                                                              302 → 提取 token
 ```
 
 ## 步骤详解
@@ -41,32 +41,26 @@ Content-Type: application/json
 
 - **多学校处理**：当 `dataList.length > 1`，需要用户手动选择（暂未实现）
 
-### Step 3: GetCaptcha
+### Step 3: OCR 识别（最多 99 次总尝试：1 次/图 × 99 张图）
 
 ```go
-GET https://www.nazhisoft.com/kaptcha/kaptcha.jpg?t={毫秒时间戳}
-```
-
-- **响应**：JPEG 图片（Kaptcha 生成的 4 位字符）
-- **URL 模式**：`?t={ms}` 防缓存
-
-### Step 4: OCR 识别（最多 99 次重试）
-
-```go
-// 多图多试策略：
+// 多图多试策略（v0.2.1+）：
 //   单张图片 OCR 1 次（ddddocr 对同一张图是确定性的）
 //   失败则换新图，最多换 99 张
 //   总尝试次数上限 = 1 × 99 = 99 次
+//
+// 内部流程：每轮先调 SDK 私有方法 c.fetchCaptchaImage(ctx) 拉一张新图，
+// 再走 c.ocr.Recognize(imgBytes) OCR 识别。SDK 外部无需关心图床调用。
 for imgIdx := 0; imgIdx < 99; imgIdx++ {
-    imgBytes := fetchCaptchaImage()
-    text, err := ocr.Recognize(imgBytes)
+    imgBytes := c.fetchCaptchaImage(ctx)  // 私有方法：GET /kaptcha/kaptcha.jpg?t=<ms>
+    text, err := c.ocr.Recognize(imgBytes)
     if err == nil && text != "" {
         return text, nil
     }
 }
 ```
 
-### Step 5: ValidateCaptcha
+### Step 4: ValidateCaptcha
 
 ```go
 POST https://www.nazhisoft.com/uiStudentLogin/validateCaptcha
@@ -77,7 +71,7 @@ Content-Type: application/json
 - **响应**：`{"code": 1, "msg": "验证码校验成功"}`
 - **关键**：服务端在 Session 中标记 `coreCheck = true`，后续 validate 请求无需重复传 captcha
 
-### Step 6: Login
+### Step 5: Login
 
 ```go
 POST https://www.nazhisoft.com/teacher/auth/studentLogin/validate
@@ -96,7 +90,7 @@ Content-Type: application/json
 
 - **SDK 优先处理 200 JSON**，fallback 到 302 Location
 
-### Step 7: Token 持久化
+### Step 6: Token 持久化
 
 ```go
 // SDK 内部：写 Cookie 到 SSO + 业务两个域名
