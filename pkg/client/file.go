@@ -19,6 +19,12 @@ import (
 // 文件服务器（doc.nazhisoft.com）是独立公共服务，不需要业务域鉴权。
 // SDK 内部使用独立的 clean http.Client（无 cookie jar），杜绝任何鉴权头泄露。
 //
+// ⚠️ 域隔离约束（r9-D7）：syncCookieToken 只在 c.baseURL 域写入 X-Auth-Token cookie，
+// 而 UploadFile 走 c.uploadURL 域（独立文件服务器）。
+// 若 c.uploadURL 与 c.baseURL 指向同一主机（自定义部署场景），
+// 则 syncCookieToken 写入的 cookie 在上传请求中不会泄漏（newCleanClient 无 cookie jar）。
+// 但调用方应注意不要在业务 Client 的 baseURL 域上传敏感文件。
+//
 // 上传前自动预处理：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB。
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error) {
@@ -187,6 +193,10 @@ func newCleanClient(c *Client) *http.Client {
 		// 原 Client 没设置 Transport，回退到 http.DefaultTransport
 		//（不 Clone DefaultTransport——它是全局共享进程单例）
 		transport = http.DefaultTransport
+	} else if t, ok := c.http.Transport.(*http.Transport); ok {
+		// r9-D6 修复：*http.Transport 但未进入缓存路径（如运行时替换 Transport），
+		// 仍 Clone 出独立实例，不共享 idle 池。
+		transport = t.Clone()
 	} else {
 		// 自定义 RoundTripper（如 mock 测试用）无法 Clone，直接透传
 		// 此时不存在 idle 池共享问题（mock 通常不维护连接池）
