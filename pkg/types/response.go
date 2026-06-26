@@ -21,7 +21,12 @@ type UnifiedResponse struct {
 }
 
 // DecodeResponse 解码目标平台统一响应体。
-// 非 1 的 code 返回 ErrBusiness(code, msg)。
+//
+// 注意：DecodeResponse 仅负责把 resp body json.Unmarshal 到 UnifiedResponse 结构体。
+// 业务 code 检查（code != 1 时返回错误）请使用独立的 CheckCode 方法。
+// 历史上有人误以为 DecodeResponse 会自动抛 ErrBusiness，实际不会——这样设计
+// 是为了让调用方能在拿到 UnifiedResponse 后自由分支（如先看 code 再选择性解析
+// returnData / dataList / dataMap），避免双重解码或丢失原始 body。
 func DecodeResponse(data []byte) (UnifiedResponse, error) {
 	var resp UnifiedResponse
 	if err := json.Unmarshal(data, &resp); err != nil {
