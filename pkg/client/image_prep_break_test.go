@@ -1,7 +1,7 @@
 // image_prep_break_test.go 通过 AST 静态扫描锁定 F4 修复：
 // image_prep.go 缩放级联循环不能 `continue` 跳过 `current = resized`。
 //
-// F4 证据：image_prep.go 缩放级联 `for _, scale := range scaleFactors`
+// F4 证据：image_prep.go 缩放级联 `for _, scale := range getScaleFactors()`
 // 内 `if err != nil { continue }` 跳过 `current = resized`，下一轮用
 // 未更新的 current 计算 w/h → 同一尺寸重复 encodeJPEG 必然同样失败 →
 // 浪费 1-7 轮 CPU 后才 break 返回 ErrImageTooLarge。
@@ -42,19 +42,21 @@ func TestImagePrep_ScaleCascadeNoContinue(t *testing.T) {
 		t.Fatal("找不到 prepareImageForUpload 函数")
 	}
 
-	// 2. 找到 range scaleFactors 的 for 循环
+	// 2. 找到 range getScaleFactors() 的 for 循环
 	var scaleLoop *ast.RangeStmt
 	ast.Inspect(prepFn.Body, func(n ast.Node) bool {
 		if rs, ok := n.(*ast.RangeStmt); ok {
-			if id, ok := rs.X.(*ast.Ident); ok && id.Name == "scaleFactors" {
-				scaleLoop = rs
-				return false
+			if call, ok := rs.X.(*ast.CallExpr); ok {
+				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "getScaleFactors" {
+					scaleLoop = rs
+					return false
+				}
 			}
 		}
 		return true
 	})
 	if scaleLoop == nil {
-		t.Fatal("找不到 `for _, scale := range scaleFactors` 循环")
+		t.Fatal("找不到 `for _, scale := range getScaleFactors()` 循环")
 	}
 
 	// 3. 扫描循环 body，禁止 continue（Go 1.26 把 ContinueStmt/BreakStmt

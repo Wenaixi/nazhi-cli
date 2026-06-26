@@ -19,6 +19,21 @@ import (
 	"github.com/yangbin1322/go-ddddocr/ddddocr"
 )
 
+// ─── 进程级全局同步 ───
+
+// B6 修复：SetOnnxRuntimePath 是进程级全局函数，Pool 多实例并发初始化时
+// 需要全局互斥锁保护 SetOnnxRuntimePath + ddddocr.New 两步的组合原子性。
+//
+// 设计：
+//   - onceSetPath 确保 SetOnnxRuntimePath 在整个进程生命周期只调用一次
+//   - initMuGlobal 保护 New + SetOnnxRuntimePath 组合原子性，
+//     防止 G1 调 SetOnnxRuntimePath(pathA) → G2 调 SetOnnxRuntimePath(pathB)
+//     → G1 的 ddddocr.New(opts) 读到 pathB
+var (
+	onceSetPath  sync.Once
+	initMuGlobal sync.Mutex
+)
+
 // ─── 跨平台模型文件 ───
 
 //go:embed models/common_old.onnx
@@ -54,7 +69,7 @@ func New() *OCR {
 // Pool 是多个 OCR 实例的池，允许并发识别（默认 1 实例，兼容单例行为）。
 //
 // ONNX Runtime session 不是线程安全的（一个 session 同一时刻只能一个线程调用），
-// 所以单实例下并发请求会被 sync.Mutex 串行化，N 并发 Login 的 wall time = N × 单次延迟。
+// 所以单实例下并发请求会被 sync.Mutex 串行化，N 并发 Login 的 wall time = N x 单次延迟。
 //
 // 启用并发：NewPool(n) 预热 n 个独立 session 实例，允许 n 路真并发。
 // 内存代价：每个实例约 50MB（ONNX 模型 + 原生库解压到独立 tempDir），n=4 ≈ 200MB。
@@ -74,7 +89,7 @@ func New() *OCR {
 //	为什么不用 atomic.Bool.Load：atomic.Load + Get + trackInit 在 Go 内存模型下
 //	不是原子的（Load 之后到后续语句之间 goroutine 可被调度走，Close 在此期间
 //	完成 Range + 翻 closed，但 goroutine 已被 Load(false) 误导，仍会 trackInit
-//	到 inits map 内 → 泄漏）。所以需要 mutex 临界区。
+//	到 inits map 内 -> 泄漏）。所以需要 mutex 临界区。
 //	简化：closeOnce 仍然存在（保证 Close 关键路径只跑一次 + 错误聚合），
 //	closeMu 在 Close 内现在只保护临界区入口（进/出 closeMu），与 closeOnce 配合。
 type Pool struct {
@@ -123,12 +138,12 @@ func (p *Pool) trackInit(o *OCR) {
 // F2 关键修复：close 检查 + pool.Get + trackInit 必须在同一 mutex 临界区内。
 //
 //	否则并发 Recognize 可穿过 Close 的 Range 完成窗口，向 inits map
-//	注册新实例但 Close 已不会再次访问 → tempDir 永久泄漏。
+//	注册新实例但 Close 已不会再次访问 -> tempDir 永久泄漏。
 //	具体场景：
-//	  T0 Close 进入 closeOnce → 拿 closeMu → Range(inits) → 翻 closed → 放 closeMu
-//	  T1 Recognize 拿 closeMu（在 T0 之后）→ 看到 closed=true → 直接返回错误
-//	  T1' Recognize 拿 closeMu（在 T0 之前）→ 看到 closed=false → Get + trackInit
-//	       → 放 closeMu → Close 路径（拿 closeMu）→ Range 包含 T1' 注册的实例
+//	  T0 Close 进入 closeOnce -> 拿 closeMu -> Range(inits) -> 翻 closed -> 放 closeMu
+//	  T1 Recognize 拿 closeMu（在 T0 之后）-> 看到 closed=true -> 直接返回错误
+//	  T1' Recognize 拿 closeMu（在 T0 之前）-> 看到 closed=false -> Get + trackInit
+//	       -> 放 closeMu -> Close 路径（拿 closeMu）-> Range 包含 T1' 注册的实例
 //	保证：T1 要么被 Close 之前完整处理（被 Close 清理），要么被 Close 之后拒绝。
 func (p *Pool) Recognize(imageData []byte) (string, error) {
 	// 临界区：close 检查 + Get + trackInit 原子完成
@@ -165,8 +180,8 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 // F2 修复：closeMu 保护「Range(inits) + 翻 closed」原子临界区，与 Recognize
 //
 //	路径的「读 closed + Get + trackInit」临界区互斥。任何并发 Recognize 要么：
-//	  1) 在 Close 临界区之前完成 trackInit → 被 Range 清理
-//	  2) 在 Close 临界区之后拿 closeMu → 看到 closed=true → 直接返回错误
+//	  1) 在 Close 临界区之前完成 trackInit -> 被 Range 清理
+//	  2) 在 Close 临界区之后拿 closeMu -> 看到 closed=true -> 直接返回错误
 //	不会有"漏网"的 trackInit 留下幽灵实例。
 //
 // O7 优化：Pool.inits 是 sync.Map（无独立 initsMu），Close 路径用 Range
@@ -204,11 +219,19 @@ func (p *Pool) Close() error {
 // platformLibName 根据 runtime.GOOS 返回解压到磁盘时的原生库文件名。
 // C 运行时需要按平台命名规范来 LoadLibrary / dlopen。
 func platformLibName() string {
-	switch runtime.GOOS {
+	return platformLibNameFor(runtime.GOOS)
+}
+
+// platformLibNameFor 是 platformLibName 的参数化版本，接受任意 GOOS 字符串。
+// B5 修复：补充 darwin 分支返回 .dylib 扩展名。
+func platformLibNameFor(goos string) string {
+	switch goos {
 	case "windows":
 		return "onnxruntime.dll"
 	case "linux":
 		return "libonnxruntime.so"
+	case "darwin":
+		return "libonnxruntime.dylib"
 	default:
 		// 不支持的平台调用时会得到无扩展名文件，ddddocr.SetOnnxRuntimePath 会失败
 		return "onnxruntime"
@@ -236,14 +259,20 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 			return "", fmt.Errorf("OCR 初始化失败: %w", o.initErr)
 		}
 
-		// 设置 ONNX Runtime 路径为解压出的原生库
+		// B6 修复：SetOnnxRuntimePath + ddddocr.New 用 initMuGlobal 保护，
+		// 确保多实例并发初始化时 SetOnnxRuntimePath 和 New 不被交叉覆盖。
+		// onceSetPath 确保 SetOnnxRuntimePath 在整个进程中只调用一次。
+		initMuGlobal.Lock()
 		libPath := filepath.Join(o.tempDir, platformLibName())
-		ddddocr.SetOnnxRuntimePath(libPath)
+		onceSetPath.Do(func() {
+			ddddocr.SetOnnxRuntimePath(libPath)
+		})
 
 		// 创建识别器，指定模型目录为解压目录
 		opts := ddddocr.DefaultOptions()
 		opts.ModelDir = o.tempDir
 		ocr, err := ddddocr.New(opts)
+		initMuGlobal.Unlock()
 		if err != nil {
 			o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
 			o.initialized = true
@@ -326,24 +355,32 @@ func (o *OCR) extractModels() (string, error) {
 
 	// 写入原生库（按当前平台命名）
 	libName := platformLibName()
-	if err := writeFile(filepath.Join(dir, libName), OnnxRuntimeDLL); err != nil {
-		os.RemoveAll(dir)
-		return "", fmt.Errorf("写入 %s 失败: %w", libName, err)
+	if err := writeModelFile(dir, libName, OnnxRuntimeDLL); err != nil {
+		return "", err
 	}
 
 	// 写入 ONNX 模型
-	if err := writeFile(filepath.Join(dir, "common_old.onnx"), modelOnnx); err != nil {
-		os.RemoveAll(dir)
-		return "", fmt.Errorf("写入 common_old.onnx 失败: %w", err)
+	if err := writeModelFile(dir, "common_old.onnx", modelOnnx); err != nil {
+		return "", err
 	}
 
 	// 写入字符集
-	if err := writeFile(filepath.Join(dir, "charsets_old.json"), charsetJSON); err != nil {
-		os.RemoveAll(dir)
-		return "", fmt.Errorf("写入 charsets_old.json 失败: %w", err)
+	if err := writeModelFile(dir, "charsets_old.json", charsetJSON); err != nil {
+		return "", err
 	}
 
 	return dir, nil
+}
+
+// writeModelFile 写入模型文件并设置 0644 权限。
+// 写入失败时自动清理临时目录。
+// C8 修复：提取为 helper，消除三次 writeFile + os.RemoveAll + fmt.Errorf 的重复模式。
+func writeModelFile(dir, name string, data []byte) error {
+	if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
+		os.RemoveAll(dir)
+		return fmt.Errorf("写入 %s 失败: %w", name, err)
+	}
+	return nil
 }
 
 // writeFile 写入文件，设置 0644 权限。
