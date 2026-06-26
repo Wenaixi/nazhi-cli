@@ -62,15 +62,21 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	// 3. 构造请求
+	//
+	// F3 修复（round-8）：走共享 buildRequest helper，消除手工 NewRequestWithContext
+	// 特例路径。与 doRequest/doBizGet 等其他 SDK 方法统一，享受 buildRequest
+	// 的演进（如 debug 日志脱敏、req body 校验等无需在此同步）。
+	//
+	// multipart 场景下 Content-Type 必填（含 boundary），由 writer.FormDataContentType()
+	// 提供；body 传入 *bytes.Buffer（满足 io.Reader 接口），buildRequest 透传。
 	uploadURL := c.uploadServiceURL("/common/upload/uploadImage?bussinessType=12&groupName=other")
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, uploadURL, &buf)
+	req, err := c.buildRequest(ctx, http.MethodPost, uploadURL, &buf, map[string]string{
+		"Accept":     "application/json, text/plain, */*",
+		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+	}, writer.FormDataContentType())
 	if err != nil {
-		return 0, fmt.Errorf("创建上传请求失败: %w", err)
+		return 0, fmt.Errorf("%w: 创建上传请求失败: %w", ErrNetwork, err)
 	}
-
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36")
 
 	// 4. 关键安全措施：使用独立的 clean http.Client（无 cookie jar）
 	//
