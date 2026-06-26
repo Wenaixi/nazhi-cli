@@ -46,7 +46,7 @@ func TestSubmitTask_BusinessError_NotMisclassifiedAsLogin(t *testing.T) {
 	// 直接调用 SubmitTask 会触发 activateSessionIfNeeded；先跳过：
 	// 用一个提前注入好的"已激活"标记，绕过 session 预热。
 	c.sessionMu.Lock()
-	c.sessionToken = "fake-token"
+	c.sessionToken.Store("fake-token")
 	c.sessionMu.Unlock()
 
 	_, err = c.SubmitTask(context.Background(), "fake-token", types.TaskSubmitPayload{

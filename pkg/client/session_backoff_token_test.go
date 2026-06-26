@@ -80,8 +80,8 @@ func TestActivateSessionIfNeeded_BackoffIsScopedToToken(t *testing.T) {
 		t.Fatalf("第二阶段：token-B 在成功 server 上激活应成功，实际: %v", err)
 	}
 	// 验证：token-B 成功后 sessionToken 应更新为 token-B
-	if c.sessionToken != "token-B" {
-		t.Errorf("token-B 成功后 sessionToken 应 = \"token-B\"，实际 %q", c.sessionToken)
+	if c.sessionToken.Load() != "token-B" {
+		t.Errorf("token-B 成功后 sessionToken 应 = \"token-B\"，实际 %q", c.sessionToken.Load())
 	}
 	if c.lastActivationErr != nil {
 		t.Errorf("token-B 成功后 lastActivationErr 应清零，实际 %v", c.lastActivationErr)

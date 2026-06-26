@@ -8,6 +8,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -40,11 +41,9 @@ type Client struct {
 	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// sessionToken 记录上次成功激活业务 session 的 token。
-	// sessionMu 保护 sessionToken 的并发读写。
-	// 解决了原 sync.Once 不感知 token 变更的问题：进程内 token 变化
-	//（如重新 Login）时重新执行 4 步激活，确保 cookie jar 中的 session
-	// cookie 与当前 token 一致，避免后续业务接口返回空数据。
-	sessionToken string
+	// 使用 atomic.Value 实现 fast path 锁外读（B3 double-checked locking），
+	// 存储 string，写入路径在 sessionMu 持锁状态下完成。
+	sessionToken atomic.Value // 存储 string
 	sessionMu    sync.Mutex
 
 	// sessionBackoff 控制激活失败后重试的最小间隔。
