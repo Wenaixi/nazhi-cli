@@ -46,6 +46,16 @@ func main() {
 		printError(execErr)
 	}
 	if pendingExitCode.Load() != 0 {
+		// F6 修复（round-7）：os.Exit 之前显式调 closeAllClients。
+		//
+		// 原代码 `defer func() { closeAllClients() }()` 在 main 顶部（第 31-37 行），
+		// 但 Go 规范明确：os.Exit 不运行 deferred functions。意味着任何 CLI 错误
+		// 退出（pendingExitCode=1）的路径都泄漏 ONNX session + tempDir +
+		// keep-alive 连接。
+		//
+		// 修复：os.Exit 前显式 closeAllClients()。幂等安全：closeAllClients 内
+		// 部把全局 pendingClients 置 nil，二次调用是 no-op，defer 再跑也不会出错。
+		_ = closeAllClients()
 		os.Exit(1)
 	}
 }
