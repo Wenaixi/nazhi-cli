@@ -46,10 +46,8 @@ func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix st
 		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
 		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
 		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
-		msg := ""
-		if resp.Msg != nil {
-			msg = *resp.Msg
-		}
+		// F19 (round-7) 重构：走 derefOr helper，与 auth.go:156/212 对齐。
+		msg := derefOr(resp.Msg, "")
 		return nil, fmt.Errorf("%w: %s 业务错误: code=%d msg=%s", ErrBusinessRejected, errPrefix, resp.Code, msg)
 	}
 
@@ -188,10 +186,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	}
 	if statResp.Code != 1 {
 		// F-GroupD-F：业务错误 propagate，不再静默。
-		msg := ""
-		if statResp.Msg != nil {
-			msg = *statResp.Msg
-		}
+		msg := derefOr(statResp.Msg, "")
 		return nil, fmt.Errorf("维度 %d(%s) 业务错误: code=%d msg=%s", dim.ID, dim.Name, statResp.Code, msg)
 	}
 
@@ -280,10 +275,8 @@ func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID
 		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
 		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
 		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
-		msg := ""
-		if resp.Msg != nil {
-			msg = *resp.Msg
-		}
+		// F19 (round-7) 重构：走 derefOr helper，与 auth.go:156/212 对齐。
+		msg := derefOr(resp.Msg, "")
 		return nil, fmt.Errorf("%w: GetCircleTypeByTaskID 业务错误: code=%d msg=%s", ErrBusinessRejected, resp.Code, msg)
 	}
 
