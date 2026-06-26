@@ -90,10 +90,25 @@ func (c *Client) bizHeaders(token string) map[string]string {
 // ─── HTTP 请求执行 ───
 
 // buildRequest 构造 *http.Request，设置 Content-Type 和请求头。
+//
+// body 参数支持以下类型：
+//   - nil：不设置 body（用于 GET 请求）
+//   - io.Reader：直接透传为 body（multipart / 流式上传场景）
+//   - []byte / string：按字节/字符串透传
+//   - 其他任意类型：JSON 序列化后作为 body
+//
+// contentType 参数：当 body 是 io.Reader 时必须由调用方显式传入（multipart
+// 场景下服务端依赖 boundary 解析 body），其他场景下若为空则默认 application/json。
+//
+// F3 修复（round-8）：增加 io.Reader 分支，使 UploadFile 等 multipart 场景
+// 能复用本 helper，消除特例路径。
 func (c *Client) buildRequest(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {
 		switch b := body.(type) {
+		case io.Reader:
+			// io.Reader 直接透传，调用方负责构造（multipart / 流式场景）
+			reqBody = b
 		case []byte:
 			reqBody = bytes.NewReader(b)
 		case string:
