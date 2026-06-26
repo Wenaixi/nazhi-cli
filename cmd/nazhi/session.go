@@ -33,6 +33,15 @@ var sessionActivateCmd = &cobra.Command{
 		printVerbose("激活 Session...")
 		info, err := c.ActivateSession(cmd.Context(), token)
 		if err != nil {
+			// F4 修复（round-8）：ErrSessionBackoff 在冷却窗口内被抑制，
+			// 输出友好 cooldown 提示而非 error JSON。
+			if errors.Is(err, client.ErrSessionBackoff) {
+				printJSON(map[string]string{
+					"status":  "cooldown",
+					"message": "session 激活冷却中，上次激活失败请稍后重试",
+				})
+				return
+			}
 			// F10 修复（round-7）：ErrEmptyUserInfo 是「业务成功但无数据」状态
 			//（非错误），与 whoami 对称输出 status envelope 而非裸 null。
 			//
