@@ -99,6 +99,12 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		}
 		dim := dim // 捕获循环变量
 		g.Go(func() error {
+			// F6-FETCHTASKS-CTX-CANCEL 修复：context 取消后直接 propagate，
+			// 防止 cancel 被 dimErrs 吞掉后包装为 ErrBusinessRejected，
+			// 调用方无法区分完整成功与 cancel 截断。
+			if err := gctx.Err(); err != nil {
+				return err
+			}
 			tasks, dimErr := c.fetchTasksForDimensionSafe(gctx, dim, headers)
 			if dimErr != nil {
 				mu.Lock()
