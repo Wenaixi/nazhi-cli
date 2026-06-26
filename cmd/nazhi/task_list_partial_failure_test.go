@@ -36,10 +36,17 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/", "/api/studentInfo/getMenu", "/api/studentInfo/getMyInfo":
+		case "/", "/api/studentInfo/getMenu":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			// F11 修复（group-F round-8）：getMyInfo 必须返回真实 user info，
+			// 否则 session 预热步骤 4 触发 ErrEmptyUserInfo → FetchTasks 在
+			// 拉取维度之前就失败，永远走不到 partial failure 分支。
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"福清一中","className":"高一八班","seat":45}}`))
 		case "/api/studentCircleNew/getDimensions":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
