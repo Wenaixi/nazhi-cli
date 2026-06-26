@@ -1,3 +1,6 @@
+//go:build ddddocr
+// +build ddddocr
+
 // Package client 内部白盒测试。
 package client
 
@@ -119,6 +122,8 @@ func (m *mockCaptchaRecognizer) Close() error                     { m.closed = t
 // 历史 bug：WithOCRConcurrency 对 n<0 仅 `if n<0 { n=0 }` 静默截 0，
 // 然后无脑 c.ocr = ocr.NewPool(0) 覆盖——若调用方先用 WithCustomOCR 注入
 // mock，WithOCRConcurrency(-1) 会静默清掉 mock，导致后续 Login 走默认 OCR。
+//
+// !ddddocr 构建下此测试移到 option_guards_noocr_test.go（占位实现行为）。
 func TestWithOCRConcurrency_NegativeRejected(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))

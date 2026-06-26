@@ -92,6 +92,13 @@ const (
 // Login 完成 SSO 登录并返回 Token。
 // 内部流程：InitSession → GetSchoolID → 多图多试 OCR（1 张图 OCR 1 次 × 最多 99 张图 = 99 次总尝试上限）→ 预校验 → 正式登录
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
+	// 0. OCR 必需性检查 — CGO-free 构建（无 -tags ddddocr）默认 c.ocr 为 nil
+	//    此时若调用方未注入自定义识别器，立即返回友好错误而非 panic/挂起。
+	//    见 client_ocr_disabled.go / client_ocr_enabled.go 的 build tag 分支。
+	if c.ocr == nil {
+		return nil, ErrOCRNotConfigured
+	}
+
 	// 1. 建立 session
 	if err := c.InitSession(ctx); err != nil {
 		return nil, fmt.Errorf("Login InitSession 失败: %w", err)

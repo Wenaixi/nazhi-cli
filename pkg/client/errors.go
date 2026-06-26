@@ -37,6 +37,16 @@ var (
 	// 否则 SDK 用户按 errors.Is(err, ErrLoginRejected) 判定后会错误地走重新登录。
 	ErrBusinessRejected = errors.New("business request rejected by server")
 
+	// ErrOCRNotConfigured 表示 Client 未配置验证码识别器。
+	//
+	// 触发场景：构建时未加 -tags ddddocr（OCR 包未导入，c.ocr 默认 nil）
+	// 且调用方未用 WithCustomOCR 注入自定义识别器，此时调用 Login() 必失败。
+	//
+	// 修复动机：CGO-free 消费者（如 Nazhi-auto CGO_ENABLED=0 构建）无法使用
+	// ddddocr 内置识别器，必须通过 WithCustomOCR 注入 AI/外部识别器。
+	// 该哨兵让 SDK 用户能 errors.Is 精确识别「没配 OCR」 vs 「OCR 识别失败」。
+	ErrOCRNotConfigured = errors.New("OCR not configured: use WithCustomOCR to inject a captchaRecognizer, or build with -tags ddddocr to enable the built-in ddddocr engine")
+
 	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。
 	//
 	// 与 ErrNetwork / ErrBusinessRejected 的语义边界：
