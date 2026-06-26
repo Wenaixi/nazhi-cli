@@ -99,7 +99,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		}
 		dim := dim // 捕获循环变量
 		g.Go(func() error {
-			tasks, dimErr := c.fetchTasksForDimension(gctx, dim, headers)
+			tasks, dimErr := c.fetchTasksForDimensionSafe(gctx, dim, headers)
 			if dimErr != nil {
 				mu.Lock()
 				dimErrs = append(dimErrs, dimErr)
@@ -161,7 +161,10 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 //
 // 区分意义：网络抖动是「临时性、可重试」，业务错误是「服务端明确拒绝」，
 // SDK 用户需要知道业务错误才能做精确处理（提示用户、报告 bug 等）。
-func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension, headers map[string]string) ([]types.Task, error) {
+// G2 (round-7) 修复：改用命名返回值 (tasks []types.Task, err error) 以便
+// fetchTasksForDimensionSafe 的 defer recover 能通过闭包赋值捕获 panic。
+// 非公有方法改变签名不破坏兼容性。
+func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
 	// G1 round-6 修复：上下文取消（Canceled/DeadlineExceeded）直接 propagate，
 	// 不吞掉走 best-effort——调用方需要知道 context 信号已触发，才能正确区分
 	// 「真空数据」与「被取消」。
@@ -190,7 +193,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 		return nil, fmt.Errorf("维度 %d(%s) 业务错误: code=%d msg=%s", dim.ID, dim.Name, statResp.Code, msg)
 	}
 
-	tasks, err := types.DecodeDataList[types.Task](statResp)
+	tasks, err = types.DecodeDataList[types.Task](statResp)
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 任务解析失败: %v", dim.ID, dim.Name, err)
 		return nil, nil
@@ -200,6 +203,25 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 		tasks[i].DimensionName = dim.Name
 	}
 	return tasks, nil
+}
+
+// fetchTasksForDimensionSafe 是 fetchTasksForDimension 的 panic-safe 包装。
+//
+// G2 (round-7) 修复：errgroup.Go 闭包内无 panic recover 时，nil deref 或
+// 第三方库 panic 会逃逸到 runtime → 进程崩溃 → g.Wait() 永不返回。
+// 此 helper 在维度粒度捕获 panic，把它当业务错误记录到 dimErrs，
+// 防止单个维度的 panic 影响其他维度的并发拉取。
+//
+// panic 信息：包含 dim.ID + dim.Name 便于排查（panic 路径无法
+// 依赖 errgroup 自带的 nil-safe 包装，必须自己构建可读错误）。
+func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			tasks = nil
+			err = fmt.Errorf("维度 %d(%s) panic: %v", dim.ID, dim.Name, r)
+		}
+	}()
+	return c.fetchTasksForDimension(ctx, dim, headers)
 }
 
 // SubmitTask 提交一次任务。
