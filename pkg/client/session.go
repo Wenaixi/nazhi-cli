@@ -34,6 +34,17 @@ const defaultSessionBackoff = 5 * time.Second
 // （F10：曾 logDebug + 兜底解析，导致 getMyInfo 服务降级被静默吞掉，
 // 后续业务接口返回空数据难以排查）。
 //
+// B4 外部并发契约（round-9）：
+//   - 本函数在 sessionMu 持锁状态下执行 4 步网络请求（200-500ms），
+//     持有锁期间不会回调外层或锁住其他互斥资源。
+//   - 外部调用方应**避免**在本函数持锁路径内嵌套其他锁，
+//     否则可能引发 ABBA 死锁（如 errgroup.Go 中先持锁 A 再调本函数，
+//     本函数持 sessionMu 时反调锁 A）。
+//   - 外部使用模式：直接 goroutine 并发调本函数是安全的——sessionMu
+//     只会序列化 4 步激活，不会让其他 goroutine 饿死（约 200-500ms 内释放）。
+//   - 如果需要在锁内调本函数（如 sync.Mutex 临界区），需确保外层锁
+//     的获取/释放顺序一致，不会形成循环等待。
+//
 // 并发安全：公开方法持 sessionMu 锁后调用 activateSessionLocked（不持锁），
 // 防止外部调用与内部 activateSessionIfNeeded 并发执行 4 步激活污染 cookie jar
 // （G8：原实现公开方法自身无锁，外部直接调 + 内部持锁调会并发写 cookie jar）。
