@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"context"
@@ -52,7 +52,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if err := c.activateSessionIfNeeded(context.Background(), "shared-token"); err != nil {
+			if _, err := c.activateSessionIfNeeded(context.Background(), "shared-token"); err != nil {
 				atomic.AddInt32(&errCount, 1)
 			}
 		}()

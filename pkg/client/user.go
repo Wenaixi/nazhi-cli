@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -12,8 +13,16 @@ import (
 // 包含：姓名、性别、学号、学校、年级、班级、座号（seat）等。
 // 最佳努力设计：失败返回 nil，不中断主流程。
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error) {
-	if err := c.activateSessionIfNeeded(ctx, token); err != nil {
+	// B10 修复：activateSessionIfNeeded 返回步骤 4 获取的 UserInfo（若激活由
+	// 步骤 4 完成），GetMyInfo 直接复用，避免重复的 getMyInfoRaw HTTP 请求。
+	// session 已激活（fast path）时返回 nil,nil。
+	info, err := c.activateSessionIfNeeded(ctx, token)
+	if err != nil {
 		return nil, fmt.Errorf("GetMyInfo 预热 session 失败: %w", err)
+	}
+	if info != nil {
+		// 激活步骤 4 已拿到数据，直接返回，无需额外 HTTP 请求
+		return info, nil
 	}
 	return c.getMyInfoRaw(ctx, token)
 }
@@ -39,7 +48,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("%w: 获取用户信息业务错误: %v", ErrBusinessRejected, err)
+		return nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err))
 	}
 
 	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
