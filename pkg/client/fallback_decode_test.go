@@ -20,7 +20,7 @@ func TestTryDecodeFallback_ReturnData(t *testing.T) {
 		ReturnData: &rawData,
 	}
 
-	v := tryDecodeFallback(c, "test", resp,
+	v := tryDecodeFallback(c, "test",
 		func() (*testUser, error) { return types.DecodeReturnData[testUser](*resp) },
 		func() (*testUser, error) { return types.DecodeDataMap[testUser](*resp) },
 	)
@@ -44,7 +44,7 @@ func TestTryDecodeFallback_DataMap(t *testing.T) {
 		DataMap: &rawMap,
 	}
 
-	v := tryDecodeFallback(c, "test", resp,
+	v := tryDecodeFallback(c, "test",
 		func() (*testUser, error) { return types.DecodeReturnData[testUser](*resp) },
 		func() (*testUser, error) { return types.DecodeDataMap[testUser](*resp) },
 	)
@@ -63,7 +63,7 @@ func TestTryDecodeFallback_AllNil(t *testing.T) {
 
 	resp := &types.UnifiedResponse{Code: 1}
 
-	v := tryDecodeFallback(c, "test", resp,
+	v := tryDecodeFallback(c, "test",
 		func() (*testUser, error) { return types.DecodeReturnData[testUser](*resp) },
 		func() (*testUser, error) { return types.DecodeDataMap[testUser](*resp) },
 	)
@@ -87,7 +87,7 @@ func TestTryDecodeFallback_PartialFailure(t *testing.T) {
 
 	// 第一个 decode 总是失败的 decoder
 	var triedFirst bool
-	v := tryDecodeFallback(c, "test", resp,
+	v := tryDecodeFallback(c, "test",
 		func() (*testUser, error) {
 			triedFirst = true
 			return nil, json.Unmarshal([]byte(`"not an object"`), new(testUser))

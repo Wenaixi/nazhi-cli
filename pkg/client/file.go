@@ -72,7 +72,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	uploadURL := c.uploadServiceURL("/common/upload/uploadImage?bussinessType=12&groupName=other")
 	req, err := c.buildRequest(ctx, http.MethodPost, uploadURL, &buf, map[string]string{
 		"Accept":     "application/json, text/plain, */*",
-		"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36",
+		"User-Agent": defaultUserAgent,
 	}, writer.FormDataContentType())
 	if err != nil {
 		return 0, fmt.Errorf("%w: 创建上传请求失败: %w", ErrNetwork, err)
