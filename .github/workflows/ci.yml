@@ -78,8 +78,11 @@ jobs:
             exit 1
           fi
 
-      - name: 单元测试（race 检测）
+      - name: 单元测试（race 检测，!ddddocr 默认模式）
         run: go test -count=1 -race -v -timeout=15m ./pkg/...
+
+      - name: 单元测试（ddddocr 模式，验证 WithCustomOCR 旁路不依赖内嵌 OCR）
+        run: go test -tags=ddddocr -count=1 -race -v -timeout=15m ./pkg/...
 
       - name: 集成测试编译验证（不跑真实环境）
         run: go test -tags=integration -run=^$ ./test/integration/...
@@ -182,7 +185,10 @@ jobs:
           CXX: ${{ matrix.cross == 'zig' && 'zig c++ -target aarch64-windows-gnu' || (matrix.cross != '' && format('{0}g++', matrix.cross) || '') }}
         run: |
           mkdir -p bin
-          go build -ldflags="-s -w" \
+          # v0.3.5+ OCR 可选构建：默认 release 必须带 -tags ddddocr，
+          # 否则 defaultOCR() 返回 nil，CLI 调 Login() 会立即返回 ErrOCRNotConfigured。
+          # CGO-free 用户（Nazhi-auto 等）需自行用 -tags !ddddocr 显式构建纯 Go 二进制。
+          go build -tags=ddddocr -ldflags="-s -w" \
             -o "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
             ./cmd/nazhi
 
