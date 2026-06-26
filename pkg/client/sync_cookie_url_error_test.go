@@ -42,44 +42,22 @@ func newTestClientWithJar(ssoBase, bizBase string) *Client {
 	}
 }
 
-// TestSyncCookieToken_BaseURLParseError_Propagates 验证 baseURL 畸形时
-// syncCookieToken 不再静默 Warn + return nil，而是 propagate error。
-//
-// 修复前：c.logger.Warn + continue → return nil（invariant 不对称）
-// 修复后：return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", raw, err)
-func TestSyncCookieToken_BaseURLParseError_Propagates(t *testing.T) {
-	c := newTestClientWithJar(malformedBaseURL, "http://example.com")
+// TestSyncCookieToken_BaseURLMalformed_Propagates 验证 baseURL 畸形时
+// syncCookieToken 返回 error（B9 后只解析 c.baseURL，ssoBaseURL 不参与 cookie 写入）。
+func TestSyncCookieToken_BaseURLMalformed_Propagates(t *testing.T) {
+	c := newTestClientWithJar("https://sso.example.com", malformedBaseURL)
 
 	err := c.syncCookieToken("test-token")
 	if err == nil {
-		t.Fatal("syncCookieToken 应该 propagate URL parse error，但返回 nil")
-	}
-	// error 信息应提及 url 解析（方便用户定位）
-	if !strings.Contains(err.Error(), "url") {
-		t.Errorf("error 信息应提及 url 解析，实际: %v", err)
-	}
-	// error 信息应包含 "syncCookieToken" 前缀（与 Jar 失败路径风格一致）
-	if !strings.Contains(err.Error(), "syncCookieToken") {
-		t.Errorf("error 信息应以 'syncCookieToken' 开头，实际: %v", err)
-	}
-}
-
-// TestSyncCookieToken_BothBaseURLsMalformed_PropagatesFirst 验证两个 base URL
-// 都畸形时，syncCookieToken 返回第一个错误的 error（短链路，不吞错）。
-func TestSyncCookieToken_BothBaseURLsMalformed_PropagatesFirst(t *testing.T) {
-	c := newTestClientWithJar(malformedBaseURL, malformedBaseURL)
-
-	err := c.syncCookieToken("test-token")
-	if err == nil {
-		t.Fatal("两个 base URL 都畸形时应 propagate error，实际 nil")
+		t.Fatal("base URL 畸形时应 propagate error，实际 nil")
 	}
 	if !strings.Contains(err.Error(), "syncCookieToken") {
 		t.Errorf("error 应包含 syncCookieToken 前缀，实际: %v", err)
 	}
 }
 
-// TestSyncCookieToken_AllBaseURLsValid_NoError 验证所有 base URL 都合法时
-// syncCookieToken 仍然成功（happy path，invariant 完整）。
+// TestSyncCookieToken_AllBaseURLsValid_NoError 验证 base URL 合法时
+// syncCookieToken 成功（happy path）。
 func TestSyncCookieToken_AllBaseURLsValid_NoError(t *testing.T) {
 	c := newTestClientWithJar("https://sso.example.com", "https://biz.example.com")
 
