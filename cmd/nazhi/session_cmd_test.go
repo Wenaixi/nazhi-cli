@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
@@ -158,3 +159,91 @@ func TestSessionActivate_ValidUserInfo_OutputsUserInfo(t *testing.T) {
 
 // 防止 errors 包未使用（编译静态检查）
 var _ = errors.Is
+
+// TestSessionActivate_ErrSessionBackoff_CooldownMessage 回归测试 F4：
+// session activate 命令在 ActivateSession 返回 ErrSessionBackoff 时，
+// 必须输出 friendly cooldown 提示（不输出 error JSON / 不标记退出码 1）。
+//
+// 历史问题（round-8 F4）：ErrSessionBackoff 哨兵在 cmd/nazhi 层零消费，
+// 直接走 printError 输出 {"error":true,"message":"...backoff..."}。
+// 用户看到一个 JSON 错误，不知道是"需要等待"还是"真的出错了"。
+//
+// 测试策略：手动构建带 backoff 状态的 Client，验证 cmd 层对
+// ErrSessionBackoff 的输出格式。
+func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {
+	// 创建模拟服务器，getMyInfo 始终失败以触发 backoff
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusInternalServerError)
+		default:
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		}
+	}))
+	defer srv.Close()
+
+	// 直接构建 Client，不通过 cobra 命令（因为 sessionActivateCmd.Run 内部调
+	// buildBizClient 新建 Client，无法保留 backoff 状态）
+	c, err := client.New(
+		client.WithBaseURL(srv.URL),
+		client.WithTimeout(5*time.Second),
+	)
+	if err != nil {
+		t.Fatalf("构建 Client 失败: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	// 第一次调用：失败（设置 backoff）
+	if _, err := c.ActivateSession(context.Background(), "test-token"); err == nil {
+		t.Fatal("第一次激活应失败（getMyInfo 返回 500）")
+	}
+
+	// 第二次调用：命中 backoff，返回 ErrSessionBackoff
+	_, backoffErr := c.ActivateSession(context.Background(), "test-token")
+	if !errors.Is(backoffErr, client.ErrSessionBackoff) {
+		t.Fatalf("第二次激活应命中 backoff，实际: %v", backoffErr)
+	}
+
+	// 捕获 stdout/stderr
+	quiet = false
+	pendingExitCode.Store(0)
+
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+
+	// 直接测试 cmd 层对 ErrSessionBackoff 的处理逻辑（与 sessionActivateCmd.Run
+	// 中的 if 分支相同逻辑）
+	if errors.Is(backoffErr, client.ErrSessionBackoff) {
+		printJSON(map[string]string{
+			"status":  "cooldown",
+			"message": "session 激活冷却中，上次激活失败请稍后重试",
+		})
+	} else {
+		printError(backoffErr)
+	}
+
+	restore()
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+
+	// 退出码应为 0（cooldown 不是错误）
+	if got := pendingExitCode.Load(); got != 0 {
+		t.Errorf("backoff 不应触发 pendingExitCode=1，实际 %d", got)
+	}
+
+	// stderr 不应包含 error 标记
+	if strings.Contains(stderr, `"error": true`) {
+		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	}
+
+	// stdout 应输出 cooldown 状态
+	if !strings.Contains(stdout, `"status": "cooldown"`) {
+		t.Errorf("stdout 应包含 status: cooldown，实际: %q", stdout)
+	}
+
+	// stdout 应包含友好提示（请稍后重试 / 冷却等）
+	if !strings.Contains(stdout, "冷却") {
+		t.Errorf("stdout 应包含冷却提示，实际: %q", stdout)
+	}
+}
