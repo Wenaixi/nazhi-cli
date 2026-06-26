@@ -98,6 +98,14 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			continue
 		}
 		dim := dim // 捕获循环变量
+		// r9-D2 修复：循环变量捕获强约束。
+		//
+		// Go 1.22 之前每个 iteration 复用同一 dim 变量，
+		// 必须显式 dim := dim 捕获当前值给 goroutine 使用。
+		// Go 1.22+ 每个 iteration 自动生成新变量，此行变成无害冗余。
+		// 本项目 go.mod 指定 Go 1.26.1，已具备新语义，但保留 dim := dim
+		// 与显式注释作为防御——避免未来 refactor 把循环改为函数并意外丢捕获。
+		// 维护者约束：删除此行前请确认循环变量语义与 goroutine 闭包兼容。
 		g.Go(func() error {
 			// F6-FETCHTASKS-CTX-CANCEL 修复：context 取消后直接 propagate，
 			// 防止 cancel 被 dimErrs 吞掉后包装为 ErrBusinessRejected，
