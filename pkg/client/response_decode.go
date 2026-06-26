@@ -29,22 +29,3 @@ func tryDecodeFallback[T any](c *Client, opName string, resp *types.UnifiedRespo
 	}
 	return nil
 }
-
-// tryDecodeFallbackWithPost 是 tryDecodeFallback 的变体，在成功解码后调用 post 回调。
-// post 用于在返回前对解码结果做额外处理（如赋值派生字段）。
-//
-// 用法示例：
-//
-//	v, ok := tryDecodeFallbackWithPost(c, "GetMyInfo", resp, func(v *UserInfo) {
-//	    v.Raw = parseRawData(*resp.ReturnData)
-//	},
-//	    func() (*UserInfo, error) { return types.DecodeReturnData[UserInfo](resp) },
-//	    func() (*UserInfo, error) { return types.DecodeDataMap[UserInfo](resp) },
-//	)
-func tryDecodeFallbackWithPost[T any](c *Client, opName string, resp *types.UnifiedResponse, post func(v *T), decoders ...func() (*T, error)) *T {
-	v := tryDecodeFallback(c, opName, resp, decoders...)
-	if v != nil && post != nil {
-		post(v)
-	}
-	return v
-}
