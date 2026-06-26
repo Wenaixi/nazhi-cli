@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 
@@ -47,7 +48,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("%w: 获取用户信息业务错误: %v", ErrBusinessRejected, err)
+		return nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err))
 	}
 
 	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
