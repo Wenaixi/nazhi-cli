@@ -423,14 +423,14 @@ func TestGetMyInfo(t *testing.T) {
 
 // TestGetMyInfo_FullFields 用真实 HAR 抓包的完整响应验证 30+ 字段全部正确解析。
 func TestGetMyInfo_FullFields(t *testing.T) {
-	// 完整 mock 响应模拟真实账号（张三）的 getMyInfo 返回
+	// 完整 mock 响应模拟 mock 账号的 getMyInfo 返回（占位值，与仓库 PII 守卫一致）
 	mockResponse := map[string]any{
-		"id":                    32USER_ID_REDACTED,
+		"id":                    100001,
 		"name":                  "张三",
-		"initials":              "gNAME_INITIALS_REDACTED",
-		"pinyin":                "gaNAME_PINYIN_REDACTED",
+		"initials":              "zs",
+		"pinyin":                "zhangsan",
 		"studentNumber":         "TEST2025001",
-		"studentId":             38STUDENT_ID_REDACTED,
+		"studentId":             100002,
 		"schoolId":              173,
 		"positionId":            0,
 		"positionName":          nil,
@@ -439,7 +439,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		"statusName":            "在籍",
 		"nativePlace":           "",
 		"idType":                1,
-		"idCard":                "ID_CARD_REDACTED",
+		"idCard":                "TEST000000000000",
 		"birthday":              []int{2009, 12, 11},
 		"birthdayStr":           "2009-12-11 00:00:00",
 		"nation":                1,
@@ -463,7 +463,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		"criminalRecordFlag":    0,
 		"nationalStudentNumber": "TEST2025001",
 		"registrationNumber":    "",
-		"studyNumber":           "STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED",
+		"studyNumber":           "TEST000000",
 		"photoAttachmentId":     nil,
 		"telephone":             "",
 		"level":                 0,
@@ -492,13 +492,13 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	}
 
 	// 基础身份
-	if info.ID != 32USER_ID_REDACTED || info.Name != "张三" || info.StudentNumber != "TEST2025001" {
+	if info.ID != 100001 || info.Name != "张三" || info.StudentNumber != "TEST2025001" {
 		t.Errorf("基础身份字段错误: id=%d name=%s studentNumber=%s", info.ID, info.Name, info.StudentNumber)
 	}
-	if info.Initials != "gNAME_INITIALS_REDACTED" || info.Pinyin != "gaNAME_PINYIN_REDACTED" {
+	if info.Initials != "zs" || info.Pinyin != "zhangsan" {
 		t.Errorf("姓名辅助字段错误: initials=%s pinyin=%s", info.Initials, info.Pinyin)
 	}
-	if info.StudentID != 38STUDENT_ID_REDACTED || info.StudyNumber != "STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED" {
+	if info.StudentID != 100002 || info.StudyNumber != "TEST000000" {
 		t.Errorf("学生 ID 错误: studentId=%d studyNumber=%s", info.StudentID, info.StudyNumber)
 	}
 	if info.NationalStudentNumber != "TEST2025001" {
@@ -527,7 +527,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	}
 
 	// 民族 / 证件
-	if info.Nation != 1 || info.IDCard != "ID_CARD_REDACTED" || info.IDType != 1 {
+	if info.Nation != 1 || info.IDCard != "TEST000000000000" || info.IDType != 1 {
 		t.Errorf("民族证件错误: nation=%d idCard=%s idType=%d", info.Nation, info.IDCard, info.IDType)
 	}
 
