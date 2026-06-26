@@ -1,7 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
+	"log/slog"
+	"os"
 	"sync"
 	"time"
 
@@ -33,13 +36,32 @@ func closeAllClients() error {
 	pendingClients = nil
 	pendingClientsMu.Unlock()
 
+	// C9 修复：收集所有 Close 错误而非只保留第一个。
 	var firstErr error
 	for _, c := range clients {
-		if err := c.Close(); err != nil && firstErr == nil {
-			firstErr = err
+		if err := c.Close(); err != nil {
+			firstErr = errors.Join(firstErr, err)
 		}
 	}
 	return firstErr
+}
+
+// newClientWithOpts 是 buildClient / buildBizClient 共享的 Client 构造辅助（C3 修复）。
+//
+// 消除两处重复的 `if err != nil { if c != nil { c.Close() }; return nil, err }` 模式，
+// 统一处理 New() 失败时的资源清理。
+//
+// 注意：调用方仍需自行调用 trackClient() 注册到 pendingClients，因为
+// buildBizClient 需要先返回 token 再由调用方决定是否 track。
+func newClientWithOpts(opts ...client.Option) (*client.Client, error) {
+	c, err := client.New(opts...)
+	if err != nil {
+		if c != nil {
+			c.Close()
+		}
+		return nil, err
+	}
+	return c, nil
 }
 
 // buildClient 从 cobra 命令标志构建通用 Client，处理 sso-base / base-url /
@@ -62,11 +84,8 @@ func buildClient(cmd *cobra.Command, urlType string, timeoutEnv string) (*client
 	if err != nil {
 		return nil, err
 	}
-	c, err := client.New(opts...)
+	c, err := newClientWithOpts(opts...)
 	if err != nil {
-		if c != nil {
-			c.Close()
-		}
 		return nil, err
 	}
 	trackClient(c)
@@ -85,11 +104,8 @@ func buildBizClient(cmd *cobra.Command) (*client.Client, string, error) {
 	if err != nil {
 		return nil, "", err
 	}
-	c, err := client.New(opts...)
+	c, err := newClientWithOpts(opts...)
 	if err != nil {
-		if c != nil {
-			c.Close()
-		}
 		return nil, "", err
 	}
 	trackClient(c)
@@ -150,18 +166,25 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	var urlVal string
 	switch urlType {
 	case "sso":
-		urlVal, _ = cmd.Flags().GetString("sso-base")
-		if urlVal == "" {
+		// B12 修复：用 flagChanged() 守卫 sso-base 读取，
+		// 避免用户显式传 --sso-base "" 时被 NAZHI_SSO_BASE 环境变量覆盖。
+		if flagChanged(cmd, "sso-base") {
+			urlVal, _ = cmd.Flags().GetString("sso-base")
+		} else {
 			urlVal = envString("NAZHI_SSO_BASE", "")
 		}
 	case "base":
-		urlVal, _ = cmd.Flags().GetString("base-url")
-		if urlVal == "" {
+		// B12 修复：用 flagChanged() 守卫 base-url 读取。
+		if flagChanged(cmd, "base-url") {
+			urlVal, _ = cmd.Flags().GetString("base-url")
+		} else {
 			urlVal = envString("NAZHI_BASE_URL", "")
 		}
 	case "upload":
-		urlVal, _ = cmd.Flags().GetString("upload-url")
-		if urlVal == "" {
+		// B12 修复：用 flagChanged() 守卫 upload-url 读取。
+		if flagChanged(cmd, "upload-url") {
+			urlVal, _ = cmd.Flags().GetString("upload-url")
+		} else {
 			urlVal = envString("NAZHI_UPLOAD_URL", "")
 		}
 	default:
@@ -176,6 +199,13 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
 	if token != "" {
 		opts = append(opts, client.WithToken(token))
+	}
+	// G2 修复：--verbose 时让 SDK logger 输出 Debug 级别日志，
+	// 否则 c.logDebug 被 slog LevelWarn 过滤，用户看不到 SDK 内部细节。
+	if verbose {
+		opts = append(opts, client.WithLogger(
+			slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
+		))
 	}
 	switch urlType {
 	case "sso":
