@@ -105,11 +105,14 @@ func warmupBizHandler(t *testing.T, fn http.HandlerFunc) http.HandlerFunc {
 		case "/api/studentInfo/getMyInfo":
 			servedWarmup := false
 			myInfoOnce.Do(func() {
-				// 第一次响应：返回 userInfo 但 Name 为空，让 ActivateSession 不早 return
+				// B10 修复：步骤 4 响应被缓存供 GetMyInfo 复用，必须返回完整字段
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
-					"student_no": "TEST2025001",
+					"name":          "张三",
+					"studentNumber": "TEST2025001",
+					"className":     "八班",
+					"seat":          45,
 				}, nil)))
 				servedWarmup = true
 			})

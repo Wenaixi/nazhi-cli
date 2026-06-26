@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
 // captchaRecognizer 由 build tag 决定：
@@ -67,6 +69,9 @@ type Client struct {
 	// 修复后首次 Clone 缓存，后续复用同一 Transport 实例，clean idle 池跨上传累积。
 	cleanTransportInit sync.Once
 	cleanTransport     *http.Transport // 懒加载的 cloned Transport（仅 *http.Transport 路径）
+
+	// cachedUserInfo 缓存步骤 4 获取的 UserInfo（B10 修复），供 GetMyInfo 复用。
+	cachedUserInfo *types.UserInfo
 }
 
 // ─── Option 模式 ───
