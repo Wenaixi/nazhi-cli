@@ -1,4 +1,4 @@
-﻿package client
+package client
 
 import (
 	"bytes"
@@ -176,12 +176,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
 			// Login 路径中 token 已从 server 拿到，syncCookieToken 失败时只 Warn
 			// 不阻断（业务 token 仍有效），让调用方能拿到 token 自己排查。
-			c.warnSyncCookieToken(token, "200")
-			return &types.LoginResponse{
-				Token:     token,
-				ExpiresAt: expiresAt,
-				RawData:   parseRawData(bodyBytes),
-			}, nil
+			return c.buildLoginResponse(token, expiresAt, bodyBytes, "200"), nil
 		}
 		return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
 	}
@@ -209,12 +204,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		}
 		// Cookie 同步
 		// 302 路径同上：token 已拿到，syncCookieToken 失败只 Warn 不阻断
-		c.warnSyncCookieToken(token, "302 fallback")
-		return &types.LoginResponse{
-			Token:     token,
-			ExpiresAt: expiresAt,
-			RawData:   parseRawData(bodyBytes),
-		}, nil
+		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback"), nil
 	}
 
 	// 非预期状态码
@@ -585,5 +575,25 @@ func (c *Client) syncCookieToken(token string) error {
 func (c *Client) warnSyncCookieToken(token, label string) {
 	if err := c.syncCookieToken(token); err != nil {
 		c.logger.Warn("Login "+label+" 后同步 token 到 cookie 失败", "err", err.Error())
+	}
+}
+
+// buildLoginResponse 构造 LoginResponse，统一处理 cookie 同步。
+//
+// C7 提取：200 路径和 302 路径原来都 copy-paste 同样的
+//
+//	c.warnSyncCookieToken(token, label)
+//	return &types.LoginResponse{Token: token, ExpiresAt: expiresAt, RawData: ...}, nil
+//
+// 语义相同（构造 response + warn 不阻断的 cookie 同步），提取 helper 后
+// 调用方只需一行实现，同时保留 warnSyncCookieToken 的 label 区分能力。
+//
+// label 用于 warn 日志标识（如 "200" / "302 fallback"）。
+func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
+	c.warnSyncCookieToken(token, label)
+	return &types.LoginResponse{
+		Token:     token,
+		ExpiresAt: expiresAt,
+		RawData:   parseRawData(bodyBytes),
 	}
 }
