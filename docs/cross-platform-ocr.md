@@ -82,6 +82,25 @@ Go 编译时按 `(GOOS, GOARCH)` 只取对应文件嵌入。
 现在多个 Client 通过 `Pool` 实例共享引擎——`pkg/client` 的 `client.New`
 默认构造一个 `ocr.NewPool(0)`（懒加载单实例），业务代码无需关心单例。
 
+## OCR 可选构建（v0.3.5+）
+
+v0.3.5 起，OCR 引擎通过 Go build tags 可选启用：
+
+| 构建方式 | 命令 | OCR 行为 |
+|---------|------|---------|
+| 含 OCR（默认）| `go build -tags ddddocr -o nazhi.exe ./cmd/nazhi` | 内嵌 ddddocr 引擎，开箱即用 |
+| 纯 Go 无 OCR | `go build -o nazhi-noocr.exe ./cmd/nazhi` | CGO-free 构建，Login 需要 WithCustomOCR |
+
+**设计动机**：
+- Nazhi-auto 等消费者需要 CGO_ENABLED=0 构建（无法引入 ddddocr 的 CGO 依赖）
+- `!ddddocr` 构建下 `defaultOCR()` 返回 nil，`Login()` 立即返回 `ErrOCRNotConfigured`
+- 调用方需通过 `WithCustomOCR` 注入自定义识别器
+- `WithOCRConcurrency` 在 `!ddddocr` 构建下为 no-op warn（不会 panic 或替换已有 ocr）
+
+**pkg/client 新增文件**：
+- `client_ocr_enabled.go` — `//go:build ddddocr`，`defaultOCR()` 返回 `ocr.NewPool(0)`
+- `client_ocr_disabled.go` — `//go:build !ddddocr`，`defaultOCR()` 返回 nil，`WithOCRConcurrency` 为占位 warn
+
 ## CI 矩阵
 
 `onnxruntime_go` 在 Linux/macOS 强制 CGO，无法从其他 OS 交叉编译。CI 每个平台用 native runner（或 cross-compile 工具链）：

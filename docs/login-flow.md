@@ -51,6 +51,10 @@ Content-Type: application/json
 //
 // 内部流程：每轮先调 SDK 私有方法 c.fetchCaptchaImage(ctx) 拉一张新图，
 // 再走 c.ocr.Recognize(imgBytes) OCR 识别。SDK 外部无需关心图床调用。
+//
+// v0.3.5+ OCR 可选构建：
+//   不加 -tags ddddocr 时 c.ocr == nil，Login() 立即返回 ErrOCRNotConfigured，
+//   调用方需用 WithCustomOCR 注入识别器。
 for imgIdx := 0; imgIdx < 99; imgIdx++ {
     imgBytes := c.fetchCaptchaImage(ctx)  // 私有方法：GET /kaptcha/kaptcha.jpg?t=<ms>
     text, err := c.ocr.Recognize(imgBytes)
