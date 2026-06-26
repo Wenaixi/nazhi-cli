@@ -168,6 +168,39 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
+// WithSessionBackoff 设置 session 激活失败后抑制重试的时间窗口。
+//
+// 默认值：5 秒（见 defaultSessionBackoff 常量）。SDK 用户调高/调低本字段
+// 可针对不同服务端稳定性做适配：
+//   - 高频调用场景：调小到 1s 让失败快速重试
+//   - 服务端降级场景：调大到 30s 让瞬时故障不被重复激活放大
+//
+// 行为约定：
+//   - d > 0：设置 c.sessionBackoff
+//   - d = 0：拒绝并 warn，保持当前值（防止静默清零已有配置）
+//   - d < 0：拒绝并 warn，保持当前值（负数 time.Duration 无意义）
+//
+// 设计一致：与 WithTimeout 的「d<=0 拒绝 + warn」守卫对称。
+//
+// F15/H2 修复（round-7/round-9）：与 ErrSessionBackoff 哨兵配对，
+// 让 SDK 用户能调整 thundering herd 抑制窗口。
+func WithSessionBackoff(d time.Duration) Option {
+	return func(c *Client) {
+		if d < 0 {
+			c.logger.Warn("WithSessionBackoff: 负数 backoff 窗口被拒绝，保持当前值",
+				"duration", d, "current", c.sessionBackoff)
+			return
+		}
+		if d == 0 {
+			c.logger.Warn("WithSessionBackoff: 0 窗口被拒绝（防止静默清零默认值），保持当前值",
+				"current", c.sessionBackoff,
+				"tip", "用 WithSessionBackoff(5*time.Second) 设置正数，或保留默认值 5s")
+			return
+		}
+		c.sessionBackoff = d
+	}
+}
+
 // WithLogger 设置自定义 logger。
 func WithLogger(l *slog.Logger) Option {
 	return func(c *Client) { c.logger = l }
