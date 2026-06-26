@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"bytes"
@@ -555,21 +555,18 @@ func (c *Client) syncCookieToken(token string) error {
 			"修复：用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建",
 			c.http.Jar)
 	}
-	for _, raw := range []string{c.ssoBaseURL, c.baseURL} {
-		u, err := url.Parse(raw)
-		if err != nil {
-			// 修复 review-tdd F5：URL 解析失败 propagate error（与 Jar 类型断言
-			// 失败契约对称）。成功循环计数改用 len(URLs) - 失败次数，调用方可在
-			// build 阶段感知畸形 baseURL。
-			return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", raw, err)
-		}
-		jar.SetCookies(u, []*http.Cookie{{
-			Name:  "X-Auth-Token",
-			Value: token,
-			Path:  "/",
-		}})
+	// B9 修复：只向 c.baseURL（业务域）写入 X-Auth-Token，不向 c.ssoBaseURL（SSO 域）写入。
+	// SSO 域用 JSESSIONID 鉴权，不需要 X-Auth-Token。多余 cookie 无意义。
+	u, err := url.Parse(c.baseURL)
+	if err != nil {
+		return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", c.baseURL, err)
 	}
-	c.logDebug("X-Auth-Token 已同步到 cookie jar（%d 个域名）", len([]string{c.ssoBaseURL, c.baseURL}))
+	jar.SetCookies(u, []*http.Cookie{{
+		Name:  "X-Auth-Token",
+		Value: token,
+		Path:  "/",
+	}})
+	c.logDebug("X-Auth-Token 已同步到 cookie jar（%s）", c.baseURL)
 	return nil
 }
 
