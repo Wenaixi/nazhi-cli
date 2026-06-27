@@ -37,7 +37,7 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?" + url.Values{"userName": {username}}.Encode())
 
 	headers := c.ssoHeaders()
-	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode()
+	headers["Referer"] = c.ssoURL("/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode())
 
 	bodyBytes, err := c.doRequest(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
@@ -88,6 +88,13 @@ const (
 	// maxOCRImagesTotal 最多换多少张验证码图片。
 	// 1 × 99 = 99 次总尝试上限（保留原 99 次预算，分配给换图）。
 	maxOCRImagesTotal = 99
+
+	// ocrTimeout 是 OCR 重试循环的总超时上限。
+	//
+	// C6 修复：99 张图 × ~600ms/张 ≈ 60s 总耗时，远超合理的登录等待时间。
+	// 若调用方未在 context 中设置 deadline，派生 30s 超时（与 WithTimeout
+	// 默认值对齐），超时后立即返回。
+	ocrTimeout = 30 * time.Second
 )
 
 // Login 完成 SSO 登录并返回 Token。
@@ -170,7 +177,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
 				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 			}
-			if expiresAtToFallbackWarn(expiresAt) {
+			if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
 				c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
 			}
 			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
@@ -199,7 +206,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
 		}
 		// 兜底 expiresAt = now+24h 时 warn 出来（说明 server 真的没给 expires）
-		if expiresAtToFallbackWarn(expiresAt) {
+		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
 			c.logger.Warn("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步
@@ -255,6 +262,14 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 // 兜底极小概率的 CGO/IO 抖动；真正有效的是换图（新验证码字符集变化）。
 // 把所有重试预算放在换图上，效率与原 3×33 策略等价但少 2/3 次浪费 OCR 调用。
 func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
+	// C6 修复：若调用方未在 context 中设置 deadline，派生一个 ocrTimeout 超时上下文。
+	// 99 张图 × ~600ms/张 ≈ 60s 总耗时，远超合理的登录等待时间。30s 超时与
+	// WithTimeout 默认值对齐，超时后循环顶部的 ctx.Err() 检查能立即返回。
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, ocrTimeout)
+		defer cancel()
+	}
 	var lastErr error
 	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
 		// 修复 review-tdd F11：循环顶部检查 ctx.Err()，ctx cancel 后立即返回。
@@ -344,7 +359,7 @@ func extractTokenFromLocation(location string) (string, time.Time, error) {
 			token = fToken
 		}
 	}
-	return token, parseLocationExpires(u), nil
+	return token, parseExpiresMap(queryToMap(u.Query())), nil
 }
 
 // defaultTokenTTL 是 server 未返回 expires_in/exp 时 token 过期时间的兜底值。
@@ -363,10 +378,16 @@ const defaultTokenTTL = 24 * time.Hour
 // server 没返回 expires 信息。阈值取 defaultTokenTTL - 1h：兜底值误差在 1h 内才认。
 const expiresFallbackThreshold = 1 * time.Hour
 
-// parseLocationExpires 从 URL query 解析过期时间。
-// 优先 expires_in（相对秒数），其次 exp（绝对 Unix 时间戳），都缺失则 now+defaultTokenTTL。
-func parseLocationExpires(u *url.URL) time.Time {
-	return parseExpiresMap(u.Query())
+// queryToMap 将 url.Values (map[string][]string) 转换为 map[string]any。
+// 用于 302 Location path 调用 parseExpiresMap（后者接收 map[string]any）。
+func queryToMap(q url.Values) map[string]any {
+	m := make(map[string]any, len(q))
+	for k, vs := range q {
+		if len(vs) > 0 {
+			m[k] = vs[0]
+		}
+	}
+	return m
 }
 
 // parseReturnDataExpires 从 UnifiedResponse.returnData (map[string]any) 中
@@ -382,21 +403,7 @@ func parseLocationExpires(u *url.URL) time.Time {
 // 保证 int64 完整还原（与 302 路径 parseLocationExpires 一致：query 字符串
 // 直接 Atoi/ParseInt，无精度问题）。
 func parseReturnDataExpires(data map[string]any) time.Time {
-	q := make(map[string][]string, len(data))
-	for k, v := range data {
-		switch x := v.(type) {
-		case string:
-			q[k] = []string{x}
-		case json.Number:
-			q[k] = []string{x.String()}
-		case float64:
-			// float64 → int64 → string，绕过 json 默认精度损失
-			q[k] = []string{strconv.FormatInt(int64(x), 10)}
-		default:
-			q[k] = []string{fmt.Sprintf("%v", v)}
-		}
-	}
-	return parseExpiresMap(q)
+	return parseExpiresMap(data)
 }
 
 // parseExpiresMap 是 302 Location query 与 200 returnData 共用的过期时间解析器。
@@ -405,34 +412,36 @@ func parseReturnDataExpires(data map[string]any) time.Time {
 //  1. expires_in=N（相对秒数，正整数）→ now + N 秒
 //  2. exp=N（绝对 Unix 时间戳，秒，正整数）→ time.Unix(N, 0)
 //  3. 都缺失或非法 → now + defaultTokenTTL
-func parseExpiresMap(q map[string][]string) time.Time {
-	if v := first(q, "expires_in"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			return time.Now().Add(time.Duration(n) * time.Second)
+func parseExpiresMap(q map[string]any) time.Time {
+	if v, ok := q["expires_in"]; ok {
+		if s, err := valueToString(v); err == nil && s != "" {
+			if n, err := strconv.Atoi(s); err == nil && n > 0 {
+				return time.Now().Add(time.Duration(n) * time.Second)
+			}
 		}
 	}
-	if v := first(q, "exp"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
-			return time.Unix(n, 0)
+	if v, ok := q["exp"]; ok {
+		if s, err := valueToString(v); err == nil && s != "" {
+			if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 {
+				return time.Unix(n, 0)
+			}
 		}
 	}
 	return time.Now().Add(defaultTokenTTL)
 }
 
-// first 返回 query 第一个值（map[string][]string 简写）。
-func first(q map[string][]string, key string) string {
-	if vs, ok := q[key]; ok && len(vs) > 0 {
-		return vs[0]
+// valueToString 将 map[string]any 中的值转为字符串以便数值解析。
+func valueToString(v any) (string, error) {
+	switch x := v.(type) {
+	case string:
+		return x, nil
+	case json.Number:
+		return x.String(), nil
+	case float64:
+		return strconv.FormatInt(int64(x), 10), nil
+	default:
+		return fmt.Sprintf("%v", v), nil
 	}
-	return ""
-}
-
-// expiresAtToFallbackWarn 判断 expiresAt 是否走了 defaultTokenTTL 兜底（≥ defaultTokenTTL - 1h）。
-//
-// 用于 Login 200/302 路径在 expiresAt 走兜底时输出 WARN，让调用方知道 server 没返回
-// expires 信息。200/302 复用同一判定保证语义对称。
-func expiresAtToFallbackWarn(expiresAt time.Time) bool {
-	return time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold
 }
 
 // extractTokenFromFragment 从 fragment 字符串中提取 token。
