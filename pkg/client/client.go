@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -305,7 +306,17 @@ func New(opts ...Option) (*Client, error) {
 // G1 修复（review-tdd round-1）：用 fmt.Sprintf 先格式化再传给 slog。
 // 原实现直接 c.logger.Debug(format, args...) 被 slog 当成 key-value 对，
 // 不会做 %s/%d 插值，导致日志输出原始的格式字符串而非插值结果。
+//
+// A2 修复（review-tdd round-9）：c.logger 为 nil 时静默返回，避免 nil panic。
+// A3 修复（review-tdd round-9）：LevelEnabled 提前检查，非 Debug 级别时跳过
+// fmt.Sprintf 分配。OCR 99 张图 × 5 个 logDebug = 500+ 次浪费的格式字符串分配。
 func (c *Client) logDebug(format string, args ...any) {
+	if c.logger == nil {
+		return
+	}
+	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
+		return
+	}
 	c.logger.Debug(fmt.Sprintf(format, args...))
 }
 
