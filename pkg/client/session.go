@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"net/http"
 	"net/url"
 	"time"
@@ -14,6 +15,11 @@ import (
 // defaultSessionBackoff 是激活失败后禁止重试的默认时间窗口。
 // 默认 5 秒：大部分瞬时故障（网络抖动、服务端短时 5xx）在 5 秒内
 // 恢复的概率低，回退重试可有效抑制 thundering herd 放大效应。
+//
+// B2 评估（round-9）：CLI 单进程场景下 backoff 永远 0 hit（CLI
+// 不会先失败再重试同一 token），但在 SDK 多 goroutine 并发场景中
+// backoff 可有效抑制 thundering herd——100 路并发 FetchTasks 仅首路
+// 触发一次完整 4 步，其余 99 路直接返回缓存错误。保留 backoff。
 const defaultSessionBackoff = 5 * time.Second
 
 // ActivateSession 初始化目标平台业务 Session。
@@ -27,6 +33,17 @@ const defaultSessionBackoff = 5 * time.Second
 // 步骤 4（getMyInfo）是 4 步契约的一部分，失败不再走步骤 3 兜底掩盖
 // （F10：曾 logDebug + 兜底解析，导致 getMyInfo 服务降级被静默吞掉，
 // 后续业务接口返回空数据难以排查）。
+//
+// B4 外部并发契约（round-9）：
+//   - 本函数在 sessionMu 持锁状态下执行 4 步网络请求（200-500ms），
+//     持有锁期间不会回调外层或锁住其他互斥资源。
+//   - 外部调用方应**避免**在本函数持锁路径内嵌套其他锁，
+//     否则可能引发 ABBA 死锁（如 errgroup.Go 中先持锁 A 再调本函数，
+//     本函数持 sessionMu 时反调锁 A）。
+//   - 外部使用模式：直接 goroutine 并发调本函数是安全的——sessionMu
+//     只会序列化 4 步激活，不会让其他 goroutine 饿死（约 200-500ms 内释放）。
+//   - 如果需要在锁内调本函数（如 sync.Mutex 临界区），需确保外层锁
+//     的获取/释放顺序一致，不会形成循环等待。
 //
 // 并发安全：公开方法持 sessionMu 锁后调用 activateSessionLocked（不持锁），
 // 防止外部调用与内部 activateSessionIfNeeded 并发执行 4 步激活污染 cookie jar
@@ -76,7 +93,7 @@ func (c *Client) activateWithBackoffCheck(ctx context.Context, token string) (*t
 		c.cachedUserInfo = nil
 		return nil, err
 	}
-	c.sessionToken = token
+	c.sessionToken.Store(token)
 	c.lastActivationErr = nil
 	c.lastFailedToken = ""
 	// B10 修复：缓存步骤 4 的 UserInfo，供 GetMyInfo 复用
@@ -135,7 +152,7 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 // stepLabel 是用于错误信息的人类可读标签（如 "步骤2" / "步骤3"），调用方
 // 需自行保证唯一性以便错误诊断。
 func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[string]string, referer, stepLabel string) ([]byte, error) {
-	stepHeaders := copyMap(baseHeaders)
+	stepHeaders := maps.Clone(baseHeaders)
 	stepHeaders["Referer"] = referer
 
 	resp, err := c.doRequestWithResp(ctx, http.MethodGet, menuURL, nil, stepHeaders, "")
@@ -151,44 +168,48 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 	return body, nil
 }
 
-// copyMap 复制 map[string]string。
-func copyMap(m map[string]string) map[string]string {
-	out := make(map[string]string, len(m))
-	for k, v := range m {
-		out[k] = v
-	}
-	return out
-}
+// copyMap 已被删除（B1 修复）：改为标准库 maps.Clone。
+// Go 1.21+ maps.Clone 等效手写循环且由 runtime 实现优化，
+// 维护负担更小（少 1 个内部函数需要 review/测试）。
 
 // activateSessionIfNeeded 保证所有 biz 方法在第一次调用前完成
 // 4 步 session 预热（HAR 验证的强契约），后续调用 token 相同则直接返回。
 //
-// 并发语义（持锁单检）：
-//   - 持锁后检查 sessionToken 是否匹配；相同则直接放行，零额外开销
-//   - 不同则继续持锁，串行执行 4 步 ActivateSession
-//   - 期间 sessionToken 仍为旧值，其他 goroutine 继续排队等待
-//   - 4 步成功后才把 sessionToken 写为新 token，再放锁
-//
-// 注意：这是"持锁单检"模式（锁内检查），而非"double-checked locking"
-// （锁外 fast path + 锁内重检）。因为本函数始终在锁内，fast path
-// 会自然被 Lock() 串行化，外层预检不节省任何开销。
+// 并发语义（double-checked locking）：
+//   - fast path（锁外）：sessionToken 已匹配 → 直接返回 cachedUserInfo，
+//     零额外开销，N 个 goroutine 同 token 全部走 fast path 不阻塞
+//   - slow path（锁内）：sessionToken != token → 抢锁串行激活
+//   - 锁内重检：抢到锁后再检查一次（防止锁外 fast path 与慢路径的 TOCTOU）
 //
 // 为何必须持锁激活：4 步会写入共享 c.http.Jar cookie jar，并发激活
 // 会导致 cookie 状态机污染（thundering herd + 脏 cookie）。
-// 持锁时间 ≈ 4 步网络 RTT（200-500ms），可接受。
+// 持锁时间 ≈ 4 步网络 RTT（200-500ms），仅在首次或换 token 时发生。
+//
+// fast path 安全性：cachedUserInfo 在 sessionMu 临界区内写入，其他 goroutine
+// 通过 atomic.Load 读 sessionToken 判断是否走 fast path——写入路径都在
+// sessionMu 持锁状态下完成，happens-before 由 Mutex + atomic 保证。
 //
 // 与 sync.Once 的区别：sync.Once.Do(f) 保证 f 进程内只执行一次；本
 // 实现感知 token 变化——同一 Client 上 token 变更（如重新 Login）时
 // 会重新执行 4 步激活，确保 cookie jar 与当前 token 一致。
 //
+// B3 修复（round-9）：fast path 移到锁外，命中 sessionToken 时直接返回
+// cachedUserInfo 不抢锁；100 路并发 FetchTasks 仅首次激活持锁 ~200ms，
+// 其余 99 路立即返回 cachedUserInfo（之前会被 99 次阻塞 200ms × 99 = 20s）。
+//
 // G8 + F15 修复（round-7）：统一走 activateWithBackoffCheck（持锁版本），
 // 共享 backoff 缓存与 sessionToken 更新逻辑，避免重复实现导致不一致。
 func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) (*types.UserInfo, error) {
+	// fast path：sessionToken 已匹配 → 直接返回 cachedUserInfo，零开销
+	if c.sessionToken.Load() == token {
+		return c.cachedUserInfo, nil
+	}
+
 	c.sessionMu.Lock()
 	defer c.sessionMu.Unlock()
 
-	// fast path：sessionToken 已匹配 → 零额外开销
-	if c.sessionToken == token {
+	// 锁内重检：抢锁期间可能有其他 goroutine 已完成激活并写入 sessionToken
+	if c.sessionToken.Load() == token {
 		// B10 修复：返回缓存的 UserInfo（步骤 4 已获取），避免 GetMyInfo 额外请求。
 		return c.cachedUserInfo, nil
 	}

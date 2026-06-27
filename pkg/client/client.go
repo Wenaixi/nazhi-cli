@@ -9,6 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -41,11 +42,9 @@ type Client struct {
 	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// sessionToken 记录上次成功激活业务 session 的 token。
-	// sessionMu 保护 sessionToken 的并发读写。
-	// 解决了原 sync.Once 不感知 token 变更的问题：进程内 token 变化
-	//（如重新 Login）时重新执行 4 步激活，确保 cookie jar 中的 session
-	// cookie 与当前 token 一致，避免后续业务接口返回空数据。
-	sessionToken string
+	// 使用 atomic.Value 实现 fast path 锁外读（B3 double-checked locking），
+	// 存储 string，写入路径在 sessionMu 持锁状态下完成。
+	sessionToken atomic.Value // 存储 string
 	sessionMu    sync.Mutex
 
 	// sessionBackoff 控制激活失败后重试的最小间隔。
@@ -230,6 +229,35 @@ func WithCustomOCR(r CaptchaRecognizer) Option {
 // client_ocr_disabled.go（!ddddocr — 仅返回 warn 占位实现）。
 //
 // 函数签名在两个文件中保持一致（(int) Option），保证 Option 接口契约。
+
+// WithSessionBackoff 设置激活失败后重试抑制窗口。
+//
+// 默认 5 秒（见 defaultSessionBackoff）。SDK 用户在以下场景需调整：
+//   - 压测场景：服务端在大量并发激活时返回 429/503，可拉长窗口减少重复尝试
+//   - 已知故障恢复慢：把窗口拉长到 30s+ 避免在恢复前反复踩坑
+//   - 调试场景：设为 0 禁用 backoff（与现状不同——便于观察每次实际激活）
+//
+// 行为约定（与 WithTimeout 对称守卫）：
+//   - d <= 0：拒绝设置并 warn，保持当前值（防止 0 禁用后忘记恢复 / 负数吞掉）
+//   - d > 0：设置窗口
+//
+// 错误抑制语义：window 内同 token 重复激活会直接返回缓存错误
+// （包装 ErrSessionBackoff 哨兵），调用方可用 errors.Is 识别。
+// 不同 token 仍会尝试激活（F15 修复：缓存键包含 token 维度）。
+//
+// 注意：本 Option 只控制 backoff 窗口大小，不影响 lastActivationErr /
+// lastFailedToken 的记录逻辑。即便 d=0（禁用抑制），失败仍会被记录，
+// 只是检查时永远不命中窗口——便于后续重新引入抑制时无需重新累积状态。
+func WithSessionBackoff(d time.Duration) Option {
+	return func(c *Client) {
+		if d <= 0 {
+			c.logger.Warn("WithSessionBackoff: 0 或负数被拒绝，保持当前值（用 WithSessionBackoff(5*time.Second) 设正数）",
+				"duration", d, "current", c.sessionBackoff)
+			return
+		}
+		c.sessionBackoff = d
+	}
+}
 
 // WithToken 预置 X-Auth-Token（同时写入 Header 和 Cookie）。
 //

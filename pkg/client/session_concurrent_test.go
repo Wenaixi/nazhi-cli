@@ -88,8 +88,8 @@ func TestActivateSessionIfNeeded_ConcurrentSameToken(t *testing.T) {
 	}
 
 	// 验证：sessionToken 已被写为 shared-token
-	if c.sessionToken != "shared-token" {
-		t.Errorf("sessionToken = %q, 期望 %q", c.sessionToken, "shared-token")
+	if c.sessionToken.Load() != "shared-token" {
+		t.Errorf("sessionToken = %q, 期望 %q", c.sessionToken.Load(), "shared-token")
 	}
 }
 
@@ -149,7 +149,7 @@ func TestActivateSessionIfNeeded_ConcurrentDifferentTokens(t *testing.T) {
 		t.Errorf("不同 token 步骤 1 期望 %d 次，实际 %d", goroutines, got)
 	}
 	// sessionToken 必须是 N 个 token 之一
-	finalToken := c.sessionToken
+	finalToken := c.sessionToken.Load()
 	found := false
 	for _, tok := range tokens {
 		if finalToken == tok {
