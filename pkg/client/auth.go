@@ -114,7 +114,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		"password": req.Password,
 	}
 
-	httpResp, err := c.doRequestWithResp(ctx, http.MethodPost,
+	httpResp, err := c.rawDoWithResp(ctx, http.MethodPost,
 		c.ssoURL("/teacher/auth/studentLogin/validate"),
 		loginBody, c.ssoHeaders(), "",
 	)
