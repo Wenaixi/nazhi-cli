@@ -102,15 +102,12 @@ func valueToString(v any) (string, error) {
 }
 
 func extractTokenFromFragment(fragment string) string {
+	// 注意：url.Parse 已将 fragment 百分比解码（u.Fragment 是解码后的值），
+	// 所以不再做二次 URL 解码。直接 TrimPrefix 提取 token 值。
 	parts := strings.Split(fragment, "&")
 	for _, p := range parts {
 		if strings.HasPrefix(p, "token=") {
-			raw := strings.TrimPrefix(p, "token=")
-			decoded, err := url.QueryUnescape(raw)
-			if err != nil {
-				return raw
-			}
-			return decoded
+			return strings.TrimPrefix(p, "token=")
 		}
 	}
 	return ""
