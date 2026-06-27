@@ -127,8 +127,7 @@ type UserInfo struct {
 	UsedPoints  int `json:"usedPoints"`
 
 	// 其他
-	StudentUUID string         `json:"studentUuid"` // 平台返回 null → ""
-	Raw         map[string]any `json:"-"`           // 完整原始数据
+	StudentUUID string `json:"studentUuid"` // 平台返回 null → ""
 }
 
 // ─── 任务 ───
