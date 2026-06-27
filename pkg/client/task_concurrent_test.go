@@ -3,6 +3,7 @@ package client_test
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -147,8 +148,13 @@ func TestFetchTasks_PartialFailure(t *testing.T) {
 	)
 
 	tasks, err := cWithLogger.FetchTasks(context.Background(), "test-token")
-	if err != nil {
-		t.Fatalf("FetchTasks 不应因单维度失败而整体失败: %v", err)
+	// F2 修复后：网络/解析错误不再静默吞咽，而是通过 dimErrs 聚合为 ErrBusinessRejected。
+	// 因此 FetchTasks 返回 (部分成功数据, ErrBusinessRejected)，err 不为 nil。
+	if err == nil {
+		t.Fatal("FetchTasks 应因单维度部分失败返回 ErrBusinessRejected")
+	}
+	if !errors.Is(err, client.ErrBusinessRejected) {
+		t.Errorf("期望错误包装 ErrBusinessRejected, 得到: %v", err)
 	}
 	// 期望：成功维度 2 个 × 1 任务 = 2 个任务
 	if len(tasks) != 2 {

@@ -1,4 +1,4 @@
-// Package client_test 包含 review-tdd round-4 group-D Finding F 的测试：
+﻿// Package client_test 包含 review-tdd round-4 group-D Finding F 的测试：
 // 验证 FetchTasks 在单维度返回业务错误（code != 1）时不再静默吞咽，
 // 而是通过 errgroup propagate 出带 ErrBusinessRejected 信号的整体错误。
 //
@@ -178,9 +178,12 @@ func TestFindingF_FetchTasks_HTTPErrorStillLogDebug(t *testing.T) {
 	)
 
 	tasks, err := c.FetchTasks(context.Background(), "test-token")
-	// HTTP 错误（非业务 code 错误）应仍走 logDebug，不 fail-fast
-	if err != nil {
-		t.Errorf("HTTP 错误仍应走 best-effort 模式（不 fail-fast），err=%v", err)
+	// F2 修复后：HTTP/解析错误通过 dimErrs 聚合，不再静默吞咽
+	if err == nil {
+		t.Fatal("F2 修复后 HTTP/解析错误应 propagate 为 ErrBusinessRejected")
+	}
+	if !errors.Is(err, client.ErrBusinessRejected) {
+		t.Errorf("HTTP/解析错误应包装为 ErrBusinessRejected（部分成功），err=%v", err)
 	}
 	if len(tasks) != 2 {
 		t.Errorf("期望 2 个成功任务（维度 1 + 3），得到 %d", len(tasks))
