@@ -1,3 +1,6 @@
+// request_external_test.go 聚合 request 外部黑盒测试（package client_test）：
+//   - F28: newHTTPClient 自定义 Transport MaxIdleConnsPerHost ≥ 8
+//   - TransportIdleConnPoolShared: 8 路并发不触发额外握手
 package client_test
 
 import (
@@ -9,15 +12,14 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
+// ─── request_transport_test.go (F28): 自定义 Transport ───
+
 // TestNewHTTPClient_UsesCustomTransport 验证 newHTTPClient 不再回退到 http.DefaultTransport。
 // 背景：F28 — newHTTPClient 未自定义 Transport，复用全局 http.DefaultTransport，
 // 而 DefaultTransport 的 MaxIdleConnsPerHost=2。FetchTasks 8 路并发打到同一 biz host 时，
 // 第 3-8 路必须重新握手，wall time 增加 ~1-4s。
 // 修复：newHTTPClient 现在返回自定义 &http.Transport{MaxIdleConns: 100,
 // MaxIdleConnsPerHost: 16, ...}，与 file.go cached Transport 对齐。
-// 测试目的：断言 Client.http.Transport 是 *http.Transport（而非 nil/DefaultTransport），
-// 且 MaxIdleConnsPerHost ≥ 8（FetchTasks errgroup.SetLimit=8 的并发上限）。
-// 验证方法：用 TransportForTest 导出函数读取内部 Transport（仅测试用）。
 func TestNewHTTPClient_UsesCustomTransport(t *testing.T) {
 	c, err := client.New(client.WithTimeout(5 * time.Second))
 	if err != nil {
@@ -47,8 +49,6 @@ func TestNewHTTPClient_UsesCustomTransport(t *testing.T) {
 
 // TestNewHTTPClient_TransportIdleConnPoolShared 验证自定义 Transport 的 idle 池
 // 在多次请求间复用——并发打同一 host 不触发额外 TLS 握手。
-// 间接验证：用 8 路并发 GET httptest.Server，断言所有请求成功
-// 且 client 侧 Transport 配置正确（不依赖 DefaultTransport）。
 func TestNewHTTPClient_TransportIdleConnPoolShared(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
