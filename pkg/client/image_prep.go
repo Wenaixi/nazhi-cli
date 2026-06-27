@@ -36,10 +36,10 @@ func getQualitySteps() []int { return []int{80, 60, 40} }
 func getScaleFactors() []float64 { return []float64{0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7} }
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
-var ErrImageTooLarge = errors.New("image: 压缩后仍超过目标大小")
+var ErrImageTooLarge = errors.New("image exceeds maximum size after compression")
 
 // ErrUnsupportedFormat 不支持的图片格式。
-var ErrUnsupportedFormat = errors.New("image: 不支持的格式")
+var ErrUnsupportedFormat = errors.New("unsupported image format")
 
 // prepareImageForUpload 读取本地图片，预处理为符合平台要求的 JPG 字节流。
 //
@@ -150,7 +150,7 @@ func decodeImage(path string) (image.Image, string, error) {
 	var head [12]byte
 	n, _ := io.ReadFull(f, head[:])
 	if n == 0 {
-		return nil, "", errors.New("文件为空")
+		return nil, "", errors.New("file is empty")
 	}
 
 	format := sniffFormat(head[:n])
