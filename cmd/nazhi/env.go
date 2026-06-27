@@ -49,6 +49,20 @@ func flagChanged(cmd *cobra.Command, name string) bool {
 	return cmd.Flags().Changed(name)
 }
 
+// applyURLFlag 按设计契约读取 flag 值：
+//   - flagChanged(cmd, flagName)==true → 用户显式传了 flag，用 flag 值（含显式空字符串）
+//   - flagChanged(cmd, flagName)==false → 未传 flag，走 env fallback
+//
+// G3 重构（round-9 group-G）：消除 buildClientOpts 中 6 处重复的
+// 「flagChanged + GetString + envString」模板，统一收口到本函数。
+func applyURLFlag(cmd *cobra.Command, flagName, envKey string) string {
+	if flagChanged(cmd, flagName) {
+		v, _ := cmd.Flags().GetString(flagName)
+		return v
+	}
+	return envString(envKey, "")
+}
+
 // isTerminalStdin 检查 stdin 是否连接到真实终端（而非管道或重定向）。
 // 用于 stdin 交互提示：CI 环境是管道，直接读取不阻塞。
 func isTerminalStdin() bool {
