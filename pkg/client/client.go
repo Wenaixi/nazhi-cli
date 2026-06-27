@@ -1,6 +1,7 @@
 package client
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -13,13 +14,13 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// captchaRecognizer 由 build tag 决定：
+// CaptchaRecognizer 由 build tag 决定：
 //   - !ddddocr: nil 默认（见 client_ocr_disabled.go），调用方必须 WithCustomOCR
 //   - ddddocr:  ocr.NewPool(0) 默认（见 client_ocr_enabled.go）
 
-// captchaRecognizer 是验证码识别器接口。
+// CaptchaRecognizer 是验证码识别器接口。
 // *ocr.Pool 实现了该接口，测试时可注入 mock。
-type captchaRecognizer interface {
+type CaptchaRecognizer interface {
 	Recognize([]byte) (string, error)
 	// Close 释放识别器占用的资源 (ONNX session + 临时目录)。
 	// 默认 *ocr.Pool 已实现; mock 必须实现。
@@ -36,7 +37,7 @@ type Client struct {
 	uploadURL    string       // 文件上传服务器地址
 	http         *http.Client // 独立 cookie jar
 	logger       *slog.Logger
-	ocr          captchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
+	ocr          CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// sessionToken 记录上次成功激活业务 session 的 token。
@@ -169,8 +170,22 @@ func WithTimeout(d time.Duration) Option {
 }
 
 // WithLogger 设置自定义 logger。
+//
+// 行为约定：
+//   - l == nil：拒绝设置并 warn，保持当前 logger（防止 nil 覆盖后
+//     后续 c.logger.Warn/Debug/Error 全部 nil pointer panic）
+//   - 否则：替换 logger
+//
+// 设计一致：与 WithHTTPClient nil 守卫对称（D1 / F8 修复的风格）。
 func WithLogger(l *slog.Logger) Option {
-	return func(c *Client) { c.logger = l }
+	return func(c *Client) {
+		if l == nil {
+			c.logger.Warn("WithLogger: nil logger 被拒绝，保持当前值",
+				"tip", "用 slog.New(slog.NewTextHandler(...)) 创建自定义 logger")
+			return
+		}
+		c.logger = l
+	}
 }
 
 // WithHTTPClient 设置自定义 HTTP 客户端（完全替换默认客户端）。
@@ -195,7 +210,7 @@ func WithHTTPClient(hc *http.Client) Option {
 
 // WithCustomOCR 是测试用 Option，注入自定义验证码识别器。
 // 仅在测试中使用。
-func WithCustomOCR(r captchaRecognizer) Option {
+func WithCustomOCR(r CaptchaRecognizer) Option {
 	return func(c *Client) { c.ocr = r }
 }
 
@@ -292,15 +307,40 @@ func New(opts ...Option) (*Client, error) {
 // 原实现直接 c.logger.Debug(format, args...) 被 slog 当成 key-value 对，
 // 不会做 %s/%d 插值，导致日志输出原始的格式字符串而非插值结果。
 //
-// I4 修复（review-tdd round-9）：顶部加 slog.Logger.Enabled 守卫。
-// fmt.Sprintf 即使输出被丢弃也要分配 args slice + 构造 string，每个调用
-// ~200B 临时分配。verbose 默认关 + slog 默认 LevelInfo 双重过滤下，
-// 守护整个调用链全部白做。Enabled 早退后 alloc 归零，热路径性能提升。
+// A2+A3+I4 修复（review-tdd round-9）：
+// - nil logger 静默返回，避免 nil panic
+// - LevelEnabled 提前检查，非 Debug 级别时跳过 fmt.Sprintf 分配
+// OCR 99 张图 × 5 个 logDebug = 500+ 次浪费的格式字符串分配。
 func (c *Client) logDebug(format string, args ...any) {
-	if !c.logger.Enabled(nil, slog.LevelDebug) {
+	if c.logger == nil {
+		return
+	}
+	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
 		return
 	}
 	c.logger.Debug(fmt.Sprintf(format, args...))
+		return
+	}
+	c.logger.Debug(fmt.Sprintf(format, args...))
+}
+
+// safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
+//
+// A5 修复（review-tdd round-9）：Recognize 实现可能在不可预见的边界条件下
+// panic（如 mock 实现有 bug、CGO 层崩溃），如果 panic 不处理会 crash 整个进程。
+// safeOCRRecognize 包装 Recognize 调用，捕获 panic 并返回 ErrOCRPanic 哨兵。
+//
+// 注意：c.ocr 为 nil 时直接返回错误（避免 nil deref），而非默默 success。
+func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
+	if c.ocr == nil {
+		return "", ErrOCRNotConfigured
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", ErrOCRPanic, r)
+		}
+	}()
+	return c.ocr.Recognize(imgBytes)
 }
 
 // ssoURL 拼接 SSO 路径。

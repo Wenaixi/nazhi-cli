@@ -10,7 +10,7 @@ package client
 //
 // 调用方需通过 WithCustomOCR 注入自定义识别器，否则 Login() 会立即
 // 返回 ErrOCRNotConfigured（行为已通过 client_ocr_optional_test.go 验证）。
-func defaultOCR() captchaRecognizer {
+func defaultOCR() CaptchaRecognizer {
 	return nil
 }
 
