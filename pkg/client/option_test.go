@@ -122,8 +122,8 @@ func TestWithTimeout_NegativeRejected(t *testing.T) {
 	if c.http.Timeout != 15*time.Second {
 		t.Errorf("WithTimeout(-1s) 应被拒绝，实际 Timeout=%v", c.http.Timeout)
 	}
-	if !strings.Contains(logBuf.String(), "负数超时被拒绝") {
-		t.Errorf("应 warn '负数超时被拒绝'，实际 log：%s", logBuf.String())
+	if !strings.Contains(logBuf.String(), "负数 duration 被拒绝") {
+		t.Errorf("应 warn '负数 duration 被拒绝'，实际 log：%s", logBuf.String())
 	}
 }
 
@@ -141,8 +141,8 @@ func TestWithTimeout_ZeroWarns(t *testing.T) {
 	if c.http.Timeout != 0 {
 		t.Errorf("WithTimeout(0) 应设置 Timeout=0（net/http 无超时），实际 %v", c.http.Timeout)
 	}
-	if !strings.Contains(logBuf.String(), "无超时") {
-		t.Errorf("应 warn '无超时' 风险，实际 log：%s", logBuf.String())
+	if !strings.Contains(logBuf.String(), "0 duration 被拒绝") {
+		t.Errorf("应 warn '0 duration 被拒绝'，实际 log：%s", logBuf.String())
 	}
 }
 
@@ -170,8 +170,8 @@ func TestWithTimeout_ZeroDoesNotOverwriteExisting(t *testing.T) {
 	if c.http.Timeout != 15*time.Second {
 		t.Errorf("WithTimeout(0) 不应清零已有超时，实际 Timeout=%v", c.http.Timeout)
 	}
-	if !strings.Contains(logBuf.String(), "无超时") {
-		t.Errorf("应 warn '无超时' 风险，实际 log：%s", logBuf.String())
+	if !strings.Contains(logBuf.String(), "0 duration 被拒绝") {
+		t.Errorf("应 warn '0 duration 被拒绝'，实际 log：%s", logBuf.String())
 	}
 }
 
