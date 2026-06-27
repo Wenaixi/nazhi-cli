@@ -20,7 +20,7 @@ import (
 //
 // 关键不变量：未读完的 body 在 Close 时会强制关闭底层 TCP 连接，
 // 下次请求必须重新 TLS 握手，keep-alive 失效。集中 helper 防止
-// 业务侧 verbatim defer（重构目标，同文件 doRequest/doBizGet
+// 业务侧 verbatim defer（重构目标，同文件 httpDo/doBizGet
 // 也复用此 helper）。
 //
 // nil 安全：body 为 nil 时直接返回，避免 nil pointer panic。
@@ -151,7 +151,7 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 	return req, nil
 }
 
-// doBizAndDecode 封装业务请求的"预热 session → doRequest → DecodeResponse → CheckCode"公共管线。
+// doBizAndDecode 封装业务请求的"预热 session → httpDo → DecodeResponse → CheckCode"公共管线。
 //
 // 参数：
 //   - ctx: 上下文
@@ -173,7 +173,7 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	}
 	headers := c.bizHeaders(token)
 
-	bodyBytes, err := c.doRequest(ctx, method, c.bizURL(path), body, headers, "")
+	bodyBytes, err := c.httpDo(ctx, method, c.bizURL(path), body, headers, "")
 	if err != nil {
 		return nil, fmt.Errorf("%s 请求失败: %w", opName, err)
 	}
@@ -189,7 +189,7 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	return &resp, nil
 }
 
-// doBizGetDecode 封装 GET 请求的"预热 session → doRequest → DecodeResponse → CheckCode → 类型安全解码"管线。
+// doBizGetDecode 封装 GET 请求的"预热 session → httpDo → DecodeResponse → CheckCode → 类型安全解码"管线。
 //
 // 参数：
 //   - c: Client 实例
@@ -250,10 +250,11 @@ func (c *Client) logRequestHeaders(req *http.Request) {
 	}
 }
 
-// doRequest 执行 HTTP 请求，自动设置请求头，返回响应体字节。
+// httpDo 执行 HTTP 请求，自动设置请求头，返回响应体字节。
+// 改名自 doRequest，降级为内部私有。
 // headers 是可选的自定义请求头（合并到公共头之上）。
 // contentType 为空时默认 application/json。
-func (c *Client) doRequest(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) ([]byte, error) {
+func (c *Client) httpDo(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) ([]byte, error) {
 	req, err := c.buildRequest(ctx, method, url, body, headers, contentType)
 	if err != nil {
 		return nil, err

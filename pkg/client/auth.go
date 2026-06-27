@@ -39,7 +39,7 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 	headers := c.ssoHeaders()
 	headers["Referer"] = c.ssoURL("/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode())
 
-	bodyBytes, err := c.doRequest(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
+	bodyBytes, err := c.httpDo(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
 		return "", "", fmt.Errorf("GetSchoolID 请求失败: %w", err)
 	}
@@ -181,7 +181,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 // ─── 验证码内部辅助 ───
 
 func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
-	bodyBytes, err := c.doRequest(ctx, http.MethodPost,
+	bodyBytes, err := c.httpDo(ctx, http.MethodPost,
 		c.ssoURL("/uiStudentLogin/validateCaptcha"),
 		map[string]string{"captcha": captcha},
 		c.ssoHeaders(), "",

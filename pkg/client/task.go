@@ -216,7 +216,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	// 无需 URL 编码（数字不包含特殊字符）。如需未来扩展为字符串参数，
 	// 应改用 url.Values.Encode()。
 	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
-	statBody, err := c.doRequest(ctx, http.MethodGet, statURL, nil, headers, "")
+	statBody, err := c.httpDo(ctx, http.MethodGet, statURL, nil, headers, "")
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return nil, err // 上下文取消应 propagate，不做 best-effort 吞没
