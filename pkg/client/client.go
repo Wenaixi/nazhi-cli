@@ -9,10 +9,7 @@ import (
 	"os"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
 // CaptchaRecognizer 由 build tag 决定：
@@ -32,6 +29,9 @@ type CaptchaRecognizer interface {
 
 // Client 是目标平台 API 的完整 Go SDK。
 // 每个实例拥有独立的 cookie jar，天然并发安全。
+//
+// session 激活状态机已提取到 sessionManager，不再直接持有
+// sessionToken / sessionMu / lastActivationErr 等字段。
 type Client struct {
 	ssoBaseURL   string       // SSO 根地址
 	baseURL      string       // 业务 API 根地址（port 8280）
@@ -41,27 +41,8 @@ type Client struct {
 	ocr          CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
-	// sessionToken 记录上次成功激活业务 session 的 token。
-	// 使用 atomic.Value 实现 fast path 锁外读（B3 double-checked locking），
-	// 存储 string，写入路径在 sessionMu 持锁状态下完成。
-	sessionToken atomic.Value // 存储 string
-	sessionMu    sync.Mutex
-
-	// sessionBackoff 控制激活失败后重试的最小间隔。
-	// 默认 0 表示使用内部默认值（5 秒）；测试可设为较大值以保证
-	// 所有并发 goroutine 都触达 backoff 窗口。
-	sessionBackoff time.Duration
-
-	// lastActivationErr、lastAttemptAt 和 lastFailedToken 构成激活失败缓存。
-	// 当激活失败时记录错误、时间戳和失败的 token，后续 goroutine 在 backoff
-	// 窗口内且 token 相同时直接返回缓存错误，避免 thundering herd 重试放大。
-	//
-	// F15 修复（round-7）：缓存键必须包含 token 维度。同一 Client 切换 token
-	// 重新激活时（如 token 过期换新 token），新 token 不应被旧 token 的失败
-	// 缓存抑制 — 否则会返回 stale error 而不实际尝试新 token 激活。
-	lastActivationErr error
-	lastAttemptAt     time.Time
-	lastFailedToken   string
+	// sm 管理业务 session 的激活状态机（4 步 HAR 激活、backoff 缓存、DCL fast path）。
+	sm *sessionManager
 
 	// cleanTransportInit 保证 clonedTransport 只 Clone 一次。
 	// 解决 B1：原实现每次 UploadFile 都 t.Clone() → 50 张图 50 次完整 DNS+TCP+TLS
@@ -69,9 +50,6 @@ type Client struct {
 	// 修复后首次 Clone 缓存，后续复用同一 Transport 实例，clean idle 池跨上传累积。
 	cleanTransportInit sync.Once
 	cleanTransport     *http.Transport // 懒加载的 cloned Transport（仅 *http.Transport 路径）
-
-	// cachedUserInfo 缓存步骤 4 获取的 UserInfo（B10 修复），供 GetMyInfo 复用。
-	cachedUserInfo *types.UserInfo
 }
 
 // ─── Option 模式 ───
@@ -105,7 +83,7 @@ func withURLGuard(name string, getter func(*Client) string, setter func(*Client,
 //   - 否则：设置 ssoBaseURL
 //
 // 设计一致：与 WithTimeout 一样是「runtime degraded-warn + 不修改字段」，
-// 而非 build-time fail-fast——保持与 F8/F9 修复的 Option 校验风格一致。
+// 而非 build-time fail-fast——保持与 Option 校验风格一致。
 var WithSSOBase = withURLGuard("WithSSOBase",
 	func(c *Client) string { return c.ssoBaseURL },
 	func(c *Client, v string) { c.ssoBaseURL = v },
@@ -176,28 +154,28 @@ func WithTimeout(d time.Duration) Option {
 //   - 服务端降级场景：调大到 30s 让瞬时故障不被重复激活放大
 //
 // 行为约定：
-//   - d > 0：设置 c.sessionBackoff
+//   - d > 0：设置 c.sm.backoff
 //   - d = 0：拒绝并 warn，保持当前值（防止静默清零已有配置）
 //   - d < 0：拒绝并 warn，保持当前值（负数 time.Duration 无意义）
 //
 // 设计一致：与 WithTimeout 的「d<=0 拒绝 + warn」守卫对称。
 //
-// F15/H2 修复（round-7/round-9）：与 ErrSessionBackoff 哨兵配对，
+// 与 ErrSessionBackoff 哨兵配对，
 // 让 SDK 用户能调整 thundering herd 抑制窗口。
 func WithSessionBackoff(d time.Duration) Option {
 	return func(c *Client) {
 		if d < 0 {
 			c.logger.Warn("WithSessionBackoff: 负数 backoff 窗口被拒绝，保持当前值",
-				"duration", d, "current", c.sessionBackoff)
+				"duration", d, "current", c.sm.backoff)
 			return
 		}
 		if d == 0 {
 			c.logger.Warn("WithSessionBackoff: 0 窗口被拒绝（防止静默清零默认值），保持当前值",
-				"current", c.sessionBackoff,
+				"current", c.sm.backoff,
 				"tip", "用 WithSessionBackoff(5*time.Second) 设置正数，或保留默认值 5s")
 			return
 		}
-		c.sessionBackoff = d
+		c.sm.backoff = d
 	}
 }
 
@@ -208,7 +186,7 @@ func WithSessionBackoff(d time.Duration) Option {
 //     后续 c.logger.Warn/Debug/Error 全部 nil pointer panic）
 //   - 否则：替换 logger
 //
-// 设计一致：与 WithHTTPClient nil 守卫对称（D1 / F8 修复的风格）。
+// 设计一致：与 WithHTTPClient nil 守卫对称（风格）。
 func WithLogger(l *slog.Logger) Option {
 	return func(c *Client) {
 		if l == nil {
@@ -322,7 +300,7 @@ func WithToken(token string) Option {
 //
 // 返回 error：当 WithHTTPClient 自定义 Jar + WithToken 时，Jar 必须支持 cookie 写入。
 // 若 Jar 不是 *cookiejar.Jar，syncCookieToken 会返回 error 让调用方立即感知
-// （修复 review-tdd F8：避免业务接口返回空 dataList 但根因在 build client 阶段
+// （避免业务接口返回空 dataList 但根因在 build client 阶段
 // 静默 Warn，跨多步调用难关联）。
 func New(opts ...Option) (*Client, error) {
 	c := &Client{
@@ -332,6 +310,7 @@ func New(opts ...Option) (*Client, error) {
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
 		ocr:        defaultOCR(), // build tag 决定：!ddddocr → nil, ddddocr → ocr.NewPool(0)
+		sm:         &sessionManager{},
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -349,11 +328,10 @@ func New(opts ...Option) (*Client, error) {
 
 // logDebug 输出 debug 日志（通过 slog Debug 级别）。
 //
-// G1 修复（review-tdd round-1）：用 fmt.Sprintf 先格式化再传给 slog。
+// 用 fmt.Sprintf 先格式化再传给 slog。
 // 原实现直接 c.logger.Debug(format, args...) 被 slog 当成 key-value 对，
 // 不会做 %s/%d 插值，导致日志输出原始的格式字符串而非插值结果。
 //
-// A2+A3+I4 修复（review-tdd round-9）：
 // - nil logger 静默返回，避免 nil panic
 // - LevelEnabled 提前检查，非 Debug 级别时跳过 fmt.Sprintf 分配
 // OCR 99 张图 × 5 个 logDebug = 500+ 次浪费的格式字符串分配。
@@ -369,7 +347,7 @@ func (c *Client) logDebug(format string, args ...any) {
 
 // safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
 //
-// A5 修复（review-tdd round-9）：Recognize 实现可能在不可预见的边界条件下
+// Recognize 实现可能在不可预见的边界条件下
 // panic（如 mock 实现有 bug、CGO 层崩溃），如果 panic 不处理会 crash 整个进程。
 // safeOCRRecognize 包装 Recognize 调用，捕获 panic 并返回 ErrOCRPanic 哨兵。
 //
@@ -424,7 +402,7 @@ func (c *Client) Close() error {
 		}
 	}
 	// B1：清理 UploadFile 用的 cached cloned Transport 独立 idle 池
-	// （保留 F9 隔离语义：只关闭 clean client 自己的 idle 池，
+	// （保留隔离语义：只关闭 clean client 自己的 idle 池，
 	//  不殃及业务 Client 到 sso/api 主机的 keep-alive 连接）
 	if c.cleanTransport != nil {
 		c.cleanTransport.CloseIdleConnections()
