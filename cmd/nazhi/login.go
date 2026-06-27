@@ -22,22 +22,11 @@ var loginCmd = &cobra.Command{
 	Example: `  nazhi login -u 学号 -p 密码                       # 全自动 OCR
 	  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// username/password 用 flagChanged() 守卫
-		// env fallback，避免用户显式传 --username "" 时 NAZHI_USERNAME 静默覆盖。
-		// 与 client_builder.go token 读取对称
-		//   - Changed=true → 用户显式传过 flag，flag 值生效（含显式空字符串）
-		//   - Changed=false → 未传 flag，走 env fallback
-		var username, password string
-		if flagChanged(cmd, "username") {
-			username, _ = cmd.Flags().GetString("username")
-		} else {
-			username = envString("NAZHI_USERNAME", "")
-		}
-		if flagChanged(cmd, "password") {
-			password, _ = cmd.Flags().GetString("password")
-		} else {
-			password = envString("NAZHI_PASSWORD", "")
-		}
+		// username/password 用 applyURLFlag 统一收口
+		// 语义：flag 显式传递 → 用 flag 值（含显式空字符串）；未传 → env fallback。
+		// 与 client_builder.go token 读取对称。
+		username := applyURLFlag(cmd, "username", "NAZHI_USERNAME")
+		password := applyURLFlag(cmd, "password", "NAZHI_PASSWORD")
 
 		if username == "" || password == "" {
 			printError(fmt.Errorf("--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
