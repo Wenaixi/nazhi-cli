@@ -44,7 +44,7 @@ type mockOCR struct{ text string }
 
 func (m *mockOCR) Recognize(_ []byte) (string, error) { return m.text, nil }
 
-// Close 是 captchaRecognizer 接口的占位实现, mock 无资源需释放。
+// Close 是 CaptchaRecognizer 接口的占位实现, mock 无资源需释放。
 func (m *mockOCR) Close() error { return nil }
 
 // newTestClient 为测试创建 Client（连接 mock server）。

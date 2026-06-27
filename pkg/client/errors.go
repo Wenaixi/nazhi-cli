@@ -45,7 +45,7 @@ var (
 	// 修复动机：CGO-free 消费者（如 Nazhi-auto CGO_ENABLED=0 构建）无法使用
 	// ddddocr 内置识别器，必须通过 WithCustomOCR 注入 AI/外部识别器。
 	// 该哨兵让 SDK 用户能 errors.Is 精确识别「没配 OCR」 vs 「OCR 识别失败」。
-	ErrOCRNotConfigured = errors.New("OCR not configured: use WithCustomOCR to inject a captchaRecognizer, or build with -tags ddddocr to enable the built-in ddddocr engine")
+	ErrOCRNotConfigured = errors.New("OCR not configured: use WithCustomOCR to inject a CaptchaRecognizer, or build with -tags ddddocr to enable the built-in ddddocr engine")
 
 	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。
 	//
