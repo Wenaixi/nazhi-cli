@@ -112,6 +112,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		return 0, fmt.Errorf("解析上传响应失败: %w", err)
 	}
 
+	// I3 修复（round-9）：故意不走 types.CheckCode，统一响应码 ≠ 1 仍用
+	// ErrUploadRejected 包装。语义边界：
+	//   - ErrUploadRejected: 上传文件域业务错误（独立公共服务，无 cookie 鉴权），
+	//     SDK 用户应单独判定（如限制文件类型、重试上传）
+	//   - ErrBusinessRejected: 业务 API 域拒绝（session 过期、参数错），
+	//     SDK 用户按 docs/sdk/README.md 推荐 errors.Is(ErrBusinessRejected) 重激活
+	// 两者不可合并——上传服务与业务 API 是独立服务域，错误处理路径完全不同。
 	if unified.Code != 1 {
 		return 0, fmt.Errorf("%w: code=%d", ErrUploadRejected, unified.Code)
 	}

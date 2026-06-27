@@ -152,7 +152,23 @@ Pool 实例共享 ONNX session，模型只解压一次。
 
 把真实抓包作为 fixture 喂给 mock server，无需期末数据就能测任务流。
 
-## 依赖关系
+### 10. 输出通道例外（避免误判 bug）
+
+CLI 严格遵循「stdout = JSON 输出 / stderr = JSON 错误 + verbose 日志」双通道契约，
+但以下路径直写 stderr 是**有意的设计**，不是绕过：
+
+| 路径 | 位置 | 意图 |
+|------|------|------|
+| `printPrompt` | `cmd/nazhi/output.go:81` | stdin 交互提示（如 self-eval submit 的「请输入评价: 」），**不**受 verbose 守卫，但受 `isTerminalStdin()` + `quiet` 守卫 |
+| `c.logger.Warn` 资源警告 | `pkg/client/*.go`（如 `pool.Close` 失败、`http.CloseIdleConnections` 异常） | 直接走用户注入的 slog handler，不走 printError（保持 SDK 纯净，不引入 cmd 依赖） |
+| F9 backoff 冷却提示 | `cmd/nazhi/session.go` | 捕获 `ErrSessionBackoff` 时输出 `{"status":"cooldown","message":"..."}` 让脚本感知等待 |
+
+**为什么需要文档化**：维护者看到直写 stderr 第一反应是「绕过 printError，应重构」。
+但 `printPrompt` 走 printError 会污染 stderr 错误流（混进 JSON envelope），
+走 printVerbose 用户没加 `-v` 就看不到提示——只有直写 stderr 才能同时满足
+「用户可见 + 不污染错误流」两个约束。
+
+### 依赖关系
 
 ```
 internal/ocr (dddocr + onnxruntime)  ← 跨平台二进制
