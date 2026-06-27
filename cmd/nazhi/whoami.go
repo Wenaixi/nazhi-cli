@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
@@ -28,7 +29,7 @@ var whoamiCmd = &cobra.Command{
 		if err != nil {
 			// 用 ErrorCategory 分类：ErrEmptyUserInfo 是「业务成功但无数据」状态
 			//（非错误），按 status envelope 输出而非走 printError。
-			if client.ClassifyError(err) == client.ErrorCategoryEmptyData {
+			if errors.Is(err, client.ErrEmptyUserInfo) {
 				printJSON(map[string]string{
 					"status": "empty",
 					"reason": "get_my_info_empty",
