@@ -98,6 +98,14 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			continue
 		}
 		dim := dim // 捕获循环变量
+		// r9-D2 修复：循环变量捕获强约束。
+		//
+		// Go 1.22 之前每个 iteration 复用同一 dim 变量，
+		// 必须显式 dim := dim 捕获当前值给 goroutine 使用。
+		// Go 1.22+ 每个 iteration 自动生成新变量，此行变成无害冗余。
+		// 本项目 go.mod 指定 Go 1.26.1，已具备新语义，但保留 dim := dim
+		// 与显式注释作为防御——避免未来 refactor 把循环改为函数并意外丢捕获。
+		// 维护者约束：删除此行前请确认循环变量语义与 goroutine 闭包兼容。
 		g.Go(func() error {
 			// F6-FETCHTASKS-CTX-CANCEL 修复：context 取消后直接 propagate，
 			// 防止 cancel 被 dimErrs 吞掉后包装为 ErrBusinessRejected，
@@ -124,6 +132,19 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		})
 	}
 	if err := g.Wait(); err != nil {
+		// r9-D1 修复（v0.3.5+）：errgroup 因 context 取消返回 error 时，
+		// 若已有部分维度成功完成（allTasks 非空），应包装 ErrBusinessRejected。
+		//
+		// 动机：g.Go 闭包中 gctx.Err() 检查会在 ctx 取消后返回 DeadlineExceeded
+		// 给 errgroup，导致 g.Wait() 返回 context error 并丢弃 allTasks。
+		// 有 partial tasks 时包装 ErrBusinessRejected 让 cmd 层 envelope 可识别。
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			if len(allTasks) > 0 {
+				return allTasks, fmt.Errorf("%w: FetchTasks context 取消后部分维度成功: %w",
+					ErrBusinessRejected, err)
+			}
+			return nil, err
+		}
 		return nil, fmt.Errorf("FetchTasks 并发拉取失败: %w", err)
 	}
 
@@ -135,8 +156,16 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	// 为业务拒绝，而非 context 截断，导致无法正确区分「完整成功」与
 	// 「cancel 截断」两种语义。
 	//
+	// r9-D1 修复（v0.3.5+）：有 partial tasks 时仍在 ctx cancel 路径
+	// 包装 ErrBusinessRejected。
+	// 动机：cmd 层（task_list.go）用 errors.Is(err, ErrBusinessRejected)
+	// 判断是否输出 partial envelope；若裸返回 context error 则全失败路径走
+	// printError，丢 partial tasks。有成功数据时包装 ErrBusinessRejected
+	// 让 cmd 层 envelope 可识别；无成功数据时裸返回（调用方更关心 cancel 根因）。
+	//
 	// 分离逻辑：
-	//   - context 错误 → 跳过 ErrBusinessRejected 包装，直接 errors.Join 返回
+	//   - context 错误 + 无 partial tasks → 裸 errors.Join 返回
+	//   - context 错误 + 有 partial tasks → 包装 ErrBusinessRejected
 	//   - 业务错误 → 保持原样包装（全失败/部分失败分支不变）
 	if len(dimErrs) > 0 {
 		// 将 context 取消错误分离出来
@@ -148,13 +177,16 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			bizErrs = append(bizErrs, de)
 		}
 
-		// 仅有 context 取消错误：裸返回，不包装 ErrBusinessRejected
+		// 仅有 context 取消错误
 		if len(bizErrs) == 0 {
 			joined := errors.Join(dimErrs...)
 			if len(allTasks) == 0 {
+				// 无 partial tasks：裸返回，不包装 ErrBusinessRejected
 				return nil, joined
 			}
-			return allTasks, joined
+			// 有 partial tasks：包装 ErrBusinessRejected 让 cmd 层 envelope 识别
+			return allTasks, fmt.Errorf("%w: FetchTasks context 取消后部分维度成功: %w",
+				ErrBusinessRejected, joined)
 		}
 
 		// 有真正的业务错误，保持原 ErrBusinessRejected 包装语义
@@ -302,6 +334,16 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 }
 
 // GetCircleTypeByTaskID 确认任务类型信息。
+//
+// r9-D3 修复（2026-06-27 标记）：本方法在当前 SDK 中无业务调用方
+// （仅 task_id_lookup_test.go 等测试使用），且维护负担较高——
+// 每次响应结构变更需同步更新解析逻辑。
+//
+// 计划：保留半年观察期（至 2026-12-27），如仍无业务调用方则在下个
+// major 版本（v0.4.0 或 v1.0.0）中删除。新业务应改用
+// `SubmitTask` 的 payload 反查机制获取 circleTypeId。
+//
+// Deprecated: 此方法计划在下个 major 版本删除，新业务请勿依赖。
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*map[string]any, error) {
 	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
 		return nil, fmt.Errorf("GetCircleTypeByTaskID 预热 session 失败: %w", err)

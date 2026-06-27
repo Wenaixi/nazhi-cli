@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
@@ -56,7 +57,23 @@ var taskListCmd = &cobra.Command{
 			// 为 nil），len(tasks) > 0 条件在正常情况下会拦截。留下这个分支
 			// 作为防御性编程——避免未来代码演化后 ErrEmptyUserInfo 出现在
 			// 任务已部分获取的路径。
-			if (errors.Is(err, client.ErrBusinessRejected) || errors.Is(err, client.ErrEmptyUserInfo)) && len(tasks) > 0 {
+			// r9-D12 修复：扩展 envelope 分支覆盖 context 取消与 ErrSessionBackoff。
+			//
+			// 旧实现（F11 round-8）只覆盖 ErrBusinessRejected + ErrEmptyUserInfo，
+			// 当 FetchTasks 因 ctx cancel 或 session backoff 路径返回错误时，
+			// envelope 分支全 false → 走 printError 丢 partial tasks。
+			//
+			// 修复后覆盖以下语义，调用方都能拿到 partial tasks：
+			//   - ErrBusinessRejected：业务错误（部分维度失败）
+			//   - ErrEmptyUserInfo：session 激活返回空用户数据
+			//   - context.Canceled / DeadlineExceeded：context 取消/超时
+			//   - ErrSessionBackoff：session 激活在冷却窗口被抑制
+			isPartialErr := errors.Is(err, client.ErrBusinessRejected) ||
+				errors.Is(err, client.ErrEmptyUserInfo) ||
+				errors.Is(err, client.ErrSessionBackoff) ||
+				errors.Is(err, context.Canceled) ||
+				errors.Is(err, context.DeadlineExceeded)
+			if isPartialErr && len(tasks) > 0 {
 				printJSON(map[string]any{
 					"status": "partial",
 					"reason": "fetch_tasks_partial_failure",
