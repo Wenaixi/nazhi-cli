@@ -61,6 +61,38 @@ func (c ErrorCategory) String() string {
 	}
 }
 
+// SuggestUserMessage 返回面向 CLI 用户的建议文案。
+//
+// 设计动机: 让分类系统在 SDK 内部闭环——caller 不必每次手写 5 行文案。
+// CLI 层只 switch Category 一次，剩余文案走 SDK 建议。
+//
+// 注意:
+//   - 文案使用简体中文，与 CLI 当前风格一致。i18n 后续可考虑，但当前最小实现只支持中文。
+//   - ErrorCategoryOCR 的文案与 ErrOCRNotConfigured 错误消息的 actionable
+//     关键词对齐，避免 SDK 两处文案互相矛盾（详见 error_test.go）。
+func (c ErrorCategory) SuggestUserMessage() string {
+	switch c {
+	case ErrorCategoryAuth:
+		return "登录被服务器拒绝。请检查学号/密码/学校 ID 是否正确，或确认 SSO 服务端是否正常。"
+	case ErrorCategoryUpload:
+		return "文件上传失败。请确认文件大小/格式是否符合要求，或稍后重试。"
+	case ErrorCategorySession:
+		return "Session 激活失败后处于冷却期，请稍后重试。"
+	case ErrorCategoryBusiness:
+		return "业务操作失败。请检查请求参数是否合法，或稍后重试。"
+	case ErrorCategoryEmptyData:
+		return "服务器返回空数据。请稍后重试或确认账号权限。"
+	case ErrorCategoryNetwork:
+		return "网络请求失败。请检查网络连接或稍后重试。"
+	case ErrorCategoryOCR:
+		return "OCR 识别器未配置。当前构建未启用 -tags ddddocr，请下载预编译 release 二进制（nazhi-cli releases 页面），或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器。"
+	case ErrorCategoryUnknown:
+		return "未知错误。"
+	default:
+		return "未分类错误。"
+	}
+}
+
 // sentinelEntry 是哨兵错误到 ErrorCategory 的映射条目。
 type sentinelEntry struct {
 	Sentinel error
