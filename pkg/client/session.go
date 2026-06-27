@@ -28,66 +28,53 @@ const defaultSessionBackoff = 5 * time.Second
 // （曾 logDebug + 兜底解析，导致 getMyInfo 服务降级被静默吞掉，
 // 后续业务接口返回空数据难以排查）。
 //
+// 内部实现：委托给 sm.Activate，由 sessionManager 负责 DCL fast path、
+// backoff 检查、持锁 4 步激活和状态记录。本方法不额外持锁。
+//
 // B4 外部并发契约：
-//   - 本函数在 sessionMu 持锁状态下执行 4 步网络请求（200-500ms），
-//     持有锁期间不会回调外层或锁住其他互斥资源。
+//   - 本函数委托给 sm.Activate，后者在 sm.mu 持锁状态下执行 4 步网络请求
+//     （200-500ms），持有锁期间不会回调外层或锁住其他互斥资源。
 //   - 外部调用方应**避免**在本函数持锁路径内嵌套其他锁，
 //     否则可能引发 ABBA 死锁（如 errgroup.Go 中先持锁 A 再调本函数，
-//     本函数持 sessionMu 时反调锁 A）。
-//   - 外部使用模式：直接 goroutine 并发调本函数是安全的——sessionMu
+//     本函数持 sm.mu 时反调锁 A）。
+//   - 外部使用模式：直接 goroutine 并发调本函数是安全的——sm.mu
 //     只会序列化 4 步激活，不会让其他 goroutine 饿死（约 200-500ms 内释放）。
 //   - 如果需要在锁内调本函数（如 sync.Mutex 临界区），需确保外层锁
 //     的获取/释放顺序一致，不会形成循环等待。
 //
-// 并发安全：公开方法持 sessionMu 锁后调用 activateSessionLocked（不持锁），
-// 防止外部调用与内部 activateSessionIfNeeded 并发执行 4 步激活污染 cookie jar
-// （原实现公开方法自身无锁，外部直接调 + 内部持锁调会并发写 cookie jar）。
+// 并发安全：本方法委托给 sm.Activate（内部持锁 DCL），
+// 与 ensureActivated 共享同一 sm.mu 锁，避免并发 4 步写入 cookie jar 污染。
 //
 // Backoff 缓存：失败时通过 sm.RecordFailure 更新 lastErr / lastAttempt /
 // lastFailedToken。CLI 路径（直接调 ActivateSession）与业务方法路径
-// （通过 activateSessionIfNeeded 间接调）共享同一份 backoff 缓存，
+// （通过 ensureActivated 间接调）共享同一份 backoff 缓存，
 // 同 token 在窗口内的重复调用会被抑制。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {
-	c.sm.mu.Lock()
-	defer c.sm.mu.Unlock()
-	return c.activateWithBackoffCheck(ctx, token)
+	return c.sm.Activate(ctx, token, c.activateSessionLocked)
 }
 
-// activateWithBackoffCheck 是激活的统一入口（持锁状态下）。
+// ensureActivated 是内部 fast-path 入口，供业务方法（GetMyInfo、doBizAndDecode 等）
+// 在首次业务请求前确保 session 已激活。
 //
-// 调用方契约：必须持 c.sm.mu 锁。本函数负责：
-//  1. backoff 检查（同 token 在窗口内 → 返回 ErrSessionBackoff）
-//  2. 4 步激活（持锁写 cookie jar）
-//  3. 失败/成功时更新 sessionManager 状态
+// 语义等价于 ActivateSession，但命名更强调「按需激活」而非「显式激活」。
+// 实现上完全委托给 sm.Activate，获得 DCL fast path、backoff 检查和状态管理。
 //
-// backoff 缓存键必须包含 token 维度。
-// 切换 token 时（如 token-A 过期换 token-B），新 token 不应被旧 token
-// 的失败缓存抑制 — 否则会返回 stale error 而不实际尝试新 token 激活。
-func (c *Client) activateWithBackoffCheck(ctx context.Context, token string) (*types.UserInfo, error) {
-	// backoff 检查：上次失败且同 token 在窗口内 → 抑制
-	if c.sm.isBackoffHit(token) {
-		return nil, fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token: %v",
-			ErrSessionBackoff, token, time.Since(c.sm.lastAttempt), c.sm.lastErr)
-	}
-
-	// 持锁激活：4 步串行执行，写 cookie jar 互斥
-	info, err := c.activateSessionLocked(ctx, token)
-	if err != nil {
-		c.sm.RecordFailure(token, err)
-		return nil, err
-	}
-	c.sm.RecordSuccess(token, info)
-	return info, nil
+// 调用方契约：业务方法应在首次 HTTP 请求前调本方法。
+// 不持锁调用（sm.Activate 内部负责），与 ActivateSession 共享锁 + backoff 缓存。
+func (c *Client) ensureActivated(ctx context.Context, token string) (*types.UserInfo, error) {
+	return c.sm.Activate(ctx, token, c.activateSessionLocked)
 }
 
-// activateSessionLocked 是 ActivateSession 的内部 4 步实现，**调用方必须持 sm.mu 锁**。
+// activateSessionLocked 是 ActivateSession/ensureActivated 的内部 4 步实现，
+// **调用方必须持 sm.mu 锁**。
 //
-// 持锁契约：调用方负责保证 c.sm.mu 已 Lock；本函数不重复 Lock 避免死锁。
-// 拆出本 unexported 函数让 activateSessionIfNeeded 在持锁
-// 状态下直接调用，避免 sync.Mutex 不可重入导致的死锁。
+// 持锁契约：sm.Activate 负责保证 sm.mu 已 Lock；本函数不重复 Lock 避免死锁。
+// 拆出本 unexported 函数让内部方法在持锁状态下直接调用，避免 sync.Mutex
+// 不可重入导致的死锁。
 //
-// 注意：本函数不写 lastActivationErr / lastFailedToken / sessionToken，
-// 这些字段由 activateWithBackoffCheck 统一管理（避免分散到多处导致不一致）。
+// 注意：本函数不写 lastErr / lastFailedToken / sessionToken / cachedUserInfo，
+// 这些字段由 sm.Activate 统一管理（通过内部的 backoff 检查 + 4 步激活 +
+// RecordFailure/RecordSuccess），避免分散到多处导致不一致。
 func (c *Client) activateSessionLocked(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
 
@@ -148,27 +135,3 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 // copyMap 已被删除（B1 修复）：改为标准库 maps.Clone。
 // Go 1.21+ maps.Clone 等效手写循环且由 runtime 实现优化，
 // 维护负担更小（少 1 个内部函数需要 review/测试）。
-
-// activateSessionIfNeeded 保证所有 biz 方法在第一次调用前完成
-// 4 步 session 预热（HAR 验证的强契约），后续调用 token 相同则直接返回。
-//
-// 并发语义（double-checked locking）：
-//   - fast path（锁外）：sessionManager.LoadToken() 已匹配 → 直接返回缓存，
-//     零额外开销，N 个 goroutine 同 token 全部走 fast path 不阻塞
-//   - slow path（锁内）：LoadToken != token → 抢锁串行激活
-//   - 锁内重检：抢到锁后再检查一次（防止锁外 fast path 与慢路径的 TOCTOU）
-//
-// 为何必须持锁激活：4 步会写入共享 c.http.Jar cookie jar，并发激活
-// 会导致 cookie 状态机污染（thundering herd + 脏 cookie）。
-// 持锁时间 ≈ 4 步网络 RTT（200-500ms），仅在首次或换 token 时发生。
-//
-// fast path 安全性：cachedUserInfo 在 sm.mu 临界区内写入，其他 goroutine
-// 通过 sm.LoadToken() 读 token 判断是否走 fast path——写入路径都在
-// sm.mu 持锁状态下完成，happens-before 由 Mutex + atomic 保证。
-//
-// 与 sync.Once 的区别：sync.Once.Do(f) 保证 f 进程内只执行一次；本
-// 实现感知 token 变化——同一 Client 上 token 变更（如重新 Login）时
-// 会重新执行 4 步激活，确保 cookie jar 与当前 token 一致。
-func (c *Client) activateSessionIfNeeded(ctx context.Context, token string) (*types.UserInfo, error) {
-	return c.sm.Activate(ctx, token, c.activateSessionLocked)
-}
