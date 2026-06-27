@@ -90,7 +90,13 @@ func (c *Client) activateWithBackoffCheck(ctx context.Context, token string) (*t
 		c.lastActivationErr = err
 		c.lastAttemptAt = time.Now()
 		c.lastFailedToken = token
-		c.cachedUserInfo = nil
+		// F2 修复（review-tdd round-9 group-B）：只有 sessionToken 与失败
+		// token 匹配时才清除缓存，避免不同 token 的失败污染当前活跃
+		// token 的 cachedUserInfo（token-A 成功 → token-B 失败 → 保留
+		// token-A 缓存，不丢失）。
+		if c.sessionToken.Load() == token {
+			c.cachedUserInfo = nil
+		}
 		return nil, err
 	}
 	c.sessionToken.Store(token)

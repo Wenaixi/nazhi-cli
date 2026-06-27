@@ -14,7 +14,7 @@ import (
 //
 // 错误契约（v0.3.5+，r9-D9+I2 修复）：
 //   - 网络/HTTP 失败 → 返回 (nil, fmt.Errorf("GetMyInfo 请求失败: %w", err))
-//   - 业务 code≠1    → 返回 (nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err)))
+//   - 业务 code≠1    → 返回 (nil, fmt.Errorf("获取用户信息业务错误: %w", errors.Join(ErrBusinessRejected, err)))
 //   - returnData + dataMap 都为空（服务端成功响应但确实无用户数据）→ 返回 (nil, fmt.Errorf("%w: ...", ErrEmptyUserInfo))
 //
 // 调用方应使用 errors.Is 分支判定，**不要**用 `if info == nil { ... }` 兜底：
@@ -63,7 +63,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err))
+		return nil, fmt.Errorf("获取用户信息业务错误: %w", errors.Join(ErrBusinessRejected, err))
 	}
 
 	// 两段 fallback（returnData → dataMap），用 tryDecodeWithRaw 统一注入 Raw
