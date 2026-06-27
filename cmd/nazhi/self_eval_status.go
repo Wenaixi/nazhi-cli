@@ -34,7 +34,5 @@ var selfEvalStatusCmd = &cobra.Command{
 }
 
 func init() {
-	selfEvalStatusCmd.Flags().String("token", "", "X-Auth-Token（必填）")
-	selfEvalStatusCmd.Flags().String("base-url", "", "业务 API 根地址（默认 http://139.159.205.146:8280）")
-	selfEvalStatusCmd.Flags().Int("timeout", 15, "HTTP 超时（秒）")
+	registerBizFlags(selfEvalStatusCmd)
 }

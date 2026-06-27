@@ -62,6 +62,15 @@ func newClientWithOpts(opts ...client.Option) (*client.Client, error) {
 	return c, nil
 }
 
+// registerBizFlags 在业务命令中注册通用 flag（--token, --base-url, --timeout）。
+// 消除 6 个命令 init() 中 18 行 flag 重复注册。
+// 调用方仍需自行注册命令特有 flag（如 --payload, --comment）。
+func registerBizFlags(cmd *cobra.Command) {
+	cmd.Flags().String("token", "", "X-Auth-Token（必填，也可通过 NAZHI_TOKEN 环境变量设置）")
+	cmd.Flags().String("base-url", "", "业务 API 根地址（默认 http://139.159.205.146:8280，也可通过 NAZHI_BASE_URL 环境变量设置）")
+	cmd.Flags().Int("timeout", 15, "HTTP 超时（秒，也可通过 NAZHI_TIMEOUT 环境变量设置）")
+}
+
 // buildClient 从 cobra 命令标志构建通用 Client，处理 sso-base / base-url /
 // upload-url / timeout 的 env fallback 与 opts 拼接。**不**做 token 必填校验——
 // token 必填是业务 API 命令（whoami/task/self-eval/session activate）的
