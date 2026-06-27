@@ -27,3 +27,43 @@ func tryDecodeFallback[T any](c *Client, opName string, decoders ...func() (*T, 
 	}
 	return nil
 }
+
+// tryDecodeWithRaw 是 tryDecodeFallback 的增强版，解码成功后自动将原始 JSON
+// 字节对应的 map 注入目标类型的 Raw 字段。
+//
+// 每个 decoder 返回 (*T, []byte, error) 三元组，其中 []byte 是解码所使用的
+// 原始 JSON 字段字节（如 *resp.ReturnData 或 *resp.DataMap）。
+// setRaw 负责将 parseRawData(raw) 的结果赋值给目标类型的 Raw 字段。
+//
+// 消除 user.go 中 tryDecodeFallback 每个 decoder 分支重复的
+//
+//	if err == nil && u != nil { u.Raw = parseRawData(*resp.XXX) }
+//
+// 模式。
+//
+// 用法示例：
+//
+//	v := tryDecodeWithRaw(c, "GetMyInfo",
+//	    func(u *types.UserInfo, raw map[string]any) { u.Raw = raw },
+//	    func() (*types.UserInfo, []byte, error) {
+//	        return types.DecodeReturnData[types.UserInfo](resp)
+//	    },
+//	    func() (*types.UserInfo, []byte, error) {
+//	        return types.DecodeDataMap[types.UserInfo](resp)
+//	    },
+//	)
+func tryDecodeWithRaw[T any](c *Client, opName string, setRaw func(*T, map[string]any),
+	decoders ...func() (*T, []byte, error)) *T {
+
+	for _, decode := range decoders {
+		v, rawBytes, err := decode()
+		if err == nil {
+			if v != nil && setRaw != nil && len(rawBytes) > 0 {
+				setRaw(v, parseRawData(rawBytes))
+			}
+			return v
+		}
+		c.logDebug("%s fallback 失败: %v", opName, err)
+	}
+	return nil
+}

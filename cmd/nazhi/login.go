@@ -1,8 +1,10 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -57,6 +59,20 @@ var loginCmd = &cobra.Command{
 			Password: password,
 		})
 		if err != nil {
+			// r9-D11 修复：识别 ErrOCRNotConfigured 输出 actionable 提示。
+			// CGO-free 用户（未用 -tags ddddocr 构建）调 nazhi login 时
+			// 收到通用错误可能不知道「需要 -tags ddddocr 或注入自定义 OCR」。
+			// 单独输出指导性错误消息，引导用户自行解决。
+			if errors.Is(err, client.ErrOCRNotConfigured) {
+				printError(fmt.Errorf("登录失败: %w\n\n提示：当前构建未内嵌 OCR 引擎（CGO-free），可选：\n  1. 重新安装 CLI: go install -tags=ddddocr github.com/Wenaixi/nazhi-cli/cmd/nazhi@latest\n  2. 或通过 SDK 注入自定义 OCR: client.WithCustomOCR(...)", err))
+				return
+			}
+			// r9-D11 修复：识别 ErrLocationParseFailed 给出可读提示
+			// （不要泄漏 location URL，可能含 token fragment）
+			if errors.Is(err, client.ErrLocationParseFailed) {
+				printError(fmt.Errorf("登录失败: %w（SSO 重定向 Location 头畸形，请检查 SSO 服务端响应或上报 bug）", err))
+				return
+			}
 			printError(fmt.Errorf("登录失败: %w", err))
 			return
 		}

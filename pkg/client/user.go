@@ -12,7 +12,7 @@ import (
 // GetMyInfo 获取完整的用户个人资料。
 // 包含：姓名、性别、学号、学校、年级、班级、座号（seat）等。
 //
-// 错误契约（v0.3.5+）：
+// 错误契约（v0.3.5+，r9-D9+I2 修复）：
 //   - 网络/HTTP 失败 → 返回 (nil, fmt.Errorf("GetMyInfo 请求失败: %w", err))
 //   - 业务 code≠1    → 返回 (nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err)))
 //   - returnData + dataMap 都为空（服务端成功响应但确实无用户数据）→ 返回 (nil, fmt.Errorf("%w: ...", ErrEmptyUserInfo))
@@ -45,7 +45,9 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 // 公开 SDK 用户请使用 GetMyInfo。
 func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
-	headers["Referer"] = c.baseURL + "/modify"
+	// r9-D8 修复：Referer 走 c.bizURL() helper，与其他业务接口对称
+	// （避免 baseURL 拼接分散在多处，未来 baseURL 变更只需改 helper 一处）
+	headers["Referer"] = c.bizURL("/modify")
 
 	bodyBytes, err := c.doRequest(ctx, http.MethodGet,
 		c.bizURL("/api/studentInfo/getMyInfo"),
@@ -64,21 +66,29 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 		return nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err))
 	}
 
-	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "GetMyInfo",
-		func() (*types.UserInfo, error) {
+	// 两段 fallback（returnData → dataMap），用 tryDecodeWithRaw 统一注入 Raw
+	v := tryDecodeWithRaw(c, "GetMyInfo",
+		func(u *types.UserInfo, raw map[string]any) { u.Raw = raw },
+		func() (*types.UserInfo, []byte, error) {
+			// r9-D10: 直接用 types.DecodeReturnData，外层的 tryDecodeWithRaw 自动注入 Raw
 			u, err := types.DecodeReturnData[types.UserInfo](resp)
-			if err == nil && u != nil {
-				u.Raw = parseRawData(*resp.ReturnData)
+			if err != nil || u == nil {
+				return nil, nil, err
 			}
-			return u, err
+			if resp.ReturnData != nil {
+				return u, *resp.ReturnData, nil
+			}
+			return u, nil, nil
 		},
-		func() (*types.UserInfo, error) {
+		func() (*types.UserInfo, []byte, error) {
 			u, err := types.DecodeDataMap[types.UserInfo](resp)
-			if err == nil && u != nil {
-				u.Raw = parseRawData(*resp.DataMap)
+			if err != nil || u == nil {
+				return nil, nil, err
 			}
-			return u, err
+			if resp.DataMap != nil {
+				return u, *resp.DataMap, nil
+			}
+			return u, nil, nil
 		},
 	)
 	if v != nil {
