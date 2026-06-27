@@ -152,12 +152,22 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	if !exists {
 		return 0, fmt.Errorf("%w: returnData 中缺少 id 字段", ErrUploadRejected)
 	}
-	id, ok := rawID.(float64)
-	if !ok {
-		return 0, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 实际 %T", ErrUploadRejected, rawID)
+	// decode returnData 采用 UseNumber 一致地解析 json.Number，
+	// 但 float64 断言也要兼容——json.Number 需通过 Float64() 转换。
+	var idFloat float64
+	switch v := rawID.(type) {
+	case float64:
+		idFloat = v
+	case json.Number:
+		idFloat, err = v.Float64()
+		if err != nil {
+			return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %v", ErrUploadRejected, err)
+		}
+	default:
+		return 0, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 或 json.Number 实际 %T", ErrUploadRejected, rawID)
 	}
 
-	return int64(id), nil
+	return int64(idFloat), nil
 }
 
 // newCleanClient 构造"无 cookie"的安全 http.Client 供 UploadFile 使用。
