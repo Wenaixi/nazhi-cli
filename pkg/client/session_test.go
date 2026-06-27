@@ -64,7 +64,7 @@ func TestActivateSessionIfNeeded_BackoffHundredConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.activateSessionIfNeeded(context.Background(), "shared-token"); err != nil {
+			if _, err := c.ensureActivated(context.Background(), "shared-token"); err != nil {
 				atomic.AddInt32(&errCount, 1)
 			}
 		}()
@@ -123,7 +123,7 @@ func TestActivateSessionIfNeeded_BackoffIsScopedToToken(t *testing.T) {
 		WithBaseURL(failSrv.URL),
 		WithTimeout(5*time.Second),
 	)
-	c.sm.backoff = time.Hour
+	c.sm.SetBackoff(time.Hour)
 
 	if _, err := c.ActivateSession(context.Background(), "token-A"); err == nil {
 		t.Fatal("第一阶段：token-A 在失败 server 上应返回 error")
@@ -165,7 +165,7 @@ func TestActivateSessionIfNeeded_BackoffHitsForSameToken(t *testing.T) {
 		WithBaseURL(failSrv.URL),
 		WithTimeout(5*time.Second),
 	)
-	c.sm.backoff = time.Hour
+	c.sm.SetBackoff(time.Hour)
 
 	if _, err := c.ActivateSession(context.Background(), "token-X"); err == nil {
 		t.Fatal("第一阶段：token-X 在失败 server 上应返回 error")
@@ -300,8 +300,8 @@ func TestActivateSessionIfNeeded_ConcurrentSameToken(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.activateSessionIfNeeded(context.Background(), "shared-token"); err != nil {
-				t.Errorf("activateSessionIfNeeded 失败: %v", err)
+			if _, err := c.ensureActivated(context.Background(), "shared-token"); err != nil {
+				t.Errorf("ensureActivated 失败: %v", err)
 			}
 		}()
 	}
@@ -367,8 +367,8 @@ func TestActivateSessionIfNeeded_ConcurrentDifferentTokens(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.activateSessionIfNeeded(context.Background(), tokens[i]); err != nil {
-				t.Errorf("token=%s activateSessionIfNeeded 失败: %v", tokens[i], err)
+			if _, err := c.ensureActivated(context.Background(), tokens[i]); err != nil {
+				t.Errorf("token=%s ensureActivated 失败: %v", tokens[i], err)
 			}
 		}()
 	}
@@ -577,7 +577,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 		WithBaseURL(srv.URL),
 		WithTimeout(5*time.Second),
 	)
-	c.sm.backoff = time.Hour
+	c.sm.SetBackoff(time.Hour)
 
 	const goroutines = 10
 	var wg sync.WaitGroup
@@ -588,7 +588,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.activateSessionIfNeeded(context.Background(), "shared-token"); err != nil {
+			if _, err := c.ensureActivated(context.Background(), "shared-token"); err != nil {
 				atomic.AddInt32(&errCount, 1)
 			}
 		}()
@@ -609,7 +609,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 // newTestSM 构造一个测试用的 sessionManager，backoff 窗口压缩到 50ms 方便测试。
 func newTestSM() *sessionManager {
 	var sm sessionManager
-	sm.backoff = 50 * time.Millisecond
+	sm.SetBackoff(50 * time.Millisecond)
 	return &sm
 }
 

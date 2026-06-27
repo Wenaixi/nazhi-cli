@@ -29,7 +29,7 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 	// B10 修复：activateSessionIfNeeded 返回步骤 4 获取的 UserInfo（若激活由
 	// 步骤 4 完成），GetMyInfo 直接复用，避免重复的 getMyInfoRaw HTTP 请求。
 	// session 已激活（fast path）时返回 nil,nil。
-	info, err := c.activateSessionIfNeeded(ctx, token)
+	info, err := c.ensureActivated(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("GetMyInfo 预热 session 失败: %w", err)
 	}
