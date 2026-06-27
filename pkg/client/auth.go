@@ -273,7 +273,7 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 		// ddddocr 对同一张图是确定性的，OCR 一次即终态（maxOCRAttemptsPerImage=1），
 		// 故去掉内层循环，单层结构更清晰表达"换图"语义。
 		// 修复 review-tdd finding #5：消除内层死循环（结构表达意图而非假装重试）。
-		text, err := c.ocr.Recognize(imgBytes)
+		text, err := c.safeOCRRecognize(imgBytes)
 		if err != nil {
 			lastErr = err
 			c.logDebug("OCR 第 %d 张图失败: %v", imgIdx+1, err)
