@@ -278,6 +278,7 @@ func (o *OCR) initOnce() error {
 	// onceSetPath 确保 SetOnnxRuntimePath 在整个进程中只调用一次。
 	initMuGlobal.Lock()
 	libPath := filepath.Join(o.tempDir, platformLibName())
+	defer initMuGlobal.Unlock()
 	onceSetPath.Do(func() {
 		ddddocr.SetOnnxRuntimePath(libPath)
 	})
@@ -286,7 +287,6 @@ func (o *OCR) initOnce() error {
 	opts := ddddocr.DefaultOptions()
 	opts.ModelDir = o.tempDir
 	ocr, err := ddddocr.New(opts)
-	initMuGlobal.Unlock()
 	if err != nil {
 		o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
 		o.initialized = true
