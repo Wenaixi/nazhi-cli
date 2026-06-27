@@ -64,8 +64,6 @@ var taskSubmitCmd = &cobra.Command{
 }
 
 func init() {
-	taskSubmitCmd.Flags().String("token", "", "X-Auth-Token（必填）")
+	registerBizFlags(taskSubmitCmd)
 	taskSubmitCmd.Flags().String("payload", "", "任务 JSON（必填，可用 @file.json 从文件读取）")
-	taskSubmitCmd.Flags().String("base-url", "", "业务 API 根地址（默认 http://139.159.205.146:8280）")
-	taskSubmitCmd.Flags().Int("timeout", 15, "HTTP 超时（秒）")
 }

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -11,6 +12,8 @@ import (
 	"net/http/cookiejar"
 	"strings"
 	"time"
+
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
 // drainAndClose 先 drain response body 再 Close，让 net/http 把连接归还 keep-alive 池。
@@ -146,6 +149,44 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 	}
 
 	return req, nil
+}
+
+// doBizAndDecode 封装业务请求的"预热 session → doRequest → DecodeResponse → CheckCode"公共管线。
+//
+// 参数：
+//   - ctx: 上下文
+//   - token: X-Auth-Token
+//   - opName: 操作名称（用于错误消息前缀，如 "GetSchoolID"）
+//   - path: 业务 API 路径（如 "/api/test"），经 c.bizURL() 拼接完整 URL
+//   - method: HTTP 方法
+//   - body: 请求体（nil 或任意可 JSON 序列化类型）
+//
+// 返回：
+//   - *types.UnifiedResponse: 通过 CheckCode 确认 code=1 的统一响应体
+//   - error: 网络错误 / 响应解析错误 / 业务拒绝
+//
+// 可被 doBizGet 语义替代的调用点（GET + 无 body）可直接用现有 doBizGet 或本函数。
+// POST + body 场景是本函数的主要受益者。
+func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method string, body any) (*types.UnifiedResponse, error) {
+	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
+		return nil, fmt.Errorf("%s 预热 session 失败: %w", opName, err)
+	}
+	headers := c.bizHeaders(token)
+
+	bodyBytes, err := c.doRequest(ctx, method, c.bizURL(path), body, headers, "")
+	if err != nil {
+		return nil, fmt.Errorf("%s 请求失败: %w", opName, err)
+	}
+
+	resp, err := types.DecodeResponse(bodyBytes)
+	if err != nil {
+		return nil, fmt.Errorf("%s 响应解析失败: %w", opName, err)
+	}
+
+	if err := types.CheckCode(resp); err != nil {
+		return nil, errors.Join(ErrBusinessRejected, fmt.Errorf("%s失败: %w", opName, err))
+	}
+	return &resp, nil
 }
 
 // logRequestHeaders 在 debug 级别输出请求头，值长度 > 16 字符时自动截断脱敏。

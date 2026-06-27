@@ -54,8 +54,6 @@ var selfEvalSubmitCmd = &cobra.Command{
 }
 
 func init() {
-	selfEvalSubmitCmd.Flags().String("token", "", "X-Auth-Token（必填）")
+	registerBizFlags(selfEvalSubmitCmd)
 	selfEvalSubmitCmd.Flags().String("comment", "", "评价文本（空或 - 则从 stdin 读取）")
-	selfEvalSubmitCmd.Flags().String("base-url", "", "业务 API 根地址（默认 http://139.159.205.146:8280）")
-	selfEvalSubmitCmd.Flags().Int("timeout", 15, "HTTP 超时（秒）")
 }

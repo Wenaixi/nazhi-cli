@@ -25,33 +25,12 @@ const fetchTasksConcurrentLimit = 8
 // fetchDimensions 拉取任务维度列表（FetchTasks / GetDimensions 共用）。
 // 内部包含 session 预热 + 4 段响应解析，错误信息前缀由 caller 决定。
 func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix string) ([]types.Dimension, error) {
-	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return nil, fmt.Errorf("%s 预热 session 失败: %w", errPrefix, err)
-	}
-	headers := c.bizHeaders(token)
-
-	body, err := c.doRequest(ctx, http.MethodGet,
-		c.bizURL("/api/studentCircleNew/getDimensions"),
-		nil, headers, "",
-	)
+	resp, err := c.doBizAndDecode(ctx, token, errPrefix, "/api/studentCircleNew/getDimensions", http.MethodGet, nil)
 	if err != nil {
-		return nil, fmt.Errorf("%s 请求失败: %w", errPrefix, err)
+		return nil, err
 	}
 
-	resp, err := types.DecodeResponse(body)
-	if err != nil {
-		return nil, fmt.Errorf("%s 响应解析失败: %w", errPrefix, err)
-	}
-	if err := types.CheckCode(resp); err != nil {
-		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
-		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
-		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
-		// 走 derefOr helper，与 auth.go:156/212 对齐。
-		msg := derefOr(resp.Msg, "")
-		return nil, fmt.Errorf("%w: %s 业务错误: code=%d msg=%s", ErrBusinessRejected, errPrefix, resp.Code, msg)
-	}
-
-	dimensions, err := types.DecodeDataList[types.Dimension](resp)
+	dimensions, err := types.DecodeDataList[types.Dimension](*resp)
 	if err != nil {
 		return nil, fmt.Errorf("%s 维度列表解析失败: %w", errPrefix, err)
 	}
@@ -288,46 +267,25 @@ func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimen
 // SubmitTask 提交一次任务。
 // payload 是完整的 addCircle 请求体（29 字段透传）。
 func (c *Client) SubmitTask(ctx context.Context, token string, payload types.TaskSubmitPayload) (*types.TaskResult, error) {
-	headers := c.bizHeaders(token)
-
-	// session 预热（HAR 强契约：4 步激活后再发 biz 请求，否则返回空数据）
-	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return nil, fmt.Errorf("SubmitTask 预热 session 失败: %w", err)
-	}
-
 	// 验证 payload
 	if payload.CircleTaskID == 0 || payload.CircleTypeID == 0 {
 		return nil, fmt.Errorf("%w: circleTaskId 和 circleTypeId 不能为空", ErrInvalidPayload)
 	}
 
-	bodyBytes, err := c.doRequest(ctx, http.MethodPost,
-		c.bizURL("/api/studentCircleNew/addCircle"),
-		payload, headers, "",
-	)
+	resp, err := c.doBizAndDecode(ctx, token, "SubmitTask", "/api/studentCircleNew/addCircle", http.MethodPost, payload)
 	if err != nil {
-		return nil, fmt.Errorf("SubmitTask 请求失败: %w", err)
+		// 保持原语义：业务错误返回 (result, error)，网络/解析错误返回 (nil, error)
+		var bizErr *types.BusinessError
+		if errors.As(err, &bizErr) {
+			return &types.TaskResult{Code: bizErr.Code, Msg: bizErr.Msg}, err
+		}
+		return nil, err
 	}
 
-	resp, err := types.DecodeResponse(bodyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("SubmitTask 响应解析失败: %w", err)
-	}
-
-	result := &types.TaskResult{
+	return &types.TaskResult{
 		Code: resp.Code,
-		Raw:  parseRawData(bodyBytes),
-	}
-	// 用 derefOr 替代手动 nil 检查（与 auth.go:156/212 对齐）。
-	result.Msg = derefOr(resp.Msg, "")
-
-	if resp.Code != 1 {
-		// 用 ErrBusinessRejected 包装而非 ErrLoginRejected。
-		// 业务错误（任务已提交/参数错/服务端 5xx）与登录状态无关，
-		// 用户 errors.Is(err, ErrLoginRejected) 不应误判为需重新登录。
-		return result, fmt.Errorf("%w: code=%d msg=%s", ErrBusinessRejected, resp.Code, result.Msg)
-	}
-
-	return result, nil
+		Msg:  derefOr(resp.Msg, ""),
+	}, nil
 }
 
 // GetDimensions 获取任务维度列表。

@@ -1,5 +1,19 @@
 package client
 
+import "encoding/json"
+
+// parseRawData 将原始 JSON 字节解析为 map，用于注入 Raw 字段。
+func parseRawData(data []byte) map[string]any {
+	if len(data) == 0 {
+		return nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		return nil
+	}
+	return m
+}
+
 // tryDecodeFallback 按顺序尝试多个解码器，返回第一个成功解码的结果。
 // 全部失败时返回 nil。
 // 日志行为：

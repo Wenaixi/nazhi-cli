@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 
@@ -11,63 +10,19 @@ import (
 
 // SubmitSelfEvaluation 提交自我评价文本。
 func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment string) error {
-	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return fmt.Errorf("SubmitSelfEvaluation 预热 session 失败: %w", err)
-	}
-	headers := c.bizHeaders(token)
-
-	bodyBytes, err := c.doRequest(ctx, http.MethodPost,
-		c.bizURL("/api/studentMoralEduNew/addSelfEvaluation"),
-		map[string]string{"studentComment": comment},
-		headers, "",
-	)
-	if err != nil {
-		return fmt.Errorf("SubmitSelfEvaluation 请求失败: %w", err)
-	}
-
-	resp, err := types.DecodeResponse(bodyBytes)
-	if err != nil {
-		return fmt.Errorf("SubmitSelfEvaluation 响应解析失败: %w", err)
-	}
-
-	if err := types.CheckCode(resp); err != nil {
-		// B14: errors.Join 同时支持 errors.Is(ErrBusinessRejected) 和
-		// errors.As(*BusinessError)，避免 %v 断开链。
-		return errors.Join(ErrBusinessRejected, fmt.Errorf("自我评价提交失败: %w", err))
-	}
-
-	return nil
+	_, err := c.doBizAndDecode(ctx, token, "SubmitSelfEvaluation", "/api/studentMoralEduNew/addSelfEvaluation",
+		http.MethodPost, map[string]string{"studentComment": comment})
+	return err
 }
 
 // selfEvalGet 内部辅助，消除 QuerySelfEvaluation / QuerySelfGradEvaluation 中
 // session 预热 -> bizHeaders -> doRequest -> DecodeResponse -> CheckCode 公共管道。
 //
 // 返回值：解码后的 UnifiedResponse（通过 CheckCode 确认 code=1），可直接供 tryDecodeFallback 使用。
+//
+// 实现：委托给提取的通用 helper doBizAndDecode。
 func (c *Client) selfEvalGet(ctx context.Context, token string, path string, opName string) (*types.UnifiedResponse, error) {
-	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return nil, fmt.Errorf("%s 预热 session 失败: %w", opName, err)
-	}
-	headers := c.bizHeaders(token)
-
-	bodyBytes, err := c.doRequest(ctx, http.MethodGet,
-		c.bizURL(path),
-		nil, headers, "",
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%s 请求失败: %w", opName, err)
-	}
-
-	resp, err := types.DecodeResponse(bodyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("%s 响应解析失败: %w", opName, err)
-	}
-
-	if err := types.CheckCode(resp); err != nil {
-		// B14: errors.Join 同时支持 errors.Is(ErrBusinessRejected) 和
-		// errors.As(*BusinessError)。
-		return nil, errors.Join(ErrBusinessRejected, fmt.Errorf("%s失败: %w", opName, err))
-	}
-	return &resp, nil
+	return c.doBizAndDecode(ctx, token, opName, path, http.MethodGet, nil)
 }
 
 // QuerySelfEvaluation 查询自我评价状态 + 教师评语。

@@ -368,24 +368,12 @@ func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, 
 	return token, parseExpiresMap(data), nil
 }
 
-func parseRawData(data []byte) map[string]any {
-	if len(data) == 0 {
-		return nil
-	}
-	var m map[string]any
-	if err := json.Unmarshal(data, &m); err != nil {
-		return nil
-	}
-	return m
-}
-
 func derefOr(s *string, def string) string {
 	if s == nil {
 		return def
 	}
 	return *s
 }
-
 func (c *Client) syncCookieToken(token string) error {
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
 	if !ok {

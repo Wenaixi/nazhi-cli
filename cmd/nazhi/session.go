@@ -64,7 +64,5 @@ var sessionActivateCmd = &cobra.Command{
 func init() {
 	sessionCmd.AddCommand(sessionActivateCmd)
 
-	sessionActivateCmd.Flags().String("token", "", "X-Auth-Token（必填）")
-	sessionActivateCmd.Flags().String("base-url", "", "业务 API 根地址（默认 http://139.159.205.146:8280）")
-	sessionActivateCmd.Flags().Int("timeout", 15, "HTTP 超时（秒）")
+	registerBizFlags(sessionActivateCmd)
 }

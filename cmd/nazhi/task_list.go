@@ -84,7 +84,5 @@ var taskListCmd = &cobra.Command{
 }
 
 func init() {
-	taskListCmd.Flags().String("token", "", "X-Auth-Token（必填）")
-	taskListCmd.Flags().String("base-url", "", "业务 API 根地址（默认 http://139.159.205.146:8280）")
-	taskListCmd.Flags().Int("timeout", 15, "HTTP 超时（秒）")
+	registerBizFlags(taskListCmd)
 }
