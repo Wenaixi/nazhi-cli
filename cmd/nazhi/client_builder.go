@@ -150,49 +150,49 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		return nil, "", fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）")
 	}
 
-	var urlVal string
-	switch urlType {
-	case "sso":
-		// G3 重构（round-9 group-G）：改走 applyURLFlag helper，
-		// 消除 6 处重复的 flagChanged+GetString+envString 模板。
-		urlVal = applyURLFlag(cmd, "sso-base", "NAZHI_SSO_BASE")
-	case "base":
-		urlVal = applyURLFlag(cmd, "base-url", "NAZHI_BASE_URL")
-	case "upload":
-		urlVal = applyURLFlag(cmd, "upload-url", "NAZHI_UPLOAD_URL")
-	default:
-		return nil, "", fmt.Errorf("buildClientOpts: 未知 urlType %q（期望 sso/base/upload）", urlType)
-	}
-
+	// F5 修复：合并两个平行 switch（原 urlVal 赋值 + 原 opts 追加），消除中间变量 urlVal。
+	// 原代码先 switch urlType 提取 urlVal，处理 timeout/token/verbose 后，
+	// 再 switch 同 urlType 组装 opts，中间隔了 ~20 行。合并后一个 switch 完成
+	// url 提取和 opts 追加，减少 1 个局部变量 + 消除冗余的 default 分支。
+	//
+	// 注意：token/verbose 在 switch 后处理，所以 opts 初始值只需 timeout，url 和
+	// logger 在 switch 中追加。
 	timeoutSec, _ := cmd.Flags().GetInt("timeout")
 	if !flagChanged(cmd, "timeout") {
 		timeoutSec = envInt(timeoutEnv, timeoutSec)
 	}
 
 	opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
+
+	// token 按 urlType 分流
 	if token != "" {
 		opts = append(opts, client.WithToken(token))
 	}
+
+	// url 相关 option 合并 switch
+	switch urlType {
+	case "sso":
+		if v := applyURLFlag(cmd, "sso-base", "NAZHI_SSO_BASE"); v != "" {
+			opts = append(opts, client.WithSSOBase(v))
+		}
+	case "base":
+		if v := applyURLFlag(cmd, "base-url", "NAZHI_BASE_URL"); v != "" {
+			opts = append(opts, client.WithBaseURL(v))
+		}
+	case "upload":
+		if v := applyURLFlag(cmd, "upload-url", "NAZHI_UPLOAD_URL"); v != "" {
+			opts = append(opts, client.WithUploadURL(v))
+		}
+	default:
+		return nil, "", fmt.Errorf("buildClientOpts: 未知 urlType %q（期望 sso/base/upload）", urlType)
+	}
+
 	// G2 修复：--verbose 时让 SDK logger 输出 Debug 级别日志，
 	// 否则 c.logDebug 被 slog LevelWarn 过滤，用户看不到 SDK 内部细节。
 	if verbose {
 		opts = append(opts, client.WithLogger(
 			slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		))
-	}
-	switch urlType {
-	case "sso":
-		if urlVal != "" {
-			opts = append(opts, client.WithSSOBase(urlVal))
-		}
-	case "base":
-		if urlVal != "" {
-			opts = append(opts, client.WithBaseURL(urlVal))
-		}
-	case "upload":
-		if urlVal != "" {
-			opts = append(opts, client.WithUploadURL(urlVal))
-		}
 	}
 	return opts, token, nil
 }
