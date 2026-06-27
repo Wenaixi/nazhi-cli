@@ -10,7 +10,6 @@ import (
 
 // TestEncodeJPEG_ConcurrentSafe 回归测试：encodeJPEG 在并发调用下
 // 不会因 sync.Pool buffer 复用导致数据竞争或输出错乱。
-//
 // 历史 bug：encodeJPEG 直接返回 buf.Bytes()，未 copy；pool Put 后
 // buffer 内部 slice 被其他 goroutine 复用覆盖，返回的 []byte 失效。
 func TestEncodeJPEG_ConcurrentSafe(t *testing.T) {

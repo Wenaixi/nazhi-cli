@@ -1,6 +1,6 @@
 // Package types 公共类型契约测试 — UnifiedResponse 孤儿字段删除守卫。
 //
-// H2 (review-tdd 四轮): pkg/types/response.go UnifiedResponse 6 字段全仓 0 引用。
+// pkg/types/response.go UnifiedResponse 6 字段全仓 0 引用。
 //
 // 历史 bug：types.UnifiedResponse 定义了 6 个字段但没有任何代码读或写：
 //   - DataString   *string          `json:"dataString"`
@@ -27,7 +27,7 @@ import (
 	"testing"
 )
 
-// TestUnifiedResponse_NoOrphanFields 守护 H2 修复：序列化不再含 6 个孤儿字段。
+// TestUnifiedResponse_NoOrphanFields 守护：序列化不再含 6 个孤儿字段。
 //
 // 6 个孤儿字段：dataString / pageBean / note / insertID / updateCount / isAttendance
 func TestUnifiedResponse_NoOrphanFields(t *testing.T) {
@@ -58,7 +58,7 @@ func TestUnifiedResponse_NoOrphanFields(t *testing.T) {
 	}
 }
 
-// TestUnifiedResponse_OrphanFieldsAreNotDeserializable 守护 H2 修复：
+// TestUnifiedResponse_OrphanFieldsAreNotDeserializable 守护：
 // 反序列化时不存在的孤儿字段键被忽略（兼容旧 API 响应体）。
 func TestUnifiedResponse_OrphanFieldsAreNotDeserializable(t *testing.T) {
 	// 模拟旧 API 返回的响应体（含孤儿字段）— 新结构应正常解析且不报错

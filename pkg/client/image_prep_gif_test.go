@@ -1,6 +1,5 @@
 // image_prep_gif_test.go 验证带透明 GIF 在 prepareImageForUpload 后
 // 输出非黑底（F11 修复）。
-//
 // F11 证据：image_prep.go:62-65 特例分支 `if format == "gif" && flattened`
 // 做了两件事：(1) imaging.Clone(img) 丢弃透明；(2) flattened=false 跳过
 // flattenOnWhite。HasTransparency 对 *image.Paletted 始终返回 true。
@@ -19,12 +18,10 @@ import (
 )
 
 // TestPrepareImage_GifTransparentNotBlack 透明 GIF 必须合成到白底。
-//
 // 测试策略：
-//  1. 构造一个透明 GIF（左半透明索引 = 0，右半索引 = 1）
-//  2. 调 prepareImageForUpload
-//  3. 解码输出的 JPG，断言：左半像素的 R 值远 > 50（不是黑底）
-//
+// 1. 构造一个透明 GIF（左半透明索引 = 0，右半索引 = 1）
+// 2. 调 prepareImageForUpload
+// 3. 解码输出的 JPG，断言：左半像素的 R 值远 > 50（不是黑底）
 // 修复前：flattened=false 跳过 flattenOnWhite → jpeg.Encode 黑底 → 左半 R≈0 → FAIL
 // 修复后：flattened=true 走 flattenOnWhite → 白底合成 → 左半 R≈255 → PASS
 func TestPrepareImage_GifTransparentNotBlack(t *testing.T) {
@@ -32,9 +29,8 @@ func TestPrepareImage_GifTransparentNotBlack(t *testing.T) {
 	tmpfile := t.TempDir() + "/transparent.gif"
 
 	// 构造带透明的 GIF：
-	//   - palette: 索引 0 = 透明（透明色），索引 1 = 不透明红色
-	//   - 左半 (0..49) 用索引 0（透明），右半 (50..99) 用索引 1（红）
-	//
+	// - palette: 索引 0 = 透明（透明色），索引 1 = 不透明红色
+	// - 左半 (0..49) 用索引 0（透明），右半 (50..99) 用索引 1（红）
 	// jpeg.Encode 对透明索引（无 alpha）会解析为黑色 (0,0,0)。
 	// 因此修复前：左半 = 黑底；修复后：左半 = 白底（与 flattenOnWhite 行为一致）。
 	const w, h = 100, 50
@@ -98,7 +94,6 @@ func TestPrepareImage_GifTransparentNotBlack(t *testing.T) {
 }
 
 // TestPrepareImage_GifOpaque 纯不透明 GIF 仍然走 flattenOnWhite 不受影响。
-//
 // 回归测试：删除 `if format=="gif" && flattened` 特例不能影响不透明 GIF 路径。
 // 不透明 GIF 在 gif.Decode 时返回 *image.Paletted，但 hasTransparency
 // 对 *image.Paletted 始终返回 true，所以不透明 GIF 实际也会走 flattened 分支。

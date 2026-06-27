@@ -5,14 +5,14 @@ import (
 	"testing"
 )
 
-// TestPool_RecognizeAfterClose_ReturnsError 回归测试 F1（round-6）：
+// TestPool_RecognizeAfterClose_ReturnsError 回归测试：
 // Pool.Close 后调用 Recognize 必须返回错误，防止新 OCR 实例和 tempDir 泄漏。
 //
 // 历史问题：Pool.Close 通过 closeOnce 保证只排空一次 inits map，但 Close 后
 // Recognize 仍能从 sync.Pool 获取/创建新 OCR 实例并 trackInit - 这些实例永远不会
 // 被 Close 路径清理，导致 tempDir 永久泄漏到 %TEMP%。
 //
-// F1 修复：Recognize 入口处检查 Pool.closed 标记，已关闭则直接返回错误。
+// Recognize 入口处检查 Pool.closed 标记，已关闭则直接返回错误。
 func TestPool_RecognizeAfterClose_ReturnsError(t *testing.T) {
 	p := NewPool(0)
 
@@ -32,7 +32,7 @@ func TestPool_RecognizeAfterClose_ReturnsError(t *testing.T) {
 }
 
 // TestPool_RecognizeAfterClose_NoNewInstanceLeak 验证 Pool.Close 后 Recognize
-// 不会向 inits map 注册新实例（F1 的防御深度测试）。
+// 不会向 inits map 注册新实例（防御深度测试）。
 //
 // 即使 Recognize 被错误地调用，inits map 也不应增长。本测试先 Close，再调一次
 // Recognize（预期返回错误），然后断言 inits map 长度仍为 0（无泄漏）。

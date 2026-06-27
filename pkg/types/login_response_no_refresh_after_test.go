@@ -1,6 +1,6 @@
 // Package types 公共类型契约测试 — RefreshAfter 死字段删除守卫。
 //
-// H1 (review-tdd 四轮): pkg/types/types.go LoginResponse.RefreshAfter 死字段。
+// pkg/types/types.go LoginResponse.RefreshAfter 死字段。
 //
 // 历史 bug：types.LoginResponse.RefreshAfter time.Time 字段在公开类型中显式声明
 // （带 json:"refresh_after" 标签），但全仓 0 引用 — 没有任何代码读或写该字段。
@@ -20,7 +20,7 @@ import (
 	"time"
 )
 
-// TestLoginResponse_NoRefreshAfterField 守护 H1 修复：LoginResponse 不再有 RefreshAfter 字段。
+// TestLoginResponse_NoRefreshAfterField 守护：LoginResponse 不再有 RefreshAfter 字段。
 //
 // 修复前：json.Marshal 包含 "refresh_after":"0001-01-01T00:00:00Z"，SDK 用户读
 //

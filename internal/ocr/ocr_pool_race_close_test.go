@@ -1,6 +1,6 @@
-// Package ocr 内部白盒测试：Pool.Close 窗口内并发 Recognize 的 trackInit 泄漏（F2）。
+// Package ocr 内部白盒测试：Pool.Close 窗口内并发 Recognize 的 trackInit 泄漏。
 //
-// Finding F2：Pool.Close 的 sync.Once 块内 inits.Range 与 closed=true 不在同一原子操作中。
+// Pool.Close 的 sync.Once 块内 inits.Range 与 closed=true 不在同一原子操作中。
 // closeOnce 只保护 Close 自身不被并发调用重入，不阻挡并发 Recognize。
 //
 // 失败场景（按时间顺序）：
@@ -45,7 +45,7 @@ import (
 	"time"
 )
 
-// TestPool_Close_RecognizeDuringClose_NoGhostInits 验证 F2 的核心 invariant。
+// TestPool_Close_RecognizeDuringClose_NoGhostInits 验证核心 invariant。
 //
 // 子测试 1：纯白盒 — 用一个内部 helper 直接调"模拟 Recognize 的 inits 注册路径"，
 //
@@ -152,8 +152,8 @@ func TestPool_Close_RecognizeDuringClose_NoGhostInits(t *testing.T) {
 	})
 
 	t.Run("Close错误消息保持稳定", func(t *testing.T) {
-		// F1 修复契约：Close 后调 Recognize 必须返回 "OCR 池已关闭" 错误
-		// 验证 F2 修复未破坏 F1 的错误消息契约
+		// 契约：Close 后调 Recognize 必须返回 "OCR 池已关闭" 错误
+		// 验证未破坏已修复的错误消息契约
 		p := NewPool(0)
 		if err := p.Close(); err != nil {
 			t.Fatalf("Close 失败: %v", err)
@@ -169,7 +169,7 @@ func TestPool_Close_RecognizeDuringClose_NoGhostInits(t *testing.T) {
 	})
 }
 
-// TestPool_Close_NoTempDirLeak 验证 F2 修复后 Close 路径稳定：
+// TestPool_Close_NoTempDirLeak 验证 Close 路径稳定：
 // 所有已 trackInit 的实例的 tempDir 都应被清理。
 //
 // 这里不调真实 Recognize（避免 ddddocr 全局 race 干扰测试稳定性），
@@ -205,7 +205,7 @@ func TestPool_Close_NoTempDirLeak(t *testing.T) {
 	}
 }
 
-// TestPool_Close_NoDoubleClean 验证 F2 修复未破坏 F1 的 no-op 契约：
+// TestPool_Close_NoDoubleClean 验证未破坏已修复的 no-op 契约：
 // 重复 Close 不应重复清理已删 tempDir。
 func TestPool_Close_NoDoubleClean(t *testing.T) {
 	p := NewPool(0)

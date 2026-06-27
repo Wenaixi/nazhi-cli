@@ -1,6 +1,5 @@
 // file_upload_test.go 验证 UploadFile 的 multipart body 完整性。
-//
-// F14 修复（round-7）：原实现 `defer writer.Close()` 让 multipart writer
+// 原实现 `defer writer.Close()` 让 multipart writer
 // 终结边界 `--{boundary}--` 在 HTTP 传输后才追加，导致 server 收到比
 // Content-Length 短的 body（缺终止边界），server 端 multipart parser 报错。
 // 测试策略：httptest.Server 读 body 完整 bytes，断言必须以终止边界结尾。
@@ -22,11 +21,9 @@ import (
 
 // TestUploadFile_MultipartBodyHasTerminator 验证 UploadFile 发送的 multipart
 // body 必须以标准终止边界 `\r\n--{boundary}--\r\n` 结尾。
-//
-// 失败场景（F14）：C10 round-3 修复把 `writer.Close()` 改为 `defer writer.Close()`，
+// 失败场景：round-3 修复把 `writer.Close()` 改为 `defer writer.Close()`，
 // defer 在函数返回才执行，但 http.Client.Do 已经在 buf 写入 wire 之前发出去，
 // server 收到缺终止边界的 body → multipart parser EOF 错误 → 100% 上传失败。
-//
 // 修复：multipart 终结边界必须在 http.NewRequestWithContext 之前写入 buf，
 // 然后用 defer 兜底保证错误路径也写入（c0f6c54 的原设计意图）。
 func TestUploadFile_MultipartBodyHasTerminator(t *testing.T) {
@@ -103,7 +100,6 @@ func tailBytes(buf []byte, n int) string {
 
 // TestUploadFile_MultipartBodyRoundTripParses 用 multipart.Reader 解析 server
 // 收到的 body，确保不仅有终止边界，且能正确还原出 form file。
-//
 // 这是更严格的契约测试：如果 body 长度正确但 boundary 错乱、字段顺序错乱，
 // 都会被这个测试发现。F14 修复后必须通过。
 func TestUploadFile_MultipartBodyRoundTripParses(t *testing.T) {
@@ -155,15 +151,12 @@ func TestUploadFile_MultipartBodyRoundTripParses(t *testing.T) {
 
 // TestBuildRequest_AcceptsIOReader 验证 buildRequest 支持 io.Reader 类型 body，
 // 是 F3 修复的核心契约——UploadFile 走 buildRequest 的前提。
-//
-// F3 修复（round-8）：原 buildRequest 只支持 []byte/string/任意 JSON marshal 三类 body，
+// 原 buildRequest 只支持 []byte/string/任意 JSON marshal 三类 body，
 // 无法承载 multipart 场景下的 io.Reader（*bytes.Buffer）。UploadFile 因此被迫走
 // 手工 http.NewRequestWithContext，沦为特例路径。
-//
 // 修复后 buildRequest 增加 io.Reader 分支：传入的 reader 直接作为 body，
 // Content-Type 由调用方通过 contentType 参数显式传入（multipart 场景下
 // 必填，否则服务端无法解析 boundary）。
-//
 // 测试策略：构造一个 bytes.Buffer（含标识 payload），通过 buildRequest 创建
 // request，断言 body 内容透传 + Content-Type 透传。这是 buildRequest 「接受
 // io.Reader」契约的可观测证据——UploadFile 走 helper 时也享受相同行为。
@@ -204,16 +197,14 @@ func TestBuildRequest_AcceptsIOReader(t *testing.T) {
 
 // TestUploadFile_ViaBuildRequest 验证 UploadFile 走共享 buildRequest helper，
 // 与 doRequest/doBizGet 路径保持一致（header 注入 + Content-Type）。
-//
-// F3 修复（round-8）：原实现手工 http.NewRequestWithContext + 手工设 headers，
+// 原实现手工 http.NewRequestWithContext + 手工设 headers，
 // 是 buildRequest 之外的特例路径，与其他 SDK 方法的请求构造不一致。
 // 一旦 buildRequest 演进（如新增公共 header、debug 日志脱敏、req body 校验），
 // UploadFile 会自动掉队。
-//
 // 测试策略：
-//  1. 构造 mock upload server，捕获 Content-Type + Accept + User-Agent
-//  2. 校验这三个 header 都正确注入（multipart Content-Type + biz 标准 UA）
-//  3. 这是 buildRequest "正确行为" 的可观测子集——通过即可证明走 helper
+// 1. 构造 mock upload server，捕获 Content-Type + Accept + User-Agent
+// 2. 校验这三个 header 都正确注入（multipart Content-Type + biz 标准 UA）
+// 3. 这是 buildRequest "正确行为" 的可观测子集——通过即可证明走 helper
 func TestUploadFile_ViaBuildRequest(t *testing.T) {
 	var (
 		gotContentType string

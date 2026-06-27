@@ -17,7 +17,7 @@ import (
 //
 // 关键不变量：未读完的 body 在 Close 时会强制关闭底层 TCP 连接，
 // 下次请求必须重新 TLS 握手，keep-alive 失效。集中 helper 防止
-// 业务侧 verbatim defer（review-tdd F6 重构目标，同文件 doRequest/doBizGet
+// 业务侧 verbatim defer（重构目标，同文件 doRequest/doBizGet
 // 也复用此 helper）。
 //
 // nil 安全：body 为 nil 时直接返回，避免 nil pointer panic。
@@ -43,7 +43,7 @@ const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 
 // newHTTPClient 创建带独立 cookie jar 和自定义 Transport 的 HTTP 客户端。
 //
-// Transport 配置要点（F28）：
+// Transport 配置要点：
 //   - MaxIdleConnsPerHost=16：FetchTasks 8 路并发打到同一 biz host 时，
 //     第 3-8 路无需重新握手（http.DefaultTransport 默认=2，导致 6/8 请求需 TCP+TLS 握手）。
 //   - 共享 Transport 连接池：避免与 file.go cleanTransport 产生认知冲突，
@@ -86,7 +86,7 @@ func (c *Client) bizHeaders(token string) map[string]string {
 		"Accept":       "application/json, text/plain, */*",
 		"User-Agent":   defaultUserAgent,
 		"X-Auth-Token": token,
-		// E1 修复（round-9）：改走 c.bizURL() helper，与 session.go / task.go
+		// E1 修复：改走 c.bizURL() helper，与 session.go / task.go
 		// / self_eval.go 保持一致。如未来给 baseURL 加 TrimSuffix / 路径校验，
 		// helper 单一入口会同步所有调用点。
 		"Referer": c.bizURL("/homepage"),
@@ -106,7 +106,7 @@ func (c *Client) bizHeaders(token string) map[string]string {
 // contentType 参数：当 body 是 io.Reader 时必须由调用方显式传入（multipart
 // 场景下服务端依赖 boundary 解析 body），其他场景下若为空则默认 application/json。
 //
-// F3 修复（round-8）：增加 io.Reader 分支，使 UploadFile 等 multipart 场景
+// 增加 io.Reader 分支，使 UploadFile 等 multipart 场景
 // 能复用本 helper，消除特例路径。
 func (c *Client) buildRequest(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Request, error) {
 	var reqBody io.Reader

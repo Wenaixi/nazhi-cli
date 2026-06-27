@@ -46,7 +46,6 @@ func makeJpegTempFile(t *testing.T) string {
 
 // brokenUploadServer 构造一个故意在 Write headers 之后关闭连接的
 // httptest server，模拟服务端在响应体未完全写出时断网。
-//
 // 这种场景下客户端的 io.ReadAll 会返回非 nil error (connection reset
 // by peer / unexpected EOF)，用来验证修复前 _ 吞噬错误的 bug。
 func brokenUploadServer(t *testing.T) (*httptest.Server, string) {

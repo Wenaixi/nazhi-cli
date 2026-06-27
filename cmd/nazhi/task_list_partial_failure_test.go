@@ -17,12 +17,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestTaskList_PartialFailure_OutputsEnvelope 验证 F9 修复：
-// 5/8 维度业务失败时，FetchTasks 返回 (tasks, ErrBusinessRejected)，
-// taskListCmd 必须输出 {status:partial, tasks, error} envelope，
+// TestTaskList_PartialFailure_OutputsEnvelope 验证
+// 5/8 维度业务失败时，FetchTasks 返回 (tasks, ErrBusinessRejected)
+// taskListCmd 必须输出 {status:partial, tasks, error} envelope
 // 不走 printError（stderr 不应含 error JSON），同时 pendingExitCode=1。
-//
-// 历史 bug：err != nil 一律走 printError → return，stdout 空，
+// 历史 bug：err != nil 一律走 printError → return，stdout 空
 // 下游拿不到任何成功维度的任务数据。
 func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 	const dimCount = 3
@@ -41,7 +40,7 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
 		case "/api/studentInfo/getMyInfo":
-			// F11 修复（group-F round-8）：getMyInfo 必须返回真实 user info，
+			// getMyInfo 必须返回真实 user info
 			// 否则 session 预热步骤 4 触发 ErrEmptyUserInfo → FetchTasks 在
 			// 拉取维度之前就失败，永远走不到 partial failure 分支。
 			w.Header().Set("Content-Type", "application/json")
@@ -85,7 +84,7 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 	cmd := &cobra.Command{Use: "task-list"}
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
-	// F7 适配（group-F round-8）：必须 Set 让 Changed()=true。
+	// F7 适配：必须 Set 让 Changed()=true。
 	if err := cmd.Flags().Set("token", "test-token"); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
@@ -173,7 +172,7 @@ func TestTaskList_AllFailure_StillPrintsError(t *testing.T) {
 	cmd := &cobra.Command{Use: "task-list"}
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
-	// F7 适配（group-F round-8）：必须 Set 让 Changed()=true。
+	// F7 适配：必须 Set 让 Changed()=true。
 	if err := cmd.Flags().Set("token", "test-token"); err != nil {
 		t.Fatalf("set token: %v", err)
 	}

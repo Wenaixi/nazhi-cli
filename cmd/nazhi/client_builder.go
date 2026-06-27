@@ -14,7 +14,7 @@ import (
 
 // pendingClients 跟踪本次进程内构造的所有 Client，main 退出前统一 Close()。
 // 解决 "Client 包装了 *ocr.Pool 但不暴露 Close() → 临时目录泄漏" 的问题
-// （组 C 修复，merge 保留）。
+// 。
 var (
 	pendingClientsMu sync.Mutex
 	pendingClients   []*client.Client
@@ -36,7 +36,7 @@ func closeAllClients() error {
 	pendingClients = nil
 	pendingClientsMu.Unlock()
 
-	// C9 修复：收集所有 Close 错误而非只保留第一个。
+	// 收集所有 Close 错误而非只保留第一个。
 	var firstErr error
 	for _, c := range clients {
 		if err := c.Close(); err != nil {
@@ -46,11 +46,9 @@ func closeAllClients() error {
 	return firstErr
 }
 
-// newClientWithOpts 是 buildClient / buildBizClient 共享的 Client 构造辅助（C3 修复）。
-//
-// 消除两处重复的 `if err != nil { if c != nil { c.Close() }; return nil, err }` 模式，
+// newClientWithOpts 是 buildClient / buildBizClient 共享的 Client 构造辅助。
+// 消除两处重复的 `if err != nil { if c != nil { c.Close() }; return nil, err }` 模式
 // 统一处理 New() 失败时的资源清理。
-//
 // 注意：调用方仍需自行调用 trackClient() 注册到 pendingClients，因为
 // buildBizClient 需要先返回 token 再由调用方决定是否 track。
 func newClientWithOpts(opts ...client.Option) (*client.Client, error) {
@@ -68,11 +66,9 @@ func newClientWithOpts(opts ...client.Option) (*client.Client, error) {
 // upload-url / timeout 的 env fallback 与 opts 拼接。**不**做 token 必填校验——
 // token 必填是业务 API 命令（whoami/task/self-eval/session activate）的
 // 约束，SSO 命令（login/school）不需要（组 E 拆分）。
-//
 // login/school 等 SSO 命令直接调用。
 // 业务命令应调 buildBizClient（基于 buildClientOpts + token 必填校验）。
-//
-// C1+C2 修复（group-H round-4）：新增 urlType 参数让调用方指定 URL 来源——
+// 新增 urlType 参数让调用方指定 URL 来源——
 //   - urlType="sso": 从 cmd 读 --sso-base flag + NAZHI_SSO_BASE env（login/school）
 //   - urlType="base": 从 cmd 读 --base-url flag + NAZHI_BASE_URL env（业务 API 命令）
 //   - urlType="upload": 从 cmd 读 --upload-url flag + NAZHI_UPLOAD_URL env（file upload）
@@ -94,10 +90,8 @@ func buildClient(cmd *cobra.Command, urlType string, timeoutEnv string) (*client
 
 // buildBizClient 从 cobra 命令标志构建业务 API Client，自动处理 env fallback。
 // 基于 buildClientOpts + token 必填校验（组 E 拆分）。
-//
 // 必填标志：token。
 // 可选标志：base-url, timeout, sso-base。
-//
 // 返回 (client, token)。
 func buildBizClient(cmd *cobra.Command) (*client.Client, string, error) {
 	opts, token, err := buildClientOpts(cmd, "base", "NAZHI_TIMEOUT", true)
@@ -114,8 +108,7 @@ func buildBizClient(cmd *cobra.Command) (*client.Client, string, error) {
 
 // buildClientOpts 构造 client.Option 列表，是 buildClient 与 buildBizClient
 // 共享的核心实现（组 E 提取）。
-//
-// 参数：
+// 参数
 //   - cmd: cobra 命令（含已注册的 flag）
 //   - urlType: "sso" / "base" / "upload" — 决定读哪个 URL flag + env
 //   - timeoutEnv: env key（如 "NAZHI_TIMEOUT"，file_upload 复用同一 key 但默认 30s）
@@ -123,25 +116,22 @@ func buildBizClient(cmd *cobra.Command) (*client.Client, string, error) {
 //
 // 所有 env fallback 在这里统一处理。
 func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requireToken bool) ([]client.Option, string, error) {
-	// F16 修复（round-7）：token 读取下沉到 urlType 分支，upload/sso 短路。
-	//
+	// token 读取下沉到 urlType 分支，upload/sso 短路。
 	// 原代码无条件读 --token flag + NAZHI_TOKEN env，即使 file upload 命令
 	// 显式不提供 --token flag，NAZHI_TOKEN 仍会被注入到 pendingToken →
 	// syncCookieToken 写 cookie jar 到 sso/api 域，违反 fileUploadCmd 文档
 	// 契约「本命令不接受 --token 参数」。
-	//
-	// 新语义（按 urlType 分流）：
+	// 新语义（按 urlType 分流）
 	//   - urlType=="base"   读 --token flag + NAZHI_TOKEN env（业务 API 命令）
 	//   - urlType=="upload" 跳过 token 读取（file upload 命令契约无 token）
-	//   - urlType=="sso"    跳过 token 读取（SSO 命令不需要预置 token，
+	//   - urlType=="sso"    跳过 token 读取（SSO 命令不需要预置 token
 	//                       由 Login 流程获取并同步）
-	//
 	// requireToken 参数对 upload/sso 仍兼容——它们不传 true，所以
 	// 即使短路也不会因 requireToken 报错。
 	var token string
 	switch urlType {
 	case "base":
-		// G3 重构（round-9 group-G）：改走 applyURLFlag helper，
+		// 改走 applyURLFlag helper
 		// 消除 6 处重复的 flagChanged+GetString+envString 模板。
 		// 语义不变：flag 显式传递 → 用 flag 值；未传 → env fallback。
 		token = applyURLFlag(cmd, "token", "NAZHI_TOKEN")
@@ -150,11 +140,10 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		return nil, "", fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）")
 	}
 
-	// F5 修复：合并两个平行 switch（原 urlVal 赋值 + 原 opts 追加），消除中间变量 urlVal。
-	// 原代码先 switch urlType 提取 urlVal，处理 timeout/token/verbose 后，
+	// 合并两个平行 switch（原 urlVal 赋值 + 原 opts 追加），消除中间变量 urlVal。
+	// 原代码先 switch urlType 提取 urlVal，处理 timeout/token/verbose 后
 	// 再 switch 同 urlType 组装 opts，中间隔了 ~20 行。合并后一个 switch 完成
 	// url 提取和 opts 追加，减少 1 个局部变量 + 消除冗余的 default 分支。
-	//
 	// 注意：token/verbose 在 switch 后处理，所以 opts 初始值只需 timeout，url 和
 	// logger 在 switch 中追加。
 	timeoutSec, _ := cmd.Flags().GetInt("timeout")
@@ -187,7 +176,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		return nil, "", fmt.Errorf("buildClientOpts: 未知 urlType %q（期望 sso/base/upload）", urlType)
 	}
 
-	// G2 修复：--verbose 时让 SDK logger 输出 Debug 级别日志，
+	// --verbose 时让 SDK logger 输出 Debug 级别日志
 	// 否则 c.logDebug 被 slog LevelWarn 过滤，用户看不到 SDK 内部细节。
 	if verbose {
 		opts = append(opts, client.WithLogger(

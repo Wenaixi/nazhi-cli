@@ -1,24 +1,17 @@
 // Package client 内部白盒测试。
-//
-// F1: pkg/client/auth.go Login 缺 drain+close — 回归测试。
-//
+// pkg/client/auth.go Login 缺 drain+close — 回归测试。
 // 历史 bug：Login 函数用 `defer httpResp.Body.Close()` 但没 drain body，
 // 6 个 early-return 路径（130/137/147/167/171/193）通过这个 defer，
 // 未 drain 的 body 强制 net/http 关闭 TCP 连接，无法归还 keep-alive 池。
-//
 // 修复后：defer drain + close（参考 request.go:132-136 已有的模式），
 // 让 net/http 把连接归还 keep-alive 池。
-//
 // 验证策略：使用真实 httptest.Server + 注入 bug 的方式。
-//
 // 巧妙方案：让 server 返回的 response 在 Login 的 defer 触发瞬间，
 // body 还有可读字节。这要求 io.ReadAll 不读完所有字节——只能靠错误终止。
-//
 // 我们的 mock body 设计：
-//   - body.Read 第一次返回 (0, io.ErrUnexpectedEOF) → io.ReadAll 立即出错
-//   - 之后 body 仍声明有 N 字节 → 只有 drain 才会读走这些字节
-//   - Close 时记录 "被 drain 读走的字节数"
-//
+// - body.Read 第一次返回 (0, io.ErrUnexpectedEOF) → io.ReadAll 立即出错
+// - 之后 body 仍声明有 N 字节 → 只有 drain 才会读走这些字节
+// - Close 时记录 "被 drain 读走的字节数"
 // 验证：修复前 defer 只有 Close → drained=0；修复后 defer drain → drained=N。
 package client
 
@@ -36,9 +29,9 @@ import (
 )
 
 // readTrackingBody 是 Login 测试用的 mock body。
-//   - 第 1 次 Read：返回 (0, io.ErrUnexpectedEOF) —— 让 io.ReadAll 立即失败
-//   - 之后 Read：返回 remainingBytes 切片内容（只有 drain 才会调用）
-//   - 每次 Read 都把 n 加到 *readByDrain（drain 标识）
+// - 第 1 次 Read：返回 (0, io.ErrUnexpectedEOF) —— 让 io.ReadAll 立即失败
+// - 之后 Read：返回 remainingBytes 切片内容（只有 drain 才会调用）
+// - 每次 Read 都把 n 加到 *readByDrain（drain 标识）
 type readTrackingBody struct {
 	remaining   []byte
 	readByDrain *int32 // 累计 Read 返回的字节数（无论 io.ReadAll 还是 drain）
@@ -110,10 +103,8 @@ func (rt *readTrackingRT) Close() error { return nil }
 
 // TestLogin_DrainsBody_On200UnexpectedEOFPath 验证 Login 在 HTTP 200
 // + body io.ErrUnexpectedEOF 路径上，必须 drain body 才能让连接归还 keep-alive。
-//
 // 场景：server 返回 200 + body 声明 100 字节但立即 io.ErrUnexpectedEOF。
 // io.ReadAll 失败 → Login 走 line 137 错误返回 → defer Close() 触发。
-//
 // 修复前：defer httpResp.Body.Close() → 连接被强制关闭（drainedBytes == 0）。
 // 修复后：defer { io.Copy(io.Discard, body); body.Close() } → drainedBytes == 100。
 func TestLogin_DrainsBody_On200UnexpectedEOFPath(t *testing.T) {

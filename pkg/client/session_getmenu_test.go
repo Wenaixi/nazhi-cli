@@ -15,7 +15,6 @@ import (
 // TestDoGetMenu_SendsReferer 验证 doGetMenu helper 会把 referer 设置到
 // 实际请求的 Referer 头里。这是从 ActivateSession 步骤 2/3 重复代码中
 // 提取出的共享行为：两次 getMenu 的 URL/method 相同，唯一差异是 Referer。
-//
 // 这是红测试：在 helper 提取前，client 包没有导出 doGetMenu，测试编译失败。
 // helper 提取后，本测试验证 helper 行为与原 inline 逻辑一致。
 func TestDoGetMenu_SendsReferer(t *testing.T) {
@@ -32,7 +31,7 @@ func TestDoGetMenu_SendsReferer(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
 		case strings.HasSuffix(r.URL.Path, "/getMyInfo"):
-			// F10 修复（round-7）：mock 必须返回有效 returnData，否则
+			// mock 必须返回有效 returnData，否则
 			// 触发 ErrEmptyUserInfo 路径导致 ActivateSession 返回 error。
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三"}}`))
@@ -65,7 +64,6 @@ func TestDoGetMenu_SendsReferer(t *testing.T) {
 
 // TestDoGetMenu_Step2And3Refactor 验证 ActivateSession 步骤 2 和步骤 3
 // 都发出 getMenu 请求且 Referer 分别是 homepage?token= 与 /home。
-//
 // 这覆盖了提取 helper 后的两个调用点都正确传参。helper 抽取前的实现
 // 是直接 inline，测试本身已存在；这里新增对 helper 抽取前后行为一致
 // 的显式断言。
@@ -85,7 +83,7 @@ func TestDoGetMenu_Step2And3Refactor(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
 		case strings.HasSuffix(r.URL.Path, "/getMyInfo"):
-			// F10 修复（round-7）：mock 必须返回有效 returnData，否则
+			// mock 必须返回有效 returnData，否则
 			// 触发 ErrEmptyUserInfo 路径导致 ActivateSession 返回 error。
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三"}}`))

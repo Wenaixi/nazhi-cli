@@ -1,18 +1,14 @@
 // Package client 内部白盒测试。
-//
-// G2 (review-tdd round-4): extractTokenFromReturnData 应解析 returnData.expires_in/exp。
-//
-// 历史 bug（review-tdd 一轮 F2 仅修了 302 路径，200 路径漏修；round-2 F4 补
+// G2: extractTokenFromReturnData 应解析 returnData.expires_in/exp。
+// 历史 bug（一轮仅修了 302 路径，200 路径漏修；round-2 补
 // 了对称 warn 但没真解析）：
-//   - extractTokenFromReturnData 总是返回 time.Now().Add(24*time.Hour)
-//   - 200 路径永远走 now+24h 兜底，每次合法登录都 warn（auth.go:163-165）
-//   - 即使 server 真给了 expires_in/exp 字段，extractTokenFromReturnData
-//     也完全忽略。
-//
+// - extractTokenFromReturnData 总是返回 time.Now().Add(24*time.Hour)
+// - 200 路径永远走 now+24h 兜底，每次合法登录都 warn（auth.go:163-165）
+// - 即使 server 真给了 expires_in/exp 字段，extractTokenFromReturnData
+// 也完全忽略。
 // 修复后：extractTokenFromReturnData 应模仿 parseExpiresMap 解析
 // returnData.expires_in（相对秒数）和 returnData.exp（绝对 Unix 时间戳），
 // 都缺失才 fallback now+24h。
-//
 // 验证策略：直接调 extractTokenFromReturnData，传入含 expires_in / exp /
 // 同时含 / 都不含的 returnData，断言 expiresAt 正确。
 package client

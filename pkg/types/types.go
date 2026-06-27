@@ -18,7 +18,7 @@ type LoginRequest struct {
 
 // LoginResponse 是 SSO 登录成功后的响应。
 //
-// 字段约定（review-tdd F8 修复）：本结构只包含登录 token + expires 信息，
+// 字段约定：本结构只包含登录 token + expires 信息，
 // **不再** 提供用户基本信息字段。用户基本信息请通过 Client.GetMyInfo()
 // 单独获取（GetMyInfo 返回 *UserInfo，含完整 51 字段）。
 //

@@ -14,12 +14,10 @@ import (
 // TestWithSSOBase_EmptyRejected 回归测试（D1）：
 // WithSSOBase("") 必须被拒绝，保持当前 ssoBaseURL 值（防止用空 URL
 // 覆盖掉 New() 阶段已设的 defaultSSOBase，破坏下游所有 SSO 调用）。
-//
 // 历史 bug：6 个 URL/资源型 Option（WithSSOBase / WithBaseURL / WithUploadURL /
 // WithHTTPClient / WithOCRConcurrency / WithToken）均无任何校验，与 F9 给
 // WithTimeout 加的 nil/0/负数三重 warn+拒绝守卫不对称——空字符串会静默覆盖
 // defaultSSOBase 为空，导致后续 ssoURL(...) 拼接出 "https://" 之类畸形 URL。
-//
 // 修复后：空字符串必须 warn + 不修改字段（与 WithTimeout d=0 行为对齐）。
 func TestWithSSOBase_EmptyRejected(t *testing.T) {
 	var logBuf bytes.Buffer
@@ -118,11 +116,9 @@ func (m *mockCaptchaRecognizer) Close() error                     { m.closed = t
 // TestWithOCRConcurrency_NegativeRejected 回归测试（D1）：
 // WithOCRConcurrency(-1) 必须被拒绝，warn 提醒，保持当前 ocr 识别器（防止
 // 负数被静默截 0 后用默认值覆盖调用方已注入的自定义识别器）。
-//
 // 历史 bug：WithOCRConcurrency 对 n<0 仅 `if n<0 { n=0 }` 静默截 0，
 // 然后无脑 c.ocr = ocr.NewPool(0) 覆盖——若调用方先用 WithCustomOCR 注入
 // mock，WithOCRConcurrency(-1) 会静默清掉 mock，导致后续 Login 走默认 OCR。
-//
 // !ddddocr 构建下此测试移到 option_guards_noocr_test.go（占位实现行为）。
 func TestWithOCRConcurrency_NegativeRejected(t *testing.T) {
 	var logBuf bytes.Buffer
@@ -145,7 +141,7 @@ func TestWithOCRConcurrency_NegativeRejected(t *testing.T) {
 }
 
 // TestWithToken_EmptyOrWhitespaceRejected 回归测试（D1）：
-// WithToken("") / WithToken("   ") / WithToken("\t\n") 必须被拒绝，
+// WithToken("") / WithToken(" ") / WithToken("\t\n") 必须被拒绝，
 // 保持当前 pendingToken 值（防止空/纯空白 token 静默覆盖有效 token，
 // 后续 New() 末尾 syncCookieToken 写入空 cookie 导致业务鉴权失败）。
 func TestWithToken_EmptyOrWhitespaceRejected(t *testing.T) {

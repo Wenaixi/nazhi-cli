@@ -1,4 +1,4 @@
-// Package ocr 内部白盒测试：B6 SetOnnxRuntimePath 全局状态竞争测试。
+// Package ocr 内部白盒测试：SetOnnxRuntimePath 全局状态竞争测试。
 package ocr
 
 import (
@@ -12,7 +12,7 @@ import (
 // SetOnnxRuntimePath 和 ddddocr.New 的全局状态竞争。
 func TestRecognize_ConcurrentInitNoRace(t *testing.T) {
 	if runtime.GOOS != "windows" {
-		t.Skip("B6 竞争测试只需要在 Windows 上验证初始化路径的稳定性，其他平台跳过")
+		t.Skip("竞争测试只需要在 Windows 上验证初始化路径的稳定性，其他平台跳过")
 	}
 
 	const goroutines = 8
@@ -57,6 +57,6 @@ func TestRecognize_ConcurrentInitPanicFree(t *testing.T) {
 	wg.Wait()
 
 	if n := panics.Load(); n > 0 {
-		t.Errorf("并发初始化时 %d 个 goroutine panic，B6 修复有回归", n)
+		t.Errorf("并发初始化时 %d 个 goroutine panic，有回归", n)
 	}
 }

@@ -16,7 +16,7 @@ var schoolCmd = &cobra.Command{
 	Example: `  nazhi school -u 学号
   nazhi school -u 学号 --sso-base https://www.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// B1 修复：用 flagChanged() 守卫 username 读取，
+		// B1 修复：用 flagChanged() 守卫 username 读取
 		// 避免用户显式传 --username "" 时被 NAZHI_USERNAME 环境变量覆盖。
 		// 与 login.go:31-35 模式对称。
 		var username string
@@ -31,7 +31,7 @@ var schoolCmd = &cobra.Command{
 		}
 
 		// SSO 命令（login/school）不要求 token，复用 buildClient 共享 env fallback。
-		// C1 修复（group-H round-4）：消除 inline client.New + 自动获得 trackClient。
+		// 消除 inline client.New + 自动获得 trackClient。
 		c, err := buildClient(cmd, "sso", "NAZHI_TIMEOUT")
 		if err != nil {
 			printError(fmt.Errorf("构造 Client 失败: %w", err))

@@ -1,6 +1,6 @@
-// Package ocr 内部白盒测试：F2 Close + Recognize 并发 race 修复。
+// Package ocr 内部白盒测试：Close + Recognize 并发 race 修复。
 //
-// Finding F2（CRITICAL）：Close() 在 o.mu 临界区外调用 ocr.Close()，
+// Close() 在 o.mu 临界区外调用 ocr.Close()，
 // 而 Recognize() 在 o.mu 临界区内调用 ocr.Classification()。两个 goroutine
 // 同时操作同一个 ddddocr session 导致 C 运行时 segfault。
 //

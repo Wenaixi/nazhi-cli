@@ -1,6 +1,6 @@
 // Package types 公共类型契约测试。
 //
-// F8 (review-tdd 三轮): pkg/types/types.go LoginResponse.UserInfo 死字段。
+// pkg/types/types.go LoginResponse.UserInfo 死字段。
 //
 // 历史 bug：types.LoginResponse.UserInfo *UserInfo 字段在公开类型中显式声明
 // （带 json:"user_info" 标签），但 Login() 函数两条成功路径（200 / 302）
@@ -23,7 +23,7 @@ import (
 	"time"
 )
 
-// TestLoginResponse_NoUserInfoField 守护 F8 修复：LoginResponse 不再有 UserInfo 字段。
+// TestLoginResponse_NoUserInfoField 守护：LoginResponse 不再有 UserInfo 字段。
 //
 // 修复前：json.Marshal 包含 "user_info":null，SDK 用户读 resp.UserInfo 永远 nil。
 // 修复后：json.Marshal 不再含 "user_info" 键，调用方应改用 GetMyInfo()。
@@ -52,7 +52,7 @@ func TestLoginResponse_NoUserInfoField(t *testing.T) {
 	}
 }
 
-// TestLoginResponse_GodocMentionsGetMyInfo 守护 F8 修复：LoginResponse godoc
+// TestLoginResponse_GodocMentionsGetMyInfo 守护：LoginResponse godoc
 // 明确指引调用方用 Client.GetMyInfo() 获取用户信息，避免误用死字段。
 func TestLoginResponse_GodocMentionsGetMyInfo(t *testing.T) {
 	// 通过 reflect 获取 LoginResponse 的 doc 字符串（来自源码注释）。

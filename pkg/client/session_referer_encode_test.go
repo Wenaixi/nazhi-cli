@@ -14,15 +14,13 @@ import (
 
 // TestActivateSession_Step2RefererEncodesToken 回归测试（F1）：
 // 步骤 2 的 Referer 中 token 字段必须经过 URL 编码。
-//
 // 历史 bug：session.go:36 步骤 2 用 c.baseURL+"/homepage?token="+token
 // 直接拼接，token 若包含 &、=、空格等字符会破坏 Referer URL 结构。
 // JWT/cookie 等含 base64 字符的 token 虽不直接含 &，但 Referer 头被
 // 浏览器/代理/服务端日志记录是普遍现象，未编码会引发：
-//  1. 中间代理把 Referer 当 URL 解析失败
-//  2. 服务端日志把 Referer 拆成多个 key=value
-//  3. 防御性编程契约：URL 查询参数必须编码
-//
+// 1. 中间代理把 Referer 当 URL 解析失败
+// 2. 服务端日志把 Referer 拆成多个 key=value
+// 3. 防御性编程契约：URL 查询参数必须编码
 // 修复后：使用 url.Values{"token": {token}}.Encode() 编码，特殊字符
 // 会被 % 转义。
 func TestActivateSession_Step2RefererEncodesToken(t *testing.T) {

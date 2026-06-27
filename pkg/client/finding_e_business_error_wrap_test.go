@@ -1,4 +1,3 @@
-// Package client_test 包含 review-tdd round-4 group-D Finding E 的测试：
 // 验证所有调用 CheckCode 失败的 6 处都正确包装 ErrBusinessRejected，
 // 不再裸传 *BusinessError 而丢失 errors.Is(err, ErrBusinessRejected) 语义信号。
 package client_test

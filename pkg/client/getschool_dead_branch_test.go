@@ -1,28 +1,24 @@
 // Package client_test 外部黑盒测试。
-//
-// M1 (review-tdd round-4): 删除 GetSchoolID 死分支 school_name 兜底。
-//
+// M1: 删除 GetSchoolID 死分支 school_name 兜底。
 // 历史 bug（auth.go:64-68）：
 //
 //	school := schools[0]
 //	schoolID = fmt.Sprintf("%v", school["school_id"])
 //	if v, ok := school["NAME"]; ok {
-//	    schoolName = fmt.Sprintf("%v", v)
+//	 schoolName = fmt.Sprintf("%v", v)
 //	} else if v, ok := school["school_name"]; ok {
-//	    schoolName = fmt.Sprintf("%v", v)
+//	 schoolName = fmt.Sprintf("%v", v)
 //	}
 //
 // 死分支分析：
-//   - HAR fixture (Wenaixi/nazhi-cli 真实抓包) dataList[0] 键是 school_id + NAME
-//   - 真实平台响应键也是 NAME（不是 school_name）
-//   - 学校名称字段历史上一直是 NAME，从未出现过 school_name
-//   - else if 死分支从未被触发，但代码还在那里误导后来者
-//
+// - HAR fixture (Wenaixi/nazhi-cli 真实抓包) dataList[0] 键是 school_id + NAME
+// - 真实平台响应键也是 NAME（不是 school_name）
+// - 学校名称字段历史上一直是 NAME，从未出现过 school_name
+// - else if 死分支从未被触发，但代码还在那里误导后来者
 // 修复后：只保留 NAME 一个分支。
-//
 // 验证策略：
-//   - server 只返 school_name 时，schoolName 应为空（不再兜底）
-//   - 现有 TestGetSchoolID (client_test.go) server 返 NAME 仍然 PASS
+// - server 只返 school_name 时，schoolName 应为空（不再兜底）
+// - 现有 TestGetSchoolID (client_test.go) server 返 NAME 仍然 PASS
 package client_test
 
 import (
@@ -38,7 +34,6 @@ import (
 // TestGetSchoolID_NoLongerFallsBackToSchoolName 验证 GetSchoolID 不再
 // 走 school_name 兜底分支。HAR fixture + 真实平台都只返 NAME 键，school_name
 // 历史上从未出现过，保留 else if 死分支是误导。
-//
 // 场景：server 返 dataList[0] = {school_id: "173", school_name: "某学校"}，
 // 期望 schoolName == ""（死分支删除，不再兜底）。
 func TestGetSchoolID_NoLongerFallsBackToSchoolName(t *testing.T) {

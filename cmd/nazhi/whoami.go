@@ -27,13 +27,11 @@ var whoamiCmd = &cobra.Command{
 		printVerbose("正在获取用户信息...")
 		info, err := c.GetMyInfo(cmd.Context(), token)
 		if err != nil {
-			// F10 修复（round-7）：ErrEmptyUserInfo 是「业务成功但无数据」状态
+			// ErrEmptyUserInfo 是「业务成功但无数据」状态
 			//（非错误），按 status envelope 输出而非走 printError。
-			//
 			// 修复前：GetMyInfo 返回 (nil, nil) → info == nil → 输出 status envelope
-			//（W1 round-5 已修）。但 SDK 现在改返回 (nil, ErrEmptyUserInfo) →
+			//。但 SDK 现在改返回 (nil, ErrEmptyUserInfo) →
 			// 不再是 (nil,nil)，info 仍 nil 但 err 非 nil，必须用 errors.Is 分支。
-			//
 			// 与 session activate 契约对称：两个 cmd 在「业务成功无数据」时
 			// 都输出 {status: empty, reason: get_my_info_empty}。
 			if errors.Is(err, client.ErrEmptyUserInfo) {

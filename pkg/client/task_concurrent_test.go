@@ -15,13 +15,10 @@ import (
 )
 
 // TestFetchTasks_Parallel 验证 FetchTasks 并发拉取多维度任务。
-//
 // 场景：mock server 返回 5 个维度，每个维度的 getCircleStatistics
 // 故意 sleep 100ms 模拟网络/服务端耗时。
-//
 // 性能断言：5 维度 × 100ms 串行 = 500ms；并发拉取应 < 250ms。
 // 串行版本会被此断言捕获，并发版本通过。
-//
 // 并发安全断言：通过原子计数器验证 5 个 getCircleStatistics 全部
 // 被请求（无丢失、无重复）。
 func TestFetchTasks_Parallel(t *testing.T) {
@@ -148,7 +145,7 @@ func TestFetchTasks_PartialFailure(t *testing.T) {
 	)
 
 	tasks, err := cWithLogger.FetchTasks(context.Background(), "test-token")
-	// F2 修复后：网络/解析错误不再静默吞咽，而是通过 dimErrs 聚合为 ErrBusinessRejected。
+	// 后：网络/解析错误不再静默吞咽，而是通过 dimErrs 聚合为 ErrBusinessRejected。
 	// 因此 FetchTasks 返回 (部分成功数据, ErrBusinessRejected)，err 不为 nil。
 	if err == nil {
 		t.Fatal("FetchTasks 应因单维度部分失败返回 ErrBusinessRejected")

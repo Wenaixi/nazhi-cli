@@ -1,11 +1,8 @@
 // Package client 内部白盒测试。
-//
-// C6: OCR 总 timeout 守卫 — 回归测试。
-//
+// OCR 总 timeout 守卫 — 回归测试。
 // 历史问题：maxOCRImagesTotal=99 张图 × ~600ms/张 ≈ 60s+ 总耗时，
 // 远超合理的登录等待时间。若调用方未在 context 中设置 deadline，
 // ocrRecognizeWithRetry 可能跑满 99 张图耗时约 60s。
-//
 // 修复后：当 ctx 无 deadline 时自动派生 ocrTimeout (30s) 超时上下文，
 // 超时后循环顶部的 ctx.Err() 检查能立即返回。
 package client
@@ -38,17 +35,14 @@ func (m *slowMockOCR) Close() error { return nil }
 
 // TestOCRRetry_AutoTimeoutWithoutCtxDeadline 验证：ctx 无 deadline 时
 // ocrRecognizeWithRetry 自动派生 30s 超时，超时后立即返回而非跑满 99 张图。
-//
 // 修复前：ocrRecognizeWithRetry(context.Background()) 跑满 99 张图，
 // 每张图 OCR 如果是 500ms 则总耗时约 50s，无任何超时机制。
-//
 // 修复后：函数入口检测 ctx.Deadline() 为 nil 时，派生 ocrTimeout (30s) 超时，
 // 超时后循环顶部的 ctx.Err() 检查返回带 timeout/cancel 字样的错误。
-//
 // 预期行为：
-//   - 总耗时 ≈ 30s + 一次 OCR 阻塞时间（约 30.5s），远 < 50s
-//   - 错误信息包含 "cancel" / "timeout" / "ctx" 字样
-//   - OCR 调用次数 < 99（被 timeout 中断）
+// - 总耗时 ≈ 30s + 一次 OCR 阻塞时间（约 30.5s），远 < 50s
+// - 错误信息包含 "cancel" / "timeout" / "ctx" 字样
+// - OCR 调用次数 < 99（被 timeout 中断）
 func TestOCRRetry_AutoTimeoutWithoutCtxDeadline(t *testing.T) {
 	var serverHits int32
 
@@ -82,7 +76,7 @@ func TestOCRRetry_AutoTimeoutWithoutCtxDeadline(t *testing.T) {
 	ocrCalls := atomic.LoadInt32(&mock.calls)
 	hitCount := atomic.LoadInt32(&serverHits)
 
-	t.Logf("C6 debug: elapsed=%v err=%v ocrCalls=%d serverHits=%d",
+	t.Logf("debug: elapsed=%v err=%v ocrCalls=%d serverHits=%d",
 		elapsed, err, ocrCalls, hitCount)
 
 	// 关键断言 1：总耗时应 < 50s（修复前 ≈ 50s，修复后 ≈ 31s）

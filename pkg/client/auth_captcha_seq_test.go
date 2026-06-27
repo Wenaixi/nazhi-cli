@@ -12,8 +12,7 @@ import (
 
 // TestFetchCaptchaImage_ConcurrentDifferentURLs 验证：8 路 goroutine 并发调用
 // fetchCaptchaImage 拿到 8 个不同的 URL，避免并发 Login 撞同 URL 浪费 OCR 预算。
-//
-// F8 修复动机：原版用 time.Now().UnixMilli() 作为 cache-busting 参数，同一毫秒内
+// 动机：原版用 time.Now().UnixMilli() 作为 cache-busting 参数，同一毫秒内
 // 并发调用生成完全相同的 URL → 8 路 OCR 拿到同一张验证码图片（同一字符集）→
 // 7 路必失败。
 // 修复后：atomic.Int64 累加 seq 追加到 URL query，URL 唯一性由 atomic 保证。
@@ -66,7 +65,6 @@ func TestFetchCaptchaImage_ConcurrentDifferentURLs(t *testing.T) {
 }
 
 // TestCaptchaSeq_Monotonic 验证 captchaSeq 累加器单调用递增。
-//
 // 防御性测试：未来若有人改回非 atomic 实现（如 sync.Mutex 包裹 int），
 // 此测试会捕获 goroutine 间数据竞争。
 func TestCaptchaSeq_Monotonic(t *testing.T) {

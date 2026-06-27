@@ -1,16 +1,12 @@
 // Package client_test 外部包测试。
-//
-// F8: pkg/client/auth.go:368 syncCookieToken 静默 warn — 回归测试。
-//
+// pkg/client/auth.go:368 syncCookieToken 静默 warn — 回归测试。
 // 历史 bug：类型断言失败仅 Warn 不返回 error，WithHTTPClient 自定义 Jar
 // （非 *cookiejar.Jar）时 X-Auth-Token 同步到 cookie 失败，业务接口返回空
 // dataList 但根因在 build client 阶段的 stderr Warn，跨多步调用难关联。
-//
 // 修复后：
-//   - syncCookieToken(token string) 改为 syncCookieToken(token string) error
-//   - 类型断言失败时返回 error（用 fmt.Errorf 包装，引用 WithHTTPClient 文档提示）
-//   - pkg/client/client.go:169-171 的 New() 末尾检查 error 并 propagate
-//
+// - syncCookieToken(token string) 改为 syncCookieToken(token string) error
+// - 类型断言失败时返回 error（用 fmt.Errorf 包装，引用 WithHTTPClient 文档提示）
+// - pkg/client/client.go:169-171 的 New() 末尾检查 error 并 propagate
 // 验证策略：外部包 client_test 调用 client.New(WithHTTPClient(&http.Client{}),
 // WithToken("x"))，断言 New() 返回 error 且 error 信息提示 Jar 类型问题。
 package client_test
@@ -27,7 +23,6 @@ import (
 // TestNew_WithHTTPClient_NonCookieJar_ReturnsError 验证当用户传入自定义
 // http.Client（非默认 *cookiejar.Jar）且使用 WithToken 时，New() 必须返回
 // error 让调用方立即感知，而不是只在 stderr Warn 静默吞掉。
-//
 // 修复前：syncCookieToken 只 Warn → 业务接口后续返回空 dataList
 //
 //	跨多步调用难关联根因。

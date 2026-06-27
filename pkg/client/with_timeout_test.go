@@ -11,7 +11,6 @@ import (
 
 // TestWithTimeout_NegativeRejected 回归测试：WithTimeout(-1) 必须被拒绝，
 // 保持当前 Timeout 值（防止把超时改成无效负数）。
-//
 // 历史 bug：WithTimeout 不校验 d，对 d=0/d<0 静默接受。d=0 让请求永久
 // 挂起，d<0 是非法值（Go time.Duration 负数无意义但合法）。
 func TestWithTimeout_NegativeRejected(t *testing.T) {
@@ -57,7 +56,6 @@ func TestWithTimeout_ZeroWarns(t *testing.T) {
 
 // TestWithTimeout_ZeroDoesNotOverwriteExisting 回归测试（F9）：
 // WithTimeout(0) 在已设置正数超时时**不应**清零已有超时。
-//
 // 历史 bug：WithTimeout(0) 仅 warn 但仍执行 c.http.Timeout = 0，
 // 静默破坏调用方已配置的 15s 超时为"无超时"——后续请求可能永久挂起。
 // 修复后 d==0 必须阻断赋值（与 d<0 行为对齐：拒绝 + warn 保持原值）。
@@ -87,7 +85,6 @@ func TestWithTimeout_ZeroDoesNotOverwriteExisting(t *testing.T) {
 
 // TestWithTimeout_NilHTTPWarns 回归测试（F9）：
 // WithTimeout 在 c.http == nil 时不应静默 return——至少 warn 让用户感知。
-//
 // 历史 bug：WithTimeout 在 c.http == nil 时静默 return，调用方无法
 // 知道 timeout 未生效。WithHTTPClient(nil) 是触发 c.http == nil 的
 // 唯一外部路径——属于误用但需要被看见而非吞掉。

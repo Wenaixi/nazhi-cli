@@ -13,11 +13,9 @@ import (
 
 // TestGetMyInfo_BizError_WrapsErrBusinessRejected 验证 GetMyInfo 业务错误正确包装
 // ErrBusinessRejected，让 errors.Is 能命中。
-//
 // RED 阶段（修复前）：getMyInfoRaw 用 %v 包装 errors.Join(ErrBusinessRejected, err)，
 // 断开错误链 → errors.Is(err, ErrBusinessRejected) 返回 false。
 // GREEN 阶段（修复后）：改用 %w → errors.Is 正常命中。
-//
 // 与 TestFindingE_GetMyInfo_BizError 的区别：该测试走 warmupBizHandler（步骤 4 成功
 // 缓存 UserInfo → GetMyInfo 走 fast path 返回缓存，不调用 getMyInfoRaw），本测试
 // 让步骤 4 返回 code=0，确保 getMyInfoRaw 路径被触发。

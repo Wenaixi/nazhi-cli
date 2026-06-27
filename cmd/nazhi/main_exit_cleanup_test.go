@@ -1,17 +1,14 @@
-// main_exit_cleanup_test.go F6 修复锚定（AST 静态扫描）。
-//
+// main_exit_cleanup_test.go 锚定（AST 静态扫描）。
 // F6 证据：原 main.go 在 `if pendingExitCode.Load() != 0 { os.Exit(1) }`
 // 之前没有调用 closeAllClients()，而 Go 规范明确 os.Exit 不运行
 // deferred functions，导致 main 顶部 `defer closeAllClients()` 永不执行。
 // 后果：所有 CLI 错误退出路径泄漏 ONNX session + tempDir + keep-alive 连接。
-//
 // 修复：在 os.Exit(1) 之前显式调 closeAllClients()。
-// 设计契约：closeAllClients 内部已把全局 pendingClients 置 nil，
+// 设计契约：closeAllClients 内部已把全局 pendingClients 置 nil
 // 二次调用是 no-op，因此即使 defer 也会再跑一次也不会出错。
-//
-// 测试策略：AST 静态扫描 main 函数体，断言：
+// 测试策略：AST 静态扫描 main 函数体，断言
 //  1. os.Exit(1) 调用之前（行号序）必须出现 closeAllClients() 调用
-//  2. 不能仅靠 defer（验证修复契约：显式调用）
+//  2. 不能仅靠 defer
 package main
 
 import (
@@ -21,7 +18,7 @@ import (
 	"testing"
 )
 
-// TestMain_OsExitPrecededByCloseAllClients AST 扫描 main 函数，
+// TestMain_OsExitPrecededByCloseAllClients AST 扫描 main 函数
 // 断言 os.Exit(1) 之前必须显式调 closeAllClients（不能仅靠 defer）。
 func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 	fset := token.NewFileSet()
@@ -42,7 +39,7 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 		t.Fatal("找不到 main 函数")
 	}
 
-	// 2. 找 os.Exit(1) 调用位置（os.Exit 在 AST 是 *ast.SelectorExpr，
+	// 2. 找 os.Exit(1) 调用位置（os.Exit 在 AST 是 *ast.SelectorExpr
 	// Fun = os, Sel = Exit）
 	var exitPos token.Pos
 	var exitLine int
@@ -62,8 +59,7 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 	}
 
 	// 3. 找 closeAllClients 调用，必须是**显式调用**（非 defer 闭包内）
-	//
-	// AST 区分：
+	// AST 区分
 	//   - defer func() { closeAllClients() }()  → closeAllClients 调用包裹在
 	//     FuncLit.Body.List 里，不是 main 函数顶层 stmt 也不是 if-block 顶层 stmt
 	//   - if pendingExitCode.Load() != 0 {
@@ -71,7 +67,6 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 	//         os.Exit(1)
 	//     }
 	//     → 顶层是 *ast.IfStmt，body 内是 ExprStmt / AssignStmt / ExprStmt
-	//
 	// 我们遍历 main 函数所有 stmt（包括 if-block），但跳过 defer 的 FuncLit.Body。
 	var foundClose *ast.CallExpr
 	var closeLine int
@@ -129,8 +124,8 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 		closeLine, exitLine)
 }
 
-// TestMain_NoDeferOnlyClose 防退化：未来重构如果删掉显式调用、退化到仅 defer，
-// AST 扫描会失败（保证修复不会无声消失）。
+// TestMain_NoDeferOnlyClose 防退化：未来重构如果删掉显式调用、退化到仅 defer
+// AST 扫描会失败。
 func TestMain_NoDeferOnlyClose(t *testing.T) {
 	fset := token.NewFileSet()
 	_, err := parser.ParseFile(fset, "main.go", nil, parser.ParseComments)
@@ -138,7 +133,7 @@ func TestMain_NoDeferOnlyClose(t *testing.T) {
 		t.Fatalf("parse main.go: %v", err)
 	}
 	// 该测试由 TestMain_OsExitPrecededByCloseAllClients 覆盖核心契约。
-	// 留作冗余：未来若有人加 `defer func() { closeAllClients() }()` 在 os.Exit 后，
+	// 留作冗余：未来若有人加 `defer func() { closeAllClients() }()` 在 os.Exit 后
 	// 此测试提醒「必须在 os.Exit 前显式调用」。
 	t.Log("防退化测试：见 TestMain_OsExitPrecededByCloseAllClients")
 }

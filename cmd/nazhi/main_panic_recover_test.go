@@ -1,24 +1,21 @@
-// main_panic_recover_test.go F9 修复锚定（group-F round-8）。
-//
+// main_panic_recover_test.go 锚定。
 // F9 证据：cmd/nazhi/main.go 顶层 main() 函数没有 panic recover 守卫。
 // 后果：cobra Run 回调（cmd.Run func）panic 时，Go runtime 直接打 stack trace
 // 并以 exit code 2 退出，违反 F7 设计的「统一 exit code 1」契约——CI 脚本
 // 区分「用户错误」(exit 1) 与「程序 bug」(exit 2) 时被误导。
-//
-// 设计契约：
+// 设计契约
 //   - panic 发生后 recover
 //   - 走 pendingExitCode = 1 + printError 路径（与 cobra 正常 error 路径一致）
 //   - 不打 stack trace 给终端用户（避免噪声 + 信息泄露）
 //   - 仍然走 closeAllClients() 释放 ONNX session + tempDir + keep-alive
 //
-// 测试策略：子进程派生子 nazhi，触发 panic，断言：
+// 测试策略：子进程派生子 nazhi，触发 panic，断言
 //  1. 子进程 exit code == 1（不是 Go runtime 默认的 2）
 //  2. stderr 不含 Go runtime stack trace 特征 "panic:" 或 ".go:"
 //
 // 实现方式：通过 NAZHI_TEST_PANIC 环境变量让 main.go 触发 panic。
 // 但这样需要改 main.go 加测试 hook。**更优雅**：直接调 main 路径中
 // 的 rootCmd.Execute()，但注入一个会 panic 的 Run 回调到某个子命令。
-//
 // 子进程方案更稳健（能验证完整 main → main 退出码语义），但需要
 // 重新编译 main.go binary。本测试用直接调用方式：模拟 panic recover
 // 包装函数（main.go 内部）。
@@ -39,23 +36,20 @@ import (
 )
 
 // TestMain_PanicRecover_ExitCode1 验证 main 函数 panic recover 后退出码为 1。
-//
 // 实现策略：子进程方式
 //  1. go run -tags panic_recover 编译并执行 nazhi panic 子命令
 //  2. 注入 NAZHI_TEST_PANIC=1 让 main.go 主动 panic
 //  3. 断言子进程 exit code == 1
 //
-// 但我们没有 panic_recover tag，所以改用更直接的方式：
-// 临时添加一个会 panic 的 cobra 子命令，rootCmd.Execute() 触发 panic，
+// 但我们没有 panic_recover tag，所以改用更直接的方式
+// 临时添加一个会 panic 的 cobra 子命令，rootCmd.Execute() 触发 panic
 // 验证 panic recover 后行为（不修改全局状态）。
 func TestMain_PanicRecover_ExitCode1(t *testing.T) {
 	// 子进程方案：go build 当前 binary + 设 NAZHI_FORCE_PANIC 环境变量
 	// 我们用 binary 自身 + 注入 panic hook（通过测试 helper）。
-	//
 	// 简单可靠方案：编译当前 package 的 test binary，把 panic recover 行为
 	// 直接 inline 测：panic 在 rootCmd.Run 回调中触发，走 deferred recover。
-	//
-	// 实际：F9 修复后 main.go 顶层会有 `defer func() { recover; ...; os.Exit(1) }()`，
+	// 实际：修复后 main.go 顶层会有 `defer func() { recover; ...; os.Exit(1) }()`
 	// 我们无法直接测试 main()（只能测子函数）。改用 AST 静态扫描测试
 	// main 函数体内必须含 panic recover 调用模式。
 	t.Log("F9 修复锚定由 TestMain_PanicRecover_ASTInspect 实现")
@@ -63,7 +57,6 @@ func TestMain_PanicRecover_ExitCode1(t *testing.T) {
 
 // TestMain_PanicRecover_ASTInspect 静态扫描 main.go 函数体，断言存在
 // defer 闭包调用 recover()，且该 defer 在 main 顶层（不是某个子函数里）。
-//
 // F9 设计：main() 顶部加
 //
 //	defer func() {
@@ -124,10 +117,9 @@ func TestMain_PanicRecover_ASTInspect(t *testing.T) {
 	}
 }
 
-// TestMain_PanicRecover_EndToEnd 模拟 cobra Run 回调 panic 场景：
-// 注册一个会 panic 的子命令到 rootCmd，调用 rootCmd.Execute()，
+// TestMain_PanicRecover_EndToEnd 模拟 cobra Run 回调 panic 场景
+// 注册一个会 panic 的子命令到 rootCmd，调用 rootCmd.Execute()
 // 验证 panic recover 后行为（pendingExitCode=1 + JSON envelope 输出）。
-//
 // 不走子进程（避免编译 CGO 依赖），直接在测试进程内复现。
 func TestMain_PanicRecover_EndToEnd(t *testing.T) {
 	// 暂存并恢复全局状态

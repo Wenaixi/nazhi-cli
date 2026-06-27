@@ -1,10 +1,9 @@
 // file_id_type_assert_test.go 验证 UploadFile 解析 returnData['id'] 失败时
 // 错误信息能区分「字段缺失」与「类型不匹配」两种根因。
-//
-// J2 修复契约：原实现 `id, ok := result["id"].(float64); if !ok { 报"缺少 id 字段" }`
+// 修复契约：原实现 `id, ok := result["id"].(float64); if !ok { 报"缺少 id 字段" }`
 // 把两种语义完全不同的根因合并成同一条错误信息。修复后：
-//   - 字段不存在 → "returnData 中缺少 id 字段"
-//   - 字段存在但类型不匹配 → "returnData.id 类型不匹配，期望 float64 实际 %T"
+// - 字段不存在 → "returnData 中缺少 id 字段"
+// - 字段存在但类型不匹配 → "returnData.id 类型不匹配，期望 float64 实际 %T"
 package client_test
 
 import (

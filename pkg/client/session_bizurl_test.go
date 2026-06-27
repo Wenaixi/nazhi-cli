@@ -14,13 +14,11 @@ import (
 )
 
 // TestActivateSession_UsesBizURL 验证 session.go 使用 c.bizURL() 而非裸 baseURL 拼接。
-//
 // bizURL() 是 c.baseURL + path 的封装。本测试验证修复后所有激活 URL 正确构建：
-//   - 步骤1 GET /（通过 bizURL("/")）
-//   - 步骤2 GET /api/studentInfo/getMenu 带 Referer（通过 bizURL("/homepage")）
-//   - 步骤3 GET /api/studentInfo/getMenu 带 Referer（通过 bizURL("/home")）
-//   - 步骤4 GET /api/studentInfo/getMyInfo（内部已有 bizURL）
-//
+// - 步骤1 GET /（通过 bizURL("/")）
+// - 步骤2 GET /api/studentInfo/getMenu 带 Referer（通过 bizURL("/homepage")）
+// - 步骤3 GET /api/studentInfo/getMenu 带 Referer（通过 bizURL("/home")）
+// - 步骤4 GET /api/studentInfo/getMyInfo（内部已有 bizURL）
 // 修复前（raw concat）：c.baseURL+"/"，c.baseURL+"/homepage?"+...，c.baseURL+"/home"
 // 修复后（bizURL）：c.bizURL("/")，c.bizURL("/homepage")，c.bizURL("/home")
 func TestActivateSession_UsesBizURL(t *testing.T) {

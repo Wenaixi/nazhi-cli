@@ -12,7 +12,7 @@ import (
 // GetMyInfo 获取完整的用户个人资料。
 // 包含：姓名、性别、学号、学校、年级、班级、座号（seat）等。
 //
-// 错误契约（v0.3.5+，r9-D9+I2 修复）：
+// 错误契约：
 //   - 网络/HTTP 失败 → 返回 (nil, fmt.Errorf("GetMyInfo 请求失败: %w", err))
 //   - 业务 code≠1    → 返回 (nil, fmt.Errorf("获取用户信息业务错误: %w", errors.Join(ErrBusinessRejected, err)))
 //   - returnData + dataMap 都为空（服务端成功响应但确实无用户数据）→ 返回 (nil, fmt.Errorf("%w: ...", ErrEmptyUserInfo))
@@ -22,7 +22,7 @@ import (
 //   - `errors.Is(err, client.ErrBusinessRejected)` → 服务端主动拒绝（如 session 过期）
 //   - 其他 err                                      → 真正的网络/HTTP 故障
 //
-// 历史注：v0.3.4 及更早版本曾返回 (nil, nil) 表示空响应；v0.3.5 F10 修复后
+// 历史注：v0.3.4 及更早版本曾返回 (nil, nil) 表示空响应；v0.3.5 修复后
 // 改返 ErrEmptyUserInfo 哨兵，以便 cmd 层统一走 status envelope（避免
 // 误导性的 null 输出）。
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error) {
@@ -45,7 +45,7 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 // 公开 SDK 用户请使用 GetMyInfo。
 func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
-	// r9-D8 修复：Referer 走 c.bizURL() helper，与其他业务接口对称
+	// Referer 走 c.bizURL() helper，与其他业务接口对称
 	// （避免 baseURL 拼接分散在多处，未来 baseURL 变更只需改 helper 一处）
 	headers["Referer"] = c.bizURL("/modify")
 
@@ -70,7 +70,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	v := tryDecodeWithRaw(c, "GetMyInfo",
 		func(u *types.UserInfo, raw map[string]any) { u.Raw = raw },
 		func() (*types.UserInfo, []byte, error) {
-			// r9-D10: 直接用 types.DecodeReturnData，外层的 tryDecodeWithRaw 自动注入 Raw
+			//  直接用 types.DecodeReturnData，外层的 tryDecodeWithRaw 自动注入 Raw
 			u, err := types.DecodeReturnData[types.UserInfo](resp)
 			if err != nil || u == nil {
 				return nil, nil, err
@@ -95,7 +95,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 		return v, nil
 	}
 
-	// F10 修复（round-7）：returnData + dataMap 都为 nil 时（业务成功响应
+	// returnData + dataMap 都为 nil 时（业务成功响应
 	// 但确实无用户数据），返回 ErrEmptyUserInfo 哨兵而非 (nil, nil)。
 	//
 	// 设计动机：

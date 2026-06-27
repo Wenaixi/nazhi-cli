@@ -28,11 +28,11 @@ const MaxImageSize = 5 * 1024 * 1024
 const MinImageDimension = 10
 
 // getQualitySteps 返回质量级联切片（每次返回新副本，保证不可变）。
-// G4 修复：从包级可变 var 改为函数返回，防止测试修改污染全局。
+// 从包级可变 var 改为函数返回，防止测试修改污染全局。
 func getQualitySteps() []int { return []int{80, 60, 40} }
 
 // getScaleFactors 返回缩放级联切片（每次返回新副本，保证不可变）。
-// G4 修复：从包级可变 var 改为函数返回，防止测试修改污染全局。
+// 从包级可变 var 改为函数返回，防止测试修改污染全局。
 func getScaleFactors() []float64 { return []float64{0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7} }
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
@@ -51,7 +51,7 @@ var ErrUnsupportedFormat = errors.New("unsupported image format")
 //
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
-	// F2 修复：decodeImage 原来返回 format，自 round-7 F11 删除 GIF 特例后
+	// decodeImage 原来返回 format，自 GIF 特例删除后无消费者。
 	// 无消费者。format 曾用于 `if format == "gif"` 分支，现已统一走
 	// flattenOnWhite（hasTransparency 自动处理 Paletted 透明检测），
 	// 故简化签名删除 format 返回值。
@@ -62,7 +62,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 	// 透明合成：所有含透明通道的图片（NRGBA/RGBA/Paletted/GIF）都走 flattenOnWhite。
 	//
-	// F11 修复（round-7）：删除 `if format == "gif" && flattened` 特例分支。
+	// 删除 `if format == "gif" && flattened` 特例分支。
 	// 原特例做两件事——imaging.Clone(img) 丢弃透明 + flattened=false 跳过
 	// flattenOnWhite——结果 GIF 透明区域经 jpeg.Encode 被解析为黑色（黑底）。
 	// 失败场景：用户上传带透明 GIF → 服务端收到黑底 JPG → 视觉错误。
@@ -109,7 +109,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		resized := imaging.Resize(current, w, h, imaging.Lanczos)
 		data, err = encodeJPEG(resized, 40)
 		if err != nil {
-			// F4 修复（round-7）：break 而非 continue。
+			// break 而非 continue。
 			//
 			// 原代码 `continue` 会跳过下面的 `current = resized`，下一轮用
 			// 未更新的 current 计算 w/h → 同一尺寸重复 encodeJPEG 必然同样失败
@@ -141,7 +141,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 // decodeImage sniff 文件 magic bytes 解码任意格式。
 // 优先用 magic bytes 检测，避免依赖扩展名（用户可能给 .dat 文件）。
 //
-// F2 修复：删除 format 返回值，F11 后无消费者。
+// 删除 format 返回值，无消费者。
 func decodeImage(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -195,7 +195,7 @@ func sniffFormat(head []byte) string {
 	if len(head) >= 8 && head[0] == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G' {
 		return "png"
 	}
-	// F3 修复：用 bytes.Equal 避免 string(head[:6]) 堆分配（字面量已在 .rodata 分配好，
+	// 用 bytes.Equal 避免 string(head[:6]) 堆分配（字面量已在 .rodata 分配好，
 	// 但 []byte→string 转换在 go 编译时无法逃逸分析，实际触发堆分配）。
 	if len(head) >= 6 && (bytes.Equal(head[:6], []byte("GIF87a")) || bytes.Equal(head[:6], []byte("GIF89a"))) {
 		return "gif"
@@ -218,7 +218,7 @@ func decodeWebP(r io.Reader) (image.Image, error) {
 
 // hasTransparency 检测图片是否含透明通道。
 //
-// F4 修复：将 *image.Paletted 独立 if 合并到 type switch 中，
+// 将 *image.Paletted 独立 if 合并到 type switch 中，
 // 消除独立的 if 语句，使透明检测逻辑更紧凑。
 func hasTransparency(img image.Image) bool {
 	switch img.(type) {

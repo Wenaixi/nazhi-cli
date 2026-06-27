@@ -1,6 +1,6 @@
-// Package ocr 内部白盒测试：I1 finding 验证。
+// Package ocr 内部白盒测试：无用单例删除验证。
 //
-// Finding I1：GetDefault() / defaultOCR / defaultOnce 是 0 调用方的进程级单例，
+// GetDefault() / defaultOCR / defaultOnce 是 0 调用方的进程级单例，
 // 应删除以消除 dead code。
 //
 // 验证策略：在测试运行时 grep 当前包内的 Go 源文件，断言 GetDefault
@@ -45,7 +45,7 @@ func TestGetDefault_Removed(t *testing.T) {
 				return true // 跳过方法，只看顶层函数
 			}
 			if fn.Name.Name == "GetDefault" {
-				t.Errorf("%s: 发现残留的 GetDefault 顶层函数定义，I1 修复要求删除该单例 API", filename)
+				t.Errorf("%s: 发现残留的 GetDefault 顶层函数定义，应删除该单例 API", filename)
 			}
 			return true
 		})
@@ -73,7 +73,7 @@ func TestDefaultOCRVar_Removed(t *testing.T) {
 			}
 			for _, name := range vs.Names {
 				if name.Name == "defaultOCR" || name.Name == "defaultOnce" {
-					t.Errorf("%s: 发现残留的 %s 变量定义，I1 修复要求删除该单例状态", filename, name.Name)
+					t.Errorf("%s: 发现残留的 %s 变量定义，应删除该单例状态", filename, name.Name)
 				}
 			}
 			return true
@@ -113,7 +113,7 @@ func TestPackageLevelSingleton_DocNotRecommending(t *testing.T) {
 			if strings.Contains(text, "GetDefault") && (strings.Contains(text, "推荐") ||
 				strings.Contains(text, "建议") || strings.Contains(text, "应该用") ||
 				strings.Contains(text, "用 GetDefault") || strings.Contains(text, "使用 GetDefault")) {
-				t.Errorf("%s: 注释中仍在推荐使用 GetDefault，I1 修复要求移除该建议:\n  %s",
+				t.Errorf("%s: 注释中仍在推荐使用 GetDefault，应移除该建议:\n  %s",
 					filename, strings.TrimSpace(text))
 			}
 		}

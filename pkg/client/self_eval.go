@@ -78,7 +78,7 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 	}
 
 	// 三段 fallback（returnData → dataMap → dataList），全部走 tryDecodeFallback 统一 helper。
-	// F6 修复：dataList 兜底也提取到 tryDecodeFallback 中。
+	// dataList 兜底也提取到 tryDecodeFallback 中。
 	v := tryDecodeFallback(c, "QuerySelfEvaluation",
 		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](*resp) },
 		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](*resp) },

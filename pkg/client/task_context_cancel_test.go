@@ -14,18 +14,16 @@ import (
 // TestFetchTasks_ContextCancel_PropagatesError 验证 context 取消后 FetchTasks
 // 返回的错误包含 context.Canceled/DeadlineExceeded，而非被静默吞掉后
 // 包装为 ErrBusinessRejected。
-//
 // 设计：10 个维度超过 errgroup.SetLimit(8) 的并发上限，其中 2 个会排队。
 // 每个维度的 handler 睡眠 200ms，而 context 只有 5ms 超时。
 // 这样：
-//   - 8 个 goroutine 立即启动 → handler 睡眠 → 5ms 后 ctx 超时
-//   - HTTP transport 取消 8 个 in-flight 请求 → doRequest 返回 DeadlineExceeded
-//   - 8 个 goroutine 的闭包返回 nil（旧行为，dimErr 被吞）→ 释放 semaphore slot
-//   - 2 个排队的 goroutine 启动
-//   - WITH fix: 闭包顶部检查 gctx.Err() → 直接返回 DeadlineExceeded 给 errgroup
-//   - WITHOUT fix: 不检查 → fetchTasksForDimension 返回 (nil, DeadlineExceeded)
-//     → 闭包吞掉 → return nil → g.Wait() 返回 nil → 包装为 ErrBusinessRejected
-//
+// - 8 个 goroutine 立即启动 → handler 睡眠 → 5ms 后 ctx 超时
+// - HTTP transport 取消 8 个 in-flight 请求 → doRequest 返回 DeadlineExceeded
+// - 8 个 goroutine 的闭包返回 nil（旧行为，dimErr 被吞）→ 释放 semaphore slot
+// - 2 个排队的 goroutine 启动
+// - WITH fix: 闭包顶部检查 gctx.Err() → 直接返回 DeadlineExceeded 给 errgroup
+// - WITHOUT fix: 不检查 → fetchTasksForDimension 返回 (nil, DeadlineExceeded)
+// → 闭包吞掉 → return nil → g.Wait() 返回 nil → 包装为 ErrBusinessRejected
 // 关键断言：errors.Is(err, context.DeadlineExceeded) 为 true，
 // 且 errors.Is(err, client.ErrBusinessRejected) 为 false。
 func TestFetchTasks_ContextCancel_PropagatesError(t *testing.T) {

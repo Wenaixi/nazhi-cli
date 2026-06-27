@@ -28,20 +28,17 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
-	// F9 修复（group-F round-8）：顶层 panic recover 走统一 exit code 1 契约。
-	//
-	// 原代码没有 panic recover：cobra Run 回调（cmd.Run func）panic 时，
+	// 顶层 panic recover 走统一 exit code 1 契约。
+	// 原代码没有 panic recover：cobra Run 回调（cmd.Run func）panic 时
 	// Go runtime 直接打 stack trace + exit code 2，违反 F7 设计的「统一
 	// exit code 1」契约。CI 脚本区分「用户错误」(exit 1) 与「程序 bug」
 	// (exit 2) 时被误导。
-	//
-	// 设计契约：
+	// 设计契约
 	//   - panic 发生 → recover
 	//   - pendingExitCode 标记为 1（与正常 error 路径一致）
 	//   - 不打 stack trace 给终端用户（避免噪声 + 信息泄露）
 	//   - 后续 closeAllClients() 仍跑（defer 在 panic 后也会运行，但 os.Exit 不会）
 	//   - 最终 os.Exit(1) 走与正常错误相同的退出码
-	//
 	// 注意：recover 必须在 main 顶层 defer，否则 panic 会跨过 rootCmd.Execute()
 	// 直接打到 Go runtime。Cobra 内部不主动 recover Run 回调 panic。
 	defer func() {
@@ -59,10 +56,9 @@ func main() {
 			fmt.Fprintln(os.Stderr, "警告: 关闭 Client 资源失败:", err)
 		}
 	}()
-	// F7 修复：printError 不再 os.Exit，改为设 pendingExitCode。
+	// printError 不再 os.Exit，改为设 pendingExitCode。
 	// 这里把 Execute 返回 error 和 pendingExitCode 合并判断退出码。
-	//
-	// F2 修复：用 printError(execErr) 代替 fmt.Fprintln(os.Stderr, execErr)，
+	// 用 printError(execErr) 代替 fmt.Fprintln(os.Stderr, execErr)
 	// 让 cobra parse error 走与 Run 回调相同的 JSON envelope 路径。
 	// 配合 init() 里的 SilenceErrors + SilenceUsage，根除 stderr 重复输出。
 	execErr := rootCmd.Execute()
@@ -70,13 +66,11 @@ func main() {
 		printError(execErr)
 	}
 	if pendingExitCode.Load() != 0 {
-		// F6 修复（round-7）：os.Exit 之前显式调 closeAllClients。
-		//
-		// 原代码 `defer func() { closeAllClients() }()` 在 main 顶部（第 31-37 行），
+		// os.Exit 之前显式调 closeAllClients。
+		// 原代码 `defer func() { closeAllClients() }()` 在 main 顶部（第 31-37 行）
 		// 但 Go 规范明确：os.Exit 不运行 deferred functions。意味着任何 CLI 错误
 		// 退出（pendingExitCode=1）的路径都泄漏 ONNX session + tempDir +
 		// keep-alive 连接。
-		//
 		// 修复：os.Exit 前显式 closeAllClients()。幂等安全：closeAllClients 内
 		// 部把全局 pendingClients 置 nil，二次调用是 no-op，defer 再跑也不会出错。
 		_ = closeAllClients()
@@ -85,8 +79,8 @@ func main() {
 }
 
 func init() {
-	// F2 修复：静音 cobra 默认的错误打印与 usage 打印。
-	// 让 main.go 用 printError(execErr) 单一来源输出错误，
+	// 静音 cobra 默认的错误打印与 usage 打印。
+	// 让 main.go 用 printError(execErr) 单一来源输出错误
 	// 避免用户看到 "Error: ..." + Usage + 另一遍 "unknown flag" 的重复。
 	rootCmd.SilenceErrors = true
 	rootCmd.SilenceUsage = true

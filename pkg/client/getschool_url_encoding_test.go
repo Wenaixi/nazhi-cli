@@ -11,10 +11,8 @@ import (
 )
 
 // TestGetSchoolID_URLEncodesUsername 验证 GetSchoolID 对学号中的特殊字符进行 URL 编码。
-//
 // 历史 bug：auth.go:36 直接拼接 "?userName=" + username，若学号含 & / = 等
 // 保留字符会破坏 URL 结构。此处传 "S123&456" 测试 & 被编码为 %26。
-//
 // 修复后：用 url.Values{"userName": {username}}.Encode() 构建 query，
 // 与 session.go:107 模式对齐。
 func TestGetSchoolID_URLEncodesUsername(t *testing.T) {

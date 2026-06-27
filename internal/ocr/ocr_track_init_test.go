@@ -1,6 +1,6 @@
-// Package ocr 内部白盒测试：Pool.trackInit 写入优化（O7）。
+// Package ocr 内部白盒测试：Pool.trackInit 写入优化。
 //
-// Finding O7：Pool.Recognize 每次都调 trackInit 写 map；99 次串行 Recognize
+// Pool.Recognize 每次都调 trackInit 写 map；99 次串行 Recognize
 // = 99 次 Lock + map 写同 key（虽然 map 覆盖语义上没变化，但 99 次
 // mutex.Lock + 99 次 map[k]=struct{}{} 在高频路径下能看到明显开销，
 // 且每次 Lock 都要走 runtime sema，对单线程 99 次调用是 ~99×~50ns ≈ 5μs）。
@@ -32,7 +32,7 @@ func countInits(p *Pool) int {
 	return n
 }
 
-// TestPool_TrackInit_UniqueInstancesOnly 回归测试 O7 行为契约：
+// TestPool_TrackInit_UniqueInstancesOnly 回归测试行为契约：
 // trackInit 接收相同 *OCR 指针 N 次，map 内只入 1 次；
 // 接收 N 个不同 *OCR 指针，map 内入 N 次。
 func TestPool_TrackInit_UniqueInstancesOnly(t *testing.T) {
@@ -96,7 +96,7 @@ func TestPool_TrackInit_ConcurrentSameInstance(t *testing.T) {
 // TestPool_TrackInit_NoRaceOnSameInstance 验证 -race 模式下
 // 99 个 goroutine 并发 trackInit(同一 OCR) 不报 concurrent map write。
 //
-// 这是 O7 finding 的核心 metric：99 张验证码图并发识别 = 99 次 trackInit
+// 这是核心 metric：99 张验证码图并发识别 = 99 次 trackInit
 // 应只触发 1 次 map 写入；-race 模式下任何并发 map 写入都会报警。
 //
 // 测试通过 + go test -race 不报警 = map 写入去重到位。
@@ -120,7 +120,7 @@ func TestPool_TrackInit_NoRaceOnSameInstance(t *testing.T) {
 	}
 }
 
-// TestPool_TrackInit_AfterCloseRelease 验证 O7 优化后 Pool.Close 仍正确：
+// TestPool_TrackInit_AfterCloseRelease 验证优化后 Pool.Close 仍正确：
 // Close 排空 map 的路径不能因为 map 类型变化而 break。
 func TestPool_TrackInit_AfterCloseRelease(t *testing.T) {
 	const instanceCount = 3
@@ -137,7 +137,7 @@ func TestPool_TrackInit_AfterCloseRelease(t *testing.T) {
 		t.Cleanup(func() { _ = os.RemoveAll(dir) })
 
 		o := &OCR{tempDir: dir}
-		// 多次 trackInit 同一 OCR（O7 优化重点场景）—— 只有 1 次实际入 map
+		// 多次 trackInit 同一 OCR（优化重点场景）—— 只有 1 次实际入 map
 		for j := 0; j < 10; j++ {
 			p.trackInit(o)
 		}

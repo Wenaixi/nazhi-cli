@@ -14,12 +14,10 @@ import (
 )
 
 // TestPrintError_DoesNotCallOsExit 回归测试：printError 必须不调用 os.Exit。
-//
 // 历史 bug（F7）：printError 直接 os.Exit(1)，导致 main 中 defer closeAllClients()
 // 永远不执行，ONNX session + 临时目录 + keep-alive 连接全部泄漏。
 // 修复后：printError 仅写 stderr，由 main 在 Execute() 之后统一 os.Exit(1)。
-//
-// 验证方式：调 printError 之后，测试进程必须继续存活（如果 os.Exit 被调用，
+// 验证方式：调 printError 之后，测试进程必须继续存活（如果 os.Exit 被调用
 // 当前测试函数返回后下一行会跑不到）。用一个 atomic 计数器在 printError
 // 调用之后递增，证明流程没断。
 func TestPrintError_DoesNotCallOsExit(t *testing.T) {
@@ -61,7 +59,7 @@ func TestPrintError_DoesNotCallOsExit(t *testing.T) {
 	}
 }
 
-// TestMain_DeferCloseStillRuns 验证 main 的 defer closeAllClients() 行为：
+// TestMain_DeferCloseStillRuns 验证 main 的 defer closeAllClients() 行为
 // 模拟一次"有 pending client + 显式调 closeAllClients"的流程，验证客户端
 // 列表被清空（证明 Close 真的被调用，不被 os.Exit 跳过）。
 func TestMain_DeferCloseStillRuns(t *testing.T) {
@@ -100,7 +98,7 @@ func TestMain_DeferCloseStillRuns(t *testing.T) {
 }
 
 // TestPrintPrompt_QuietModeSuppressesOutput L finding 回归测试：quiet=true 时
-// printPrompt 必须不写 stderr。即使用户在终端运行 self-eval submit --quiet，
+// printPrompt 必须不写 stderr。即使用户在终端运行 self-eval submit --quiet
 // 也不该看到 "请输入自我评价内容（Ctrl+D 结束）: " 提示符。
 func TestPrintPrompt_QuietModeSuppressesOutput(t *testing.T) {
 	origStderr := os.Stderr
@@ -128,12 +126,12 @@ func TestPrintPrompt_QuietModeSuppressesOutput(t *testing.T) {
 	}
 }
 
-// brokenError 实现 error 接口，但其 Error() 返回一个含不可序列化字符的字符串，
+// brokenError 实现 error 接口，但其 Error() 返回一个含不可序列化字符的字符串
 // 用来模拟「printError 内部 json.Encode 失败」的兜底路径。
 // 实际上 json.Encoder 对任何 string 都能成功编码，所以这里改成：直接构造一个
 // 让 enc.Encode 返回 error 的情形比较困难。我们用 chan 触发的方式在 production
 // 不可能发生——printError(err error) 签名保证 err.Error() 返回 string。
-// 因此 G1 修复的真正测试点是「兜底路径仍调用 printError 而非 fmt.Fprintf」，
+// 因此修复的真正测试点是「兜底路径仍调用 printError 而非 fmt.Fprintf」
 // 通过 mock 让 enc.Encode 失败来验证。
 type errWriter struct{}
 
@@ -168,7 +166,7 @@ func TestPrintError_NonMarshalablePayload_StillSetsExitCode(t *testing.T) {
 	}
 }
 
-// TestPrintError_DepthGuard_NoInfiniteLoop G1 修复验证：即使 stderr fd 关闭导致
+// TestPrintError_DepthGuard_NoInfiniteLoop 修复验证：即使 stderr fd 关闭导致
 // JSON encoder 也失败，depth 守卫防止递归死循环。
 func TestPrintError_DepthGuard_NoInfiniteLoop(t *testing.T) {
 	orig := pendingExitCode.Load()
@@ -196,9 +194,8 @@ func TestPrintError_DepthGuard_NoInfiniteLoop(t *testing.T) {
 	}
 }
 
-// TestPrintPrompt_NonTTYStdinSuppressesOutput L finding 回归测试：
+// TestPrintPrompt_NonTTYStdinSuppressesOutput L finding 回归测试
 // stdin 不是 TTY 时（CI / 管道环境）printPrompt 必须不输出。
-//
 // 模拟方法：把 os.Stdin 替换成空文件（ModeCharDevice=0 → isTerminalStdin 返回 false）。
 // 测试结束后恢复原始 stdin。
 func TestPrintPrompt_NonTTYStdinSuppressesOutput(t *testing.T) {

@@ -1,13 +1,9 @@
 // Package client 内部白盒测试。
-//
-// F2: pkg/client/auth.go:174 expiresAt 兜底从 Warn 降级为 logDebug — 回归测试。
-//
+// pkg/client/auth.go:174 expiresAt 兜底从 Warn 降级为 logDebug — 回归测试。
 // 历史 bug：注释自述"warn 出来"但实现用 c.logDebug() 输出兜底告警。
 // 默认 logger 级别是 slog.LevelWarn，Debug 被过滤。普通 CLI 调用
 // 完全静默——用户拿到 24h 后神秘失效的 token 而无任何告警。
-//
 // 修复后：c.logDebug 改回 c.logger.Warn（与 line 191-194 模式一致）。
-//
 // 验证策略：用 bytes.Buffer + slog.LevelDebug 让所有日志都可见，
 // 构造一个 302 + Location 无 expires 的 server，断言"24h 兜底"
 // 告警以 WARN 级别输出。
@@ -28,10 +24,8 @@ import (
 // TestLogin_302Fallback_ExpiresAtFallback_LogsAtWarn 验证 302 fallback
 // 路径触发 expiresAt 兜底（now+24h）时，告警必须以 WARN 级别输出，
 // 而不是 Debug（默认 LevelWarn 下被过滤，用户完全看不见）。
-//
 // 场景：server 返回 302 + Location 含 token 但无 expires_in/exp。
 // Login 解析 Location → expiresAt = now+24h（兜底）→ 应 Warn 提示。
-//
 // 修复前：c.logDebug("...") → 默认 LevelWarn 下被过滤 → 静默。
 // 修复后：c.logger.Warn("...") → 永远可见 → 用户立即知道 server 行为异常。
 func TestLogin_302Fallback_ExpiresAtFallback_LogsAtWarn(t *testing.T) {

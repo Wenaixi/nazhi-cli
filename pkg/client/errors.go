@@ -33,7 +33,7 @@ var (
 	//     （如任务已提交、参数错误、服务端 5xx），与登录状态无关，
 	//     SDK 用户应只展示服务端 msg 或重试，不必重新登录
 	//
-	// F7 修复：SubmitTask 等业务方法应使用本哨兵而非 ErrLoginRejected，
+	// SubmitTask 等业务方法应使用本哨兵而非 ErrLoginRejected，
 	// 否则 SDK 用户按 errors.Is(err, ErrLoginRejected) 判定后会错误地走重新登录。
 	ErrBusinessRejected = errors.New("business request rejected by server")
 
@@ -46,7 +46,7 @@ var (
 	// ddddocr 内置识别器，必须通过 WithCustomOCR 注入 AI/外部识别器。
 	// 该哨兵让 SDK 用户能 errors.Is 精确识别「没配 OCR」 vs 「OCR 识别失败」。
 	//
-	// H3 修复（round-9）：错误消息改为中文 actionable，i18n key 为
+	// H3 修复：错误消息改为中文 actionable，i18n key 为
 	// 「errors.ocr_not_configured」。中英双语并列——英文部分是 SDK 用户
 	// 编程接口可读的稳定契约（errors.Is(err, ErrOCRNotConfigured).Error() 输出），
 	// 中文部分是给中文 CLI 用户的 actionable 指引（cmd/nazhi/login.go 用
@@ -69,7 +69,7 @@ var (
 	//     SDK 用户应等待 backoff 窗口结束或换 token 后重试
 	//   - ErrNetwork / ErrBusinessRejected：实际尝试过后的真实错误
 	//
-	// F15 修复（round-7）：backoff 命中时返回本哨兵（包装上一个错误），
+	// backoff 命中时返回本哨兵（包装上一个错误），
 	// 而非直接返回 lastActivationErr。这样 SDK 用户能通过 errors.Is 识别
 	// 「这是被抑制的 stale 错误」并做出有意义的重试决策。
 	ErrSessionBackoff = errors.New("session activation backoff: in cooldown window")
@@ -81,14 +81,14 @@ var (
 	//     （不是错误，只是空集）。SDK 用户的最佳实践是按 status envelope 渲染。
 	//   - ErrBusinessRejected：服务端主动拒绝（HTTP 200 + code=0，或业务校验失败）
 	//
-	// F10 修复（round-7）：getMyInfoRaw 在全 nil fallback 时返回本哨兵，
+	// getMyInfoRaw 在全 nil fallback 时返回本哨兵，
 	// 而非返回 (nil, nil) 让 cmd 层「裸 null」输出。cmd 层用 errors.Is 分支
 	// 输出对称的 {status: empty, reason: ...} envelope，与 whoami 契约一致。
 	ErrEmptyUserInfo = errors.New("getMyInfo returned no user data")
 
 	// ErrLocationParseFailed Login 302 Location 头解析失败（畸形 URL）。
 	//
-	// F2-EXTRACT-TOKEN-ASYM 修复（round-8）：对称化 extractTokenFromLocation
+	// 对称化 extractTokenFromLocation
 	// 与 extractTokenFromReturnData 的错误处理契约——前者原本 url.Parse 失败时
 	// 静默返回 ("", now+24h)，让畸形 Location 悄无声息地走到"未找到 token"
 	// 错误，吞掉根因。改为 propagate 后 SDK 用户能看到具体 URL 解析错误。
@@ -99,7 +99,7 @@ var (
 
 	// ErrOCRPanic OCR 识别器 Recognize panic（被 safeOCRRecognize recover）。
 	//
-	// A5 修复（review-tdd round-9）：Recognize 实现（mock / CGO ddddocr）
+	// Recognize 实现（mock / CGO ddddocr）
 	// 可能在不可预见的边界条件下 panic（如 nil deref / CGO 崩溃）。
 	// safeOCRRecognize 用 defer recover 捕获 panic 并包装为本哨兵，
 	// 避免 panic 扩散到 Login 流程、crash 整个进程。

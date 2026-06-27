@@ -17,7 +17,6 @@ import (
 )
 
 // makeSessionActivateTestCmd 创建 session activate 命令的测试用 cobra.Command + mock server。
-//
 // getMyInfoBody: /api/studentInfo/getMyInfo 的响应体 JSON
 //   - 空字符串: 默认 returnData/dataMap 都为 nil（触发空响应路径）
 //   - 正常 JSON: returnData 含 name/studentNumber 等字段
@@ -66,13 +65,11 @@ func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string
 	return cmd, c
 }
 
-// TestSessionActivate_EmptyUserInfo_StatusEnvelope 回归测试 F10：
+// TestSessionActivate_EmptyUserInfo_StatusEnvelope 回归测试 F10
 // session activate 命令在 ActivateSession 返回 (nil, ErrEmptyUserInfo) 时
 // 必须输出 status envelope，**不**输出裸 null。
-//
-// 失败场景（修复前）：cmd/nazhi/session.go:38 printJSON(info) → 输出 `null\n`
+// 失败场景：cmd/nazhi/session.go:38 printJSON(info) → 输出 `null\n`
 // 与 whoami 的 {status: empty, reason: ...} 不一致。
-//
 // 修复后：cmd 层用 errors.Is(err, ErrEmptyUserInfo) 分支输出 status envelope。
 func TestSessionActivate_EmptyUserInfo_StatusEnvelope(t *testing.T) {
 	cmd, _ := makeSessionActivateTestCmd(t, "test-token", "")
@@ -168,14 +165,12 @@ func TestSessionActivate_ValidUserInfo_OutputsUserInfo(t *testing.T) {
 // 防止 errors 包未使用（编译静态检查）
 var _ = errors.Is
 
-// TestSessionActivate_ErrSessionBackoff_CooldownMessage 回归测试 F4：
-// session activate 命令在 ActivateSession 返回 ErrSessionBackoff 时，
+// TestSessionActivate_ErrSessionBackoff_CooldownMessage 回归测试 F4
+// session activate 命令在 ActivateSession 返回 ErrSessionBackoff 时
 // 必须输出 friendly cooldown 提示（不输出 error JSON / 不标记退出码 1）。
-//
-// 历史问题（round-8 F4）：ErrSessionBackoff 哨兵在 cmd/nazhi 层零消费，
+// 历史问题：ErrSessionBackoff 哨兵在 cmd/nazhi 层零消费
 // 直接走 printError 输出 {"error":true,"message":"...backoff..."}。
 // 用户看到一个 JSON 错误，不知道是"需要等待"还是"真的出错了"。
-//
 // 测试策略：手动构建带 backoff 状态的 Client，验证 cmd 层对
 // ErrSessionBackoff 的输出格式。
 func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {

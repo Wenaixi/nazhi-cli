@@ -1,19 +1,14 @@
 // Package client 内部白盒测试。
-//
-// F1 (review-tdd 二轮): pkg/client/auth.go 200 路径缺 F2 expiresAt 兜底 warn — 回归测试。
-//
-// 历史 bug（review-tdd 一轮 F2 仅修了 302 路径，200 路径漏修）：
-//   - 302 路径 (auth.go:189-191) 有 `if time.Until(expiresAt) > 23*time.Hour {
-//     c.logger.Warn(...) }`：server 未给 expires_in/exp 时兜底 now+24h 必 warn。
-//   - 200 路径 (auth.go:156) 调用 extractTokenFromReturnData，该函数 (auth.go:354-369)
-//     **总是**返回 time.Now().Add(24*time.Hour)（不解析 returnData 里的 exp/expires_in），
-//     但调用方 Login 函数完全没有对应的 warn。
-//
+// F1 ( 二轮): pkg/client/auth.go 200 路径缺 F2 expiresAt 兜底 warn — 回归测试。
+// 历史 bug（ 一轮 F2 仅修了 302 路径，200 路径漏修）：
+// - 302 路径 (auth.go:189-191) 有 `if time.Until(expiresAt) > 23*time.Hour {
+// c.logger.Warn(...) }`：server 未给 expires_in/exp 时兜底 now+24h 必 warn。
+// - 200 路径 (auth.go:156) 调用 extractTokenFromReturnData，该函数 (auth.go:354-369)
+// **总是**返回 time.Now().Add(24*time.Hour)（不解析 returnData 里的 exp/expires_in），
+// 但调用方 Login 函数完全没有对应的 warn。
 // 实际影响：200 路径的 token 24h 后神秘失效，但 stderr 完全没有日志。
 // 用户排查 "token 为什么突然 401" 时无从下手。
-//
 // 修复后：200 路径补对称的 warn 日志，与 302 路径语义一致。
-//
 // 验证策略：构造一个 server 返回 200 + UnifiedResponse{code=1, returnData={token:"jwt"}}
 // （**不**包含 exp/expires_in 字段），断言日志必须以 WARN 级别输出兜底告警。
 package client
@@ -32,13 +27,10 @@ import (
 
 // TestLogin_200Path_ExpiresAtFallback_LogsAtWarn 验证 200 路径触发 expiresAt
 // 兜底（now+24h）时，告警必须以 WARN 级别输出，与 302 路径语义对称。
-//
 // 场景：server 返回 200 + UnifiedResponse，returnData 含 token 但**无**exp/expires_in
 // 字段（HAR 验证的登录响应现状，server 不带过期信息）。
 // extractTokenFromReturnData 返回 now+24h → Login 应 Warn 提示。
-//
 // 修复前：完全静默（200 路径无任何 expiresAt warn 代码）。
-//
 // 修复后：c.logger.Warn → 默认 LevelWarn 下用户立即知道 server 行为异常。
 func TestLogin_200Path_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

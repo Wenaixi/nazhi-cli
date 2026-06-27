@@ -12,8 +12,7 @@ import (
 
 // TestActivateSession_ConcurrentNoDeadlock 验证 ActivateSession 在 100 个
 // goroutine 并发调用时不发生死锁。
-//
-// 历史风险（B4，round-9）：ActivateSession 在 sessionMu 持锁状态下执行
+// 历史风险：ActivateSession 在 sessionMu 持锁状态下执行
 // 4 步网络请求，如果外部调用方在 errgroup.Go 中持其他锁再调 ActivateSession，
 // 可能引发 ABBA 死锁。本测试验证 ActivateSession 自身不因 sessionMu 持有
 // 而阻塞所有并发——仅锁定序列化 4 步写入 cookie jar。

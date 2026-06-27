@@ -5,7 +5,7 @@ import (
 )
 
 // TestCompletionCommand 验证 completion 命令能注册并运行，不崩溃。
-// 不验证输出内容（shell 补全脚本很长，管道缓冲可能死锁），
+// 不验证输出内容（shell 补全脚本很长，管道缓冲可能死锁）
 // 只验证命令能正确初始化且无参数时报错。
 func TestCompletionCommand(t *testing.T) {
 	// 测试无参数时显示帮助（不会崩溃）

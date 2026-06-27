@@ -1,18 +1,14 @@
 // Package client 内部白盒测试。
-//
-// F11: pkg/client/auth.go:233 ocrRecognizeWithRetry ctx 不退出 — 回归测试。
-//
+// pkg/client/auth.go:233 ocrRecognizeWithRetry ctx 不退出 — 回归测试。
 // 历史 bug：99 次循环顶部无 ctx.Err() 检查，c.ocr.Recognize() 是 CGO 阻塞
 // 调用不响应 ctx cancel。fetchCaptchaImage 走 doBizGet 已尊重 ctx，
 // 但 OCR CGO 期间不响应，ctx cancel 后还在死等 OCR 返回。
-//
 // 修复后：在 ocrRecognizeWithRetry 的 for 循环顶部加
 //
 //	if err := ctx.Err(); err != nil { return lastResult, err }
 //
 // 让 ctx cancel 后能立即退出循环（CGO 调用无法打断，但循环顶部检查能避免
 // 下一次 OCR 调用 + 让 fetchCaptchaImage 也走 ctx 路径）。
-//
 // 验证策略：让 mock server 记录 fetchCaptchaImage 调用次数，
 // 断言 ctx cancel 后循环立即退出（调用次数 < 5，修复前会接近 99）。
 package client
@@ -45,7 +41,6 @@ func (m *fetchBlockingMockOCR) Close() error { return nil }
 
 // TestOCRRetry_RespectsContextCancel 验证 ocrRecognizeWithRetry 在 ctx cancel
 // 后能立即退出循环，而不是跑满 99 次。
-//
 // 修复前：循环顶部无 ctx 检查 → 即使 ctx 50ms 就 cancel，循环仍会跑
 //
 //	~99 次（每次 fetchCaptchaImage 立即失败但 continue）。
@@ -56,7 +51,6 @@ func (m *fetchBlockingMockOCR) Close() error { return nil }
 //
 // 验证策略：本测试断言"修复后"行为——ctx 提前 cancel 时，循环返回的 error
 // 应显式标注 ctx cancel（而不是"均失败"的累加错误）。
-//
 // 修复前：返回 "OCR 识别 99 张图 × 1 次（共 99 次）均失败，最后错误: ..."，
 //
 //	错误信息不提及 ctx。

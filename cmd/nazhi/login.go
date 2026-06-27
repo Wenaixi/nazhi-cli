@@ -23,10 +23,9 @@ var loginCmd = &cobra.Command{
 	Example: `  nazhi login -u 学号 -p 密码                       # 全自动 OCR
   nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// F7 修复（group-F round-8）：username/password 用 flagChanged() 守卫
+		// username/password 用 flagChanged() 守卫
 		// env fallback，避免用户显式传 --username "" 时 NAZHI_USERNAME 静默覆盖。
-		//
-		// 与 client_builder.go token 读取对称（round-4 C2 timeout 修复同源）：
+		// 与 client_builder.go token 读取对称
 		//   - Changed=true → 用户显式传过 flag，flag 值生效（含显式空字符串）
 		//   - Changed=false → 未传 flag，走 env fallback
 		var username, password string
@@ -59,7 +58,7 @@ var loginCmd = &cobra.Command{
 			Password: password,
 		})
 		if err != nil {
-			// r9-D11+H1 合并修复：识别 ErrOCRNotConfigured 输出 actionable JSON envelope。
+			// 识别 ErrOCRNotConfigured 输出 actionable JSON envelope。
 			// CGO-free 用户（未用 -tags ddddocr 构建）调 nazhi login 时
 			// 收到通用错误可能不知道需要 -tags ddddocr 或注入自定义 OCR。
 			if errors.Is(err, client.ErrOCRNotConfigured) {
@@ -68,11 +67,11 @@ var loginCmd = &cobra.Command{
 					"status":  "error",
 					"message": "登录失败：OCR 识别器未配置。当前构建未启用 -tags ddddocr，无法自动识别验证码。请下载预编译 release 二进制或注入自定义识别器。",
 				})
-				// F3 修复：标记退出码为 1，与所有其他错误路径一致
+				// 标记退出码为 1，与所有其他错误路径一致
 				markError()
 				return
 			}
-			// r9-D11 修复：识别 ErrLocationParseFailed 给出可读提示
+			// 识别 ErrLocationParseFailed 给出可读提示
 			// （不要泄漏 location URL，可能含 token fragment）
 			if errors.Is(err, client.ErrLocationParseFailed) {
 				printError(fmt.Errorf("登录失败: %w（SSO 重定向 Location 头畸形，请检查 SSO 服务端响应或上报 bug）", err))

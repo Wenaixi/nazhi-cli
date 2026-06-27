@@ -1,15 +1,12 @@
-// client_builder_upload_token_test.go F16 修复锚定：
+// client_builder_upload_token_test.go 锚定
 // buildClientOpts 在 urlType=="upload" 路径必须短路 token 读取。
-//
-// F16 证据：原 buildClientOpts 无条件读 NAZHI_TOKEN（不依赖 urlType），
+// F16 证据：原 buildClientOpts 无条件读 NAZHI_TOKEN（不依赖 urlType）
 // 即使 file upload 命令显式不提供 --token flag，NAZHI_TOKEN 环境变量
 // 仍会被注入到 pendingToken → syncCookieToken 写 cookie jar 到 sso/api
 // 域，违反 fileUploadCmd 文档契约「本命令不接受 --token 参数」。
-//
 // 修复：urlType=="upload" 分支短路 token 读取，跳过 cmd.Flags().GetString
 // 和 envString("NAZHI_TOKEN")，opts 列表不 append WithToken。
-//
-// 测试策略：
+// 测试策略
 //  1. 设置 NAZHI_TOKEN 为非空字符串
 //  2. 调 buildClientOpts(cmd, "upload", ...)
 //  3. 断言返回的 token 字符串 == ""（关键契约）
