@@ -208,6 +208,73 @@ func TestErrorCategory_String(t *testing.T) {
 	}
 }
 
+// ─── error_category.go: SuggestUserMessage 闭环文案 ───
+
+// TestSuggestUserMessage_AllCategories 验证 SuggestUserMessage 对每个
+// 已定义 Category 都返回非空字符串（让 SDK 内部闭环文案，CLI 层
+// 只需 switch Category 一次，剩余走 SDK 建议）。
+func TestSuggestUserMessage_AllCategories(t *testing.T) {
+	categories := []ErrorCategory{
+		ErrorCategoryAuth,
+		ErrorCategoryUpload,
+		ErrorCategorySession,
+		ErrorCategoryBusiness,
+		ErrorCategoryEmptyData,
+		ErrorCategoryNetwork,
+		ErrorCategoryOCR,
+		ErrorCategoryUnknown,
+	}
+
+	for _, c := range categories {
+		t.Run(c.String(), func(t *testing.T) {
+			msg := c.SuggestUserMessage()
+			if msg == "" {
+				t.Errorf("ErrorCategory(%s).SuggestUserMessage() 返回空字符串，违反闭环契约", c)
+			}
+		})
+	}
+}
+
+// TestSuggestUserMessage_DefaultForUnknown 验证未定义 Category 也返回非空
+// 默认文案，避免 CLI 层出现裸 "unknown" 之类不可读输出。
+func TestSuggestUserMessage_DefaultForUnknown(t *testing.T) {
+	msg := ErrorCategory(999).SuggestUserMessage()
+	if msg == "" {
+		t.Errorf("ErrorCategory(999).SuggestUserMessage() 应返回默认文案，实际为空")
+	}
+}
+
+// TestSuggestUserMessage_OCRContainsActionableKeywords 验证 OCR 文案包含
+// 可操作的关键词，与 ErrOCRNotConfigured 错误消息的 actionable 指引对齐
+// （避免两个文案互相矛盾，详见 TestErrOCRNotConfigured_LocalizedMessage）。
+func TestSuggestUserMessage_OCRContainsActionableKeywords(t *testing.T) {
+	msg := ErrorCategoryOCR.SuggestUserMessage()
+
+	want := []string{
+		"OCR",
+		"-tags ddddocr",
+		"WithCustomOCR",
+	}
+	for _, kw := range want {
+		if !strings.Contains(msg, kw) {
+			t.Errorf("ErrorCategoryOCR.SuggestUserMessage() 应包含关键词 %q，实际: %s", kw, msg)
+		}
+	}
+}
+
+// TestSuggestUserMessage_AuthMentionsCredentials 验证认证类文案提示
+// 用户检查凭据，避免无脑报错。
+func TestSuggestUserMessage_AuthMentionsCredentials(t *testing.T) {
+	msg := ErrorCategoryAuth.SuggestUserMessage()
+
+	want := []string{"学号", "密码", "学校 ID"}
+	for _, kw := range want {
+		if !strings.Contains(msg, kw) {
+			t.Errorf("ErrorCategoryAuth.SuggestUserMessage() 应包含关键词 %q，实际: %s", kw, msg)
+		}
+	}
+}
+
 // ─── errors_ocr_not_configured_test.go: ErrOCRNotConfigured 消息 ───
 
 // TestErrOCRNotConfigured_LocalizedMessage 验证 修复：错误消息含中文 actionable 指引。
