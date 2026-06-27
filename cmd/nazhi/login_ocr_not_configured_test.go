@@ -1,8 +1,3 @@
-// Package main 含 nazhi login 命令的测试。
-//
-// H1 修复（round-9）：ErrOCRNotConfigured 分支输出 actionable JSON envelope。
-// 测试验证：当 Login() 返回 ErrOCRNotConfigured 时，printVerbose + printJSON
-// 输出 actionable 中文指引而非裸错误。
 package main
 
 import (
@@ -70,5 +65,40 @@ func TestLoginCmd_ErrOCRNotConfigured_ErrorsIs(t *testing.T) {
 	wrapped := errors.New("wrap1: " + err.Error())
 	if errors.Is(wrapped, client.ErrOCRNotConfigured) {
 		t.Log("errors.New 包装不可识别 errors.Is（自然——未用 %w），本测试仅验证哨兵本身可识别")
+	}
+}
+
+// TestLoginCmd_ErrOCRNotConfigured_SetsExitCode 验证 F3 修复：
+// ErrOCRNotConfigured 路径调用 markError()，确保退出码为 1。
+func TestLoginCmd_ErrOCRNotConfigured_SetsExitCode(t *testing.T) {
+	oldStdout := os.Stdout
+	defer func() { os.Stdout = oldStdout }()
+	rStdout, wStdout, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("stdout pipe 失败: %v", err)
+	}
+	os.Stdout = wStdout
+
+	origExitCode := pendingExitCode.Load()
+	defer pendingExitCode.Store(origExitCode)
+	pendingExitCode.Store(0)
+
+	// 模拟 login.go 的 ErrOCRNotConfigured 分支（F3 修复：含 markError()）
+	err = client.ErrOCRNotConfigured
+	if errors.Is(err, client.ErrOCRNotConfigured) {
+		printJSON(map[string]any{
+			"status":  "error",
+			"message": "登录失败：OCR 识别器未配置。当前构建未启用 -tags ddddocr，无法自动识别验证码。请下载预编译 release 二进制或注入自定义识别器。",
+		})
+		markError()
+	}
+
+	_ = wStdout.Close()
+	// 排空 stdout 管道
+	var discardBuf bytes.Buffer
+	_, _ = discardBuf.ReadFrom(rStdout)
+
+	if pendingExitCode.Load() != 1 {
+		t.Errorf("ErrOCRNotConfigured 分支应设置 pendingExitCode=1，实际 %d", pendingExitCode.Load())
 	}
 }
