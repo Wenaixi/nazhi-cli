@@ -77,24 +77,27 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		return nil, err
 	}
 
-	// 三段 fallback（returnData → dataMap → dataList），用 tryDecodeFallback 消除重复
+	// 三段 fallback（returnData → dataMap → dataList），全部走 tryDecodeFallback 统一 helper。
+	// F6 修复：dataList 兜底也提取到 tryDecodeFallback 中。
 	v := tryDecodeFallback(c, "QuerySelfEvaluation",
 		func() (*types.SelfEvalStatus, error) { return types.DecodeReturnData[types.SelfEvalStatus](*resp) },
 		func() (*types.SelfEvalStatus, error) { return types.DecodeDataMap[types.SelfEvalStatus](*resp) },
+		func() (*types.SelfEvalStatus, error) {
+			if resp.DataList == nil {
+				return nil, nil
+			}
+			statuses, err := types.DecodeDataList[types.SelfEvalStatus](*resp)
+			if err != nil {
+				return nil, err
+			}
+			if len(statuses) == 0 {
+				return nil, nil
+			}
+			return &statuses[0], nil
+		},
 	)
 	if v != nil {
 		return v, nil
-	}
-
-	// dataList 兜底（可能只返回一条记录）
-	if resp.DataList != nil {
-		statuses, err := types.DecodeDataList[types.SelfEvalStatus](*resp)
-		if err == nil && len(statuses) > 0 {
-			return &statuses[0], nil
-		}
-		if err != nil {
-			c.logDebug("QuerySelfEvaluation DecodeDataList 失败: %v", err)
-		}
 	}
 
 	return nil, fmt.Errorf("QuerySelfEvaluation: 未找到评价记录")
