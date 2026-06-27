@@ -400,25 +400,17 @@ func parseReturnDataExpires(data map[string]any) time.Time {
 //  2. exp=N（绝对 Unix 时间戳，秒，正整数）→ time.Unix(N, 0)
 //  3. 都缺失或非法 → now + defaultTokenTTL
 func parseExpiresMap(q map[string][]string) time.Time {
-	if v := first(q, "expires_in"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+	if vs, ok := q["expires_in"]; ok && len(vs) > 0 {
+		if n, err := strconv.Atoi(vs[0]); err == nil && n > 0 {
 			return time.Now().Add(time.Duration(n) * time.Second)
 		}
 	}
-	if v := first(q, "exp"); v != "" {
-		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+	if vs, ok := q["exp"]; ok && len(vs) > 0 {
+		if n, err := strconv.ParseInt(vs[0], 10, 64); err == nil && n > 0 {
 			return time.Unix(n, 0)
 		}
 	}
 	return time.Now().Add(defaultTokenTTL)
-}
-
-// first 返回 query 第一个值（map[string][]string 简写）。
-func first(q map[string][]string, key string) string {
-	if vs, ok := q[key]; ok && len(vs) > 0 {
-		return vs[0]
-	}
-	return ""
 }
 
 // expiresAtToFallbackWarn 判断 expiresAt 是否走了 defaultTokenTTL 兜底（≥ defaultTokenTTL - 1h）。
