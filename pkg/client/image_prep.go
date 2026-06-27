@@ -99,8 +99,9 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 	// 缩放级联（保持质量 40，每步基于上一步结果累乘 ×scale）
 	current := img
 	for _, scale := range getScaleFactors() {
-		w := int(float64(current.Bounds().Dx()) * scale)
-		h := int(float64(current.Bounds().Dy()) * scale)
+		b := current.Bounds()
+		w := int(float64(b.Dx()) * scale)
+		h := int(float64(b.Dy()) * scale)
 		if w < MinImageDimension || h < MinImageDimension {
 			break
 		}
