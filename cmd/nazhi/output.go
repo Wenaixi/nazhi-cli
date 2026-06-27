@@ -77,9 +77,12 @@ func printError(err error) {
 }
 
 // printVerbose 输出日志到 stderr（仅在 verbose 模式下且非 quiet）。
+//
+// G2 修复（group-G round-9）：加 [verbose] 前缀，与 printError JSON envelope 区分，
+// 避免 verbose 日志被错误接收方误解析为 JSON 错误。
 func printVerbose(format string, args ...any) {
 	if verbose && !quiet {
-		fmt.Fprintf(os.Stderr, format+"\n", args...)
+		fmt.Fprintf(os.Stderr, "[verbose] "+format+"\n", args...)
 	}
 }
 
