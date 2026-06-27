@@ -232,7 +232,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	}
 	if statResp.Code != 1 {
 		// F-GroupD-F：业务错误 propagate，不再静默。
-		msg := derefOr(statResp.Msg, "")
+		msg := types.DerefOr(statResp.Msg, "")
 		return nil, fmt.Errorf("维度 %d(%s) 业务错误: code=%d msg=%s", dim.ID, dim.Name, statResp.Code, msg)
 	}
 
@@ -287,7 +287,7 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 
 	return &types.TaskResult{
 		Code: resp.Code,
-		Msg:  derefOr(resp.Msg, ""),
+		Msg:  types.DerefOr(resp.Msg, ""),
 	}, nil
 }
 

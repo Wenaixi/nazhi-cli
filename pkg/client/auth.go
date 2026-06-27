@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,10 +10,10 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"strconv"
-	"strings"
 	"sync/atomic"
 	"time"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
@@ -74,9 +73,11 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 // ─── Login ───
 
 const (
-	maxOCRAttemptsPerImage = 1
-	maxOCRImagesTotal      = 99
-	ocrTimeout             = 30 * time.Second
+	maxOCRAttemptsPerImage   = 1
+	maxOCRImagesTotal        = 99
+	ocrTimeout               = 30 * time.Second
+	defaultTokenTTL          = 24 * time.Hour
+	expiresFallbackThreshold = 1 * time.Hour
 )
 
 // Login 完成 SSO 登录并返回 Token。
@@ -135,9 +136,13 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, string(bodyBytes))
 		} else {
 			if loginResp.Code != 1 {
-				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, derefOr(loginResp.Msg, "登录失败"))
+				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, types.DerefOr(loginResp.Msg, "登录失败"))
 			}
-			token, expiresAt, err := extractTokenFromReturnData(loginResp)
+			if loginResp.ReturnData == nil {
+				c.logDebug("Login 200 响应 returnData 为空 body=%s", string(bodyBytes))
+				return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
+			}
+			token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
 			if err != nil {
 				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
 				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
@@ -155,7 +160,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		if location == "" {
 			return nil, fmt.Errorf("%w: 302 响应中未找到 Location 头", ErrLoginRejected)
 		}
-		token, expiresAt, locErr := extractTokenFromLocation(location)
+		token, expiresAt, locErr := tokenparse.ExtractFromLocation(location)
 		if locErr != nil {
 			c.logDebug("Login 302: Location 头解析失败: %v location=%s", locErr, location)
 			return nil, fmt.Errorf("%w: Location 头解析失败", ErrLoginRejected)
@@ -173,7 +178,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
 		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, string(bodyBytes))
 	} else if errResp.Code != 1 {
-		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, derefOr(errResp.Msg, "登录失败"))
+		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
 	return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
 }
@@ -251,129 +256,13 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("获取验证码图片失败: %w", err)
 	}
+
 	if len(imgBytes) == 0 {
 		return nil, fmt.Errorf("获取验证码图片响应为空 status=200")
 	}
 	return imgBytes, nil
 }
 
-// ─── 内部辅助 ───
-
-// extractTokenFromLocation 从 302 Location 头中提取 token 和过期时间。
-//
-// 缓存 u.Query() 结果 q，消除重复解析（之前 token 提取和 query 转换各调一次）。
-// 内联 queryToMap（已删除），直接转换 url.Values → map[string]any。
-func extractTokenFromLocation(location string) (string, time.Time, error) {
-	u, err := url.Parse(location)
-	if err != nil {
-		return "", time.Time{}, fmt.Errorf("%w: %v", ErrLocationParseFailed, err)
-	}
-	q := u.Query()
-	var token string
-	if t := q.Get("token"); t != "" {
-		token = t
-	} else if u.Fragment != "" {
-		if fToken := extractTokenFromFragment(u.Fragment); fToken != "" {
-			token = fToken
-		}
-	}
-	qm := make(map[string]any, len(q))
-	for k, vs := range q {
-		if len(vs) > 0 {
-			qm[k] = vs[0]
-		}
-	}
-	return token, parseExpiresMap(qm), nil
-}
-
-const defaultTokenTTL = 24 * time.Hour
-
-const expiresFallbackThreshold = 1 * time.Hour
-
-// parseExpiresMap 是 302 Location query 与 200 returnData 共用的过期时间解析器。
-//
-// 删除 parseReturnDataExpires 包装函数（与 parseExpiresMap 相同），
-//
-//	调用方 extractTokenFromReturnData 直接调 parseExpiresMap(data)。
-//
-// 不再引用已删除的 parseLocationExpires。
-// 函数开头调一次 time.Now() 引用为 now 变量，替代三处重复的 time.Now() 调用。
-func parseExpiresMap(q map[string]any) time.Time {
-	now := time.Now()
-	if v, ok := q["expires_in"]; ok {
-		if s, err := valueToString(v); err == nil && s != "" {
-			if n, err := strconv.Atoi(s); err == nil && n > 0 {
-				return now.Add(time.Duration(n) * time.Second)
-			}
-		}
-	}
-	if v, ok := q["exp"]; ok {
-		if s, err := valueToString(v); err == nil && s != "" {
-			if n, err := strconv.ParseInt(s, 10, 64); err == nil && n > 0 {
-				return time.Unix(n, 0)
-			}
-		}
-	}
-	return now.Add(defaultTokenTTL)
-}
-
-func valueToString(v any) (string, error) {
-	switch x := v.(type) {
-	case string:
-		return x, nil
-	case json.Number:
-		return x.String(), nil
-	case float64:
-		return strconv.FormatInt(int64(x), 10), nil
-	default:
-		return fmt.Sprintf("%v", v), nil
-	}
-}
-
-func extractTokenFromFragment(fragment string) string {
-	parts := strings.Split(fragment, "&")
-	for _, p := range parts {
-		if strings.HasPrefix(p, "token=") {
-			raw := strings.TrimPrefix(p, "token=")
-			decoded, err := url.QueryUnescape(raw)
-			if err != nil {
-				return raw
-			}
-			return decoded
-		}
-	}
-	return ""
-}
-
-// extractTokenFromReturnData 尝试从统一响应的 returnData 中提取 token。
-//
-// 直接调 parseExpiresMap(data) 而非 parseReturnDataExpires（已删除）。
-func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, error) {
-	if resp.ReturnData == nil {
-		return "", time.Time{}, fmt.Errorf("returnData 为空")
-	}
-	var data map[string]any
-	dec := json.NewDecoder(bytes.NewReader(*resp.ReturnData))
-	dec.UseNumber()
-	if err := dec.Decode(&data); err != nil {
-		return "", time.Time{}, err
-	}
-	token, ok := data["token"].(string)
-	if !ok {
-		return "", time.Time{}, fmt.Errorf("returnData 中 token 字段类型异常（期望 string）")
-	}
-	if token == "" {
-		return "", time.Time{}, fmt.Errorf("returnData 中无 token 字段")
-	}
-	return token, parseExpiresMap(data), nil
-}
-
-func derefOr(s *string, def string) string {
-	if s == nil {
-		return def
-	}
-	return *s
-}
 func (c *Client) syncCookieToken(token string) error {
 	if c.http == nil {
 		return fmt.Errorf("syncCookieToken: HTTP client 为 nil，无法同步 token 到 cookie")

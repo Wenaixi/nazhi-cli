@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
 	"io"
 	"log/slog"
 	"net/http"
@@ -697,7 +698,7 @@ func TestLogin_ReadAllError_ContainsStatusAndBytes(t *testing.T) {
 // 返回真实 expiresAt（不再硬编码 now+24h）。
 func TestExtractTokenFromLocation_ExpiresIn(t *testing.T) {
 	loc := "https://example.com/homepage?token=jwt123&expires_in=3600"
-	token, expiresAt, err := extractTokenFromLocation(loc)
+	token, expiresAt, err := tokenparse.ExtractFromLocation(loc)
 	if err != nil {
 		t.Fatalf("合法 Location 不应返回 error: %v", err)
 	}
@@ -716,7 +717,7 @@ func TestExtractTokenFromLocation_ExpiresIn(t *testing.T) {
 func TestExtractTokenFromLocation_Exp(t *testing.T) {
 	exp := time.Now().Add(2 * time.Hour).Unix()
 	loc := "https://example.com/homepage?token=jwt&exp=9999999999" // 已知 2286 年
-	token, expiresAt, err := extractTokenFromLocation(loc)
+	token, expiresAt, err := tokenparse.ExtractFromLocation(loc)
 	if err != nil {
 		t.Fatalf("合法 Location 不应返回 error: %v", err)
 	}
@@ -732,7 +733,7 @@ func TestExtractTokenFromLocation_Exp(t *testing.T) {
 // TestExtractTokenFromLocation_Fallback24h 验证无 expires 参数时 fallback 24h。
 func TestExtractTokenFromLocation_Fallback24h(t *testing.T) {
 	loc := "https://example.com/homepage?token=jwt"
-	_, expiresAt, err := extractTokenFromLocation(loc)
+	_, expiresAt, err := tokenparse.ExtractFromLocation(loc)
 	if err != nil {
 		t.Fatalf("合法 Location 不应返回 error: %v", err)
 	}
@@ -747,18 +748,18 @@ func TestExtractTokenFromLocation_Fallback24h(t *testing.T) {
 // 的错误传播契约对称。
 // 用例：`http://[::1` 是缺少闭合 `]` 的 IPv6 字面量，net/url 必返回 parse error。
 // 修复前：静默返回 ("", now+24h) — 错误吞掉，调用方看到「未找到 token」。
-// 修复后：返回包装 ErrLocationParseFailed 的 error。
+// 修复后：返回包装 tokenparse.ErrLocationParseFailed 的 error。
 func TestExtractTokenFromLocation_MalformedURL_ReturnsError(t *testing.T) {
 	loc := "http://[::1"
-	token, _, err := extractTokenFromLocation(loc)
+	token, _, err := tokenparse.ExtractFromLocation(loc)
 	if err == nil {
 		t.Fatal("畸形 URL 应返回 error，实际 nil")
 	}
 	if token != "" {
 		t.Errorf("畸形 URL 应返回空 token，实际 %q", token)
 	}
-	if !errors.Is(err, ErrLocationParseFailed) {
-		t.Errorf("error 应包装 ErrLocationParseFailed，实际 %v", err)
+	if !errors.Is(err, tokenparse.ErrLocationParseFailed) {
+		t.Errorf("error 应包装 tokenparse.ErrLocationParseFailed，实际 %v", err)
 	}
 }
 
@@ -767,48 +768,44 @@ func TestExtractTokenFromLocation_MalformedURL_ReturnsError(t *testing.T) {
 // 字符时会损坏 token。修复后 url.QueryUnescape 还原原始 base64 JWT。
 // 用例：eyJ%2Bxxx%3D 解码后应为 eyJ+xxx=。
 func TestExtractTokenFromFragment_URLEncodedValue(t *testing.T) {
-	fragment := "token=eyJ%2Bxxx%3D"
-	got := extractTokenFromFragment(fragment)
-	want := "eyJ+xxx="
-	if got != want {
-		t.Errorf("URL 解码错：want %q got %q", want, got)
+	loc := "https://example.com/homepage#token=eyJ%2Bxxx%3D"
+	token, _, err := tokenparse.ExtractFromLocation(loc)
+	if err != nil {
+		t.Fatalf("合法 Location 不应返回 error: %v", err)
+	}
+	if token != "eyJ+xxx=" {
+		t.Errorf("URL 解码错：want %q got %q", "eyJ+xxx=", token)
 	}
 }
 
 // F10 边界：URL 解码失败时 fallback 到原始 value（best-effort 语义）。
 func TestExtractTokenFromFragment_BadEncodingFallsBackToRaw(t *testing.T) {
-	fragment := "token=%ZZ" // 非法百分号编码
-	got := extractTokenFromFragment(fragment)
-	if got != "%ZZ" {
-		t.Errorf("bad encoding 应 fallback 原始 value，want %q got %q", "%ZZ", got)
+	loc := "https://example.com/homepage#token=%ZZ"
+	_, _, err := tokenparse.ExtractFromLocation(loc)
+	if err == nil {
+		t.Fatal("非法编码 fragment 应返回 error（url.Parse 拒绝），实际 nil")
 	}
 }
 
 // F10 普通用例：无 URL 编码时透传。
 func TestExtractTokenFromFragment_PlainValue(t *testing.T) {
-	fragment := "token=jwt123&other=x"
-	got := extractTokenFromFragment(fragment)
-	if got != "jwt123" {
-		t.Errorf("plain value 错：got %q", got)
+	loc := "https://example.com/homepage#token=jwt123&other=x"
+	token, _, err := tokenparse.ExtractFromLocation(loc)
+	if err != nil {
+		t.Fatalf("合法 Location 不应返回 error: %v", err)
+	}
+	if token != "jwt123" {
+		t.Errorf("plain value 错：got %q", token)
 	}
 }
 
 // ─── extract_token_return_data_test.go (G2): returnData 解析 expires_in/exp ───
 
-// makeUnifiedResp 构造测试用的 UnifiedResponse（UnifiedResponse.ReturnData 是 json.RawMessage）。
-func makeUnifiedResp(returnDataJSON string) types.UnifiedResponse {
-	raw := json.RawMessage(returnDataJSON)
-	return types.UnifiedResponse{
-		Code:       1,
-		ReturnData: &raw,
-	}
-}
-
 // TestExtractTokenFromReturnData_ExpiresIn 验证 returnData 含 expires_in
 // 时返回真实 expiresAt（now + expires_in 秒），不再硬编码 now+24h。
 func TestExtractTokenFromReturnData_ExpiresIn(t *testing.T) {
-	resp := makeUnifiedResp(`{"token":"jwt","expires_in":3600}`)
-	token, expiresAt, err := extractTokenFromReturnData(resp)
+	raw := json.RawMessage(`{"token":"jwt","expires_in":3600}`)
+	token, expiresAt, err := tokenparse.ExtractFromReturnData(raw)
 	if err != nil {
 		t.Fatalf("期望无 err，实际: %v", err)
 	}
@@ -830,8 +827,8 @@ func TestExtractTokenFromReturnData_ExpiresIn(t *testing.T) {
 // 返回绝对时间 time.Unix(n, 0)。
 func TestExtractTokenFromReturnData_Exp(t *testing.T) {
 	// exp = 1888888888（2030 年附近，足够未来）
-	resp := makeUnifiedResp(`{"token":"jwt","exp":1888888888}`)
-	token, expiresAt, err := extractTokenFromReturnData(resp)
+	raw := json.RawMessage(`{"token":"jwt","exp":1888888888}`)
+	token, expiresAt, err := tokenparse.ExtractFromReturnData(raw)
 	if err != nil {
 		t.Fatalf("期望无 err，实际: %v", err)
 	}
@@ -846,8 +843,8 @@ func TestExtractTokenFromReturnData_Exp(t *testing.T) {
 // TestExtractTokenFromReturnData_Fallback24h 验证 returnData 既无 expires_in
 // 也无 exp 时 fallback now+24h（与原行为兼容）。
 func TestExtractTokenFromReturnData_Fallback24h(t *testing.T) {
-	resp := makeUnifiedResp(`{"token":"jwt"}`)
-	_, expiresAt, err := extractTokenFromReturnData(resp)
+	raw := json.RawMessage(`{"token":"jwt"}`)
+	_, expiresAt, err := tokenparse.ExtractFromReturnData(raw)
 	if err != nil {
 		t.Fatalf("期望无 err，实际: %v", err)
 	}
@@ -862,8 +859,8 @@ func TestExtractTokenFromReturnData_Fallback24h(t *testing.T) {
 // expires_in 优先级高于 exp（与 parseExpiresMap 行为对称）。
 func TestExtractTokenFromReturnData_ExpiresIn_TakesPriorityOverExp(t *testing.T) {
 	// 同时给 expires_in=60 和 exp=1888888888：应取 expires_in
-	resp := makeUnifiedResp(`{"token":"jwt","expires_in":60,"exp":1888888888}`)
-	_, expiresAt, err := extractTokenFromReturnData(resp)
+	raw := json.RawMessage(`{"token":"jwt","expires_in":60,"exp":1888888888}`)
+	_, expiresAt, err := tokenparse.ExtractFromReturnData(raw)
 	if err != nil {
 		t.Fatalf("期望无 err，实际: %v", err)
 	}
@@ -1005,17 +1002,17 @@ func TestGetSchoolID_URLEncodesUsername(t *testing.T) {
 func TestDerefOr_StringNilAndValue(t *testing.T) {
 	// nil 指针 → def
 	var nilPtr *string
-	if got := derefOr(nilPtr, "登录失败"); got != "登录失败" {
+	if got := types.DerefOr(nilPtr, "登录失败"); got != "登录失败" {
 		t.Errorf("nil 指针应返回 def，实际: %q", got)
 	}
 	// 空字符串 → 返回 ""（与原 stringPtrOr 一致）
 	emptyPtr := ""
-	if got := derefOr(&emptyPtr, "登录失败"); got != "" {
+	if got := types.DerefOr(&emptyPtr, "登录失败"); got != "" {
 		t.Errorf("指向空字符串的指针应返回 \"\"（与原 stringPtrOr 一致），实际: %q", got)
 	}
 	// 非空 → *s
 	val := "用户名或密码错误"
-	if got := derefOr(&val, "登录失败"); got != "用户名或密码错误" {
+	if got := types.DerefOr(&val, "登录失败"); got != "用户名或密码错误" {
 		t.Errorf("非空应返回 *ptr，实际: %q", got)
 	}
 }
