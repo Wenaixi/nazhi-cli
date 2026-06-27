@@ -320,6 +320,25 @@ func (c *Client) logDebug(format string, args ...any) {
 	c.logger.Debug(fmt.Sprintf(format, args...))
 }
 
+// safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
+//
+// A5 修复（review-tdd round-9）：Recognize 实现可能在不可预见的边界条件下
+// panic（如 mock 实现有 bug、CGO 层崩溃），如果 panic 不处理会 crash 整个进程。
+// safeOCRRecognize 包装 Recognize 调用，捕获 panic 并返回 ErrOCRPanic 哨兵。
+//
+// 注意：c.ocr 为 nil 时直接返回错误（避免 nil deref），而非默默 success。
+func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
+	if c.ocr == nil {
+		return "", ErrOCRNotConfigured
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%w: %v", ErrOCRPanic, r)
+		}
+	}()
+	return c.ocr.Recognize(imgBytes)
+}
+
 // ssoURL 拼接 SSO 路径。
 func (c *Client) ssoURL(path string) string {
 	return c.ssoBaseURL + path
