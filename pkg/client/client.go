@@ -175,7 +175,7 @@ func WithSessionBackoff(d time.Duration) Option {
 				"tip", "用 WithSessionBackoff(5*time.Second) 设置正数，或保留默认值 5s")
 			return
 		}
-		c.sm.backoff = d
+		c.sm.SetBackoff(d)
 	}
 }
 
