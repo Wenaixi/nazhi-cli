@@ -45,7 +45,22 @@ var (
 	// 修复动机：CGO-free 消费者（如 Nazhi-auto CGO_ENABLED=0 构建）无法使用
 	// ddddocr 内置识别器，必须通过 WithCustomOCR 注入 AI/外部识别器。
 	// 该哨兵让 SDK 用户能 errors.Is 精确识别「没配 OCR」 vs 「OCR 识别失败」。
-	ErrOCRNotConfigured = errors.New("OCR not configured: use WithCustomOCR to inject a CaptchaRecognizer, or build with -tags ddddocr to enable the built-in ddddocr engine")
+	//
+	// H3 修复（round-9）：错误消息改为中文 actionable，i18n key 为
+	// 「errors.ocr_not_configured」。中英双语并列——英文部分是 SDK 用户
+	// 编程接口可读的稳定契约（errors.Is(err, ErrOCRNotConfigured).Error() 输出），
+	// 中文部分是给中文 CLI 用户的 actionable 指引（cmd/nazhi/login.go 用
+	// errors.Is 分支渲染 envelope 时只取中文部分）。
+	//
+	// SDK 用户建议用 errors.Is(err, ErrOCRNotConfigured) 而非字符串匹配。
+	ErrOCRNotConfigured = errors.New(
+		"errors.ocr_not_configured: OCR 识别器未配置：当前构建未启用 -tags ddddocr。" +
+			"请使用预编译 release 二进制（nazhi-cli releases 页面），或通过 SDK 调用 " +
+			"client.WithCustomOCR(myRecognizer) 注入自定义识别器。" +
+			" (OCR recognizer not configured: current build lacks -tags ddddocr. " +
+			"Use the prebuilt release binary from GitHub releases, or inject a custom " +
+			"recognizer via client.WithCustomOCR(myRecognizer).)",
+	)
 
 	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。
 	//

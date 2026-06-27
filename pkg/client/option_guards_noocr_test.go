@@ -25,10 +25,52 @@ type mockCaptchaRecognizer struct {
 func (m *mockCaptchaRecognizer) Recognize([]byte) (string, error) { return "ok", nil }
 func (m *mockCaptchaRecognizer) Close() error                     { m.closed = true; return nil }
 
-// TestWithOCRConcurrency_NoDdddOCR_Build 验证 !ddddocr 构建下占位实现：
-//   - 调用 WithOCRConcurrency 不会替换 c.ocr（保持 WithCustomOCR 注入）
-//   - 必输出 warn 提示 ddddocr 未启用，引导调用方改用 WithCustomOCR
-func TestWithOCRConcurrency_NoDdddOCR_Build(t *testing.T) {
+// TestWithOCRConcurrency_Zero_NoWarn_NoDdddOCR 验证 !ddddocr 构建下 WithOCRConcurrency(0) 静默 no-op。
+//
+// H4 修复：n=0 不应输出 warn（合法降级请求，与 WithTimeout(0) 语义不同）。
+func TestWithOCRConcurrency_Zero_NoWarn_NoDdddOCR(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	mock := &mockCaptchaRecognizer{}
+	c := &Client{
+		ocr:    mock, // 模拟 WithCustomOCR(mock) 已注入
+		logger: logger,
+	}
+
+	WithOCRConcurrency(0)(c)
+
+	if c.ocr != mock {
+		t.Errorf("!ddddocr 构建下 WithOCRConcurrency(0) 必须保持 c.ocr 不变，实际被替换")
+	}
+	if logBuf.Len() > 0 {
+		t.Errorf("n=0 不应输出 warn，实际 log：%s", logBuf.String())
+	}
+}
+
+// TestWithOCRConcurrency_Negative_Warns_NoDdddOCR 验证 !ddddocr 构建下 WithOCRConcurrency(-1) 输出 warn。
+func TestWithOCRConcurrency_Negative_Warns_NoDdddOCR(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	mock := &mockCaptchaRecognizer{}
+	c := &Client{
+		ocr:    mock,
+		logger: logger,
+	}
+
+	WithOCRConcurrency(-1)(c)
+
+	if c.ocr != mock {
+		t.Errorf("!ddddocr 构建下 WithOCRConcurrency(-1) 必须保持 c.ocr 不变，实际被替换")
+	}
+	if !strings.Contains(logBuf.String(), "负数") {
+		t.Errorf("n<0 应输出 warn 包含 '负数'，实际 log：%s", logBuf.String())
+	}
+}
+
+// TestWithOCRConcurrency_Positive_Warns_NoDdddOCR 验证 !ddddocr 构建下 WithOCRConcurrency(2) 输出 warn。
+func TestWithOCRConcurrency_Positive_Warns_NoDdddOCR(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 

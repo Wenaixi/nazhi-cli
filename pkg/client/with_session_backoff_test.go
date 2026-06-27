@@ -1,90 +1,123 @@
 // Package client 内部白盒测试。
+//
+// H2 修复（round-9）：ErrSessionBackoff 哨兵已落地（F15 round-7），
+// 但 sessionBackoff 字段无对应 Option。SDK 用户无法调整 5s 默认窗口。
+//
+// 本测试文件覆盖 WithSessionBackoff 的 4 个契约：
+//   - d > 0：设置字段生效（与 WithTimeout 对称）
+//   - d = 0：拒绝并 warn（与 WithTimeout(0) 对称：防止静默清零默认值）
+//   - d < 0：拒绝并 warn（与 WithTimeout(-1) 对称）
+//   - activateWithBackoffCheck 用字段值计算窗口（验证字段被实际消费）
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
-	"net/http"
-	"net/http/httptest"
-	"sync/atomic"
+	"log/slog"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
-// TestWithSessionBackoff_SetsDuration 验证 WithSessionBackoff(d) 正常路径：
-// 设置正数 d 后，c.sessionBackoff 字段被更新；首次失败后窗口期内同 token
-// 第二次激活走 backoff 抑制路径，error 包装 ErrSessionBackoff。
-func TestWithSessionBackoff_SetsDuration(t *testing.T) {
-	failSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		switch r.URL.Path {
-		case "/":
-			w.WriteHeader(http.StatusOK)
-		case "/api/studentInfo/getMenu":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
-		case "/api/studentInfo/getMyInfo":
-			atomic.AddInt32(&failureCount, 1)
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}))
-	defer failSrv.Close()
+// TestWithSessionBackoff_PositiveAccepted 验证 WithSessionBackoff(d>0) 设置字段。
+func TestWithSessionBackoff_PositiveAccepted(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
-	c, _ := New(
-		WithBaseURL(failSrv.URL),
-		WithTimeout(5*time.Second),
-		WithSessionBackoff(10*time.Second), // B5 测试目标：通过 Option 设置 10s
-	)
+	c := &Client{
+		logger: logger,
+	}
+
+	// 初始字段值应为 0（未设置）
+	if c.sessionBackoff != 0 {
+		t.Fatalf("初始 sessionBackoff 应 = 0，实际 %v", c.sessionBackoff)
+	}
+
+	// 设置 10 秒
+	WithSessionBackoff(10 * time.Second)(c)
 	if c.sessionBackoff != 10*time.Second {
-		t.Fatalf("WithSessionBackoff(10s) 后 sessionBackoff = %v，期望 10s", c.sessionBackoff)
+		t.Errorf("WithSessionBackoff(10s) 应设置字段 = 10s，实际 %v", c.sessionBackoff)
 	}
 
-	// 第一次激活：步骤 4 失败
-	if _, err := c.ActivateSession(context.Background(), "token-X"); err == nil {
-		t.Fatal("第一次激活在失败 server 上应返回 error")
-	}
-	// 同 token 立即再试：因 sessionBackoff=10s > 0 → 命中 backoff 抑制
-	_, errSecond := c.ActivateSession(context.Background(), "token-X")
-	if errSecond == nil {
-		t.Fatal("第二次激活应被 backoff 抑制，实际 nil")
-	}
-	if !errors.Is(errSecond, ErrSessionBackoff) {
-		t.Errorf("backoff 错误应包装 ErrSessionBackoff 哨兵，实际 err=%v", errSecond)
+	// 不应有任何 warn
+	if logBuf.Len() > 0 {
+		t.Errorf("WithSessionBackoff(d>0) 不应输出 warn，实际 log: %s", logBuf.String())
 	}
 }
 
-// TestWithSessionBackoff_ZeroRejected 验证 WithSessionBackoff(0) 被拒绝：
-// 与 WithTimeout(0) 对称守卫 — 0 表示「禁用 backoff」，可能让调用方忘记恢复。
-// 必须 warn + 不修改字段（保持原 defaultSessionBackoff 行为或上次设置）。
+// TestWithSessionBackoff_ZeroRejected 验证 WithSessionBackoff(0) 拒绝并 warn。
 func TestWithSessionBackoff_ZeroRejected(t *testing.T) {
-	c, _ := New(
-		WithBaseURL("http://127.0.0.1:1"), // 不实际发请求
-		WithTimeout(time.Second),
-	)
-	// 初始 sessionBackoff 默认为 0（=使用 defaultSessionBackoff）
-	originalBackoff := c.sessionBackoff
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
+	c := &Client{
+		logger:         logger,
+		sessionBackoff: 15 * time.Second, // 已设置正数值
+	}
+
+	// 0 应被拒绝
 	WithSessionBackoff(0)(c)
-
-	if c.sessionBackoff != originalBackoff {
-		t.Errorf("WithSessionBackoff(0) 应保留原值 %v，实际 %v", originalBackoff, c.sessionBackoff)
+	if c.sessionBackoff != 15*time.Second {
+		t.Errorf("WithSessionBackoff(0) 应被拒绝保持原值 15s，实际 %v", c.sessionBackoff)
+	}
+	if !strings.Contains(logBuf.String(), "0") {
+		t.Errorf("应 warn 包含 '0'，实际 log: %s", logBuf.String())
 	}
 }
 
-// TestWithSessionBackoff_NegativeRejected 验证 WithSessionBackoff(-1s) 被拒绝。
+// TestWithSessionBackoff_NegativeRejected 验证 WithSessionBackoff(-1) 拒绝并 warn。
 func TestWithSessionBackoff_NegativeRejected(t *testing.T) {
-	c, _ := New(
-		WithBaseURL("http://127.0.0.1:1"),
-		WithTimeout(time.Second),
-	)
-	originalBackoff := c.sessionBackoff
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	c := &Client{
+		logger:         logger,
+		sessionBackoff: 20 * time.Second,
+	}
 
 	WithSessionBackoff(-1 * time.Second)(c)
-
-	if c.sessionBackoff != originalBackoff {
-		t.Errorf("WithSessionBackoff(-1s) 应保留原值 %v，实际 %v", originalBackoff, c.sessionBackoff)
+	if c.sessionBackoff != 20*time.Second {
+		t.Errorf("WithSessionBackoff(-1s) 应被拒绝保持原值 20s，实际 %v", c.sessionBackoff)
+	}
+	if !strings.Contains(logBuf.String(), "负数") && !strings.Contains(logBuf.String(), "负") {
+		t.Errorf("应 warn 包含 '负'，实际 log: %s", logBuf.String())
 	}
 }
 
-// failureCount 是测试用全局计数器（被多个 backoff 测试复用，单独定义避免冲突）
-var failureCount int32
+// TestActivateWithBackoffCheck_UsesConfiguredBackoff 验证 activateWithBackoffCheck
+// 实际消费 sessionBackoff 字段——而非硬编码 5s 默认值。
+//
+// 场景：字段设为 1 小时，模拟上次失败（lastActivationErr != nil），
+// 立即再调应触发 backoff 抑制（返回包装 ErrSessionBackoff 的错误）。
+//
+// 修复动机：若 WithSessionBackoff 只赋值不消费，SDK 用户调了等于没调。
+func TestActivateWithBackoffCheck_UsesConfiguredBackoff(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	c := &Client{
+		logger:            logger,
+		sessionBackoff:    1 * time.Hour, // 1 小时窗口
+		lastActivationErr: errSentinelBackoffTest,
+		lastAttemptAt:     time.Now(),
+		lastFailedToken:   "test-token",
+		sessionMu:         sync.Mutex{},
+	}
+
+	// 持锁调用（activateWithBackoffCheck 要求持锁）
+	c.sessionMu.Lock()
+	_, err := c.activateWithBackoffCheck(context.Background(), "test-token")
+	c.sessionMu.Unlock()
+
+	if err == nil {
+		t.Fatal("1 小时 backoff 窗口内同 token 应被抑制返回错误，实际 nil")
+	}
+	if !errors.Is(err, ErrSessionBackoff) {
+		t.Errorf("backoff 错误应包装 ErrSessionBackoff，err=%v", err)
+	}
+}
+
+// errSentinelBackoffTest 是测试用哨兵错误，模拟上次激活失败原因。
+var errSentinelBackoffTest = errors.New("simulated last activation failure")

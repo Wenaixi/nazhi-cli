@@ -59,12 +59,15 @@ var loginCmd = &cobra.Command{
 			Password: password,
 		})
 		if err != nil {
-			// r9-D11 修复：识别 ErrOCRNotConfigured 输出 actionable 提示。
+			// r9-D11+H1 合并修复：识别 ErrOCRNotConfigured 输出 actionable JSON envelope。
 			// CGO-free 用户（未用 -tags ddddocr 构建）调 nazhi login 时
-			// 收到通用错误可能不知道「需要 -tags ddddocr 或注入自定义 OCR」。
-			// 单独输出指导性错误消息，引导用户自行解决。
+			// 收到通用错误可能不知道需要 -tags ddddocr 或注入自定义 OCR。
 			if errors.Is(err, client.ErrOCRNotConfigured) {
-				printError(fmt.Errorf("登录失败: %w\n\n提示：当前构建未内嵌 OCR 引擎（CGO-free），可选：\n  1. 重新安装 CLI: go install -tags=ddddocr github.com/Wenaixi/nazhi-cli/cmd/nazhi@latest\n  2. 或通过 SDK 注入自定义 OCR: client.WithCustomOCR(...)", err))
+				printVerbose("OCR 识别器未配置：当前构建无 -tags ddddocr。请使用预编译 release 二进制（nazhi-cli releases 页面），或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器")
+				printJSON(map[string]any{
+					"status":  "error",
+					"message": "登录失败：OCR 识别器未配置。当前构建未启用 -tags ddddocr，无法自动识别验证码。请下载预编译 release 二进制或注入自定义识别器。",
+				})
 				return
 			}
 			// r9-D11 修复：识别 ErrLocationParseFailed 给出可读提示
