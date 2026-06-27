@@ -21,6 +21,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
 // mockCaptchaRecognizer 测试用 mock：只记录被设置过、Close 不报错。
@@ -371,27 +373,26 @@ func TestWithSessionBackoff_NegativeRejected(t *testing.T) {
 	}
 }
 
-// TestActivateWithBackoffCheck_UsesConfiguredBackoff 验证 activateWithBackoffCheck
+// TestActivateWithBackoffCheck_UsesConfiguredBackoff 验证 sm.Activate
 // 实际消费 sm.backoff 字段——而非硬编码 5s 默认值。
 func TestActivateWithBackoffCheck_UsesConfiguredBackoff(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
 
 	errSentinel := errors.New("simulated last activation failure")
-	c := &Client{
-		logger: logger,
-		sm: &sessionManager{
-			backoff:         1 * time.Hour,
-			lastErr:         errSentinel,
-			lastAttempt:     time.Now(),
-			lastFailedToken: "test-token",
-			mu:              sync.Mutex{},
-		},
+	sm := &sessionManager{
+		backoff:         1 * time.Hour,
+		lastErr:         errSentinel,
+		lastAttempt:     time.Now(),
+		lastFailedToken: "test-token",
+		mu:              sync.Mutex{},
 	}
 
-	c.sm.mu.Lock()
-	_, err := c.activateWithBackoffCheck(context.Background(), "test-token")
-	c.sm.mu.Unlock()
+	activateFn := func(ctx context.Context, token string) (*types.UserInfo, error) {
+		return nil, errors.New("should not be called")
+	}
+
+	_, err := sm.Activate(context.Background(), "test-token", activateFn)
 
 	if err == nil {
 		t.Fatal("1 小时 backoff 窗口内同 token 应被抑制返回错误，实际 nil")
@@ -399,4 +400,7 @@ func TestActivateWithBackoffCheck_UsesConfiguredBackoff(t *testing.T) {
 	if !errors.Is(err, ErrSessionBackoff) {
 		t.Errorf("backoff 错误应包装 ErrSessionBackoff，err=%v", err)
 	}
+
+	_ = logger
+	_ = logBuf
 }
