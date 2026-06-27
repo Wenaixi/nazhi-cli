@@ -305,36 +305,11 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 //
 // Deprecated: 此方法计划在下个 major 版本删除，新业务请勿依赖。
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*map[string]any, error) {
-	if _, err := c.activateSessionIfNeeded(ctx, token); err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskID 预热 session 失败: %w", err)
-	}
-	headers := c.bizHeaders(token)
-
-	// 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全。
-	url := c.bizURL("/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10))
-	bodyBytes, err := c.doRequest(ctx, http.MethodGet, url, nil, headers, "")
+	resp, err := c.doBizAndDecode(ctx, token, "GetCircleTypeByTaskID",
+		"/api/studentCircleNew/getCircleTypeByTaskId?taskId="+strconv.FormatInt(taskID, 10),
+		http.MethodGet, nil)
 	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskID 请求失败: %w", err)
+		return nil, err
 	}
-
-	resp, err := types.DecodeResponse(bodyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskID 响应解析失败: %w", err)
-	}
-
-	if err := types.CheckCode(resp); err != nil {
-		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
-		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
-		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
-		// 走 derefOr helper，与 auth.go:156/212 对齐。
-		msg := derefOr(resp.Msg, "")
-		return nil, fmt.Errorf("%w: GetCircleTypeByTaskID 业务错误: code=%d msg=%s", ErrBusinessRejected, resp.Code, msg)
-	}
-
-	result, err := types.DecodeReturnData[map[string]any](resp)
-	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypeByTaskID returnData 解析失败: %w", err)
-	}
-
-	return result, nil
+	return types.DecodeReturnData[map[string]any](*resp)
 }
