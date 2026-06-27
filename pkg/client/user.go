@@ -52,7 +52,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	// （避免 baseURL 拼接分散在多处，未来 baseURL 变更只需改 helper 一处）
 	headers["Referer"] = c.bizURL("/modify")
 
-	bodyBytes, err := c.doRequest(ctx, http.MethodGet,
+	bodyBytes, err := c.httpDo(ctx, http.MethodGet,
 		c.bizURL("/api/studentInfo/getMyInfo"),
 		nil, headers, "",
 	)

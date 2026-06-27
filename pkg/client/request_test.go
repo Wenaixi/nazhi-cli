@@ -1,5 +1,5 @@
 // request_test.go 聚合 request.go 内部白盒测试（package client）：
-//   - F6: doRequest/doBizGet drain+close 让 keep-alive 池复用
+//   - F6: httpDo/doBizGet drain+close 让 keep-alive 池复用
 //   - F1: logRequestHeaders nil logger 安全
 //   - F-REDACT: logDebug 不泄漏完整 token（Referer/Cookie 嵌入场景）
 //   - drainAndClose helper 单元测试
@@ -68,11 +68,11 @@ func TestDrainAndClose_NoBody(t *testing.T) {
 	drainAndClose(body) // http.NoBody 的 Close 返回 nil，drain 是空操作
 }
 
-// ─── request_drain_test.go (F6): doRequest/doBizGet drain+close ───
+// ─── request_drain_test.go (F6): httpDo/doBizGet drain+close ───
 
-// TestDoRequest_DrainsAndClosesForKeepAlive 回归测试：doRequest 的 defer
+// TestHttpDo_DrainsAndClosesForKeepAlive 回归测试：httpDo 的 defer
 // 路径必须先 drain response body 再 Close，让 net/http 把连接归还 keep-alive 池。
-func TestDoRequest_DrainsAndClosesForKeepAlive(t *testing.T) {
+func TestHttpDo_DrainsAndClosesForKeepAlive(t *testing.T) {
 	var (
 		mu      sync.Mutex
 		idleHit int
@@ -111,9 +111,9 @@ func TestDoRequest_DrainsAndClosesForKeepAlive(t *testing.T) {
 	}
 
 	for i := 0; i < 2; i++ {
-		body, err := c.doRequest(context.Background(), http.MethodGet, srv.URL+"/x", nil, nil, "")
+		body, err := c.httpDo(context.Background(), http.MethodGet, srv.URL+"/x", nil, nil, "")
 		if err != nil {
-			t.Fatalf("第 %d 次 doRequest 失败: %v", i+1, err)
+			t.Fatalf("第 %d 次 httpDo 失败: %v", i+1, err)
 		}
 		if len(body) != 8192 {
 			t.Errorf("第 %d 次 body 长度 = %d, want 8192", i+1, len(body))
@@ -123,7 +123,7 @@ func TestDoRequest_DrainsAndClosesForKeepAlive(t *testing.T) {
 	mu.Lock()
 	defer mu.Unlock()
 	if idleHit == 0 {
-		t.Errorf("doRequest defer 路径未把连接归还 keep-alive 池（idleHit=0）。\n" +
+		t.Errorf("httpDo defer 路径未把连接归还 keep-alive 池（idleHit=0）。\n" +
 			"说明 defer 没有 drain+close，被 net/http 强制关闭了 TCP 连接。")
 	}
 }
@@ -238,8 +238,8 @@ func TestRequest_NoTokenLeakInDebugLog(t *testing.T) {
 		"Cookie":       "JSESSIONID=abc; X-Auth-Token=" + fullToken,
 	}
 
-	// 触发 doRequest 的 logDebug 路径（响应内容无关紧要）
-	_, _ = c.doRequest(context.Background(), http.MethodGet, srv.URL+"/test", nil, headers, "")
+	// 触发 httpDo 的 logDebug 路径（响应内容无关紧要）
+	_, _ = c.httpDo(context.Background(), http.MethodGet, srv.URL+"/test", nil, headers, "")
 
 	logs := logBuf.String()
 	if strings.Contains(logs, fullToken) {
