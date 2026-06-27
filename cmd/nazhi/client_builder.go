@@ -141,23 +141,10 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	var token string
 	switch urlType {
 	case "base":
-		// F7 修复（group-F round-8）：用 flagChanged() 守卫 token 读取，
-		// 避免用户显式传 --token "" 时 env fallback 静默覆盖。
-		//
-		// 原代码无 Changed 检查：cmd.Flags().GetString("token") 显式空字符串
-		// 与未传 flag 行为完全一致（都返回 ""），env fallback 无法区分这两种意图。
-		// 哨兵默认 + env 覆盖是反模式——用户期望"显式空字符串"被尊重。
-		//
-		// 设计契约：
-		//   - Changed("token")=true → 用户显式传过 flag，flag 值生效（含显式空字符串）
-		//   - Changed("token")=false → 未传 flag，走 env fallback
-		//
-		// 与 round-4 C2 timeout 修复保持对称（cmd/nazhi/env.go:45 flagChanged）。
-		if flagChanged(cmd, "token") {
-			token, _ = cmd.Flags().GetString("token")
-		} else {
-			token = envString("NAZHI_TOKEN", "")
-		}
+		// G3 重构（round-9 group-G）：改走 applyURLFlag helper，
+		// 消除 6 处重复的 flagChanged+GetString+envString 模板。
+		// 语义不变：flag 显式传递 → 用 flag 值；未传 → env fallback。
+		token = applyURLFlag(cmd, "token", "NAZHI_TOKEN")
 	}
 	if requireToken && token == "" {
 		return nil, "", fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）")
@@ -166,27 +153,13 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	var urlVal string
 	switch urlType {
 	case "sso":
-		// B12 修复：用 flagChanged() 守卫 sso-base 读取，
-		// 避免用户显式传 --sso-base "" 时被 NAZHI_SSO_BASE 环境变量覆盖。
-		if flagChanged(cmd, "sso-base") {
-			urlVal, _ = cmd.Flags().GetString("sso-base")
-		} else {
-			urlVal = envString("NAZHI_SSO_BASE", "")
-		}
+		// G3 重构（round-9 group-G）：改走 applyURLFlag helper，
+		// 消除 6 处重复的 flagChanged+GetString+envString 模板。
+		urlVal = applyURLFlag(cmd, "sso-base", "NAZHI_SSO_BASE")
 	case "base":
-		// B12 修复：用 flagChanged() 守卫 base-url 读取。
-		if flagChanged(cmd, "base-url") {
-			urlVal, _ = cmd.Flags().GetString("base-url")
-		} else {
-			urlVal = envString("NAZHI_BASE_URL", "")
-		}
+		urlVal = applyURLFlag(cmd, "base-url", "NAZHI_BASE_URL")
 	case "upload":
-		// B12 修复：用 flagChanged() 守卫 upload-url 读取。
-		if flagChanged(cmd, "upload-url") {
-			urlVal, _ = cmd.Flags().GetString("upload-url")
-		} else {
-			urlVal = envString("NAZHI_UPLOAD_URL", "")
-		}
+		urlVal = applyURLFlag(cmd, "upload-url", "NAZHI_UPLOAD_URL")
 	default:
 		return nil, "", fmt.Errorf("buildClientOpts: 未知 urlType %q（期望 sso/base/upload）", urlType)
 	}
