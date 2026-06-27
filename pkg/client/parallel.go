@@ -55,9 +55,9 @@ func ParallelDims[T any, K any](
 	eg.SetLimit(limit)
 
 	var (
-		mu       sync.Mutex
-		outputs  []T
-		dimErrs  []error
+		mu      sync.Mutex
+		outputs []T
+		dimErrs []error
 	)
 
 	for _, item := range items {
@@ -113,7 +113,7 @@ func ParallelDims[T any, K any](
 //   - auth.go: `if ctxErr := ctx.Err(); ctxErr != nil { ... 自定义消息 ... }`
 //
 // 抽出 helper 让所有调用方统一走同一入口，但**保留**自定义消息的灵活性
-//（调用方可以 wrap：fmt.Errorf("xxx: %w", CheckCancelled(ctx))）。
+// （调用方可以 wrap：fmt.Errorf("xxx: %w", CheckCancelled(ctx))）。
 func CheckCancelled(ctx context.Context) error {
 	return ctx.Err()
 }
