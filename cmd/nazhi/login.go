@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
@@ -57,22 +58,17 @@ var loginCmd = &cobra.Command{
 			Password: password,
 		})
 		if err != nil {
-			// 用 ErrorCategory 分类替代 errors.Is 逐一枚举。
-			// 文案走 SDK 内部闭环（SuggestUserMessage），CLI 只控制
-			// envelope 通道 + 退出码 + 是否透传原 err。
-			cat := client.ClassifyError(err)
-			switch cat {
-			case client.ErrorCategoryOCR:
-				printVerbose(cat.SuggestUserMessage())
+			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
+			if errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic) {
 				printJSON(map[string]any{
 					"status":  "error",
-					"message": "登录失败：" + cat.SuggestUserMessage(),
+					"message": "登录失败：OCR 识别器未配置或出错。当前构建未启用 -tags ddddocr，请使用预编译 release 二进制，或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器。",
 				})
 				markError()
-			case client.ErrorCategoryAuth:
-				printError(fmt.Errorf("登录失败: %w（SSO 重定向 Location 头畸形，请检查 SSO 服务端响应或上报 bug）", err))
-			default:
-				printError(fmt.Errorf("登录失败: %s（%w）", cat.SuggestUserMessage(), err))
+			} else if errors.Is(err, client.ErrLoginRejected) {
+				printError(fmt.Errorf("登录失败: %w（请检查学号/密码，或确认 SSO 服务端正常）", err))
+			} else {
+				printError(fmt.Errorf("登录失败: %w", err))
 			}
 			return
 		}
