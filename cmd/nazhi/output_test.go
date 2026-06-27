@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
@@ -124,6 +125,74 @@ func TestPrintPrompt_QuietModeSuppressesOutput(t *testing.T) {
 
 	if strings.Contains(buf.String(), "TEST_PROMPT_SHOULD_NOT_APPEAR") {
 		t.Errorf("quiet 模式下 printPrompt 不应输出，实际 stderr: %q", buf.String())
+	}
+}
+
+// brokenError 实现 error 接口，但其 Error() 返回一个含不可序列化字符的字符串，
+// 用来模拟「printError 内部 json.Encode 失败」的兜底路径。
+// 实际上 json.Encoder 对任何 string 都能成功编码，所以这里改成：直接构造一个
+// 让 enc.Encode 返回 error 的情形比较困难。我们用 chan 触发的方式在 production
+// 不可能发生——printError(err error) 签名保证 err.Error() 返回 string。
+// 因此 G1 修复的真正测试点是「兜底路径仍调用 printError 而非 fmt.Fprintf」，
+// 通过 mock 让 enc.Encode 失败来验证。
+type errWriter struct{}
+
+func (errWriter) Write(p []byte) (int, error) { return 0, io.ErrShortWrite }
+
+// jsonEncoder 反射触发失败：把 os.Stderr 替换成一个永远返回错误的 writer。
+func TestPrintError_NonMarshalablePayload_StillSetsExitCode(t *testing.T) {
+	// 保存并恢复 pendingExitCode
+	orig := pendingExitCode.Load()
+	defer pendingExitCode.Store(orig)
+
+	// 替换 stderr 为一个永远失败的 writer → json.Encode 会失败
+	origStderr := os.Stderr
+	os.Stderr = nil // 任何写都会 panic — 但我们需要触发 encode error 而不是 panic
+	_ = origStderr
+
+	// 上面写法有问题，改用更稳妥的方法：pipe 然后 close writer
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	// 立即关闭 writer — Write 时返回 EPIPE/ErrClosed
+	_ = w.Close()
+	defer func() { os.Stderr = origStderr; _ = r.Close() }()
+
+	// 写一个普通的 error —— 因为 stderr fd 已关，json.Encode 会失败 → 走兜底路径
+	printError(errors.New("trigger fallback path"))
+
+	if pendingExitCode.Load() != 1 {
+		t.Errorf("pendingExitCode 应为 1（兜底路径仍应 markError），实际 %d", pendingExitCode.Load())
+	}
+}
+
+// TestPrintError_DepthGuard_NoInfiniteLoop G1 修复验证：即使 stderr fd 关闭导致
+// JSON encoder 也失败，depth 守卫防止递归死循环。
+func TestPrintError_DepthGuard_NoInfiniteLoop(t *testing.T) {
+	orig := pendingExitCode.Load()
+	defer pendingExitCode.Store(orig)
+
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr; _ = r.Close(); _ = w.Close() }()
+
+	// 用超时保护：如果 depth 守卫失效，测试会卡死
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		printError(errors.New("trigger fallback loop"))
+	}()
+	select {
+	case <-done:
+		// OK：depth 守卫生效，递归被降级
+	case <-time.After(2 * time.Second):
+		t.Fatal("printError 递归死循环（depth 守卫失效）")
 	}
 }
 

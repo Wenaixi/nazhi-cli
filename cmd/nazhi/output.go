@@ -16,6 +16,11 @@ import (
 //   - defer closeAllClients() 仍能跑（os.Exit 只在 main 最后调一次）
 var pendingExitCode atomic.Int32
 
+// printErrorDepth 防止 G1 修复中递归调用自身造成死循环。
+// 当 stderr 本身也无法 JSON 编码时（如 fd 已关），递归兜底会无限递归。
+// depth>1 时降级为直写 fmt.Fprintf，避免 stack overflow。
+var printErrorDepth atomic.Int32
+
 // markError 标记本进程遇到错误，main 退出时检查。
 func markError() {
 	pendingExitCode.Store(1)
@@ -47,20 +52,37 @@ func printError(err error) {
 		Error   bool   `json:"error"`
 		Message string `json:"message"`
 	}
-	if !quiet {
-		enc := json.NewEncoder(os.Stderr)
-		enc.SetIndent("", "  ")
-		if enc.Encode(errOutput{Error: true, Message: err.Error()}) != nil {
-			// 兜底：JSON 编码失败时直接打印
-			fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
-		}
+	if quiet {
+		return
+	}
+	// G1 修复（group-G round-9）：兜底走 printError 自身以确保 pendingExitCode=1 被设置。
+	// 原代码直接 fmt.Fprintf 写 stderr，main 看到 pendingExitCode=0 会以 exit 0 退出，
+	// 看似成功实则失败——CI 脚本无法区分。
+	//
+	// depth 守卫：递归调用只在 depth==0 时触发，避免 stderr fd 关闭时死循环。
+	if printErrorDepth.Add(1) > 1 {
+		// 二次调用（兜底路径又失败）→ 直接降级为 fmt.Fprintf，不再递归
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
+		printErrorDepth.Add(-1)
+		return
+	}
+	defer printErrorDepth.Add(-1)
+
+	enc := json.NewEncoder(os.Stderr)
+	enc.SetIndent("", "  ")
+	if enc.Encode(errOutput{Error: true, Message: err.Error()}) != nil {
+		// 兜底：JSON 编码失败时也必须走 pendingExitCode=1 路径
+		printError(fmt.Errorf("printError JSON 编码失败: %w", err))
 	}
 }
 
 // printVerbose 输出日志到 stderr（仅在 verbose 模式下且非 quiet）。
+//
+// G2 修复（group-G round-9）：加 [verbose] 前缀，与 printError JSON envelope 区分，
+// 避免 verbose 日志被错误接收方误解析为 JSON 错误。
 func printVerbose(format string, args ...any) {
 	if verbose && !quiet {
-		fmt.Fprintf(os.Stderr, format+"\n", args...)
+		fmt.Fprintf(os.Stderr, "[verbose] "+format+"\n", args...)
 	}
 }
 
