@@ -135,7 +135,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	var result map[string]any
-	if err := json.Unmarshal(*unified.ReturnData, &result); err != nil {
+	// F7 修复：用 json.NewDecoder + UseNumber 替换 json.Unmarshal，与 auth.go
+	// extractTokenFromReturnData 一致。json.Unmarshal 默认将数字解为 float64，
+	// 在 >2^53 时精度损失。虽然文件 ID 通常在此范围内，但统一模式消除隐患。
+	dec := json.NewDecoder(bytes.NewReader(*unified.ReturnData))
+	dec.UseNumber()
+	if err := dec.Decode(&result); err != nil {
 		return 0, fmt.Errorf("解析 returnData 失败: %w", err)
 	}
 
