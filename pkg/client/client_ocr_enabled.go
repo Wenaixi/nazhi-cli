@@ -10,7 +10,7 @@ import "github.com/Wenaixi/nazhi-cli/internal/ocr"
 // 与 client_ocr_disabled.go 中的 nil 默认行为对称：
 //   - 启用 ddddocr → 客户端开箱即用，无需注入自定义 OCR
 //   - 禁用 ddddocr → 必须用 WithCustomOCR 注入 AI/外部识别器
-func defaultOCR() captchaRecognizer {
+func defaultOCR() CaptchaRecognizer {
 	return ocr.NewPool(0)
 }
 

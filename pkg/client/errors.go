@@ -45,7 +45,7 @@ var (
 	// 修复动机：CGO-free 消费者（如 Nazhi-auto CGO_ENABLED=0 构建）无法使用
 	// ddddocr 内置识别器，必须通过 WithCustomOCR 注入 AI/外部识别器。
 	// 该哨兵让 SDK 用户能 errors.Is 精确识别「没配 OCR」 vs 「OCR 识别失败」。
-	ErrOCRNotConfigured = errors.New("OCR not configured: use WithCustomOCR to inject a captchaRecognizer, or build with -tags ddddocr to enable the built-in ddddocr engine")
+	ErrOCRNotConfigured = errors.New("OCR not configured: use WithCustomOCR to inject a CaptchaRecognizer, or build with -tags ddddocr to enable the built-in ddddocr engine")
 
 	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。
 	//
@@ -81,4 +81,12 @@ var (
 	// 调用方（auth.go Login 302 路径）只把 location 字符串写到 logDebug，
 	// 避免泄漏到 stderr 错误消息（location 可能含 token fragment）。
 	ErrLocationParseFailed = errors.New("login location header parse failed")
+
+	// ErrOCRPanic OCR 识别器 Recognize panic（被 safeOCRRecognize recover）。
+	//
+	// A5 修复（review-tdd round-9）：Recognize 实现（mock / CGO ddddocr）
+	// 可能在不可预见的边界条件下 panic（如 nil deref / CGO 崩溃）。
+	// safeOCRRecognize 用 defer recover 捕获 panic 并包装为本哨兵，
+	// 避免 panic 扩散到 Login 流程、crash 整个进程。
+	ErrOCRPanic = errors.New("OCR recognizer panic: recovered")
 )
