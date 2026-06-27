@@ -373,9 +373,11 @@ func (o *OCR) Close() error {
 
 	var errs []error
 	if ocr != nil {
+		o.mu.Lock()
 		if err := ocr.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("关闭 ddddocr 引擎: %w", err))
 		}
+		o.mu.Unlock()
 	}
 	if tempDir != "" {
 		if err := os.RemoveAll(tempDir); err != nil {
