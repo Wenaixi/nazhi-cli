@@ -14,13 +14,13 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// captchaRecognizer 由 build tag 决定：
+// CaptchaRecognizer 由 build tag 决定：
 //   - !ddddocr: nil 默认（见 client_ocr_disabled.go），调用方必须 WithCustomOCR
 //   - ddddocr:  ocr.NewPool(0) 默认（见 client_ocr_enabled.go）
 
-// captchaRecognizer 是验证码识别器接口。
+// CaptchaRecognizer 是验证码识别器接口。
 // *ocr.Pool 实现了该接口，测试时可注入 mock。
-type captchaRecognizer interface {
+type CaptchaRecognizer interface {
 	Recognize([]byte) (string, error)
 	// Close 释放识别器占用的资源 (ONNX session + 临时目录)。
 	// 默认 *ocr.Pool 已实现; mock 必须实现。
@@ -37,7 +37,7 @@ type Client struct {
 	uploadURL    string       // 文件上传服务器地址
 	http         *http.Client // 独立 cookie jar
 	logger       *slog.Logger
-	ocr          captchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
+	ocr          CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// sessionToken 记录上次成功激活业务 session 的 token。
@@ -210,7 +210,7 @@ func WithHTTPClient(hc *http.Client) Option {
 
 // WithCustomOCR 是测试用 Option，注入自定义验证码识别器。
 // 仅在测试中使用。
-func WithCustomOCR(r captchaRecognizer) Option {
+func WithCustomOCR(r CaptchaRecognizer) Option {
 	return func(c *Client) { c.ocr = r }
 }
 

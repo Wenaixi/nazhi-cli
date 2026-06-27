@@ -12,7 +12,7 @@ import (
 )
 
 // newClientForOCRTest 是简化版测试 helper（package client 内部可见版本）。
-func newClientForOCRTest(ssoURL string, ocr captchaRecognizer) *Client {
+func newClientForOCRTest(ssoURL string, ocr CaptchaRecognizer) *Client {
 	return &Client{
 		ssoBaseURL: ssoURL,
 		baseURL:    ssoURL,
@@ -41,7 +41,7 @@ func (m *countMockOCR) Recognize(_ []byte) (string, error) {
 	return m.returnText, nil
 }
 
-// Close 是 captchaRecognizer 接口的占位实现, mock 无资源需释放。
+// Close 是 CaptchaRecognizer 接口的占位实现, mock 无资源需释放。
 func (m *countMockOCR) Close() error { return nil }
 
 // errOCRMockFailed 是 mock 专用错误，区别于真实 OCR 错误。
@@ -238,7 +238,7 @@ func (m *blankThenSuccessMock) Recognize(_ []byte) (string, error) {
 	return m.returnText, nil
 }
 
-// Close 是 captchaRecognizer 接口的占位实现, mock 无资源需释放。
+// Close 是 CaptchaRecognizer 接口的占位实现, mock 无资源需释放。
 func (m *blankThenSuccessMock) Close() error { return nil }
 
 // TestOCRRetry_ImageFetchFails 验证：图片获取失败也换图。
