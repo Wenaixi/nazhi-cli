@@ -168,6 +168,39 @@ func WithTimeout(d time.Duration) Option {
 	}
 }
 
+// WithSessionBackoff 设置 session 激活失败后抑制重试的时间窗口。
+//
+// 默认值：5 秒（见 defaultSessionBackoff 常量）。SDK 用户调高/调低本字段
+// 可针对不同服务端稳定性做适配：
+//   - 高频调用场景：调小到 1s 让失败快速重试
+//   - 服务端降级场景：调大到 30s 让瞬时故障不被重复激活放大
+//
+// 行为约定：
+//   - d > 0：设置 c.sessionBackoff
+//   - d = 0：拒绝并 warn，保持当前值（防止静默清零已有配置）
+//   - d < 0：拒绝并 warn，保持当前值（负数 time.Duration 无意义）
+//
+// 设计一致：与 WithTimeout 的「d<=0 拒绝 + warn」守卫对称。
+//
+// F15/H2 修复（round-7/round-9）：与 ErrSessionBackoff 哨兵配对，
+// 让 SDK 用户能调整 thundering herd 抑制窗口。
+func WithSessionBackoff(d time.Duration) Option {
+	return func(c *Client) {
+		if d < 0 {
+			c.logger.Warn("WithSessionBackoff: 负数 backoff 窗口被拒绝，保持当前值",
+				"duration", d, "current", c.sessionBackoff)
+			return
+		}
+		if d == 0 {
+			c.logger.Warn("WithSessionBackoff: 0 窗口被拒绝（防止静默清零默认值），保持当前值",
+				"current", c.sessionBackoff,
+				"tip", "用 WithSessionBackoff(5*time.Second) 设置正数，或保留默认值 5s")
+			return
+		}
+		c.sessionBackoff = d
+	}
+}
+
 // WithLogger 设置自定义 logger。
 //
 // 行为约定：
@@ -229,35 +262,6 @@ func WithCustomOCR(r CaptchaRecognizer) Option {
 // client_ocr_disabled.go（!ddddocr — 仅返回 warn 占位实现）。
 //
 // 函数签名在两个文件中保持一致（(int) Option），保证 Option 接口契约。
-
-// WithSessionBackoff 设置激活失败后重试抑制窗口。
-//
-// 默认 5 秒（见 defaultSessionBackoff）。SDK 用户在以下场景需调整：
-//   - 压测场景：服务端在大量并发激活时返回 429/503，可拉长窗口减少重复尝试
-//   - 已知故障恢复慢：把窗口拉长到 30s+ 避免在恢复前反复踩坑
-//   - 调试场景：设为 0 禁用 backoff（与现状不同——便于观察每次实际激活）
-//
-// 行为约定（与 WithTimeout 对称守卫）：
-//   - d <= 0：拒绝设置并 warn，保持当前值（防止 0 禁用后忘记恢复 / 负数吞掉）
-//   - d > 0：设置窗口
-//
-// 错误抑制语义：window 内同 token 重复激活会直接返回缓存错误
-// （包装 ErrSessionBackoff 哨兵），调用方可用 errors.Is 识别。
-// 不同 token 仍会尝试激活（F15 修复：缓存键包含 token 维度）。
-//
-// 注意：本 Option 只控制 backoff 窗口大小，不影响 lastActivationErr /
-// lastFailedToken 的记录逻辑。即便 d=0（禁用抑制），失败仍会被记录，
-// 只是检查时永远不命中窗口——便于后续重新引入抑制时无需重新累积状态。
-func WithSessionBackoff(d time.Duration) Option {
-	return func(c *Client) {
-		if d <= 0 {
-			c.logger.Warn("WithSessionBackoff: 0 或负数被拒绝，保持当前值（用 WithSessionBackoff(5*time.Second) 设正数）",
-				"duration", d, "current", c.sessionBackoff)
-			return
-		}
-		c.sessionBackoff = d
-	}
-}
 
 // WithToken 预置 X-Auth-Token（同时写入 Header 和 Cookie）。
 //
@@ -344,9 +348,6 @@ func (c *Client) logDebug(format string, args ...any) {
 		return
 	}
 	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
-		return
-	}
-	c.logger.Debug(fmt.Sprintf(format, args...))
 		return
 	}
 	c.logger.Debug(fmt.Sprintf(format, args...))
