@@ -163,8 +163,8 @@ func TestPool_Close_RecognizeDuringClose_NoGhostInits(t *testing.T) {
 		if err == nil {
 			t.Fatal("Close 后 Recognize 应返回错误，但返回 nil")
 		}
-		if !strings.Contains(err.Error(), "已关闭") {
-			t.Errorf("错误消息应包含『已关闭』，实际：%v", err)
+		if !strings.Contains(err.Error(), "closed") {
+			t.Errorf("错误消息应包含『closed』，实际：%v", err)
 		}
 	})
 }
