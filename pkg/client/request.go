@@ -86,7 +86,10 @@ func (c *Client) bizHeaders(token string) map[string]string {
 		"Accept":       "application/json, text/plain, */*",
 		"User-Agent":   defaultUserAgent,
 		"X-Auth-Token": token,
-		"Referer":      c.baseURL + "/homepage",
+		// E1 修复（round-9）：改走 c.bizURL() helper，与 session.go / task.go
+		// / self_eval.go 保持一致。如未来给 baseURL 加 TrimSuffix / 路径校验，
+		// helper 单一入口会同步所有调用点。
+		"Referer": c.bizURL("/homepage"),
 	}
 }
 
