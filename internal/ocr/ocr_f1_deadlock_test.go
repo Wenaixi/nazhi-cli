@@ -35,6 +35,7 @@ func TestOCR_F1_InitMuGlobal_PanicDeadlock(t *testing.T) {
 		ch := make(chan struct{})
 		go func() {
 			initMuGlobal.Lock()
+			//nolint:staticcheck // SA2001 空临界区故意构造：验证 G1 释放后 G2 能立即获取锁
 			initMuGlobal.Unlock()
 			close(ch)
 		}()
@@ -64,6 +65,7 @@ func TestOCR_F1_InitMuGlobal_PanicDeadlock(t *testing.T) {
 		ch := make(chan struct{})
 		go func() {
 			initMuGlobal.Lock()
+			//nolint:staticcheck // SA2001 空临界区故意构造：G2 持有锁直到超时 → 验证"无 defer"死锁
 			initMuGlobal.Unlock()
 			close(ch)
 		}()
