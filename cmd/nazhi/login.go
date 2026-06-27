@@ -58,18 +58,21 @@ var loginCmd = &cobra.Command{
 		})
 		if err != nil {
 			// 用 ErrorCategory 分类替代 errors.Is 逐一枚举。
-			switch client.ClassifyError(err) {
+			// 文案走 SDK 内部闭环（SuggestUserMessage），CLI 只控制
+			// envelope 通道 + 退出码 + 是否透传原 err。
+			cat := client.ClassifyError(err)
+			switch cat {
 			case client.ErrorCategoryOCR:
-				printVerbose("OCR 识别器未配置：当前构建无 -tags ddddocr。请使用预编译 release 二进制（nazhi-cli releases 页面），或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器")
+				printVerbose(cat.SuggestUserMessage())
 				printJSON(map[string]any{
 					"status":  "error",
-					"message": "登录失败：OCR 识别器未配置。当前构建未启用 -tags ddddocr，无法自动识别验证码。请下载预编译 release 二进制或注入自定义识别器。",
+					"message": "登录失败：" + cat.SuggestUserMessage(),
 				})
 				markError()
 			case client.ErrorCategoryAuth:
 				printError(fmt.Errorf("登录失败: %w（SSO 重定向 Location 头畸形，请检查 SSO 服务端响应或上报 bug）", err))
 			default:
-				printError(fmt.Errorf("登录失败: %w", err))
+				printError(fmt.Errorf("登录失败: %s（%w）", cat.SuggestUserMessage(), err))
 			}
 			return
 		}
