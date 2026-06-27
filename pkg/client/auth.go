@@ -88,6 +88,13 @@ const (
 	// maxOCRImagesTotal 最多换多少张验证码图片。
 	// 1 × 99 = 99 次总尝试上限（保留原 99 次预算，分配给换图）。
 	maxOCRImagesTotal = 99
+
+	// ocrTimeout 是 OCR 重试循环的总超时上限。
+	//
+	// C6 修复：99 张图 × ~600ms/张 ≈ 60s 总耗时，远超合理的登录等待时间。
+	// 若调用方未在 context 中设置 deadline，派生 30s 超时（与 WithTimeout
+	// 默认值对齐），超时后立即返回。
+	ocrTimeout = 30 * time.Second
 )
 
 // Login 完成 SSO 登录并返回 Token。
@@ -255,6 +262,14 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 // 兜底极小概率的 CGO/IO 抖动；真正有效的是换图（新验证码字符集变化）。
 // 把所有重试预算放在换图上，效率与原 3×33 策略等价但少 2/3 次浪费 OCR 调用。
 func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
+	// C6 修复：若调用方未在 context 中设置 deadline，派生一个 ocrTimeout 超时上下文。
+	// 99 张图 × ~600ms/张 ≈ 60s 总耗时，远超合理的登录等待时间。30s 超时与
+	// WithTimeout 默认值对齐，超时后循环顶部的 ctx.Err() 检查能立即返回。
+	if _, ok := ctx.Deadline(); !ok {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, ocrTimeout)
+		defer cancel()
+	}
 	var lastErr error
 	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
 		// 修复 review-tdd F11：循环顶部检查 ctx.Err()，ctx cancel 后立即返回。
