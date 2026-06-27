@@ -70,6 +70,7 @@ func newClient(t *testing.T, ssoBase, bizBase string) *client.Client {
 		client.WithUploadURL(defaultUploadBase),
 		client.WithTimeout(apiTimeout),
 	)
+	t.Cleanup(func() { _ = c.Close() })
 	return c
 }
 
