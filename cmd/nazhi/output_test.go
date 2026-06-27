@@ -67,6 +67,7 @@ func TestMain_DeferCloseStillRuns(t *testing.T) {
 	// 构造一个真实 client 并注册
 	c, _ := client.New()
 	trackClient(c)
+	t.Cleanup(func() { _ = c.Close() })
 	// 兜底：测试结束前确保清空（不污染其它测试）
 	defer func() {
 		pendingClientsMu.Lock()
