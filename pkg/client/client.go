@@ -169,8 +169,22 @@ func WithTimeout(d time.Duration) Option {
 }
 
 // WithLogger 设置自定义 logger。
+//
+// 行为约定：
+//   - l == nil：拒绝设置并 warn，保持当前 logger（防止 nil 覆盖后
+//     后续 c.logger.Warn/Debug/Error 全部 nil pointer panic）
+//   - 否则：替换 logger
+//
+// 设计一致：与 WithHTTPClient nil 守卫对称（D1 / F8 修复的风格）。
 func WithLogger(l *slog.Logger) Option {
-	return func(c *Client) { c.logger = l }
+	return func(c *Client) {
+		if l == nil {
+			c.logger.Warn("WithLogger: nil logger 被拒绝，保持当前值",
+				"tip", "用 slog.New(slog.NewTextHandler(...)) 创建自定义 logger")
+			return
+		}
+		c.logger = l
+	}
 }
 
 // WithHTTPClient 设置自定义 HTTP 客户端（完全替换默认客户端）。
