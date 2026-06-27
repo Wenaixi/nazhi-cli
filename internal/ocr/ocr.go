@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 
 	"github.com/yangbin1322/go-ddddocr/ddddocr"
 )
@@ -51,9 +52,9 @@ var charsetJSON []byte
 // 多 Client 推荐共享同一个 Pool 实例（见 client.New 的 WithOCRConcurrency），
 // 避免重复解压模型。
 type OCR struct {
-	initMu      sync.Mutex // 保护初始化路径和 closed 翻转
-	initialized bool       // true = 初始化已完成（成功或失败由 initErr 决定）
-	closed      bool       // true = Close() 已调用，禁止后续识别
+	initMu      sync.Mutex  // 保护初始化路径和 closed 翻转
+	initialized bool        // true = 初始化已完成（成功或失败由 initErr 决定）
+	closed      atomic.Bool // true = Close() 已调用，禁止后续识别（F1 atomic）
 	initErr     error
 	ocr         *ddddocr.DdddOcr
 	tempDir     string
@@ -145,9 +146,13 @@ func (p *Pool) trackInit(o *OCR) {
 //	  T1' Recognize 拿 closeMu（在 T0 之前）-> 看到 closed=false -> Get + trackInit
 //	       -> 放 closeMu -> Close 路径（拿 closeMu）-> Range 包含 T1' 注册的实例
 //	保证：T1 要么被 Close 之前完整处理（被 Close 清理），要么被 Close 之后拒绝。
+//
+// F1 修复：o.Recognize 在 closeMu 外执行，但 OCR 级别有 atomic closed 二次检查
+// （在 o.mu 临界区内、Classification 前），形成两层防御：
+//   - 层 1（Pool）：closeMu 保证 trackInit 窗口不泄漏
+//   - 层 2（OCR）：atomic closed 二次检查保证永不访问已关闭 session
 func (p *Pool) Recognize(imageData []byte) (string, error) {
 	// 临界区：close 检查 + Get + trackInit 原子完成
-	// （不能调 o.Recognize，避免 ONNX 识别阻塞在临界区内）
 	var o *OCR
 	p.closeMu.Lock()
 	if !p.closed {
@@ -218,6 +223,9 @@ func (p *Pool) Close() error {
 
 // platformLibName 根据 runtime.GOOS 返回解压到磁盘时的原生库文件名。
 // C 运行时需要按平台命名规范来 LoadLibrary / dlopen。
+//
+// F4 保守方案：保留 wrapper（统一调用入口价值：调用点只需调 platformLibName()
+// 而不必每次写 platformLibNameFor(runtime.GOOS)），加注释说明。
 func platformLibName() string {
 	return platformLibNameFor(runtime.GOOS)
 }
@@ -240,6 +248,60 @@ func platformLibNameFor(goos string) string {
 
 // ─── 识别 API ───
 
+// initOnce 在 initMu 锁定状态下执行 OCR 实例的惰性初始化。
+// F2 修复：deferred recover 捕获 extractModels/ddddocr.New 的 panic，
+// 清理 tempDir + 重置 initialized，防止 tempDir 永久泄漏到 %TEMP%。
+func (o *OCR) initOnce() error {
+	// F2 修复：deferred recover 捕获 initMu 临界区内 panic，
+	// 清理 tempDir + 重置 initialized
+	var cleanupTempDir bool
+	defer func() {
+		if r := recover(); r != nil {
+			if cleanupTempDir && o.tempDir != "" {
+				_ = os.RemoveAll(o.tempDir)
+				o.tempDir = ""
+			}
+			o.initialized = true
+			panic(r)
+		}
+	}()
+
+	o.tempDir, o.initErr = o.extractModels()
+	if o.initErr != nil {
+		o.initialized = true
+		return fmt.Errorf("OCR 初始化失败: %w", o.initErr)
+	}
+	cleanupTempDir = true
+
+	// B6 修复：SetOnnxRuntimePath + ddddocr.New 用 initMuGlobal 保护，
+	// 确保多实例并发初始化时 SetOnnxRuntimePath 和 New 不被交叉覆盖。
+	// onceSetPath 确保 SetOnnxRuntimePath 在整个进程中只调用一次。
+	initMuGlobal.Lock()
+	libPath := filepath.Join(o.tempDir, platformLibName())
+	onceSetPath.Do(func() {
+		ddddocr.SetOnnxRuntimePath(libPath)
+	})
+
+	// 创建识别器，指定模型目录为解压目录
+	opts := ddddocr.DefaultOptions()
+	opts.ModelDir = o.tempDir
+	ocr, err := ddddocr.New(opts)
+	initMuGlobal.Unlock()
+	if err != nil {
+		o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
+		o.initialized = true
+		return o.initErr
+	}
+
+	// 限制字符范围为 大写+小写+数字（验证码通常包含这些）
+	ocr.SetRanges(ddddocr.RangeLowerUpperDigit)
+
+	o.ocr = ocr
+	o.initialized = true
+	cleanupTempDir = false // 初始化成功，不再需要清理
+	return nil
+}
+
 // Recognize 对图片字节进行验证码识别，返回识别出的文本。
 // imageData 应为 JPEG 或 PNG 编码的字节。
 func (o *OCR) Recognize(imageData []byte) (string, error) {
@@ -247,44 +309,15 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	// 关键设计：Close() 会把 closed=true、initErr=nil、initialized=false、
 	// o.ocr=nil，之后调 Recognize 走「重新初始化」分支（除非已 close）。
 	o.initMu.Lock()
-	if o.closed {
+	if o.closed.Load() {
 		o.initMu.Unlock()
 		return "", errors.New("OCR 已关闭")
 	}
 	if !o.initialized {
-		o.tempDir, o.initErr = o.extractModels()
-		if o.initErr != nil {
-			o.initialized = true
+		if err := o.initOnce(); err != nil {
 			o.initMu.Unlock()
-			return "", fmt.Errorf("OCR 初始化失败: %w", o.initErr)
+			return "", err
 		}
-
-		// B6 修复：SetOnnxRuntimePath + ddddocr.New 用 initMuGlobal 保护，
-		// 确保多实例并发初始化时 SetOnnxRuntimePath 和 New 不被交叉覆盖。
-		// onceSetPath 确保 SetOnnxRuntimePath 在整个进程中只调用一次。
-		initMuGlobal.Lock()
-		libPath := filepath.Join(o.tempDir, platformLibName())
-		onceSetPath.Do(func() {
-			ddddocr.SetOnnxRuntimePath(libPath)
-		})
-
-		// 创建识别器，指定模型目录为解压目录
-		opts := ddddocr.DefaultOptions()
-		opts.ModelDir = o.tempDir
-		ocr, err := ddddocr.New(opts)
-		initMuGlobal.Unlock()
-		if err != nil {
-			o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
-			o.initialized = true
-			o.initMu.Unlock()
-			return "", o.initErr
-		}
-
-		// 限制字符范围为 大写+小写+数字（验证码通常包含这些）
-		ocr.SetRanges(ddddocr.RangeLowerUpperDigit)
-
-		o.ocr = ocr
-		o.initialized = true
 	}
 	initErr := o.initErr
 	ocr := o.ocr
@@ -299,7 +332,15 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	}
 
 	// 单例场景下保护 Classification 调用，并发请求时串行执行识别
+	// F1 修复：Classification 前 atomic 二次检查 closed。
+	// 场景：T0 拿到 o.mu 进入 Classification 阻塞 → T1 Close 翻 closed + 关闭 ddddocr session
+	//  → T0 持已关闭 session → ddddocr C 运行时 segfault。
+	// 持 o.mu 后 Load closed 是无锁快速路径，Close 后立即返回错误，永不调 Classification。
 	o.mu.Lock()
+	if o.closed.Load() {
+		o.mu.Unlock()
+		return "", errors.New("OCR 已关闭")
+	}
 	result, err := ocr.Classification(imageData)
 	o.mu.Unlock()
 	if err != nil {
@@ -314,9 +355,14 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 // 让调用方知情，避免临时目录永久泄漏到 %TEMP%。
 //
 // Close 后再次调用 Recognize 会返回 "OCR 已关闭" 错误，而不是触发 nil panic。
+//
+// F1 修复：closed 改 atomic.Bool，Close 内先 Store(true)，让所有持 o.mu 阻塞在
+//
+//	Classification 之前的 goroutine 立即在二次检查中失败（永不访问已关闭 ddddocr
+//	session）。这是 use-after-close 窗口的修复核心。
 func (o *OCR) Close() error {
 	o.initMu.Lock()
-	o.closed = true
+	o.closed.Store(true)
 	o.initialized = false
 	o.initErr = nil
 	ocr := o.ocr
