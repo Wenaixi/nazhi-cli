@@ -51,10 +51,11 @@ var ErrUnsupportedFormat = errors.New("unsupported image format")
 //
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
-	// decodeImage 返回的 format 此前用于 `if format == "gif"` 特例分支，
-	// F11 修复后该分支已删除。format 保留在签名里以便未来按格式差异化处理
-	// （如 webp 编码、bmp 解码扩展），当前统一走 flattenOnWhite。
-	img, _, err := decodeImage(path)
+	// F2 修复：decodeImage 原来返回 format，自 round-7 F11 删除 GIF 特例后
+	// 无消费者。format 曾用于 `if format == "gif"` 分支，现已统一走
+	// flattenOnWhite（hasTransparency 自动处理 Paletted 透明检测），
+	// 故简化签名删除 format 返回值。
+	img, err := decodeImage(path)
 	if err != nil {
 		return nil, "", err
 	}
@@ -139,10 +140,12 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 // decodeImage sniff 文件 magic bytes 解码任意格式。
 // 优先用 magic bytes 检测，避免依赖扩展名（用户可能给 .dat 文件）。
-func decodeImage(path string) (image.Image, string, error) {
+//
+// F2 修复：删除 format 返回值，F11 后无消费者。
+func decodeImage(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, "", fmt.Errorf("打开图片失败: %w", err)
+		return nil, fmt.Errorf("打开图片失败: %w", err)
 	}
 	defer f.Close()
 
@@ -150,7 +153,7 @@ func decodeImage(path string) (image.Image, string, error) {
 	var head [12]byte
 	n, _ := io.ReadFull(f, head[:])
 	if n == 0 {
-		return nil, "", errors.New("file is empty")
+		return nil, errors.New("file is empty")
 	}
 
 	format := sniffFormat(head[:n])
@@ -161,27 +164,27 @@ func decodeImage(path string) (image.Image, string, error) {
 
 	// 重置 reader
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return nil, "", fmt.Errorf("读取图片失败: %w", err)
+		return nil, fmt.Errorf("读取图片失败: %w", err)
 	}
 
 	switch format {
 	case "jpeg", "jpg":
 		img, err := jpeg.Decode(f)
-		return img, "jpeg", err
+		return img, err
 	case "png":
 		img, err := png.Decode(f)
-		return img, "png", err
+		return img, err
 	case "gif":
 		img, err := gif.Decode(f)
-		return img, "gif", err
+		return img, err
 	case "webp":
 		img, err := decodeWebP(f)
-		return img, "webp", err
+		return img, err
 	case "bmp":
 		// stdlib 无 BMP 解码，提示用户转换
-		return nil, "", fmt.Errorf("%w: BMP（请先用图片工具转为 PNG/JPG）", ErrUnsupportedFormat)
+		return nil, fmt.Errorf("%w: BMP（请先用图片工具转为 PNG/JPG）", ErrUnsupportedFormat)
 	}
-	return nil, "", fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
+	return nil, fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
 }
 
 // sniffFormat 通过文件头 magic bytes 识别格式。
@@ -192,7 +195,9 @@ func sniffFormat(head []byte) string {
 	if len(head) >= 8 && head[0] == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G' {
 		return "png"
 	}
-	if len(head) >= 6 && (string(head[:6]) == "GIF87a" || string(head[:6]) == "GIF89a") {
+	// F3 修复：用 bytes.Equal 避免 string(head[:6]) 堆分配（字面量已在 .rodata 分配好，
+	// 但 []byte→string 转换在 go 编译时无法逃逸分析，实际触发堆分配）。
+	if len(head) >= 6 && (bytes.Equal(head[:6], []byte("GIF87a")) || bytes.Equal(head[:6], []byte("GIF89a"))) {
 		return "gif"
 	}
 	// WEBP: "RIFF" + 4 bytes + "WEBP"
@@ -212,12 +217,14 @@ func decodeWebP(r io.Reader) (image.Image, error) {
 }
 
 // hasTransparency 检测图片是否含透明通道。
+//
+// F4 修复：将 *image.Paletted 独立 if 合并到 type switch 中，
+// 消除独立的 if 语句，使透明检测逻辑更紧凑。
 func hasTransparency(img image.Image) bool {
 	switch img.(type) {
 	case *image.NRGBA, *image.NRGBA64, *image.RGBA, *image.RGBA64:
 		return true
-	}
-	if _, ok := img.(*image.Paletted); ok {
+	case *image.Paletted:
 		// GIF Paletted 几乎都有透明
 		return true
 	}
