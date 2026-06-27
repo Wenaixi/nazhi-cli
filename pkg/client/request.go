@@ -150,6 +150,9 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 
 // logRequestHeaders 在 debug 级别输出请求头，值长度 > 16 字符时自动截断脱敏。
 func (c *Client) logRequestHeaders(req *http.Request) {
+	if c.logger == nil {
+		return
+	}
 	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
 		return
 	}

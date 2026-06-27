@@ -242,8 +242,22 @@ func WithHTTPClient(hc *http.Client) Option {
 
 // WithCustomOCR 是测试用 Option，注入自定义验证码识别器。
 // 仅在测试中使用。
+//
+// 行为约定：
+//   - r == nil：拒绝设置并 warn，保持当前值（防止 nil 静默覆盖
+//     已注入的识别器，导致后续 Login 返回 ErrOCRNotConfigured）
+//   - 否则：替换识别器
+//
+// 设计一致：与 WithLogger(nil) / WithHTTPClient(nil) 的 nil 拒绝守卫对称。
 func WithCustomOCR(r CaptchaRecognizer) Option {
-	return func(c *Client) { c.ocr = r }
+	return func(c *Client) {
+		if r == nil {
+			c.logger.Warn("WithCustomOCR: nil recognizer 被拒绝，保持当前值",
+				"tip", "使用真正的 CaptchaRecognizer 实现，或省略本 Option 使用默认 OCR")
+			return
+		}
+		c.ocr = r
+	}
 }
 
 // WithOCRConcurrency 设置 OCR 实例池预分配数量。
