@@ -170,7 +170,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
 				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 			}
-			if expiresAtToFallbackWarn(expiresAt) {
+			if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
 				c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
 			}
 			// Cookie 同步：将 X-Auth-Token 写入 cookie jar，供后续业务请求使用
@@ -199,7 +199,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
 		}
 		// 兜底 expiresAt = now+24h 时 warn 出来（说明 server 真的没给 expires）
-		if expiresAtToFallbackWarn(expiresAt) {
+		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
 			c.logger.Warn("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
 		}
 		// Cookie 同步
@@ -411,14 +411,6 @@ func parseExpiresMap(q map[string][]string) time.Time {
 		}
 	}
 	return time.Now().Add(defaultTokenTTL)
-}
-
-// expiresAtToFallbackWarn 判断 expiresAt 是否走了 defaultTokenTTL 兜底（≥ defaultTokenTTL - 1h）。
-//
-// 用于 Login 200/302 路径在 expiresAt 走兜底时输出 WARN，让调用方知道 server 没返回
-// expires 信息。200/302 复用同一判定保证语义对称。
-func expiresAtToFallbackWarn(expiresAt time.Time) bool {
-	return time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold
 }
 
 // extractTokenFromFragment 从 fragment 字符串中提取 token。
