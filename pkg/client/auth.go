@@ -375,6 +375,9 @@ func derefOr(s *string, def string) string {
 	return *s
 }
 func (c *Client) syncCookieToken(token string) error {
+	if c.http == nil {
+		return fmt.Errorf("syncCookieToken: HTTP client 为 nil，无法同步 token 到 cookie")
+	}
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
 	if !ok {
 		return fmt.Errorf("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar（实际类型 %T），X-Auth-Token 无法同步到 cookie。"+
@@ -396,7 +399,9 @@ func (c *Client) syncCookieToken(token string) error {
 
 func (c *Client) warnSyncCookieToken(token, label string) {
 	if err := c.syncCookieToken(token); err != nil {
-		c.logger.Warn("Login "+label+" 后同步 token 到 cookie 失败", "err", err.Error())
+		if c.logger != nil {
+			c.logger.Warn("Login "+label+" 后同步 token 到 cookie 失败", "err", err.Error())
+		}
 	}
 }
 

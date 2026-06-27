@@ -14,6 +14,7 @@ package client
 import (
 	"context"
 	"errors"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -103,31 +104,37 @@ func TestParallelDims_LimitFourMaxInflightFour(t *testing.T) {
 //   - 后续未启动的 items 跳过（fetch 不被调用）
 //   - 已启动的 fetch 收到 cancel 信号
 //   - 返回的 errs 包含 context.Canceled/DeadlineExceeded
+//
+// 注意：用 sync.Once 确保恰好一次 cancel() 调用，
+// 避免 started.Add(1) 与 started.Load() == 1 的竞态条件
+// （并发下两个 goroutine 都看到 started!=1，都不调 cancel）。
 func TestParallelDims_CtxCancelShortCircuits(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 
-	var started atomic.Int32
+	var (
+		cancelOnce sync.Once
+		started    atomic.Int32
+	)
 
 	items := make([]int, 50) // 多到不可能全部启动
 	for i := range items {
 		items[i] = i
 	}
 
-	out, errs := ParallelDims[int](ctx, items, func(ctx context.Context, v int) (int, error) {
+	out, errs := ParallelDims[int](ctx, items, func(innerCtx context.Context, v int) (int, error) {
 		started.Add(1)
-		// 第一个完成前取消
-		if started.Load() == 1 {
-			time.Sleep(5 * time.Millisecond)
+		// sync.Once 确保只一个 goroutine 调 cancel()（无竞态）
+		cancelOnce.Do(func() {
 			cancel()
-		}
-		// 监听 ctx
+		})
+		// 监听 innerCtx (egCtx) — 它会在父 ctx 取消后收到 Done 信号
 		select {
-		case <-ctx.Done():
-			return 0, ctx.Err()
-		case <-time.After(500 * time.Millisecond):
+		case <-innerCtx.Done():
+			return 0, innerCtx.Err()
+		case <-time.After(10 * time.Second):
 			return v, nil
 		}
-	}, 2)
+	}, 4)
 
 	if started.Load() >= int32(len(items)) {
 		t.Errorf("ctx 取消后应 short-circuit，但所有 %d 个 item 都启动了", len(items))
