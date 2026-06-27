@@ -344,7 +344,7 @@ func extractTokenFromLocation(location string) (string, time.Time, error) {
 			token = fToken
 		}
 	}
-	return token, parseLocationExpires(u), nil
+	return token, parseExpiresMap(u.Query()), nil
 }
 
 // defaultTokenTTL 是 server 未返回 expires_in/exp 时 token 过期时间的兜底值。
@@ -362,12 +362,6 @@ const defaultTokenTTL = 24 * time.Hour
 // 用途：Login 200/302 路径在 expiresAt 接近 defaultTokenTTL 时输出 WARN，让调用方知道
 // server 没返回 expires 信息。阈值取 defaultTokenTTL - 1h：兜底值误差在 1h 内才认。
 const expiresFallbackThreshold = 1 * time.Hour
-
-// parseLocationExpires 从 URL query 解析过期时间。
-// 优先 expires_in（相对秒数），其次 exp（绝对 Unix 时间戳），都缺失则 now+defaultTokenTTL。
-func parseLocationExpires(u *url.URL) time.Time {
-	return parseExpiresMap(u.Query())
-}
 
 // parseReturnDataExpires 从 UnifiedResponse.returnData (map[string]any) 中
 // 解析过期时间。优先 expires_in（相对秒数），其次 exp（绝对 Unix 时间戳），
