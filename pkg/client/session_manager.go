@@ -97,7 +97,52 @@ func (sm *sessionManager) GetCachedUserInfo() *types.UserInfo {
 	return sm.cachedUserInfo
 }
 
-// Activate wraps the 4-step activation, backoff check, and state management.
+// SetBackoff 设置 backoff 窗口。
+//
+// 行为约定：
+//   - d > 0：设置 backoff
+//   - d <= 0：no-op（保持当前值），防止静默清零
+//
+// 设计一致：与 WithSessionBackoff 的「d<=0 拒绝」守卫对称。
+// 公开方法 WithSessionBackoff 在 Option 层提供更详细的 warn 日志。
+func (sm *sessionManager) SetBackoff(d time.Duration) {
+	if d <= 0 {
+		return
+	}
+	sm.backoff = d
+}
+
+// tryActivate 在 sm.mu 持锁状态下执行 backoff 检查 + 4 步激活 + 状态记录。
+//
+// 调用方必须持 sm.mu 锁。
+// 语义等价于原 Client.activateWithBackoffCheck，下沉到 sessionManager。
+//
+// 职责链：
+//  1. backoff 检查（同 token 在窗口内 → 返回 ErrSessionBackoff）
+//  2. 调用 activateFn 执行 4 步激活（持锁写 cookie jar）
+//  3. 失败 → RecordFailure；成功 → RecordSuccess
+func (sm *sessionManager) tryActivate(
+	ctx context.Context,
+	token string,
+	activateFn func(context.Context, string) (*types.UserInfo, error),
+) (*types.UserInfo, error) {
+	// backoff 检查：上次失败且同 token 在窗口内 → 抑制
+	if sm.isBackoffHit(token) {
+		return nil, fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token: %v",
+			ErrSessionBackoff, token, time.Since(sm.lastAttempt), sm.lastErr)
+	}
+
+	// 持锁激活：4 步串行执行，写 cookie jar 互斥
+	info, err := activateFn(ctx, token)
+	if err != nil {
+		sm.RecordFailure(token, err)
+		return nil, err
+	}
+	sm.RecordSuccess(token, info)
+	return info, nil
+}
+
+// Activate wraps the 4-step activation, DCL fast path, backoff check, and state management.
 // 调用方负责传实际的 activateFn，便于隔离测试。
 func (sm *sessionManager) Activate(
 	ctx context.Context,
@@ -118,17 +163,6 @@ func (sm *sessionManager) Activate(
 		return sm.cachedUserInfo, nil
 	}
 
-	// backoff 检查
-	if sm.isBackoffHit(token) {
-		return nil, fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token: %v",
-			ErrSessionBackoff, token, time.Since(sm.lastAttempt), sm.lastErr)
-	}
-
-	info, err := activateFn(ctx, token)
-	if err != nil {
-		sm.RecordFailure(token, err)
-		return nil, err
-	}
-	sm.RecordSuccess(token, info)
-	return info, nil
+	// 委托给 tryActivate：backoff 检查 + 激活 + 状态记录
+	return sm.tryActivate(ctx, token, activateFn)
 }

@@ -123,7 +123,7 @@ func TestActivateSessionIfNeeded_BackoffIsScopedToToken(t *testing.T) {
 		WithBaseURL(failSrv.URL),
 		WithTimeout(5*time.Second),
 	)
-	c.sm.backoff = time.Hour
+	c.sm.SetBackoff(time.Hour)
 
 	if _, err := c.ActivateSession(context.Background(), "token-A"); err == nil {
 		t.Fatal("第一阶段：token-A 在失败 server 上应返回 error")
@@ -165,7 +165,7 @@ func TestActivateSessionIfNeeded_BackoffHitsForSameToken(t *testing.T) {
 		WithBaseURL(failSrv.URL),
 		WithTimeout(5*time.Second),
 	)
-	c.sm.backoff = time.Hour
+	c.sm.SetBackoff(time.Hour)
 
 	if _, err := c.ActivateSession(context.Background(), "token-X"); err == nil {
 		t.Fatal("第一阶段：token-X 在失败 server 上应返回 error")
@@ -577,7 +577,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 		WithBaseURL(srv.URL),
 		WithTimeout(5*time.Second),
 	)
-	c.sm.backoff = time.Hour
+	c.sm.SetBackoff(time.Hour)
 
 	const goroutines = 10
 	var wg sync.WaitGroup
@@ -609,7 +609,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 // newTestSM 构造一个测试用的 sessionManager，backoff 窗口压缩到 50ms 方便测试。
 func newTestSM() *sessionManager {
 	var sm sessionManager
-	sm.backoff = 50 * time.Millisecond
+	sm.SetBackoff(50 * time.Millisecond)
 	return &sm
 }
 
