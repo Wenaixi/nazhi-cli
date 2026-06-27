@@ -9,7 +9,7 @@
 //   - 即使 server 真给了 expires_in/exp 字段，extractTokenFromReturnData
 //     也完全忽略。
 //
-// 修复后：extractTokenFromReturnData 应模仿 parseLocationExpires 解析
+// 修复后：extractTokenFromReturnData 应模仿 parseExpiresMap 解析
 // returnData.expires_in（相对秒数）和 returnData.exp（绝对 Unix 时间戳），
 // 都缺失才 fallback now+24h。
 //
@@ -90,7 +90,7 @@ func TestExtractTokenFromReturnData_Fallback24h(t *testing.T) {
 }
 
 // TestExtractTokenFromReturnData_ExpiresIn_TakesPriorityOverExp 验证
-// expires_in 优先级高于 exp（与 parseLocationExpires 行为对称）。
+// expires_in 优先级高于 exp（与 parseExpiresMap 行为对称）。
 func TestExtractTokenFromReturnData_ExpiresIn_TakesPriorityOverExp(t *testing.T) {
 	// 同时给 expires_in=60 和 exp=1888888888：应取 expires_in
 	resp := makeUnifiedResp(`{"token":"jwt","expires_in":60,"exp":1888888888}`)
