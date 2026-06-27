@@ -18,7 +18,7 @@ import (
 	"time"
 )
 
-// TestOCR_F1_UseAfterClose 验证 F1 修复的 3 个 invariant。
+// TestOCR_F1_UseAfterClose 验证 use-after-close 修复的 3 个 invariant。
 func TestOCR_F1_UseAfterClose(t *testing.T) {
 	t.Run("OCR.Close后Recognize返回错误不panic", func(t *testing.T) {
 		o := &OCR{}
@@ -81,7 +81,7 @@ func TestOCR_F1_UseAfterClose(t *testing.T) {
 		wg.Wait()
 
 		if n := panics.Load(); n > 0 {
-			t.Errorf("F1 修复失败：%d 个 goroutine panic（应为 0）", n)
+			t.Errorf("use-after-close 修复失败：%d 个 goroutine panic（应为 0）", n)
 		}
 	})
 

@@ -59,7 +59,6 @@ func TestExtractTokenFromLocation_Fallback24h(t *testing.T) {
 
 // F2-EXTRACT-TOKEN-ASYM RED 测试：畸形 URL 返回 error，与 extractTokenFromReturnData
 // 的错误传播契约对称。
-//
 // 用例：`http://[::1` 是缺少闭合 `]` 的 IPv6 字面量，net/url 必返回 parse error。
 // 修复前：静默返回 ("", now+24h) — 错误吞掉，调用方看到「未找到 token」。
 // 修复后：返回包装 ErrLocationParseFailed 的 error。
@@ -78,10 +77,8 @@ func TestExtractTokenFromLocation_MalformedURL_ReturnsError(t *testing.T) {
 }
 
 // F10-FRAGMENT-URLDECODE RED 测试：fragment 中的 token= 值需 URL 解码。
-//
 // 历史：strings.Split + TrimPrefix 只做字符串裁剪，JWT 含 + / = 等 URL 保留
 // 字符时会损坏 token。修复后 url.QueryUnescape 还原原始 base64 JWT。
-//
 // 用例：eyJ%2Bxxx%3D 解码后应为 eyJ+xxx=。
 func TestExtractTokenFromFragment_URLEncodedValue(t *testing.T) {
 	fragment := "token=eyJ%2Bxxx%3D"

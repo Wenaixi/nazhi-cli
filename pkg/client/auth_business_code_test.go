@@ -13,7 +13,6 @@ import (
 
 // TestLogin_200WithBusinessErrorCode 验证 HTTP 200 + 业务错误码时，
 // 应返回包含业务 msg 的错误（如"密码错误"），而不是低语义的"未找到 token"。
-//
 // Bug 场景：server 返回 200 + {"code":2,"msg":"密码错误"} → 之前会丢失业务信息。
 func TestLogin_200WithBusinessErrorCode(t *testing.T) {
 	// 业务错误只在登录 POST 时返回，其他路径返回成功

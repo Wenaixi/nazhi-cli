@@ -10,24 +10,23 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestMain_NoDoubleErrorOutput 回归测试：F7 修复后引入的副作用——
+// TestMain_NoDoubleErrorOutput 回归测试：修复后引入的副作用——
 // cobra 在遇到 parse error 时默认往 stderr 打印 "Error: ..." 和 Usage。
-// 同时 main.go:42 又用 fmt.Fprintln 再打一次同一条 error，
+// 同时 main.go:42 又用 fmt.Fprintln 再打一次同一条 error
 // 结果用户看到两遍错误信息（第二遍还没 "Error:" 前缀，破坏 JSON 统一契约）。
-//
-// 修复方案：
+// 修复方案
 //  1. rootCmd.SilenceErrors = true   → 让 cobra 不再自带 "Error: ..." 打印
 //  2. rootCmd.SilenceUsage  = true   → 让 cobra 不再自带 "Usage:" 打印
 //  3. main.go:42 把 fmt.Fprintln 换成 printError(execErr)
 //     → 走和 Run 回调相同的 JSON envelope 路径
 //
-// 本测试模拟 main.go 的执行流程：用真实的 package-level rootCmd，
-// 传入未知 flag，捕获 stderr，验证：
+// 本测试模拟 main.go 的执行流程：用真实的 package-level rootCmd
+// 传入未知 flag，捕获 stderr，验证
 //   - "unknown flag" 字样只出现 1 次（不是 2 次）
 //   - 不出现 cobra 默认的 "Error: unknown flag" 前缀
 //   - 出现 JSON envelope `\`"error\`: true`（printError 路径生效）
 //
-// 注意：本测试在测试结束前会恢复 rootCmd 的全局标志和 SetArgs 副作用，
+// 注意：本测试在测试结束前会恢复 rootCmd 的全局标志和 SetArgs 副作用
 // 避免污染其它测试。
 func TestMain_NoDoubleErrorOutput(t *testing.T) {
 	// 暂存全局状态以恢复
@@ -61,13 +60,13 @@ func TestMain_NoDoubleErrorOutput(t *testing.T) {
 	}
 	stderrOutput := buf.String()
 
-	// 关键断言 1：F2 bug 修复的标志——"unknown flag" 字样只能出现 1 次
+	// 关键断言 1：bug 修复的标志——"unknown flag" 字样只能出现 1 次
 	count := strings.Count(stderrOutput, "unknown flag")
 	if count != 1 {
 		t.Errorf("F2 未修复: stderr 中 'unknown flag' 出现 %d 次（应为 1 次），完整输出:\n%s", count, stderrOutput)
 	}
 
-	// 关键断言 2：单源输出应通过 printError 的 JSON envelope，
+	// 关键断言 2：单源输出应通过 printError 的 JSON envelope
 	// 不能出现 cobra 默认的 "Error: unknown flag" 前缀。
 	// 说明 SilenceErrors 没生效。
 	if strings.Contains(stderrOutput, "Error: unknown flag") {

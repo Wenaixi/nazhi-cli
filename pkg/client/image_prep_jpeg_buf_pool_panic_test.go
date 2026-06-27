@@ -9,13 +9,12 @@ import (
 
 // TestEncodeJPEG_PanicRecovery_PoolStillUsable 验证 encodeJPEG 内部
 // jpeg.Encode panic 后，sync.Pool 中的 buffer 仍可正常使用。
-//
 // 场景：jpeg.Encode 传入 nil *image.RGBA 时触发 nil deref panic。
 // 此时 defer buf.Reset() + jpegBufPool.Put(buf) 仍会执行，
 // buf 被归还到 pool 但内容不确定。本测试验证：
-//   - panic 不被传播到调用方（测试本身 recover）
-//   - pool.Get 后续仍返回可用 buffer
-//   - 下一轮 encodeJPEG 调用正常
+// - panic 不被传播到调用方（测试本身 recover）
+// - pool.Get 后续仍返回可用 buffer
+// - 下一轮 encodeJPEG 调用正常
 func TestEncodeJPEG_PanicRecovery_PoolStillUsable(t *testing.T) {
 	// 1. 制造 panic：nil image → jpeg.Encode 调 img.Bounds() → nil deref
 	func() {

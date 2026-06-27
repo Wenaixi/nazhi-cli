@@ -8,9 +8,9 @@ import (
 )
 
 // fakeReadCloser 模拟 http.Response.Body：
-//   - Read() 从 data 读取
-//   - Close() 增加计数器
-//   - drained 用于检测 drainAndClose 真的读了所有数据
+// - Read() 从 data 读取
+// - Close() 增加计数器
+// - drained 用于检测 drainAndClose 真的读了所有数据
 type fakeReadCloser struct {
 	data     io.Reader
 	closeCnt int

@@ -1,19 +1,16 @@
 // Package client 内部白盒测试。
-//
-// G3 (review-tdd round-4): Login 200 路径 io.ReadAll 错误应包含 status code
+// G3: Login 200 路径 io.ReadAll 错误应包含 status code
 // 和已读字节数上下文。
-//
 // 历史 bug（auth.go:135-138）：
 //
 //	bodyBytes, err := io.ReadAll(httpResp.Body)
 //	if err != nil {
-//	    return nil, fmt.Errorf("Login 读取响应体失败: %w", err)
+//	 return nil, fmt.Errorf("Login 读取响应体失败: %w", err)
 //	}
 //
 // 错误信息完全丢失根因上下文：
-//   - 不知道是哪个 status code（200/302/500/...）的 body 失败
-//   - 不知道已读了 N 字节才失败（N 字节里可能有 JSON 头部/线索）
-//
+// - 不知道是哪个 status code（200/302/500/...）的 body 失败
+// - 不知道已读了 N 字节才失败（N 字节里可能有 JSON 头部/线索）
 // 修复后：错误信息应包含 "status=%d read=%d bytes" 两个上下文，便于排查
 // server 端异常（如部分返回 200 但连接 reset、content-length 不符等）。
 package client
@@ -92,9 +89,8 @@ func (rt *errAfterBytesRT) Close() error { return nil }
 
 // TestLogin_ReadAllError_ContainsStatusAndBytes 验证 Login 200 路径
 // io.ReadAll 失败时，错误信息必须包含：
-//   - status code（这里是 200）
-//   - 已读字节数（这里是 50）
-//
+// - status code（这里是 200）
+// - 已读字节数（这里是 50）
 // 便于排查 server 端异常（连接 reset / content-length 不符）。
 func TestLogin_ReadAllError_ContainsStatusAndBytes(t *testing.T) {
 	var validateReadBytes int32

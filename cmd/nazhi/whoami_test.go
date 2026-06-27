@@ -70,7 +70,7 @@ func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK .
 	cmd := &cobra.Command{Use: "whoami"}
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
-	// F7 适配（group-F round-8）：buildClientOpts 用 flagChanged() 守卫 token 读取。
+	// F7 适配：buildClientOpts 用 flagChanged() 守卫 token 读取。
 	// 必须调 Set 才能让 Changed()=true，否则走 env fallback 会因 env 未设而报缺 token。
 	if err := cmd.Flags().Set("token", token); err != nil {
 		t.Fatalf("set token flag: %v", err)
@@ -85,20 +85,17 @@ func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK .
 }
 
 // captureStdio 替换 os.Stdout/os.Stderr 并返回还原函数 + 同步等待机制。
-//
-// 调用模式：
+// 调用模式
 //
 //	stdoutBuf, stderrBuf, restore := captureStdio(t)
 //	defer restore()
-//
 //	// 触发命令（命令内对 os.Stdout/Stderr 的写会进入管道）
 //	whoamiCmd.Run(cmd, nil)
-//
 //	// restore() 同步等待 drain 完成；之后 stdoutBuf/stderrBuf 才包含全部数据
 //	stdout := stdoutBuf.String()
 //	stderr := stderrBuf.String()
 //
-// 设计要点：
+// 设计要点
 //   - 启动 drain goroutine **前**先 close writer（确保 io.Copy 看到 EOF）
 //   - 用 done channel 同步等待 drain goroutine 退出，避免调用方读到空 buffer
 //   - 先恢复 os.Stdout/Stderr 再 return，防止后续 t.Logf 等打到管道里
@@ -140,7 +137,7 @@ func captureStdio(t *testing.T) (stdout *bytes.Buffer, stderr *bytes.Buffer, res
 	}
 }
 
-// TestWhoami_OkEmpty_StatusEnvelope 回归测试 F5：
+// TestWhoami_OkEmpty_StatusEnvelope 回归测试 F5
 // GetMyInfo 返回 (nil, nil) 时输出 {"status":"empty","reason":"get_my_info_empty"}。
 func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
 	cmd, _ := makeWhoamiTestCmd(t, "test-token", "")
@@ -155,7 +152,7 @@ func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// F5 修复：退出码保持 0（空响应是正常状态，不是错误）
+	// 退出码保持 0（空响应是正常状态，不是错误）
 	if got := pendingExitCode.Load(); got != 0 {
 		t.Errorf("空响应 whoami 不应标记 pendingExitCode=1，实际 %d", got)
 	}

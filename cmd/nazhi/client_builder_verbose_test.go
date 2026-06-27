@@ -1,4 +1,4 @@
-// client_builder_verbose_test.go G2 修复锚定：
+// client_builder_verbose_test.go 锚定
 // --verbose flag 联动 SDK logger 级别，让 c.logDebug 输出可见。
 package main
 
@@ -9,15 +9,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestBuildClientOpts_Verbose_SetsDebugLogger G2 修复验证：
+// TestBuildClientOpts_Verbose_SetsDebugLogger
 // verbose=true 时 buildClientOpts 返回的 opts 链中应包含
 // WithLogger(slog.LevelDebug) 选项，使得 SDK 的 c.logDebug 不再被
 // slog LevelWarn 过滤。
-//
-// 修复前（v0.3.4-）：verbose flag 只影响 CLI 层 printVerbose 输出，
+// 修复前（v0.3.4-）：verbose flag 只影响 CLI 层 printVerbose 输出
 // SDK 层 c.logDebug 调用默认 slog LevelWarn handler 静默过滤。
 // 用户 nazhi login -v 看到 CLI 层日志但看不到 SDK 内部细节。
-//
 // 修复后：--verbose 让 Client logger 改为 LevelDebug，c.logDebug 写入 stderr。
 func TestBuildClientOpts_Verbose_SetsDebugLogger(t *testing.T) {
 	// 保存原始 verbose 值

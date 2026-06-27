@@ -28,7 +28,7 @@ SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。
 			return
 		}
 
-		// C2 修复（group-H round-4）：消除 inline client.New + 自动获得 trackClient。
+		// 消除 inline client.New + 自动获得 trackClient。
 		// urlType="upload" 走 --upload-url flag + NAZHI_UPLOAD_URL env。
 		c, err := buildClient(cmd, "upload", "NAZHI_TIMEOUT")
 		if err != nil {

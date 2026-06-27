@@ -93,7 +93,6 @@ func TestActivateSession_AllStepsSucceed(t *testing.T) {
 
 // TestActivateSession_Step4FailsPropagates 回归测试（F10）：
 // 步骤 4（getMyInfo）业务错误时 ActivateSession 必须返回 error。
-//
 // 历史 bug：session.go 步骤 4 失败时仅 logDebug，继续走步骤 3 兜底解析。
 // 修复后 4 步 HAR 契约中任一失败 propagate，调用方能立即看到根因。
 func TestActivateSession_Step4FailsPropagates(t *testing.T) {
@@ -194,7 +193,7 @@ func TestActivateSession_CallOrder(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		callOrder = append(callOrder, r.URL.Path)
 		w.WriteHeader(http.StatusOK)
-		// F10 修复（round-7）：mock 必须返回有效 returnData，否则
+		// mock 必须返回有效 returnData，否则
 		// 触发 ErrEmptyUserInfo 路径导致 ActivateSession 返回 error。
 		_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三"}}`))
 	}))

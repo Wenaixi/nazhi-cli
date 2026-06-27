@@ -1,4 +1,4 @@
-// Package ocr 内部白盒测试：C8 writeModelFile helper 验证。
+// Package ocr 内部白盒测试：writeModelFile helper 验证。
 package ocr
 
 import (

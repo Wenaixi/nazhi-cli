@@ -11,7 +11,6 @@ import (
 // TestWithLogger_NilRejected 回归测试（A1）：
 // WithLogger(nil) 必须被拒绝，warn 提醒，保持当前 logger（防止 nil 覆盖后
 // 后续 c.logger.Warn/Debug/Error 全部 nil pointer panic）。
-//
 // 设计一致：与 WithTimeout(D1) / WithHTTPClient(F8) 的 nil 拒绝守卫对称。
 func TestWithLogger_NilRejected(t *testing.T) {
 	var logBuf bytes.Buffer

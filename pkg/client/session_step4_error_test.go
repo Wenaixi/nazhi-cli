@@ -13,12 +13,10 @@ import (
 
 // TestActivateSession_Step4ErrorPropagates 回归测试（F10）：
 // 步骤 4 getMyInfo 失败时 ActivateSession 必须返回 error，**不**走兜底掩盖路径。
-//
 // 历史 bug：session.go:48 步骤 4 getMyInfoRaw 失败时仅 logDebug，继续走
 // 步骤 3 兜底解析。最坏情况返回仅有 Raw 字段的 UserInfo + nil error，
 // 调用方（cmd/session.go）误判为激活成功。真实错误（getMyInfo 服务降级）
 // 被掩盖，后续业务调用返回空数据难排查。
-//
 // 修复后：步骤 4 是 4 步 HAR 契约的一部分，失败必须 propagate。
 func TestActivateSession_Step4ErrorPropagates(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

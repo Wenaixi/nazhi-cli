@@ -1,13 +1,10 @@
 // image_prep_break_test.go 通过 AST 静态扫描锁定 F4 修复：
 // image_prep.go 缩放级联循环不能 `continue` 跳过 `current = resized`。
-//
 // F4 证据：image_prep.go 缩放级联 `for _, scale := range getScaleFactors()`
 // 内 `if err != nil { continue }` 跳过 `current = resized`，下一轮用
 // 未更新的 current 计算 w/h → 同一尺寸重复 encodeJPEG 必然同样失败 →
 // 浪费 1-7 轮 CPU 后才 break 返回 ErrImageTooLarge。
-//
 // 修复：`continue` → `break` + logDebug（encodeJPEG 内部错误重试无意义）。
-//
 // 测试策略：AST 扫描，定位 scaleFactors range 循环，递归查找 continue
 // 语句（注释里的字面量"continue"不会被 AST 误判）。
 package client
@@ -92,7 +89,6 @@ func TestImagePrep_ScaleCascadeNoContinue(t *testing.T) {
 
 // TestImagePrep_ScaleCascadeHasLogDebug 验证修复契约：
 // 缩放级联循环的错误分支必须配 logDebug 调用。
-//
 // 用字符串子串匹配（仅在错误处理块注释 anchor 范围内），
 // 不易触发字面量误判：定位 `if err != nil {` 锚点 + 下一 break 之间的内容。
 func TestImagePrep_ScaleCascadeHasLogDebug(t *testing.T) {

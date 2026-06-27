@@ -8,11 +8,9 @@ import (
 )
 
 // TestWithToken_LateBinding 回归测试：WithToken + WithSSOBase 顺序敏感性 bug。
-//
 // 历史 bug：WithToken 立即调 syncCookieToken 写 cookie 到当时的 c.ssoBaseURL，
 // 若用户按 New(WithToken(t), WithSSOBase(u)) 顺序调用，token 写到 default
 // SSO host 而非用户指定的 host，业务请求 0 cookie → 空数据。
-//
 // 修复后：WithToken 仅存到 c.pendingToken，New() 跑完所有 Options 后
 // 才统一 syncCookieToken（此时 c.http.Jar / c.ssoBaseURL / c.baseURL
 // 都是最终值）。

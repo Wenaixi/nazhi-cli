@@ -1,11 +1,10 @@
 // Package client 内部白盒测试。
-//
-// H3 修复（round-9）：ErrOCRNotConfigured 错误消息改为中文 actionable +
+// 修复：ErrOCRNotConfigured 错误消息改为中文 actionable +
 // i18n key 前缀。验证契约：
-//   - errors.Is(err, ErrOCRNotConfigured) 仍能精确识别（关键 SDK 契约）
-//   - 错误消息包含中文 actionable 指引（CLI 用户可见）
-//   - 错误消息包含 i18n key 前缀「errors.ocr_not_configured」
-//   - 英文 fallback 消息保留（SDK 编程接口可读性）
+// - errors.Is(err, ErrOCRNotConfigured) 仍能精确识别（关键 SDK 契约）
+// - 错误消息包含中文 actionable 指引（CLI 用户可见）
+// - 错误消息包含 i18n key 前缀「errors.ocr_not_configured」
+// - 英文 fallback 消息保留（SDK 编程接口可读性）
 package client
 
 import (
@@ -15,7 +14,7 @@ import (
 	"testing"
 )
 
-// TestErrOCRNotConfigured_LocalizedMessage 验证 H3 修复：错误消息含中文 actionable 指引。
+// TestErrOCRNotConfigured_LocalizedMessage 验证 修复：错误消息含中文 actionable 指引。
 func TestErrOCRNotConfigured_LocalizedMessage(t *testing.T) {
 	msg := ErrOCRNotConfigured.Error()
 
@@ -50,7 +49,7 @@ func TestErrOCRNotConfigured_LocalizedMessage(t *testing.T) {
 	}
 }
 
-// TestErrOCRNotConfigured_ErrorsIs 验证 errors.Is 契约未破坏（H3 修复不应改变哨兵身份）。
+// TestErrOCRNotConfigured_ErrorsIs 验证 errors.Is 契约未破坏（修复不应改变哨兵身份）。
 func TestErrOCRNotConfigured_ErrorsIs(t *testing.T) {
 	wrapped := fmt.Errorf("login 流程失败: %w", ErrOCRNotConfigured)
 	if !errors.Is(wrapped, ErrOCRNotConfigured) {

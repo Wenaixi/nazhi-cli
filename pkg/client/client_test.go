@@ -82,15 +82,13 @@ func newTestClientWithOCR(sso *httptest.Server, mockText string, biz *httptest.S
 // warmupBizHandler 包装测试 handler，自动响应 ActivateSession 的 4 步预热路径。
 // 业务方法（SubmitTask / GetMyInfo / QuerySelfEvaluation 等）现在会自动预热
 // session，所以测试 mock server 必须先能响应 /、/getMenu、/getMyInfo。
-//
 // /getMyInfo 处理：第一次走预热响应（不返回 name，让 ActivateSession 走兜底
 // 逻辑避免双重请求）；后续走 default fn（让 TestGetMyInfo 等需要实际 userInfo
 // 的测试拿到自己的 mock 响应）。这是 sync.Once 保证的。
-//
 // 用法：
 //
 //	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w, r) {
-//	    // 实际测试 path 的处理逻辑
+//	 // 实际测试 path 的处理逻辑
 //	})))
 func warmupBizHandler(t *testing.T, fn http.HandlerFunc) http.HandlerFunc {
 	t.Helper()
@@ -105,7 +103,7 @@ func warmupBizHandler(t *testing.T, fn http.HandlerFunc) http.HandlerFunc {
 		case "/api/studentInfo/getMyInfo":
 			servedWarmup := false
 			myInfoOnce.Do(func() {
-				// B10 修复：步骤 4 响应被缓存供 GetMyInfo 复用，必须返回完整字段
+				// 修复：步骤 4 响应被缓存供 GetMyInfo 复用，必须返回完整字段
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusOK)
 				_, _ = w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
@@ -298,10 +296,10 @@ func TestLogin_WrongPassword(t *testing.T) {
 // ─── 测试: ActivateSession ───
 
 // TestActivateSession 验证 4 步 HAR 对齐的 Session 激活流程：
-//  1. GET /
-//  2. GET /api/studentInfo/getMenu (Referer: /homepage?token=xxx)
-//  3. GET /api/studentInfo/getMenu (Referer: /home)
-//  4. GET /api/studentInfo/getMyInfo
+// 1. GET /
+// 2. GET /api/studentInfo/getMenu (Referer: /homepage?token=xxx)
+// 3. GET /api/studentInfo/getMenu (Referer: /home)
+// 4. GET /api/studentInfo/getMyInfo
 func TestActivateSession(t *testing.T) {
 	callOrder := 0
 	getMenuCount := 0

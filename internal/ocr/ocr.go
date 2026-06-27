@@ -22,7 +22,7 @@ import (
 
 // ─── 进程级全局同步 ───
 
-// B6 修复：SetOnnxRuntimePath 是进程级全局函数，Pool 多实例并发初始化时
+// SetOnnxRuntimePath 是进程级全局函数，Pool 多实例并发初始化时
 // 需要全局互斥锁保护 SetOnnxRuntimePath + ddddocr.New 两步的组合原子性。
 //
 // 设计：
@@ -54,7 +54,7 @@ var charsetJSON []byte
 type OCR struct {
 	initMu      sync.Mutex  // 保护初始化路径和 closed 翻转
 	initialized bool        // true = 初始化已完成（成功或失败由 initErr 决定）
-	closed      atomic.Bool // true = Close() 已调用，禁止后续识别（F1 atomic）
+	closed      atomic.Bool // true = Close() 已调用，禁止后续识别
 	initErr     error
 	ocr         *ddddocr.DdddOcr
 	tempDir     string
@@ -77,13 +77,13 @@ func New() *OCR {
 // 业务场景：批量调用 Login() 时才需要调高；单 Login 调一次用 1 实例足够。
 //
 // inits 字段用 sync.Map 存储已注册实例，原因：
-//   - O7 修复：99 次串行 Recognize = 99 次 trackInit(同一 *OCR)
+//   - 99 次串行 Recognize = 99 次 trackInit(同一 *OCR)
 //   - sync.Map.LoadOrStore 在 key 已存在时是 lock-free 路径，
 //     避免 mutex.Lock + map 写入的固定开销
 //   - sync.Map 读写并发安全，无需额外的 initsMu 保护
 //   - Close 路径用 Range 迭代，配合 closeOnce 仍保证只跑一次 Close 工作
 //
-// F2 + F22 合并修复：用 closeMu 保护整个「read closed + Get + trackInit」
+// 用 closeMu 保护整个「read closed + Get + trackInit」
 //
 //	原子临界区 + Close 的「Range(inits) + 翻 closed」原子临界区。
 //	两个临界区互斥（同一把 mutex），保证并发 Recognize 不会被 close window 切断。
@@ -123,7 +123,7 @@ func NewPool(preload int) *Pool {
 // trackInit 记录首次完成惰性初始化的 OCR 实例。
 // 用 sync.Map.LoadOrStore 实现「key 已存在时 lock-free 跳过」——
 //
-//	O7 优化：99 次串行 Recognize(同一 *OCR) 只触发 1 次实际 Store，
+//	99 次串行 Recognize(同一 *OCR) 只触发 1 次实际 Store，
 //	其余 98 次走 LoadOrStore 的「已存在」快速路径（无 mutex.Lock 开销）。
 func (p *Pool) trackInit(o *OCR) {
 	p.inits.LoadOrStore(o, struct{}{})
@@ -136,7 +136,7 @@ func (p *Pool) trackInit(o *OCR) {
 // OCR 实例泄漏 tempDir（Pool.Close 的 inits.Range 排空后再创建的实例
 // 不会被 Close 路径清理）。
 //
-// F2 关键修复：close 检查 + pool.Get + trackInit 必须在同一 mutex 临界区内。
+// close 检查 + pool.Get + trackInit 必须在同一 mutex 临界区内。
 //
 //	否则并发 Recognize 可穿过 Close 的 Range 完成窗口，向 inits map
 //	注册新实例但 Close 已不会再次访问 -> tempDir 永久泄漏。
@@ -147,7 +147,7 @@ func (p *Pool) trackInit(o *OCR) {
 //	       -> 放 closeMu -> Close 路径（拿 closeMu）-> Range 包含 T1' 注册的实例
 //	保证：T1 要么被 Close 之前完整处理（被 Close 清理），要么被 Close 之后拒绝。
 //
-// F1 修复：o.Recognize 在 closeMu 外执行，但 OCR 级别有 atomic closed 二次检查
+// o.Recognize 在 closeMu 外执行，但 OCR 级别有 atomic closed 二次检查
 // （在 o.mu 临界区内、Classification 前），形成两层防御：
 //   - 层 1（Pool）：closeMu 保证 trackInit 窗口不泄漏
 //   - 层 2（OCR）：atomic closed 二次检查保证永不访问已关闭 session
@@ -178,18 +178,18 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 //
 // 多实例池 (NewPool(N>1)) 下, 每个实例对应独立 tempDir, Close 会释放全部。
 //
-// 并发安全（F1 修复）：用 sync.Once 保证"排空 map + 迭代 Close 实例"这一段
+// 并发安全：用 sync.Once 保证"排空 map + 迭代 Close 实例"这一段
 // 关键路径只跑一次。即使多个 goroutine 同时调 Close，第一次调用的协程
 // 负责全部释放工作，后续调用立即返回 nil，避免同一实例被 Close 两次。
 //
-// F2 修复：closeMu 保护「Range(inits) + 翻 closed」原子临界区，与 Recognize
+// closeMu 保护「Range(inits) + 翻 closed」原子临界区，与 Recognize
 //
 //	路径的「读 closed + Get + trackInit」临界区互斥。任何并发 Recognize 要么：
 //	  1) 在 Close 临界区之前完成 trackInit -> 被 Range 清理
 //	  2) 在 Close 临界区之后拿 closeMu -> 看到 closed=true -> 直接返回错误
 //	不会有"漏网"的 trackInit 留下幽灵实例。
 //
-// O7 优化：Pool.inits 是 sync.Map（无独立 initsMu），Close 路径用 Range
+// Pool.inits 是 sync.Map（无独立 initsMu），Close 路径用 Range
 // 原子快照迭代——sync.Map.Range 在迭代期间对后续 Load/Store 安全，
 // 配合 sync.Once 保证排空分支只跑一次。
 func (p *Pool) Close() error {
@@ -224,14 +224,14 @@ func (p *Pool) Close() error {
 // platformLibName 根据 runtime.GOOS 返回解压到磁盘时的原生库文件名。
 // C 运行时需要按平台命名规范来 LoadLibrary / dlopen。
 //
-// F4 保守方案：保留 wrapper（统一调用入口价值：调用点只需调 platformLibName()
+// 保守方案：保留 wrapper（统一调用入口价值：调用点只需调 platformLibName()
 // 而不必每次写 platformLibNameFor(runtime.GOOS)），加注释说明。
 func platformLibName() string {
 	return platformLibNameFor(runtime.GOOS)
 }
 
 // platformLibNameFor 是 platformLibName 的参数化版本，接受任意 GOOS 字符串。
-// B5 修复：补充 darwin 分支返回 .dylib 扩展名。
+// 补充 darwin 分支返回 .dylib 扩展名。
 func platformLibNameFor(goos string) string {
 	switch goos {
 	case "windows":
@@ -249,10 +249,10 @@ func platformLibNameFor(goos string) string {
 // ─── 识别 API ───
 
 // initOnce 在 initMu 锁定状态下执行 OCR 实例的惰性初始化。
-// F2 修复：deferred recover 捕获 extractModels/ddddocr.New 的 panic，
+// deferred recover 捕获 extractModels/ddddocr.New 的 panic，
 // 清理 tempDir + 重置 initialized，防止 tempDir 永久泄漏到 %TEMP%。
 func (o *OCR) initOnce() error {
-	// F2 修复：deferred recover 捕获 initMu 临界区内 panic，
+	// deferred recover 捕获 initMu 临界区内 panic，
 	// 清理 tempDir + 重置 initialized
 	var cleanupTempDir bool
 	defer func() {
@@ -273,7 +273,7 @@ func (o *OCR) initOnce() error {
 	}
 	cleanupTempDir = true
 
-	// B6 修复：SetOnnxRuntimePath + ddddocr.New 用 initMuGlobal 保护，
+	// SetOnnxRuntimePath + ddddocr.New 用 initMuGlobal 保护，
 	// 确保多实例并发初始化时 SetOnnxRuntimePath 和 New 不被交叉覆盖。
 	// onceSetPath 确保 SetOnnxRuntimePath 在整个进程中只调用一次。
 	initMuGlobal.Lock()
@@ -332,7 +332,7 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	}
 
 	// 单例场景下保护 Classification 调用，并发请求时串行执行识别
-	// F1 修复：Classification 前 atomic 二次检查 closed。
+	// Classification 前 atomic 二次检查 closed。
 	// 场景：T0 拿到 o.mu 进入 Classification 阻塞 → T1 Close 翻 closed + 关闭 ddddocr session
 	//  → T0 持已关闭 session → ddddocr C 运行时 segfault。
 	// 持 o.mu 后 Load closed 是无锁快速路径，Close 后立即返回错误，永不调 Classification。
@@ -356,7 +356,7 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 //
 // Close 后再次调用 Recognize 会返回 "OCR 已关闭" 错误，而不是触发 nil panic。
 //
-// F1 修复：closed 改 atomic.Bool，Close 内先 Store(true)，让所有持 o.mu 阻塞在
+// closed 改 atomic.Bool，Close 内先 Store(true)，让所有持 o.mu 阻塞在
 //
 //	Classification 之前的 goroutine 立即在二次检查中失败（永不访问已关闭 ddddocr
 //	session）。这是 use-after-close 窗口的修复核心。
@@ -422,7 +422,7 @@ func (o *OCR) extractModels() (string, error) {
 
 // writeModelFile 写入模型文件并设置 0644 权限。
 // 写入失败时自动清理临时目录。
-// C8 修复：提取为 helper，消除三次 writeFile + os.RemoveAll + fmt.Errorf 的重复模式。
+// 提取为 helper，消除三次 writeFile + os.RemoveAll + fmt.Errorf 的重复模式。
 func writeModelFile(dir, name string, data []byte) error {
 	if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
 		os.RemoveAll(dir)

@@ -1,10 +1,7 @@
-// Package client 内部白盒测试 — 验证 G2 修复。
-//
-// G2 (round-7) 修复：errgroup.Go 闭包内 fetchTasksForDimension 无 panic recover。
+// Package client 内部白盒测试 — 验证闭包 panic 保护。
+// errgroup.Go 闭包内 fetchTasksForDimension 无 panic recover。
 // 任何 panic（nil deref / 第三方库 bug）会逃逸到 runtime → 进程崩溃 → g.Wait() 永不返回。
-//
 // 修复：fetchTasksForDimensionSafe 包裹 defer recover，panic 转成 error 进 dimErrs。
-//
 // 本测试用 package client（同包）访问私有方法。
 package client
 
@@ -17,11 +14,9 @@ import (
 )
 
 // TestFetchTasksForDimensionSafe_RecoversFromPanic 白盒验证 G2 修复。
-//
 // 构造路径：c.http=nil → fetchTasksForDimension 内部 c.activateSessionIfNeeded
 // 调用 c.http.Do() → nil pointer dereference panic。
 // fetchTasksForDimensionSafe 的 defer recover 把 panic 转成 error 返回。
-//
 // 旧行为：g.Go 闭包内 panic 逃逸 → 进程崩溃 → g.Wait 永不返回 → 测试进程崩溃。
 // 新行为：panic 被捕获 → 返回 (nil, error) → 调用方拿到 error 进 dimErrs。
 func TestFetchTasksForDimensionSafe_RecoversFromPanic(t *testing.T) {

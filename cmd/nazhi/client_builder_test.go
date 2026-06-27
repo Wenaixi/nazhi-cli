@@ -245,7 +245,7 @@ func TestBuildClient_UnknownURLTypeRejected(t *testing.T) {
 
 // TestBuildClient_TrackedInPendingClients C3 回归测试：buildClient 构造的 Client
 // 必须自动注册到 pendingClients（main 退出前 defer closeAllClients 会释放）。
-// 这是 C1+C2 修复的核心目的——消除 inline client.New 让 trackClient 路径统一。
+// 这是核心目的——消除 inline client.New 让 trackClient 路径统一。
 func TestBuildClient_TrackedInPendingClients(t *testing.T) {
 	_ = os.Unsetenv("NAZHI_SSO_BASE")
 	_ = os.Unsetenv("NAZHI_BASE_URL")

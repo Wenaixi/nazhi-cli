@@ -1,7 +1,7 @@
-// Package client_test 包含 review-tdd C4/C10/B14 的测试：
-// - C4: response.go decodeField / decodeFieldSlice helper 提取（外部测试仍调用公开 API）
-// - C10: self_eval.go querySelfEval 泛型 helper（测试 QuerySelfEvaluation / QuerySelfGradEvaluation 正确性）
-// - B14: errors.Join 让 ErrBusinessRejected 同时支持 errors.Is 和 errors.As
+// Package client_test 包含 C4/C10/B14 的测试：
+// - response.go decodeField / decodeFieldSlice helper 提取（外部测试仍调用公开 API）
+// - self_eval.go querySelfEval 泛型 helper（测试 QuerySelfEvaluation / QuerySelfGradEvaluation 正确性）
+// - errors.Join 让 ErrBusinessRejected 同时支持 errors.Is 和 errors.As
 package client_test
 
 import (
@@ -15,7 +15,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// ─── C10: self_eval.go querySelfEval helper ───
+// ─── querySelfEval helper ───
 
 // TestC10_QuerySelfEvaluation_Success 验证 QuerySelfEvaluation 正常路径。
 func TestC10_QuerySelfEvaluation_Success(t *testing.T) {

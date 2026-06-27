@@ -11,7 +11,6 @@ import (
 // WithCustomOCR(nil) 必须被拒绝，warn 提醒，保持当前 ocr 识别器（防止
 // nil 静默覆盖已注入的识别器，导致后续 Login 因 c.ocr==nil 而返回
 // ErrOCRNotConfigured）。
-//
 // 设计一致：与 WithLogger(nil) / WithHTTPClient(nil) 的 nil 拒绝守卫对称。
 func TestWithCustomOCR_NilRejected(t *testing.T) {
 	var logBuf bytes.Buffer

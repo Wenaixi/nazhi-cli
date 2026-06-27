@@ -1,13 +1,11 @@
 // clean_client_cache_test.go 验证 newCleanClient 跨调用复用同一个 cloned Transport。
-//
-// B1 修复契约：原实现每次 UploadFile 都 t.Clone() 一次 Transport，
+// 修复契约：原实现每次 UploadFile 都 t.Clone() 一次 Transport，
 // 50 张图 = 50 次 Clone，配置虽共享但每次构造新对象丢失累加的 idle pool。
 // 修复后：cleanTransport 缓存在 Client 字段，首次 Clone 后复用。
-//
-// 约束（保留 F9 修复）：
-//  1. clone 出的 Transport 必须 ≠ 原 Transport（idle pool 隔离）
-//  2. 必须保留原 Transport 配置（MaxIdleConns 等）
-//  3. 默认 Transport fallback 仍走 http.DefaultTransport（不被缓存）
+// 约束：
+// 1. clone 出的 Transport 必须 ≠ 原 Transport（idle pool 隔离）
+// 2. 必须保留原 Transport 配置（MaxIdleConns 等）
+// 3. 默认 Transport fallback 仍走 http.DefaultTransport（不被缓存）
 package client
 
 import (
@@ -19,8 +17,7 @@ import (
 
 // TestNewCleanClient_CachesClonedTransport 验证 newCleanClient 跨调用复用
 // 同一个 cloned Transport 实例，不再每次 Clone。
-//
-// B1 修复前的 RED 表现：每次调用 newCleanClient 都返回一个新的 cloned Transport。
+// 修复前的 RED 表现：每次调用 newCleanClient 都返回一个新的 cloned Transport。
 // 修复后 GREEN：50 次调用都返回同一个 cachedTransport 实例。
 func TestNewCleanClient_CachesClonedTransport(t *testing.T) {
 	originalTransport := &http.Transport{
@@ -55,8 +52,7 @@ func TestNewCleanClient_CachesClonedTransport(t *testing.T) {
 // TestNewCleanClient_ConcurrentCachingSafe 验证并发调用 newCleanClient 时的
 // 缓存安全性：sync.Once 或 sync.Mutex 保护下，N goroutine 并发调用都拿到
 // 同一 cachedTransport 实例，不会出现 race 或重复 Clone。
-//
-// B1 修复约束：缓存字段必须有并发保护（UploadFile 是公开 API，可并发调用）。
+// 约束：缓存字段必须有并发保护（UploadFile 是公开 API，可并发调用）。
 func TestNewCleanClient_ConcurrentCachingSafe(t *testing.T) {
 	originalTransport := &http.Transport{
 		MaxIdleConns: 50,
@@ -89,8 +85,7 @@ func TestNewCleanClient_ConcurrentCachingSafe(t *testing.T) {
 }
 
 // TestNewCleanClient_PreservesConfigAfterCaching 验证缓存后 Transport 配置仍正确。
-//
-// B1 修复约束：Clone 只调用一次，配置保留与原 Transport 一致（MaxIdleConns 等）。
+// 约束：Clone 只调用一次，配置保留与原 Transport 一致（MaxIdleConns 等）。
 func TestNewCleanClient_PreservesConfigAfterCaching(t *testing.T) {
 	originalTransport := &http.Transport{
 		MaxIdleConns: 100,
@@ -126,9 +121,8 @@ func TestNewCleanClient_PreservesConfigAfterCaching(t *testing.T) {
 
 // TestNewCleanClient_DefaultTransportNotCached 验证原 Client 没注入 Transport 时
 // （走 http.DefaultTransport fallback），不应被缓存为客户端的字段。
-//
 // 因为 http.DefaultTransport 是进程单例，多个 Client 共享缓存会引入隐性耦合。
-// B1 修复约束：只有 Clone 出来的 Transport 才缓存，fallback 路径保持 stateless。
+// 约束：只有 Clone 出来的 Transport 才缓存，fallback 路径保持 stateless。
 func TestNewCleanClient_DefaultTransportNotCached(t *testing.T) {
 	c := &Client{
 		http: &http.Client{Timeout: 10 * time.Second}, // Transport = nil → DefaultTransport

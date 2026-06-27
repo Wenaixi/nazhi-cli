@@ -16,7 +16,6 @@ import (
 
 // TestSubmitTask_AutoActivatesSession 回归测试：SubmitTask 必须在请求前
 // 自动调用 ActivateSession 完成 4 步预热。
-//
 // 历史 bug：SubmitTask / GetDimensions / GetCircleTypeByTaskId / GetMyInfo /
 // QuerySelfEvaluation / QuerySelfGradEvaluation / SubmitSelfEvaluation 都
 // 跳过 session 预热，HAR 验证的 4 步序列（/ → getMenu → getMenu → getMyInfo）

@@ -9,8 +9,7 @@ import (
 
 // TestNewCleanClient_ClonesHTTPTransport 验证当用户注入 *http.Transport 时，
 // cleanClient 复制（Clone）一份独立 Transport，避免共享 idle 连接池。
-//
-// F9 修复契约：原实现共享 c.http.Transport，Client.Close() 的
+// 契约：原实现共享 c.http.Transport，Client.Close() 的
 // CloseIdleConnections 会清空业务 Client 的 idle 连接池导致后续业务请求
 // 强制重连 TLS。修复后用 (*http.Transport).Clone() 隔离 idle 池。
 func TestNewCleanClient_ClonesHTTPTransport(t *testing.T) {
@@ -42,8 +41,7 @@ func TestNewCleanClient_ClonesHTTPTransport(t *testing.T) {
 
 // TestNewCleanClient_PassesThroughCustomRoundTripper 验证用户注入自定义
 // RoundTripper（非 *http.Transport 类型）时 cleanClient 透传。
-//
-// F9 修复边界：自定义 RoundTripper 无法 Clone（接口无 Clone 方法），
+// 边界：自定义 RoundTripper 无法 Clone（接口无 Clone 方法），
 // 直接透传。此时不存在 idle 池共享问题（自定义 RT 通常不维护连接池），
 // 也不应 panic。
 func TestNewCleanClient_PassesThroughCustomRoundTripper(t *testing.T) {
@@ -61,7 +59,7 @@ func TestNewCleanClient_PassesThroughCustomRoundTripper(t *testing.T) {
 }
 
 // customRoundTripper 是测试用的自定义 RoundTripper 实现。
-// F9 修复边界：自定义 RT 无法 Clone，newCleanClient 应直接透传而非 panic。
+// 边界：自定义 RT 无法 Clone，newCleanClient 应直接透传而非 panic。
 type customRoundTripper struct{}
 
 func (customRoundTripper) RoundTrip(*http.Request) (*http.Response, error) { return nil, nil }

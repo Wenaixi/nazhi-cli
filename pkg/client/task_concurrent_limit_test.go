@@ -12,13 +12,11 @@ import (
 
 // TestFetchTasks_ConcurrentLimitBounded 回归测试 F2：FetchTasks 的维度并发拉取
 // 必须有上限（errgroup.SetLimit），避免 N=50+ 维度的业务场景爆掉服务端。
-//
 // 测试策略：
-//   - mock server 返回 20 个维度（id=1..20，id=0 会跳过）
-//   - 每个 getCircleStatistics sleep 50ms（足够长让并发 goroutine 同时在飞）
-//   - 服务端用 atomic 跟踪当前正在处理的请求数（in-flight），记录峰值
-//   - 断言峰值 ≤ 预期上限（min(20, 8) = 8）
-//
+// - mock server 返回 20 个维度（id=1..20，id=0 会跳过）
+// - 每个 getCircleStatistics sleep 50ms（足够长让并发 goroutine 同时在飞）
+// - 服务端用 atomic 跟踪当前正在处理的请求数（in-flight），记录峰值
+// - 断言峰值 ≤ 预期上限（min(20, 8) = 8）
 // 历史 bug（F12 PLAUSIBLE）：原实现对每个 dimension 起一个 goroutine，TODO 注释
 // 提到\"如未来接入 > 50 维度需引入 semaphore\"但没真做。F2 修复落实 semaphore，
 // 上限 = min(len(dimensions), 8)。

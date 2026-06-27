@@ -6,7 +6,6 @@ package client
 import "github.com/Wenaixi/nazhi-cli/internal/ocr"
 
 // defaultOCR 在指定 -tags ddddocr 时返回 ddddocr Pool 单例。
-//
 // 与 client_ocr_disabled.go 中的 nil 默认行为对称：
 //   - 启用 ddddocr → 客户端开箱即用，无需注入自定义 OCR
 //   - 禁用 ddddocr → 必须用 WithCustomOCR 注入 AI/外部识别器
@@ -15,7 +14,6 @@ func defaultOCR() CaptchaRecognizer {
 }
 
 // WithOCRConcurrency 设置 OCR 实例池预分配数量（ddddocr 构建）。
-//
 // 行为约定：
 //   - 0 或 1 = 默认懒加载单实例（与原单例行为一致，1 路串行识别）
 //   - N > 1 = 预分配 N 个 OCR 结构体，ONNX session 惰性初始化，

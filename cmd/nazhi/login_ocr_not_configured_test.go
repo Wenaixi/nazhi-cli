@@ -10,10 +10,9 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// TestLoginCmd_ErrOCRNotConfigured_ActionableOutput 验证 H1 修复：
-// nazhi login 收到 ErrOCRNotConfigured 时输出 actionable JSON envelope，
+// TestLoginCmd_ErrOCRNotConfigured_ActionableOutput 验证
+// nazhi login 收到 ErrOCRNotConfigured 时输出 actionable JSON envelope
 // 而非通用 printError。
-//
 // 测试策略：模拟 loginCmd.Run 的 err 分支，验证 stdout JSON 输出包含中文指引。
 // stderr 的 printVerbose 需要 --verbose 标志才输出，不在本测试范围内。
 func TestLoginCmd_ErrOCRNotConfigured_ActionableOutput(t *testing.T) {
@@ -68,7 +67,7 @@ func TestLoginCmd_ErrOCRNotConfigured_ErrorsIs(t *testing.T) {
 	}
 }
 
-// TestLoginCmd_ErrOCRNotConfigured_SetsExitCode 验证 F3 修复：
+// TestLoginCmd_ErrOCRNotConfigured_SetsExitCode 验证
 // ErrOCRNotConfigured 路径调用 markError()，确保退出码为 1。
 func TestLoginCmd_ErrOCRNotConfigured_SetsExitCode(t *testing.T) {
 	oldStdout := os.Stdout
@@ -83,7 +82,7 @@ func TestLoginCmd_ErrOCRNotConfigured_SetsExitCode(t *testing.T) {
 	defer pendingExitCode.Store(origExitCode)
 	pendingExitCode.Store(0)
 
-	// 模拟 login.go 的 ErrOCRNotConfigured 分支（F3 修复：含 markError()）
+	// 模拟 login.go 的 ErrOCRNotConfigured 分支
 	err = client.ErrOCRNotConfigured
 	if errors.Is(err, client.ErrOCRNotConfigured) {
 		printJSON(map[string]any{

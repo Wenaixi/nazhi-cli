@@ -9,7 +9,6 @@ import (
 // TestF2_StringsContainsStandardLibrary 回归测试（F2）：
 // session_concurrent_test.go 自造 contains() 改用 strings.Contains 后，
 // 显式锁定标准库语义以防"自造轮子"再次潜入。
-//
 // 历史 bug：原 contains() 函数自造避免导入 strings，注释称"防止额外
 // 编译器感知"——但 Go test 文件已大量导入 strings，理由错误。本测试
 // 用 strings.Contains 替代自造版本，并直接断言标准库行为。

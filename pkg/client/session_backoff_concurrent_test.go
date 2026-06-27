@@ -12,10 +12,9 @@ import (
 
 // TestActivateSessionIfNeeded_BackoffHundredConcurrent 验证 100 个 goroutine
 // 同时调用 activateSessionIfNeeded（同 token 激活失败）时 backoff 缓存生效：
-//  1. 步骤 4 只会被执行 1 次（首 goroutine 触发完整的 4 步）
-//  2. 其余 99 个 goroutine 在 backoff 窗口内命中 lastActivationErr 缓存
-//  3. 无 data race（-race 检测器干净）
-//
+// 1. 步骤 4 只会被执行 1 次（首 goroutine 触发完整的 4 步）
+// 2. 其余 99 个 goroutine 在 backoff 窗口内命中 lastActivationErr 缓存
+// 3. 无 data race（-race 检测器干净）
 // 设计动机：backoff 缓存虽然在 CLI 单进程场景无 hit（CLI 不会先失败再重试），
 // 但在 SDK 多 goroutine 场景（如 100 路并发 FetchTasks）中，
 // backoff 可有效抑制 thundering herd——首路 4 步失败后其余 99 路直接返回，

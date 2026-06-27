@@ -19,7 +19,7 @@ import (
 // 文件服务器（doc.nazhisoft.com）是独立公共服务，不需要业务域鉴权。
 // SDK 内部使用独立的 clean http.Client（无 cookie jar），杜绝任何鉴权头泄露。
 //
-// ⚠️ 域隔离约束（r9-D7）：syncCookieToken 只在 c.baseURL 域写入 X-Auth-Token cookie，
+// ⚠️ 域隔离约束：syncCookieToken 只在 c.baseURL 域写入 X-Auth-Token cookie，
 // 而 UploadFile 走 c.uploadURL 域（独立文件服务器）。
 // 若 c.uploadURL 与 c.baseURL 指向同一主机（自定义部署场景），
 // 则 syncCookieToken 写入的 cookie 在上传请求中不会泄漏（newCleanClient 无 cookie jar）。
@@ -40,12 +40,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 
 	// 2. 构造 multipart 请求体
 	//
-	// F14 修复（round-7）：必须显式 writer.Close()，不能在 http.NewRequestWithContext
+	// 必须显式 writer.Close()，不能在 http.NewRequestWithContext
 	// 之后。multipart writer 的终结边界 `--{boundary}--\r\n` 只在 Close() 时追加，
 	// 若只 defer Close()，则 wire 上发出去的 body 缺终止边界，server 端 multipart
 	// parser 报 EOF 错误，100% 上传失败。
 	//
-	// 这里保留 defer Close() 兜底（C10 round-3 设计意图：错误路径也要 Close
+	// 这里保留 defer Close() 兜底（设计意图：错误路径也要 Close
 	// 释放内部 buffer），与显式 Close 共同防御——显式调用负责正确路径，
 	// defer 负责任何早退路径。multipart.Writer.Close 是幂等的，可重复调用。
 	var buf bytes.Buffer
@@ -62,14 +62,14 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 
 	// 显式 Close：在 NewRequest 之前写入终结边界到 buf。
 	// defer 的 Close 兜底处理本行之后的早退路径（虽然此处已无早退可能，
-	// 但保持 C10 设计的对称防御层）。
+	// 但保持对称防御层）。
 	if err := writer.Close(); err != nil {
 		return 0, fmt.Errorf("关闭 multipart writer 失败: %w", err)
 	}
 
 	// 3. 构造请求
 	//
-	// F3 修复（round-8）：走共享 buildRequest helper，消除手工 NewRequestWithContext
+	// 走共享 buildRequest helper，消除手工 NewRequestWithContext
 	// 特例路径。与 doRequest/doBizGet 等其他 SDK 方法统一，享受 buildRequest
 	// 的演进（如 debug 日志脱敏、req body 校验等无需在此同步）。
 	//
@@ -118,7 +118,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		return 0, fmt.Errorf("解析上传响应失败: %w", err)
 	}
 
-	// I3 修复（round-9）：故意不走 types.CheckCode，统一响应码 ≠ 1 仍用
+	// I3 修复：故意不走 types.CheckCode，统一响应码 ≠ 1 仍用
 	// ErrUploadRejected 包装。语义边界：
 	//   - ErrUploadRejected: 上传文件域业务错误（独立公共服务，无 cookie 鉴权），
 	//     SDK 用户应单独判定（如限制文件类型、重试上传）
@@ -135,7 +135,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	var result map[string]any
-	// F7 修复：用 json.NewDecoder + UseNumber 替换 json.Unmarshal，与 auth.go
+	// 用 json.NewDecoder + UseNumber 替换 json.Unmarshal，与 auth.go
 	// extractTokenFromReturnData 一致。json.Unmarshal 默认将数字解为 float64，
 	// 在 >2^53 时精度损失。虽然文件 ID 通常在此范围内，但统一模式消除隐患。
 	dec := json.NewDecoder(bytes.NewReader(*unified.ReturnData))
@@ -175,8 +175,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // 安全保证：独立 http.Client（不共享 c.http.Jar），不发送任何 Cookie /
 // Authorization 头，杜绝业务域鉴权信息泄露到文件上传公共服务。
 //
-// 性能优化（F9 + B1）：
-//   - F9：Clone c.http.Transport 共享 Dialer/TLSConfig/代理配置，
+// 性能优化：
+//   - Clone c.http.Transport 共享 Dialer/TLSConfig/代理配置，
 //     但 idle 连接池独立。Client.Close() 的 CloseIdleConnections
 //     只关闭 clean client 自己的 idle 池，不殃及业务 Client 到 sso/api 主机的
 //     keep-alive 连接。
@@ -216,7 +216,7 @@ func newCleanClient(c *Client) *http.Client {
 		//（不 Clone DefaultTransport——它是全局共享进程单例）
 		transport = http.DefaultTransport
 	} else if t, ok := c.http.Transport.(*http.Transport); ok {
-		// r9-D6 修复：*http.Transport 但未进入缓存路径（如运行时替换 Transport），
+		// *http.Transport 但未进入缓存路径（如运行时替换 Transport），
 		// 仍 Clone 出独立实例，不共享 idle 池。
 		transport = t.Clone()
 	} else {

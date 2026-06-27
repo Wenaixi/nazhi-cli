@@ -2,10 +2,9 @@
 // +build !ddddocr
 
 // Package client 验证 !ddddocr 构建下 WithOCRConcurrency 占位行为。
-//
 // ddddocr 未启用（Nazhi-auto CGO_ENABLED=0 场景）时：
-//   - WithOCRConcurrency 必须是 no-op + warn，不能 panic 或默默替换 c.ocr
-//   - c.ocr 保持调用方注入的 WithCustomOCR 实例不动
+// - WithOCRConcurrency 必须是 no-op + warn，不能 panic 或默默替换 c.ocr
+// - c.ocr 保持调用方注入的 WithCustomOCR 实例不动
 package client
 
 import (
@@ -26,8 +25,7 @@ func (m *mockCaptchaRecognizer) Recognize([]byte) (string, error) { return "ok",
 func (m *mockCaptchaRecognizer) Close() error                     { m.closed = true; return nil }
 
 // TestWithOCRConcurrency_Zero_NoWarn_NoDdddOCR 验证 !ddddocr 构建下 WithOCRConcurrency(0) 静默 no-op。
-//
-// H4 修复：n=0 不应输出 warn（合法降级请求，与 WithTimeout(0) 语义不同）。
+// 修复：n=0 不应输出 warn（合法降级请求，与 WithTimeout(0) 语义不同）。
 func TestWithOCRConcurrency_Zero_NoWarn_NoDdddOCR(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))

@@ -13,7 +13,6 @@ import (
 
 // TestRequest_NoTokenLeakInDebugLog 回归测试：logDebug 不得把完整 token
 // 写入日志，包括嵌入 Referer / Cookie / Authorization 等 header 的 token。
-//
 // 历史 bug：logDebug 只对 X-Auth-Token 截断到 16 字符，其他 header 完整打印。
 // 但 session.go:37 会把完整 token 注入 Referer（如 `/homepage?token=<full-jwt>`），
 // 触发完整 JWT 落 stderr → 凭据泄漏。

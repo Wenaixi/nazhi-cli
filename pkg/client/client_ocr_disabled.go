@@ -21,7 +21,7 @@ func defaultOCR() CaptchaRecognizer {
 //   - n < 0：warn + 保持当前 c.ocr（防止负数静默覆盖已有 WithCustomOCR 注入）
 //   - n > 0：warn + 引导改用 WithCustomOCR（提示调用方注入自定义识别器）
 //
-// H4 修复（round-9）：原实现对所有 n 值统一 warn，n=0 场景（SDK 用户期望
+// H4 修复：原实现对所有 n 值统一 warn，n=0 场景（SDK 用户期望
 // reset to single instance）收到误导性 warn。改为精准区分。
 func WithOCRConcurrency(n int) Option {
 	return func(c *Client) {

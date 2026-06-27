@@ -12,7 +12,7 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// fetchTasksConcurrentLimit 是 FetchTasks 并发拉取维度的上限（F2 修复）。
+// fetchTasksConcurrentLimit 是 FetchTasks 并发拉取维度的上限。
 //
 // 设计权衡：业务系统实际维度数通常 ≤ 20，单次 FetchTasks 并发度受维度数封顶，
 // 远低于 DoS 阈值。限制 = min(len(dimensions), 8) 平衡 wall time 与服务端压力：
@@ -46,7 +46,7 @@ func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix st
 		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
 		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
 		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
-		// F19 (round-7) 重构：走 derefOr helper，与 auth.go:156/212 对齐。
+		// 走 derefOr helper，与 auth.go:156/212 对齐。
 		msg := derefOr(resp.Msg, "")
 		return nil, fmt.Errorf("%w: %s 业务错误: code=%d msg=%s", ErrBusinessRejected, errPrefix, resp.Code, msg)
 	}
@@ -61,7 +61,7 @@ func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix st
 // FetchTasks 拉取目标平台全部维度的任务列表。
 // 内部流程：ActivateSession → getDimensions → 遍历维度 getCircleStatistics → 聚合。
 //
-// 并发拉取（F2 修复）：多个维度的 getCircleStatistics 通过 errgroup 并发执行，
+// 并发拉取：多个维度的 getCircleStatistics 通过 errgroup 并发执行，
 // 并发上限 = min(len(dimensions), fetchTasksConcurrentLimit)。
 // 既享受并发提速（20 维度 ≈ 3 RTT vs 串行 20 RTT），
 // 又防止 > 50 维度的业务接口把服务端打爆（无限制 goroutine fan-out 风险）。
@@ -98,7 +98,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			continue
 		}
 		dim := dim // 捕获循环变量
-		// r9-D2 修复：循环变量捕获强约束。
+		// 循环变量捕获强约束。
 		//
 		// Go 1.22 之前每个 iteration 复用同一 dim 变量，
 		// 必须显式 dim := dim 捕获当前值给 goroutine 使用。
@@ -107,7 +107,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		// 与显式注释作为防御——避免未来 refactor 把循环改为函数并意外丢捕获。
 		// 维护者约束：删除此行前请确认循环变量语义与 goroutine 闭包兼容。
 		g.Go(func() error {
-			// F6-FETCHTASKS-CTX-CANCEL 修复：context 取消后直接 propagate，
+			// context 取消后直接 propagate，
 			// 防止 cancel 被 dimErrs 吞掉后包装为 ErrBusinessRejected，
 			// 调用方无法区分完整成功与 cancel 截断。
 			if err := gctx.Err(); err != nil {
@@ -132,7 +132,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		})
 	}
 	if err := g.Wait(); err != nil {
-		// r9-D1 修复（v0.3.5+）：errgroup 因 context 取消返回 error 时，
+		// errgroup 因 context 取消返回 error 时，
 		// 若已有部分维度成功完成（allTasks 非空），应包装 ErrBusinessRejected。
 		//
 		// 动机：g.Go 闭包中 gctx.Err() 检查会在 ctx 取消后返回 DeadlineExceeded
@@ -148,7 +148,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		return nil, fmt.Errorf("FetchTasks 并发拉取失败: %w", err)
 	}
 
-	// T1 round-5 修复：partial failures 聚合，区分全失败与部分失败。
+	// partial failures 聚合，区分全失败与部分失败。
 	//
 	// B11 修复：区分 context 取消错误与业务错误。
 	// context.Canceled/DeadlineExceeded 不应包装为 ErrBusinessRejected，
@@ -156,7 +156,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	// 为业务拒绝，而非 context 截断，导致无法正确区分「完整成功」与
 	// 「cancel 截断」两种语义。
 	//
-	// r9-D1 修复（v0.3.5+）：有 partial tasks 时仍在 ctx cancel 路径
+	// 有 partial tasks 时仍在 ctx cancel 路径
 	// 包装 ErrBusinessRejected。
 	// 动机：cmd 层（task_list.go）用 errors.Is(err, ErrBusinessRejected)
 	// 判断是否输出 partial envelope；若裸返回 context error 则全失败路径走
@@ -219,18 +219,18 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 // 关键设计：之前网络/解析错误走 best-effort (nil, nil) 导致调用方无法区分
 // 「空数据」与「网络错误」，聚合时 dimErrs 接收不到错误。改为 propagate error
 // 后，dimErrs 能正确收集所有非上下文取消的维度错误。
-// G2 (round-7) 修复：改用命名返回值 (tasks []types.Task, err error) 以便
+// 改用命名返回值 (tasks []types.Task, err error) 以便
 // fetchTasksForDimensionSafe 的 defer recover 能通过闭包赋值捕获 panic。
 // 非公有方法改变签名不破坏兼容性。
 func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
-	// G1 round-6 修复：上下文取消（Canceled/DeadlineExceeded）直接 propagate，
+	// 上下文取消（Canceled/DeadlineExceeded）直接 propagate，
 	// 不吞掉走 best-effort——调用方需要知道 context 信号已触发，才能正确区分
 	// 「真空数据」与「被取消」。
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
 
-	// C13 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全，
+	// 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全，
 	// 无需 URL 编码（数字不包含特殊字符）。如需未来扩展为字符串参数，
 	// 应改用 url.Values.Encode()。
 	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10))
@@ -240,13 +240,13 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 			return nil, err // 上下文取消应 propagate，不做 best-effort 吞没
 		}
 		c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
-		return nil, err // F2 修复：propagate 网络错误到 dimErrs，不再静默吞咽
+		return nil, err // propagate 网络错误到 dimErrs，不再静默吞咽
 	}
 
 	statResp, err := types.DecodeResponse(statBody)
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 响应解析失败: %v", dim.ID, dim.Name, err)
-		return nil, err // F2 修复：propagate 解析错误到 dimErrs，不再静默吞咽
+		return nil, err // propagate 解析错误到 dimErrs，不再静默吞咽
 	}
 	if statResp.Code != 1 {
 		// F-GroupD-F：业务错误 propagate，不再静默。
@@ -257,7 +257,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	tasks, err = types.DecodeDataList[types.Task](statResp)
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 任务解析失败: %v", dim.ID, dim.Name, err)
-		return nil, err // F2 修复：propagate 任务列表解析错误到 dimErrs，不再静默吞咽
+		return nil, err // propagate 任务列表解析错误到 dimErrs，不再静默吞咽
 	}
 
 	for i := range tasks {
@@ -268,7 +268,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 
 // fetchTasksForDimensionSafe 是 fetchTasksForDimension 的 panic-safe 包装。
 //
-// G2 (round-7) 修复：errgroup.Go 闭包内无 panic recover 时，nil deref 或
+// errgroup.Go 闭包内无 panic recover 时，nil deref 或
 // 第三方库 panic 会逃逸到 runtime → 进程崩溃 → g.Wait() 永不返回。
 // 此 helper 在维度粒度捕获 panic，把它当业务错误记录到 dimErrs，
 // 防止单个维度的 panic 影响其他维度的并发拉取。
@@ -317,11 +317,11 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 		Code: resp.Code,
 		Raw:  parseRawData(bodyBytes),
 	}
-	// C2 修复：用 derefOr 替代手动 nil 检查（与 auth.go:156/212 对齐）。
+	// 用 derefOr 替代手动 nil 检查（与 auth.go:156/212 对齐）。
 	result.Msg = derefOr(resp.Msg, "")
 
 	if resp.Code != 1 {
-		// F7 修复：用 ErrBusinessRejected 包装而非 ErrLoginRejected。
+		// 用 ErrBusinessRejected 包装而非 ErrLoginRejected。
 		// 业务错误（任务已提交/参数错/服务端 5xx）与登录状态无关，
 		// 用户 errors.Is(err, ErrLoginRejected) 不应误判为需重新登录。
 		return result, fmt.Errorf("%w: code=%d msg=%s", ErrBusinessRejected, resp.Code, result.Msg)
@@ -337,7 +337,7 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 
 // GetCircleTypeByTaskID 确认任务类型信息。
 //
-// r9-D3 修复（2026-06-27 标记）：本方法在当前 SDK 中无业务调用方
+// 本方法在当前 SDK 中无业务调用方
 // （仅 task_id_lookup_test.go 等测试使用），且维护负担较高——
 // 每次响应结构变更需同步更新解析逻辑。
 //
@@ -352,7 +352,7 @@ func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID
 	}
 	headers := c.bizHeaders(token)
 
-	// C13 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全。
+	// 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全。
 	url := c.bizURL("/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10))
 	bodyBytes, err := c.doRequest(ctx, http.MethodGet, url, nil, headers, "")
 	if err != nil {
@@ -368,7 +368,7 @@ func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID
 		// F-GroupD-E：与其他业务错误统一用 ErrBusinessRejected 包装。
 		// 用 resp.Code/resp.Msg 直接拼字符串（与 SubmitTask 一致），
 		// 不把 err 放 %w 位（否则 ErrBusinessRejected 不在链上）。
-		// F19 (round-7) 重构：走 derefOr helper，与 auth.go:156/212 对齐。
+		// 走 derefOr helper，与 auth.go:156/212 对齐。
 		msg := derefOr(resp.Msg, "")
 		return nil, fmt.Errorf("%w: GetCircleTypeByTaskID 业务错误: code=%d msg=%s", ErrBusinessRejected, resp.Code, msg)
 	}

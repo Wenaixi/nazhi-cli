@@ -1,17 +1,13 @@
 // Package client 内部白盒测试。
-//
-// F5 (review-tdd 三轮): pkg/client/auth.go syncCookieToken baseURL 解析失败
+// F5 ( 三轮): pkg/client/auth.go syncCookieToken baseURL 解析失败
 // propagate error — 回归测试。
-//
 // 历史 bug：F8 round1 修了 Jar 类型断言失败 propagate error，但 baseURL 解析
 // 失败仍静默 c.logger.Warn + continue + return nil，invariant 不对称：
-//   - 类型断言失败 → 返回 error（caller 可在 build 阶段感知）
-//   - URL 解析失败 → 静默 Warn + return nil（caller 收不到任何信号）
-//
+// - 类型断言失败 → 返回 error（caller 可在 build 阶段感知）
+// - URL 解析失败 → 静默 Warn + return nil（caller 收不到任何信号）
 // 修复后：URL 解析失败也 propagate error（fmt.Errorf wrap），与 Jar 类型断言
 // 失败的契约对齐。warnSyncCookieToken helper 继续 WARN 不阻断（业务 token
 // 仍有效），但 New() 路径下 baseURL 由用户控制，错误应当 surface。
-//
 // 验证策略：白盒测试直接构造 *Client（含 slog.Logger 防 happy path 走
 // logDebug 时 nil deref），ssoBaseURL/baseURL 设置为 url.Parse 失败的
 // 畸形字符串（ASCII 控制字符），断言 syncCookieToken 返回 error。
@@ -43,7 +39,7 @@ func newTestClientWithJar(ssoBase, bizBase string) *Client {
 }
 
 // TestSyncCookieToken_BaseURLMalformed_Propagates 验证 baseURL 畸形时
-// syncCookieToken 返回 error（B9 后只解析 c.baseURL，ssoBaseURL 不参与 cookie 写入）。
+// syncCookieToken 返回 error（修复后只解析 c.baseURL，ssoBaseURL 不参与 cookie 写入）。
 func TestSyncCookieToken_BaseURLMalformed_Propagates(t *testing.T) {
 	c := newTestClientWithJar("https://sso.example.com", malformedBaseURL)
 

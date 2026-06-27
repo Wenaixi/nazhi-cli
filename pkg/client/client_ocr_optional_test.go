@@ -1,10 +1,9 @@
 // Package client_test 包含 OCR 可选化（build tag）的行为测试。
-//
 // 核心契约：
-//   - 不传 WithCustomOCR 时，c.ocr 可能是 nil（构建时未指定 -tags ddddocr）
-//   - 此时调 Login() 必须立即返回 ErrOCRNotConfigured 哨兵错误，
-//     而不是 panic 或悬挂在 ocrRecognizeWithRetry
-//   - Close() 也不应 panic
+// - 不传 WithCustomOCR 时，c.ocr 可能是 nil（构建时未指定 -tags ddddocr）
+// - 此时调 Login() 必须立即返回 ErrOCRNotConfigured 哨兵错误，
+// 而不是 panic 或悬挂在 ocrRecognizeWithRetry
+// - Close() 也不应 panic
 package client_test
 
 import (

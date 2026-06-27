@@ -30,7 +30,7 @@ var selfEvalSubmitCmd = &cobra.Command{
 		// 从 stdin 读取评论（非 TTY 环境如 CI 直接读取，不阻塞）
 		if comment == "" || comment == "-" {
 			// CI 环境下 stdin 不是字符设备，直接读取而不等待用户输入
-			// L 修复（group-H round-4）：fmt.Fprint(os.Stderr,...) 改走 printPrompt，
+			// fmt.Fprint(os.Stderr,...) 改走 printPrompt
 			// 统一交互提示通道（仅 isTerminalStdin 时输出，受 quiet 守卫）。
 			printPrompt("请输入自我评价内容（Ctrl+D 结束）: ")
 			reader := bufio.NewReader(os.Stdin)

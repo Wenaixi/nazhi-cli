@@ -14,10 +14,8 @@ import (
 // TestGetMyInfoRaw_EmptyResponse_ReturnsErrEmptyUserInfo 回归测试 F10：
 // getMyInfoRaw 在 returnData + dataMap 都为 nil 时（业务成功响应但确实无用户数据），
 // 必须返回 (nil, ErrEmptyUserInfo) 而非 (nil, nil)。
-//
 // 修复前：返回 (nil, nil) → cmd/nazhi/session.go:38 printJSON(info) 输出裸 null
 // 与 cmd/nazhi/whoami.go 的 {status: empty, reason: get_my_info_empty} envelope 不一致。
-//
 // 修复后：返回 (nil, ErrEmptyUserInfo) → cmd 层用 errors.Is 分支统一走 status envelope。
 func TestGetMyInfoRaw_EmptyResponse_ReturnsErrEmptyUserInfo(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -77,7 +75,6 @@ func TestGetMyInfoRaw_ValidResponse_ReturnsUserInfo(t *testing.T) {
 
 // TestGetMyInfo_EmptyResponse_BestEffortReturnsNil 验证公开 GetMyInfo 仍然保持
 // 「最佳努力设计」契约：调用方通常吞错，nil 不算 error。
-//
 // 但当 getMyInfoRaw 返回 (nil, ErrEmptyUserInfo) 时，GetMyInfo 应 propagate
 // 这个 err（语义信号），让调用方能 errors.Is 分支处理空响应。
 func TestGetMyInfo_EmptyResponse_PropagatesErrEmptyUserInfo(t *testing.T) {

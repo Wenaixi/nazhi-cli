@@ -13,11 +13,9 @@ import (
 
 // TestDoRequest_DrainsAndClosesForKeepAlive 回归测试：doRequest 的 defer
 // 路径必须先 drain response body 再 Close，让 net/http 把连接归还 keep-alive 池。
-//
 // 历史背景：request.go:145 inline 的 `defer func(){io.Copy+Close}()` 是
-// review-tdd F6 已确立的 drainAndClose helper 的同款代码——
+// F6 已确立的 drainAndClose helper 的同款代码——
 // 本测试防止有人把代码改回 verbatim inline（f1 修复的同类回归防御）。
-//
 // 验证策略：监听 httptest.Server 的 ConnState，断言两个连续请求
 // 之后连接经历过 StateIdle（即被归还到 keep-alive 池供复用）。
 // 如果 defer 没有 drain 就 close，net/http 会强制关闭 TCP，
@@ -82,7 +80,6 @@ func TestDoRequest_DrainsAndClosesForKeepAlive(t *testing.T) {
 }
 
 // TestDoBizGet_DrainsAndClosesForKeepAlive 同上，验证 doBizGet 路径。
-//
 // 修复要点：request.go:193-197 inline 的 verbatim defer
 // 必须替换为同文件 drainAndClose helper，与 doRequest 保持对称。
 func TestDoBizGet_DrainsAndClosesForKeepAlive(t *testing.T) {

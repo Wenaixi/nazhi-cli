@@ -1,18 +1,15 @@
 // r9-D1 修复测试：验证 context 取消后 FetchTasks 在部分任务已获取时
 // 返回 (partialTasks, error) 且 errors.Is(ErrBusinessRejected) 为 true。
-//
 // 设计动机：当部分维度在 context 取消前已完成（len(allTasks) > 0），
 // 其余维度因 cancel 产生 dimErrs 时，返回的错误必须包装 ErrBusinessRejected，
 // 让 cmd 层 envelope 分支能正确识别并输出 partial 状态。
-//
 // 与 B11 设计的边界：
-//   - 无 partial tasks（allTasks 为空）→ 裸 context.Canceled（不包装）
-//   - 有 partial tasks（allTasks 非空）→ 包装 ErrBusinessRejected
-//
+// - 无 partial tasks（allTasks 为空）→ 裸 context.Canceled（不包装）
+// - 有 partial tasks（allTasks 非空）→ 包装 ErrBusinessRejected
 // 建立信任的 3 个断言：
-//  1. errors.Is(err, context.DeadlineExceeded) == true（保留 ctx 根因）
-//  2. errors.Is(err, ErrBusinessRejected) == true（cmd 层 envelope 可识别）
-//  3. len(tasks) > 0（partial tasks 已保留）
+// 1. errors.Is(err, context.DeadlineExceeded) == true（保留 ctx 根因）
+// 2. errors.Is(err, ErrBusinessRejected) == true（cmd 层 envelope 可识别）
+// 3. len(tasks) > 0（partial tasks 已保留）
 package client_test
 
 import (
@@ -28,14 +25,11 @@ import (
 
 // TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected 验证 context 取消后
 // FetchTasks 在部分维度已成功时返回 errors.Is(ErrBusinessRejected) 且包含 partial tasks。
-//
 // 设计：4 个维度（id=10/20/30/40），errgroup.SetLimit(4) 不会限制任何 goroutine，
 // 所有维度并发启动。用 dim.ID 决定行为避免计数 race：
-//   - dim.ID <= 20（维度A/B）：handler 立即返回（在 context 取消前完成）
-//   - dim.ID > 20（维度C/D）：handler 睡眠 1s → context 超时 → 返回 DeadlineExceeded
-//
+// - dim.ID <= 20（维度A/B）：handler 立即返回（在 context 取消前完成）
+// - dim.ID > 20（维度C/D）：handler 睡眠 1s → context 超时 → 返回 DeadlineExceeded
 // 前 2 个维度在 context 200ms 超时前完成（partial tasks），后 2 个因超时失败。
-//
 // RED 阶段：期望红色（旧行为返回裸 context 错误，ErrBusinessRejected 不在链上）
 // GREEN 阶段：errors.Is(err, ErrBusinessRejected) 为 true
 func TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected(t *testing.T) {

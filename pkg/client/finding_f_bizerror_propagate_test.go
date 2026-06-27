@@ -1,11 +1,9 @@
-// Package client_test 包含 review-tdd round-4 group-D Finding F 的测试：
 // 验证 FetchTasks 在单维度返回业务错误（code != 1）时不再静默吞咽，
 // 而是通过 errgroup propagate 出带 ErrBusinessRejected 信号的整体错误。
-//
 // 保留语义：
-//   - 成功的维度任务仍聚合到返回的 []types.Task（不被失败维度连累）
-//   - 错误用 ErrBusinessRejected 包装，errors.Is 命中
-//   - 错误信息包含失败维度的统计（>0 时），方便 SDK 用户排障
+// - 成功的维度任务仍聚合到返回的 []types.Task（不被失败维度连累）
+// - 错误用 ErrBusinessRejected 包装，errors.Is 命中
+// - 错误信息包含失败维度的统计（>0 时），方便 SDK 用户排障
 package client_test
 
 import (
@@ -25,12 +23,11 @@ import (
 // TestFindingF_FetchTasks_BizErrorPropagates 验证 FetchTasks 在某维度返回
 // 业务错误时，错误不被静默吞咽，而是 propagate 为带 ErrBusinessRejected
 // 信号的 error。
-//
 // 关键：原实现用 logDebug+return nil，单维度业务错误完全丢失。
 // 修复后必须：
-//  1. errors.Is(err, client.ErrBusinessRejected) = true
-//  2. 成功维度的任务仍聚合到返回切片（不 fail-fast 全盘丢失）
-//  3. errors.Is(err, client.ErrLoginRejected) = false（防止误判为登录问题）
+// 1. errors.Is(err, client.ErrBusinessRejected) = true
+// 2. 成功维度的任务仍聚合到返回切片（不 fail-fast 全盘丢失）
+// 3. errors.Is(err, client.ErrLoginRejected) = false（防止误判为登录问题）
 func TestFindingF_FetchTasks_BizErrorPropagates(t *testing.T) {
 	const dimCount = 3
 	dims := []map[string]any{
@@ -178,7 +175,7 @@ func TestFindingF_FetchTasks_HTTPErrorStillLogDebug(t *testing.T) {
 	)
 
 	tasks, err := c.FetchTasks(context.Background(), "test-token")
-	// F2 修复后：HTTP/解析错误通过 dimErrs 聚合，不再静默吞咽
+	// 后：HTTP/解析错误通过 dimErrs 聚合，不再静默吞咽
 	if err == nil {
 		t.Fatal("F2 修复后 HTTP/解析错误应 propagate 为 ErrBusinessRejected")
 	}

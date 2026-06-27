@@ -24,7 +24,6 @@ func (m *closeMockOCR) Close() error {
 
 // TestClient_Close_ReleasesOCR 验证 Client.Close() 会调用底层 OCR 识别器的 Close()
 // (该方法负责释放 ONNX session 和 %TEMP%/nazhi-cli-ocr-XXXX/ 临时目录)。
-//
 // 修复前: Client 包装 *ocr.Pool 但不暴露 Close(), 每次 CLI 退出都泄漏临时目录。
 // 修复后: Client.Close() 调用 c.ocr.Close() 清理资源。
 func TestClient_Close_ReleasesOCR(t *testing.T) {
@@ -71,7 +70,6 @@ func TestClient_Close_PropagatesOCRCloseError(t *testing.T) {
 
 // TestClient_Close_DefaultOCR 验证默认 Client (无自定义 OCR) Close() 不 panic
 // 也不泄漏——这是 CLI 退出路径的常见调用方式。
-//
 // 进程级单例的 Close() 是有副作用的: 释放后其他 Client 无法再识别验证码。
 // 默认实现应仅在自定义 OCR 时 Close(), 避免误杀进程级单例。
 // 但本测试只验证 Close() 调用本身不出错, 不验证是否实际清理。

@@ -12,11 +12,9 @@ import (
 
 // TestGetMyInfo_NoDuplicateRequest 验证 GetMyInfo 在 session 激活后不重复
 // 调用 getMyInfoRaw。激活步骤 4 已拉取数据，GetMyInfo 应复用该结果。
-//
 // 历史 bug：activateSessionIfNeeded 丢弃了步骤 4（getMyInfoRaw）返回的
 // UserInfo，GetMyInfo 在 session 激活后再次调用 getMyInfoRaw，多一次
 // HTTP 请求。
-//
 // 修复后：activateSessionIfNeeded 返回 UserInfo，GetMyInfo 在激活后
 // 检查返回值，若非 nil 则直接返回，不额外请求。
 func TestGetMyInfo_NoDuplicateRequest(t *testing.T) {

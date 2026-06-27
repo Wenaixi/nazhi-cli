@@ -242,7 +242,7 @@ var captchaSeq atomic.Int64
 
 // fetchCaptchaImage 拉取一张新的验证码图片。
 //
-// F1: 删除冗余的 t= 时间戳参数（seq 原子计数器已足够防缓存碰撞），
+// 删除冗余的 t= 时间戳参数（seq 原子计数器已足够防缓存碰撞），
 // 改用 url.Values 编码替代 fmt.Sprintf+strconv.FormatInt 混合拼接风格。
 func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	seq := captchaSeq.Add(1)
@@ -261,8 +261,8 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 
 // extractTokenFromLocation 从 302 Location 头中提取 token 和过期时间。
 //
-// F2: 缓存 u.Query() 结果 q，消除重复解析（之前 token 提取和 query 转换各调一次）。
-// F3: 内联 queryToMap（已删除），直接转换 url.Values → map[string]any。
+// 缓存 u.Query() 结果 q，消除重复解析（之前 token 提取和 query 转换各调一次）。
+// 内联 queryToMap（已删除），直接转换 url.Values → map[string]any。
 func extractTokenFromLocation(location string) (string, time.Time, error) {
 	u, err := url.Parse(location)
 	if err != nil {
@@ -292,12 +292,12 @@ const expiresFallbackThreshold = 1 * time.Hour
 
 // parseExpiresMap 是 302 Location query 与 200 returnData 共用的过期时间解析器。
 //
-// F4: 删除 parseReturnDataExpires 包装函数（与 parseExpiresMap 相同），
+// 删除 parseReturnDataExpires 包装函数（与 parseExpiresMap 相同），
 //
 //	调用方 extractTokenFromReturnData 直接调 parseExpiresMap(data)。
 //
-// F5: 不再引用已删除的 parseLocationExpires。
-// F6: 函数开头调一次 time.Now() 引用为 now 变量，替代三处重复的 time.Now() 调用。
+// 不再引用已删除的 parseLocationExpires。
+// 函数开头调一次 time.Now() 引用为 now 变量，替代三处重复的 time.Now() 调用。
 func parseExpiresMap(q map[string]any) time.Time {
 	now := time.Now()
 	if v, ok := q["expires_in"]; ok {
@@ -347,7 +347,7 @@ func extractTokenFromFragment(fragment string) string {
 
 // extractTokenFromReturnData 尝试从统一响应的 returnData 中提取 token。
 //
-// F4: 直接调 parseExpiresMap(data) 而非 parseReturnDataExpires（已删除）。
+// 直接调 parseExpiresMap(data) 而非 parseReturnDataExpires（已删除）。
 func extractTokenFromReturnData(resp types.UnifiedResponse) (string, time.Time, error) {
 	if resp.ReturnData == nil {
 		return "", time.Time{}, fmt.Errorf("returnData 为空")

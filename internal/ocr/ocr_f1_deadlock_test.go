@@ -1,6 +1,6 @@
-// Package ocr 内部白盒测试：F1 initMuGlobal panic 死锁修复。
+// Package ocr 内部白盒测试：initMuGlobal panic 死锁修复。
 //
-// Finding F1（CRITICAL）：initOnce() 中 initMuGlobal.Lock() 后没有 defer Unlock，
+// initOnce() 中 initMuGlobal.Lock() 后没有 defer Unlock，
 // 正常路径在行末 initMuGlobal.Unlock() 处解锁。但若 ddddocr.New() 内部 panic，
 // Unlock 永不执行 → 全局锁永久死锁 → 后续所有 OCR 初始化永远阻塞。
 //

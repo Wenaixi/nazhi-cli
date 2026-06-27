@@ -1,6 +1,6 @@
-// Package ocr 内部白盒测试：Pool.Close 并发安全（I2 重构版）。
+// Package ocr 内部白盒测试：Pool.Close 并发安全。
 //
-// Finding I2：closeHook 字段是测试专用 hook，生产代码永不为非 nil。
+// closeHook 字段是测试专用 hook，生产代码永不为非 nil。
 // 删除 closeHook 后，本测试改用 OCR 实例副作用（tempDir RemoveAll）+ Pool
 // state 翻转（inits map 排空 + closed=true）来间接断言并发安全。
 //
@@ -26,7 +26,7 @@ import (
 	"testing"
 )
 
-// TestPool_Close_ConcurrentIsIdempotent 回归测试 F1：Pool.Close() 必须并发安全。
+// TestPool_Close_ConcurrentIsIdempotent 回归测试：Pool.Close() 必须并发安全。
 //
 // 历史问题：原实现分两段（先拿 initsMu 排空 map，再迭代 Close 实例）。
 // 两个 goroutine 同时 Close 时，两者可能都拿到同一份 inits 副本，

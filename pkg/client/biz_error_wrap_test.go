@@ -11,13 +11,11 @@ import (
 
 // TestCheckCode_ErrorsIsAndAs 验证 CheckCode 返回的错误同时满足
 // errors.Is(err, ErrBusinessRejected) 和 errors.As(err, &bizError)。
-//
 // 历史 bug：两套模式混用：
-//   - Pattern A: fmt.Errorf("...: %w", err)  err=*BusinessError
-//     errors.Is(ErrBusinessRejected) = false
-//   - Pattern B: fmt.Errorf("%w: ...: %v", ErrBusinessRejected, err)
-//     errors.Is 正确但 errors.As 不到 BusinessError
-//
+// - Pattern A: fmt.Errorf("...: %w", err) err=*BusinessError
+// errors.Is(ErrBusinessRejected) = false
+// - Pattern B: fmt.Errorf("%w: ...: %v", ErrBusinessRejected, err)
+// errors.Is 正确但 errors.As 不到 BusinessError
 // 修复后：统一用 errors.Join(ErrBusinessRejected, err)
 func TestCheckCode_ErrorsIsAndAs(t *testing.T) {
 	resp := types.UnifiedResponse{
