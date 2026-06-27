@@ -291,7 +291,15 @@ func New(opts ...Option) (*Client, error) {
 // G1 修复（review-tdd round-1）：用 fmt.Sprintf 先格式化再传给 slog。
 // 原实现直接 c.logger.Debug(format, args...) 被 slog 当成 key-value 对，
 // 不会做 %s/%d 插值，导致日志输出原始的格式字符串而非插值结果。
+//
+// I4 修复（review-tdd round-9）：顶部加 slog.Logger.Enabled 守卫。
+// fmt.Sprintf 即使输出被丢弃也要分配 args slice + 构造 string，每个调用
+// ~200B 临时分配。verbose 默认关 + slog 默认 LevelInfo 双重过滤下，
+// 守护整个调用链全部白做。Enabled 早退后 alloc 归零，热路径性能提升。
 func (c *Client) logDebug(format string, args ...any) {
+	if !c.logger.Enabled(nil, slog.LevelDebug) {
+		return
+	}
 	c.logger.Debug(fmt.Sprintf(format, args...))
 }
 
