@@ -70,21 +70,29 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 		return nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err))
 	}
 
-	// 两段 fallback（returnData → dataMap），用 tryDecodeFallback 消除重复
-	v := tryDecodeFallback(c, "GetMyInfo",
-		func() (*types.UserInfo, error) {
+	// 两段 fallback（returnData → dataMap），用 tryDecodeWithRaw 统一注入 Raw
+	v := tryDecodeWithRaw(c, "GetMyInfo",
+		func(u *types.UserInfo, raw map[string]any) { u.Raw = raw },
+		func() (*types.UserInfo, []byte, error) {
+			// r9-D10: 直接用 types.DecodeReturnData，外层的 tryDecodeWithRaw 自动注入 Raw
 			u, err := types.DecodeReturnData[types.UserInfo](resp)
-			if err == nil && u != nil {
-				u.Raw = parseRawData(*resp.ReturnData)
+			if err != nil || u == nil {
+				return nil, nil, err
 			}
-			return u, err
+			if resp.ReturnData != nil {
+				return u, *resp.ReturnData, nil
+			}
+			return u, nil, nil
 		},
-		func() (*types.UserInfo, error) {
+		func() (*types.UserInfo, []byte, error) {
 			u, err := types.DecodeDataMap[types.UserInfo](resp)
-			if err == nil && u != nil {
-				u.Raw = parseRawData(*resp.DataMap)
+			if err != nil || u == nil {
+				return nil, nil, err
 			}
-			return u, err
+			if resp.DataMap != nil {
+				return u, *resp.DataMap, nil
+			}
+			return u, nil, nil
 		},
 	)
 	if v != nil {
