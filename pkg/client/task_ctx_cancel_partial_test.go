@@ -10,9 +10,9 @@
 //   - 有 partial tasks（allTasks 非空）→ 包装 ErrBusinessRejected
 //
 // 建立信任的 3 个断言：
-//   1. errors.Is(err, context.DeadlineExceeded) == true（保留 ctx 根因）
-//   2. errors.Is(err, ErrBusinessRejected) == true（cmd 层 envelope 可识别）
-//   3. len(tasks) > 0（partial tasks 已保留）
+//  1. errors.Is(err, context.DeadlineExceeded) == true（保留 ctx 根因）
+//  2. errors.Is(err, ErrBusinessRejected) == true（cmd 层 envelope 可识别）
+//  3. len(tasks) > 0（partial tasks 已保留）
 package client_test
 
 import (
