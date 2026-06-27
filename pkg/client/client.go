@@ -115,6 +115,34 @@ var WithUploadURL = withURLGuard("WithUploadURL",
 	func(c *Client, v string) { c.uploadURL = v },
 )
 
+// withDurationGuard 生成 Duration 型 Option 的守卫工厂。
+// 与 withURLGuard 对称，消除 WithTimeout / WithSessionBackoff 中重复的 d<0 / d==0 守卫。
+//
+// 返回 func(d time.Duration) Option：
+//   - d < 0：warn 并拒绝设置，保持当前值
+//   - d == 0：warn 并拒绝设置（防止静默清零），保持当前值
+//   - d > 0：调用 setter(c, d)
+//
+// 调用方负责在返回的 Option 中叠加额外守卫（如 c.http == nil 检查）。
+func withDurationGuard(name string, setter func(*Client, time.Duration)) func(time.Duration) Option {
+	return func(d time.Duration) Option {
+		if d < 0 {
+			return func(c *Client) {
+				c.logger.Warn(name+": 负数 duration 被拒绝，保持当前值",
+					"duration", d)
+			}
+		}
+		if d == 0 {
+			return func(c *Client) {
+				c.logger.Warn(name + ": 0 duration 被拒绝（防止静默清零），保持当前值")
+			}
+		}
+		return func(c *Client) {
+			setter(c, d)
+		}
+	}
+}
+
 // WithTimeout 设置 HTTP 客户端超时（包括连接、TLS 握手、响应体读取）。
 //
 // 行为约定：
@@ -125,24 +153,14 @@ var WithUploadURL = withURLGuard("WithUploadURL",
 //     正数超时清零为 net/http 默认"无超时"，请求可能永久挂起）
 //   - d < 0：拒绝设置并 warn，保持当前 Timeout（防止意外把超时改小）
 func WithTimeout(d time.Duration) Option {
+	base := withDurationGuard("WithTimeout", func(c *Client, v time.Duration) { c.http.Timeout = v })(d)
 	return func(c *Client) {
 		if c.http == nil {
 			c.logger.Warn("WithTimeout: c.http 为 nil，跳过设置",
 				"tip", "确保在 WithTimeout 之前未传入 WithHTTPClient(nil)")
 			return
 		}
-		if d < 0 {
-			c.logger.Warn("WithTimeout: 负数超时被拒绝，保持当前值",
-				"duration", d, "current", c.http.Timeout)
-			return
-		}
-		if d == 0 {
-			c.logger.Warn("WithTimeout: 0 表示 net/http 默认'无超时'，所有请求可能永久挂起，保持当前值",
-				"current", c.http.Timeout,
-				"tip", "用 WithTimeout(15*time.Second) 设置正数")
-			return
-		}
-		c.http.Timeout = d
+		base(c)
 	}
 }
 
@@ -162,22 +180,9 @@ func WithTimeout(d time.Duration) Option {
 //
 // 与 ErrSessionBackoff 哨兵配对，
 // 让 SDK 用户能调整 thundering herd 抑制窗口。
-func WithSessionBackoff(d time.Duration) Option {
-	return func(c *Client) {
-		if d < 0 {
-			c.logger.Warn("WithSessionBackoff: 负数 backoff 窗口被拒绝，保持当前值",
-				"duration", d, "current", c.sm.backoff)
-			return
-		}
-		if d == 0 {
-			c.logger.Warn("WithSessionBackoff: 0 窗口被拒绝（防止静默清零默认值），保持当前值",
-				"current", c.sm.backoff,
-				"tip", "用 WithSessionBackoff(5*time.Second) 设置正数，或保留默认值 5s")
-			return
-		}
-		c.sm.SetBackoff(d)
-	}
-}
+var WithSessionBackoff = withDurationGuard("WithSessionBackoff",
+	func(c *Client, d time.Duration) { c.sm.SetBackoff(d) },
+)
 
 // WithLogger 设置自定义 logger。
 //
