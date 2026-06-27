@@ -1,7 +1,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
@@ -19,9 +18,9 @@ var loginCmd = &cobra.Command{
 	Short: "SSO 登录纳智综合评价系统",
 	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → OCR 自动识别验证码 → Login。
 
-验证码由内置 OCR 全自动识别（模型已内嵌在二进制中，无需下载），无需人工干预。`,
+	验证码由内置 OCR 全自动识别（模型已内嵌在二进制中，无需下载），无需人工干预。`,
 	Example: `  nazhi login -u 学号 -p 密码                       # 全自动 OCR
-  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
+	  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// username/password 用 flagChanged() 守卫
 		// env fallback，避免用户显式传 --username "" 时 NAZHI_USERNAME 静默覆盖。
@@ -58,26 +57,20 @@ var loginCmd = &cobra.Command{
 			Password: password,
 		})
 		if err != nil {
-			// 识别 ErrOCRNotConfigured 输出 actionable JSON envelope。
-			// CGO-free 用户（未用 -tags ddddocr 构建）调 nazhi login 时
-			// 收到通用错误可能不知道需要 -tags ddddocr 或注入自定义 OCR。
-			if errors.Is(err, client.ErrOCRNotConfigured) {
+			// 用 ErrorCategory 分类替代 errors.Is 逐一枚举。
+			switch client.ClassifyError(err) {
+			case client.ErrorCategoryOCR:
 				printVerbose("OCR 识别器未配置：当前构建无 -tags ddddocr。请使用预编译 release 二进制（nazhi-cli releases 页面），或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器")
 				printJSON(map[string]any{
 					"status":  "error",
 					"message": "登录失败：OCR 识别器未配置。当前构建未启用 -tags ddddocr，无法自动识别验证码。请下载预编译 release 二进制或注入自定义识别器。",
 				})
-				// 标记退出码为 1，与所有其他错误路径一致
 				markError()
-				return
-			}
-			// 识别 ErrLocationParseFailed 给出可读提示
-			// （不要泄漏 location URL，可能含 token fragment）
-			if errors.Is(err, client.ErrLocationParseFailed) {
+			case client.ErrorCategoryAuth:
 				printError(fmt.Errorf("登录失败: %w（SSO 重定向 Location 头畸形，请检查 SSO 服务端响应或上报 bug）", err))
-				return
+			default:
+				printError(fmt.Errorf("登录失败: %w", err))
 			}
-			printError(fmt.Errorf("登录失败: %w", err))
 			return
 		}
 		printJSON(resp)
