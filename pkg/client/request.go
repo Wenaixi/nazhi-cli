@@ -189,6 +189,46 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	return &resp, nil
 }
 
+// doBizGetDecode 封装 GET 请求的"预热 session → doRequest → DecodeResponse → CheckCode → 类型安全解码"管线。
+//
+// 参数：
+//   - c: Client 实例
+//   - ctx: 上下文
+//   - token: X-Auth-Token
+//   - opName: 操作名称（用于错误消息前缀）
+//   - path: 业务 API 路径（如 "/api/test"），经 c.bizURL() 拼接完整 URL
+//   - decoders: 一个或多个解码函数，按顺序尝试，第一个成功的结果返回
+//     所有解码器均失败时返回错误。
+//
+// 典型用法（单解码器）：
+//
+//	result, err := doBizGetDecode[types.UserInfo](c, ctx, token, "GetMyInfo", "/path",
+//	    types.DecodeReturnData[types.UserInfo],
+//	)
+//
+// 带回退链的用法：
+//
+//	result, err := doBizGetDecode[types.UserInfo](c, ctx, token, "GetMyInfo", "/path",
+//	    types.DecodeReturnData[types.UserInfo],
+//	    types.DecodeDataMap[types.UserInfo],
+//	)
+func doBizGetDecode[T any](c *Client, ctx context.Context, token, opName, path string, decoders ...func(types.UnifiedResponse) (*T, error)) (*T, error) {
+	resp, err := c.doBizAndDecode(ctx, token, opName, path, http.MethodGet, nil)
+	if err != nil {
+		return nil, err
+	}
+	for _, decode := range decoders {
+		v, err := decode(*resp)
+		if err == nil && v != nil {
+			return v, nil
+		}
+		if err != nil {
+			c.logDebug("%s doBizGetDecode fallback: %v", opName, err)
+		}
+	}
+	return nil, fmt.Errorf("%s: 所有解码器均失败", opName)
+}
+
 // logRequestHeaders 在 debug 级别输出请求头，值长度 > 16 字符时自动截断脱敏。
 func (c *Client) logRequestHeaders(req *http.Request) {
 	if c.logger == nil {
@@ -270,6 +310,34 @@ func (c *Client) doRequestWithResp(ctx context.Context, method, url string, body
 //
 // 注意: 这是"一次性消费" helper, 调用方拿到 []byte 后 body 已关闭。
 // 如需保留 body 在函数返回后继续使用, 请直接用 doRequestWithResp。
+// tryDecodeFallback 按顺序尝试多个解码器，返回第一个成功解码的结果。
+// 全部失败时返回 nil。
+// 日志行为：
+//   - 解码器返回 err → 通过 c.logDebug 输出（定位响应结构变化）
+//   - 解码器返回 (nil, nil) → 字段为空，静默尝试下一个（不含日志噪音）
+//
+// 用法示例：
+//
+//	v := tryDecodeFallback(c, "QuerySelfEvaluation",
+//	    func() (*T, error) { return types.DecodeReturnData[T](resp) },
+//	    func() (*T, error) { return types.DecodeDataMap[T](resp) },
+//	)
+func tryDecodeFallback[T any](c *Client, opName string, decoders ...func() (*T, error)) *T {
+	for _, decode := range decoders {
+		v, err := decode()
+		if err == nil {
+			if v != nil {
+				return v
+			}
+			// 字段为空（nil result），静默尝试下一个
+			continue
+		}
+		// 解析失败，记录日志但不中断
+		c.logDebug("%s fallback 失败: %v", opName, err)
+	}
+	return nil
+}
+
 func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]string) ([]byte, error) {
 	resp, err := c.doRequestWithResp(ctx, http.MethodGet, url, nil, headers, "")
 	if err != nil {

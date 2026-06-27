@@ -23,18 +23,21 @@ import (
 const fetchTasksConcurrentLimit = 8
 
 // fetchDimensions 拉取任务维度列表（FetchTasks / GetDimensions 共用）。
-// 内部包含 session 预热 + 4 段响应解析，错误信息前缀由 caller 决定。
+// 内部包含 session 预热 + 响应解码，错误信息前缀由 caller 决定。
 func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix string) ([]types.Dimension, error) {
-	resp, err := c.doBizAndDecode(ctx, token, errPrefix, "/api/studentCircleNew/getDimensions", http.MethodGet, nil)
+	dims, err := doBizGetDecode[[]types.Dimension](c, ctx, token, errPrefix, "/api/studentCircleNew/getDimensions",
+		func(resp types.UnifiedResponse) (*[]types.Dimension, error) {
+			v, err := types.DecodeDataList[types.Dimension](resp)
+			if err != nil {
+				return nil, err
+			}
+			return &v, nil
+		},
+	)
 	if err != nil {
 		return nil, err
 	}
-
-	dimensions, err := types.DecodeDataList[types.Dimension](*resp)
-	if err != nil {
-		return nil, fmt.Errorf("%s 维度列表解析失败: %w", errPrefix, err)
-	}
-	return dimensions, nil
+	return *dims, nil
 }
 
 // FetchTasks 拉取目标平台全部维度的任务列表。
@@ -305,11 +308,8 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 //
 // Deprecated: 此方法计划在下个 major 版本删除，新业务请勿依赖。
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*map[string]any, error) {
-	resp, err := c.doBizAndDecode(ctx, token, "GetCircleTypeByTaskID",
-		"/api/studentCircleNew/getCircleTypeByTaskId?taskId="+strconv.FormatInt(taskID, 10),
-		http.MethodGet, nil)
-	if err != nil {
-		return nil, err
-	}
-	return types.DecodeReturnData[map[string]any](*resp)
+	path := "/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10)
+	return doBizGetDecode[map[string]any](c, ctx, token, "GetCircleTypeByTaskID", path,
+		types.DecodeReturnData[map[string]any],
+	)
 }
