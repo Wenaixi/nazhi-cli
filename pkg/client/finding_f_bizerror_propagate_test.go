@@ -1,4 +1,4 @@
-﻿// Package client_test 包含 review-tdd round-4 group-D Finding F 的测试：
+// Package client_test 包含 review-tdd round-4 group-D Finding F 的测试：
 // 验证 FetchTasks 在单维度返回业务错误（code != 1）时不再静默吞咽，
 // 而是通过 errgroup propagate 出带 ErrBusinessRejected 信号的整体错误。
 //

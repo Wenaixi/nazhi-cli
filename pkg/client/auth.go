@@ -293,7 +293,9 @@ const expiresFallbackThreshold = 1 * time.Hour
 // parseExpiresMap 是 302 Location query 与 200 returnData 共用的过期时间解析器。
 //
 // F4: 删除 parseReturnDataExpires 包装函数（与 parseExpiresMap 相同），
-//     调用方 extractTokenFromReturnData 直接调 parseExpiresMap(data)。
+//
+//	调用方 extractTokenFromReturnData 直接调 parseExpiresMap(data)。
+//
 // F5: 不再引用已删除的 parseLocationExpires。
 // F6: 函数开头调一次 time.Now() 引用为 now 变量，替代三处重复的 time.Now() 调用。
 func parseExpiresMap(q map[string]any) time.Time {
