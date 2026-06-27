@@ -68,6 +68,8 @@ var loginCmd = &cobra.Command{
 					"status":  "error",
 					"message": "登录失败：OCR 识别器未配置。当前构建未启用 -tags ddddocr，无法自动识别验证码。请下载预编译 release 二进制或注入自定义识别器。",
 				})
+				// F3 修复：标记退出码为 1，与所有其他错误路径一致
+				markError()
 				return
 			}
 			// r9-D11 修复：识别 ErrLocationParseFailed 给出可读提示
