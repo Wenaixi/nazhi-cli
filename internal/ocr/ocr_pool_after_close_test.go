@@ -26,8 +26,8 @@ func TestPool_RecognizeAfterClose_ReturnsError(t *testing.T) {
 	if err == nil {
 		t.Fatal("Pool.Close 后调 Recognize 应返回错误，但返回 nil")
 	}
-	if err.Error() != "OCR 池已关闭" {
-		t.Errorf("错误消息应为「OCR 池已关闭」，实际: %v", err)
+	if err.Error() != "OCR pool is closed" {
+		t.Errorf("错误消息应为「OCR pool is closed」，实际: %v", err)
 	}
 }
 

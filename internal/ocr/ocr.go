@@ -164,7 +164,7 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 	}
 	p.closeMu.Unlock()
 	if o == nil {
-		return "", errors.New("OCR 池已关闭")
+		return "", errors.New("OCR pool is closed")
 	}
 
 	defer p.pool.Put(o)
@@ -269,7 +269,7 @@ func (o *OCR) initOnce() error {
 	o.tempDir, o.initErr = o.extractModels()
 	if o.initErr != nil {
 		o.initialized = true
-		return fmt.Errorf("OCR 初始化失败: %w", o.initErr)
+		return fmt.Errorf("OCR initialization failed: %w", o.initErr)
 	}
 	cleanupTempDir = true
 
@@ -311,7 +311,7 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	o.initMu.Lock()
 	if o.closed.Load() {
 		o.initMu.Unlock()
-		return "", errors.New("OCR 已关闭")
+		return "", errors.New("OCR is closed")
 	}
 	if !o.initialized {
 		if err := o.initOnce(); err != nil {
@@ -324,11 +324,11 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	o.initMu.Unlock()
 
 	if initErr != nil {
-		return "", fmt.Errorf("OCR 初始化失败: %w", initErr)
+		return "", fmt.Errorf("OCR initialization failed: %w", initErr)
 	}
 	// 防御：initialized=true 但 ocr=nil 是不一致状态（Close 后、初始化中途异常等）
 	if ocr == nil {
-		return "", errors.New("OCR 不可用：识别器为 nil")
+		return "", errors.New("OCR unavailable: recognizer is nil")
 	}
 
 	// 单例场景下保护 Classification 调用，并发请求时串行执行识别
@@ -339,7 +339,7 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	o.mu.Lock()
 	if o.closed.Load() {
 		o.mu.Unlock()
-		return "", errors.New("OCR 已关闭")
+		return "", errors.New("OCR is closed")
 	}
 	result, err := ocr.Classification(imageData)
 	o.mu.Unlock()
