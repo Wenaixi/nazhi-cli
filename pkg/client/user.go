@@ -43,6 +43,9 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 // getMyInfoRaw 是 GetMyInfo 的内部版本（不预热 session），供 ActivateSession
 // 步骤 4 调用——避免外层 sessionOnce.Do 持锁时再次进入 sessionOnce.Do 死锁。
 // 公开 SDK 用户请使用 GetMyInfo。
+//
+// 注意：本方法不迁移到 doBizGetDecode，因为它需要自定义 Referer header (/modify)，
+// 而 doBizGetDecode/doBizAndDecode 内部固定使用 bizHeaders()（Referer=/homepage）。
 func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
 	// Referer 走 c.bizURL() helper，与其他业务接口对称

@@ -402,9 +402,14 @@ func (c *Client) warnSyncCookieToken(token, label string) {
 
 func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
 	c.warnSyncCookieToken(token, label)
+	// 内联 parseRawData：将原始 JSON 字节解析为 map，用于注入 Raw 字段
+	var rawData map[string]any
+	if len(bodyBytes) > 0 {
+		_ = json.Unmarshal(bodyBytes, &rawData) // 解析失败返回 nil
+	}
 	return &types.LoginResponse{
 		Token:     token,
 		ExpiresAt: expiresAt,
-		RawData:   parseRawData(bodyBytes),
+		RawData:   rawData,
 	}
 }
