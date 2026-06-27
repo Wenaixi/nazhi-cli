@@ -1,7 +1,9 @@
 //go:build ddddocr
 // +build ddddocr
 
-// Package client 内部白盒测试。
+// option_guards_ddddocr_test.go (ddddocr 构建) 聚合 ddddocr 构建下
+// 选项守卫 + OCR 并发调度的白盒测试。
+// !ddddocr 构建见 option_test.go（占位实现）。
 package client
 
 import (
@@ -10,6 +12,16 @@ import (
 	"strings"
 	"testing"
 )
+
+// mockCaptchaRecognizer 测试用 mock：只记录被设置过、Close 不报错。
+type mockCaptchaRecognizer struct {
+	closed bool
+}
+
+func (m *mockCaptchaRecognizer) Recognize([]byte) (string, error) { return "ok", nil }
+func (m *mockCaptchaRecognizer) Close() error                     { m.closed = true; return nil }
+
+// ─── option_guards_test.go (ddddocr 构建): 6 个 Option 守卫 ───
 
 // TestWithSSOBase_EmptyRejected 回归测试（D1）：
 // WithSSOBase("") 必须被拒绝，保持当前 ssoBaseURL 值（防止用空 URL
@@ -104,14 +116,6 @@ func TestWithHTTPClient_NilRejected(t *testing.T) {
 		t.Errorf("应 warn 包含 'nil' 和 'WithHTTPClient'，实际 log：%s", logBuf.String())
 	}
 }
-
-// mockCaptchaRecognizer 测试用 mock：只记录被设置过、Close 不报错。
-type mockCaptchaRecognizer struct {
-	closed bool
-}
-
-func (m *mockCaptchaRecognizer) Recognize([]byte) (string, error) { return "ok", nil }
-func (m *mockCaptchaRecognizer) Close() error                     { m.closed = true; return nil }
 
 // TestWithOCRConcurrency_NegativeRejected 回归测试（D1）：
 // WithOCRConcurrency(-1) 必须被拒绝，warn 提醒，保持当前 ocr 识别器（防止
