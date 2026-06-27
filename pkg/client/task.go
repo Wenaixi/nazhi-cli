@@ -209,14 +209,16 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 
 // fetchTasksForDimension 拉取单个维度的任务列表并注入维度名称。
 //
-// 错误处理双路径（F-GroupD-F 修复）：
-//   - HTTP / 网络错误（如连接超时、500）：走 logDebug + return (nil, nil)，
-//     best-effort 模式不中断整体拉取（网络抖动不应当 fail-fast）
+// 错误处理（F-GroupD-F 修复）：
+//   - HTTP / 网络错误、响应解析错误、任务列表解析错误：return error，
+//     由 FetchTasks errgroup 聚合后 propagate，**不**静默吞咽。
+//     调用方通过 dimErrs 区分全失败与部分失败。
 //   - 业务错误（code != 1）：return error，由 FetchTasks errgroup 聚合后
-//     包装为 ErrBusinessRejected propagate，**不**静默吞咽
+//     包装为 ErrBusinessRejected propagate。
 //
-// 区分意义：网络抖动是「临时性、可重试」，业务错误是「服务端明确拒绝」，
-// SDK 用户需要知道业务错误才能做精确处理（提示用户、报告 bug 等）。
+// 关键设计：之前网络/解析错误走 best-effort (nil, nil) 导致调用方无法区分
+// 「空数据」与「网络错误」，聚合时 dimErrs 接收不到错误。改为 propagate error
+// 后，dimErrs 能正确收集所有非上下文取消的维度错误。
 // G2 (round-7) 修复：改用命名返回值 (tasks []types.Task, err error) 以便
 // fetchTasksForDimensionSafe 的 defer recover 能通过闭包赋值捕获 panic。
 // 非公有方法改变签名不破坏兼容性。
@@ -238,13 +240,13 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 			return nil, err // 上下文取消应 propagate，不做 best-effort 吞没
 		}
 		c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
-		return nil, nil // 网络错误走 best-effort
+		return nil, err // F2 修复：propagate 网络错误到 dimErrs，不再静默吞咽
 	}
 
 	statResp, err := types.DecodeResponse(statBody)
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 响应解析失败: %v", dim.ID, dim.Name, err)
-		return nil, nil // 解析错误也走 best-effort（不归类为业务错误）
+		return nil, err // F2 修复：propagate 解析错误到 dimErrs，不再静默吞咽
 	}
 	if statResp.Code != 1 {
 		// F-GroupD-F：业务错误 propagate，不再静默。
@@ -255,7 +257,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	tasks, err = types.DecodeDataList[types.Task](statResp)
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 任务解析失败: %v", dim.ID, dim.Name, err)
-		return nil, nil
+		return nil, err // F2 修复：propagate 任务列表解析错误到 dimErrs，不再静默吞咽
 	}
 
 	for i := range tasks {
