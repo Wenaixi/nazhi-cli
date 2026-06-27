@@ -74,7 +74,7 @@ func (c *Client) ssoHeaders() map[string]string {
 	return map[string]string{
 		"Accept":           "application/json, text/javascript, */*; q=0.01",
 		"User-Agent":       defaultUserAgent,
-		"Referer":          c.ssoBaseURL + "/uiStudentLogin/login",
+		"Referer":          c.ssoURL("/uiStudentLogin/login"),
 		"Origin":           c.ssoBaseURL,
 		"X-Requested-With": "XMLHttpRequest",
 	}
