@@ -58,10 +58,14 @@ func tryDecodeWithRaw[T any](c *Client, opName string, setRaw func(*T, map[strin
 	for _, decode := range decoders {
 		v, rawBytes, err := decode()
 		if err == nil {
-			if v != nil && setRaw != nil && len(rawBytes) > 0 {
-				setRaw(v, parseRawData(rawBytes))
+			if v != nil {
+				if setRaw != nil && len(rawBytes) > 0 {
+					setRaw(v, parseRawData(rawBytes))
+				}
+				return v
 			}
-			return v
+			// 字段为空（nil result），静默尝试下一个
+			continue
 		}
 		c.logDebug("%s fallback 失败: %v", opName, err)
 	}
