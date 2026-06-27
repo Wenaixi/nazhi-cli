@@ -32,7 +32,8 @@
 - **F19 task.go: 3 处 resp.Msg nil 检查未用 derefOr** — 重构为 derefOr(resp.Msg, "")。Commit `ae80dea`。
 - **G2 task.go: g.Go 闭包无 panic recover** — 加 fetchTasksForDimensionSafe defer recover。Commit `befbed7`。
 - **F42 全仓库: 11 处真实 PII 残留** — 替换占位值，扩展 PII 守卫到所有 _test.go。Commit `f8df5b2`。
-- **F28 request.go: newHTTPClient 连接池限制（2 conns/host）** — 自定义 Transport MaxIdleConnsPerHost=16。Commit `821b831`。
+- **F28 request.go: newHTTPClient 连接池限制（2 conns/host）** — 自定义 Transport MaxIdleConnsPerHost=16。Transport 仍是**单实例共享**（无 Clone），所有 Client 实例共享同一 Transport 与 keep-alive 连接池；上传域独立 idle 池由 `client.cleanTransport` sync.Once 缓存的克隆 Transport 提供（见 `file.go:newCleanClient`）。Commit `821b831`。
+- **G1（round-9 I4）logDebug LevelEnabled 守卫** — `client.go:logDebug` 顶部加 `c.logger.Enabled(nil, slog.LevelDebug)` 早退。默认 LevelInfo 过滤下每次 `fmt.Sprintf` 分配 ~200B 临时 string + args slice 全部白做，热路径（UploadFile 99 张图、FetchTasks 8 路并发）alloc 归零。
 - **F21 response_decode.go+self_eval.go: 3 处 fallback decode 重复** — 抽泛型 tryDecodeFallback[T] helper。Commit `dcdc48e`。
 
 ### Fixed（round-8: 11 findings, 6 worktree groups）
