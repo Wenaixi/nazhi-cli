@@ -11,7 +11,20 @@ import (
 
 // GetMyInfo 获取完整的用户个人资料。
 // 包含：姓名、性别、学号、学校、年级、班级、座号（seat）等。
-// 最佳努力设计：失败返回 nil，不中断主流程。
+//
+// 错误契约（v0.3.5+）：
+//   - 网络/HTTP 失败 → 返回 (nil, fmt.Errorf("GetMyInfo 请求失败: %w", err))
+//   - 业务 code≠1    → 返回 (nil, fmt.Errorf("获取用户信息业务错误: %v", errors.Join(ErrBusinessRejected, err)))
+//   - returnData + dataMap 都为空（服务端成功响应但确实无用户数据）→ 返回 (nil, fmt.Errorf("%w: ...", ErrEmptyUserInfo))
+//
+// 调用方应使用 errors.Is 分支判定，**不要**用 `if info == nil { ... }` 兜底：
+//   - `errors.Is(err, client.ErrEmptyUserInfo)`  → 业务成功但无数据，可走 status envelope
+//   - `errors.Is(err, client.ErrBusinessRejected)` → 服务端主动拒绝（如 session 过期）
+//   - 其他 err                                      → 真正的网络/HTTP 故障
+//
+// 历史注：v0.3.4 及更早版本曾返回 (nil, nil) 表示空响应；v0.3.5 F10 修复后
+// 改返 ErrEmptyUserInfo 哨兵，以便 cmd 层统一走 status envelope（避免
+// 误导性的 null 输出）。
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error) {
 	// B10 修复：activateSessionIfNeeded 返回步骤 4 获取的 UserInfo（若激活由
 	// 步骤 4 完成），GetMyInfo 直接复用，避免重复的 getMyInfoRaw HTTP 请求。
