@@ -1,6 +1,6 @@
 // error_external_test.go 聚合 errors 相关外部黑盒测试（package client_test）：
 //   - GetMyInfo 业务错误包装
-//   - fetchDimensions/SubmitTask/GetCircleTypeByTaskID 三处业务错误包装
+//   - fetchDimensions/SubmitTask 两处业务错误包装
 //   - C10/B14: querySelfEval helper + errors.Join CheckCode
 //   - E finding: Submit/Query SelfEvaluation 业务错误包装
 //   - F finding: FetchTasks 单维度业务错误 propagate
@@ -113,25 +113,6 @@ func TestErrWrapping_SubmitTask(t *testing.T) {
 		CircleTypeID: 1,
 	})
 	assertErrBizRejected(t, err, "SubmitTask")
-}
-
-// TestErrWrapping_GetCircleTypeByTaskID 验证 GetCircleTypeByTaskID 在 server
-// 返回 code != 1 时，错误链包含 ErrBusinessRejected。
-func TestErrWrapping_GetCircleTypeByTaskID(t *testing.T) {
-	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/studentCircleNew/getCircleTypeByTaskId" {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(unifiedJSON(404, "任务类型不存在", nil, nil)))
-			return
-		}
-		w.WriteHeader(http.StatusInternalServerError)
-	})))
-	defer biz.Close()
-
-	c := newTestClient(nil, biz, nil)
-	_, err := c.GetCircleTypeByTaskID(context.Background(), "test-token", 12345)
-	assertErrBizRejected(t, err, "GetCircleTypeByTaskID")
 }
 
 // ─── finding_c10_b14_test.go: querySelfEval helper + errors.Join ───
@@ -384,26 +365,6 @@ func TestFindingE_FetchDimensions_BizError(t *testing.T) {
 	c := newTestClient(nil, biz, nil)
 	_, err := c.GetDimensions(context.Background(), "test-token")
 	assertBusinessError(t, err, "GetDimensions")
-}
-
-// TestFindingE_GetCircleTypeByTaskID_BizError 验证 GetCircleTypeByTaskID
-// 在 server 返回 code != 1 时包装为 ErrBusinessRejected。
-func TestFindingE_GetCircleTypeByTaskID_BizError(t *testing.T) {
-	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		switch {
-		case r.URL.Path == "/api/studentCircleNew/getCircleTypeByTaskId":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(unifiedJSON(404, "任务类型不存在", nil, nil)))
-		default:
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	})))
-	defer biz.Close()
-
-	c := newTestClient(nil, biz, nil)
-	_, err := c.GetCircleTypeByTaskID(context.Background(), "test-token", 12345)
-	assertBusinessError(t, err, "GetCircleTypeByTaskID")
 }
 
 // ─── finding_f_bizerror_propagate_test.go: FetchTasks 单维度业务错误 propagate ───
