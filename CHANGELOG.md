@@ -12,7 +12,7 @@
 ### Features
 
 - **OCR 可选构建** — 新增 `-tags ddddocr` 编译标签。不加标签时编译为纯 Go 二进制（无 CGO），`login` 命令会返回明确提示指导使用 `WithCustomOCR` 或下载预编译 release。CGO-free 嵌入式场景不再被 onnxruntime 强制依赖阻塞。
-- **新增 4 个错误哨兵** — `ErrOCRNotConfigured`、`ErrLocationParseFailed`、`ErrEmptyUserInfo`、`ErrSessionBackoff`。SDK 用户可用 `errors.Is` 精确区分 OCR 缺失、Location 畸形、空用户信息、session 背压四种场景。
+- **新增 3 个错误哨兵** — `ErrOCRNotConfigured`、`ErrEmptyUserInfo`、`ErrSessionBackoff`。SDK 用户可用 `errors.Is` 精确区分 OCR 缺失、空用户信息、session 背压三种场景。
 
 ### Fixed
 

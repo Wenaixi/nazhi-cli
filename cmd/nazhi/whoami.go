@@ -27,8 +27,8 @@ var whoamiCmd = &cobra.Command{
 		printVerbose("正在获取用户信息...")
 		info, err := c.GetMyInfo(cmd.Context(), token)
 		if err != nil {
-			// 用 ErrorCategory 分类：ErrEmptyUserInfo 是「业务成功但无数据」状态
-			//（非错误），按 status envelope 输出而非走 printError。
+			// ErrEmptyUserInfo 表示「业务成功但无数据」状态（非错误），
+			// 按 status envelope 输出而非走 printError。
 			if errors.Is(err, client.ErrEmptyUserInfo) {
 				printJSON(map[string]string{
 					"status": "empty",
