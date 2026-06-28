@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -143,13 +142,13 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 
 	if httpResp.StatusCode == http.StatusOK {
-		var loginResp types.UnifiedResponse
-		if err := json.Unmarshal(bodyBytes, &loginResp); err != nil {
+		loginResp, err := types.DecodeResponse(bodyBytes)
+		if err != nil {
 			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %w", ErrLoginRejected, err)
 		}
-		if loginResp.Code != 1 {
-			return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, types.DerefOr(loginResp.Msg, "登录失败"))
+		if err := types.CheckCode(loginResp); err != nil {
+			return nil, fmt.Errorf("登录失败: %w", errors.Join(ErrLoginRejected, err))
 		}
 		if loginResp.ReturnData == nil {
 			c.logDebug("Login 200 响应 returnData 为空 body=%s", logSafeBody(bodyBytes))
@@ -191,10 +190,10 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback"), nil
 	}
 
-	var errResp types.UnifiedResponse
-	if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
+	errResp, err := types.DecodeResponse(bodyBytes)
+	if err != nil {
 		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, logSafeBody(bodyBytes))
-	} else if errResp.Code != 1 {
+	} else if err := types.CheckCode(errResp); err != nil {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
 	return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)

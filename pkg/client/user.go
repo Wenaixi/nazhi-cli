@@ -70,6 +70,10 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	}
 
 	// 两段 fallback（returnData → dataMap）
+	// note: tryDecodeFallback 返回 nil 存在两种可能：
+	//   1. 所有 decoder 返回 nil（字段确实为空）
+	//   2. 所有 decoder 都解析失败（错误已通过 logDebug 记录）
+	// 两者统一按"空数据"处理，返回 ErrEmptyUserInfo 哨兵而非 (nil, nil)。
 	v := tryDecodeFallback(c, "GetMyInfo",
 		func() (*types.UserInfo, error) { return types.DecodeReturnData[types.UserInfo](resp) },
 		func() (*types.UserInfo, error) { return types.DecodeDataMap[types.UserInfo](resp) },
@@ -77,9 +81,6 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	if v != nil {
 		return v, nil
 	}
-
-	// returnData + dataMap 都为 nil 时（业务成功响应
-	// 但确实无用户数据），返回 ErrEmptyUserInfo 哨兵而非 (nil, nil)。
 	//
 	// 设计动机：
 	//   - (nil, nil) 让 cmd 层只能裸输出 null，与 whoami 的 status envelope 不一致
