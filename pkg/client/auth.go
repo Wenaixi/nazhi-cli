@@ -132,25 +132,25 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if httpResp.StatusCode == http.StatusOK {
 		var loginResp types.UnifiedResponse
 		if err := json.Unmarshal(bodyBytes, &loginResp); err != nil {
-			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, string(bodyBytes))
-			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %v", ErrLoginRejected, err)
+			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, logSafeBody(bodyBytes))
+			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %w", ErrLoginRejected, err)
 		}
 		if loginResp.Code != 1 {
 			return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, types.DerefOr(loginResp.Msg, "登录失败"))
 		}
 		if loginResp.ReturnData == nil {
-			c.logDebug("Login 200 响应 returnData 为空 body=%s", string(bodyBytes))
+			c.logDebug("Login 200 响应 returnData 为空 body=%s", logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
 		}
 		// 检查 returnData 是否为 JSON null 字面量（{"returnData": null}），
 		// 避免误报"token 字段类型异常"。
 		if len(*loginResp.ReturnData) == 4 && string(*loginResp.ReturnData) == "null" {
-			c.logDebug("Login 200 响应 returnData 为 null body=%s", string(bodyBytes))
+			c.logDebug("Login 200 响应 returnData 为 null body=%s", logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: returnData 为 null", ErrLoginRejected)
 		}
 		token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
 		if err != nil {
-			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
+			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
 		}
 		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
@@ -180,7 +180,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	var errResp types.UnifiedResponse
 	if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
-		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, string(bodyBytes))
+		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, logSafeBody(bodyBytes))
 	} else if errResp.Code != 1 {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
