@@ -61,7 +61,17 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 	}
 
 	school := schools[0]
-	schoolID = fmt.Sprintf("%v", school["school_id"])
+
+	// 校验 school_id 为有效数字，防止非数字值被静默传给登录请求
+	schoolIDRaw, ok := school["school_id"]
+	if !ok || schoolIDRaw == nil {
+		return "", "", fmt.Errorf("%w: GetSchoolID school_id 字段缺失或为 nil", ErrInvalidPayload)
+	}
+	schoolIDStr := fmt.Sprintf("%v", schoolIDRaw)
+	if _, err := strconv.ParseInt(schoolIDStr, 10, 64); err != nil {
+		return "", "", fmt.Errorf("%w: GetSchoolID school_id=%q 不是有效数字: %w", ErrInvalidPayload, schoolIDStr, err)
+	}
+	schoolID = schoolIDStr
 	if v, ok := school["NAME"]; ok {
 		schoolName = fmt.Sprintf("%v", v)
 	}
