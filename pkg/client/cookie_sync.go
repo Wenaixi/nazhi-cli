@@ -49,18 +49,7 @@ func (c *Client) warnSyncCookieToken(token, label string) {
 func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
 	c.warnSyncCookieToken(token, label)
 
-	// 使用 types.DecodeResponse 验证响应体完整性（复用 types 包统一解析逻辑）
-	if len(bodyBytes) > 0 {
-		if _, err := types.DecodeResponse(bodyBytes); err != nil {
-			if c.logger != nil {
-				c.logger.Warn("buildLoginResponse DecodeResponse 失败",
-					"label", label, "err", err.Error())
-			}
-		}
-	}
-
-	// 仍需要用 json.Unmarshal 解析原始 body 为泛型 map，供 RawData 字段使用。
-	// DecodeResponse 返回的是 UnifiedResponse 结构体，不能直接注入 RawData。
+	// 用 json.Unmarshal 解析原始 body 为泛型 map，供 RawData 字段使用
 	var rawData map[string]any
 	if len(bodyBytes) > 0 {
 		_ = json.Unmarshal(bodyBytes, &rawData) // 解析失败返回 nil
