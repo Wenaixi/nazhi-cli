@@ -222,12 +222,6 @@ func (sm *sessionManager) RecordSuccess(token string, info *types.UserInfo) {
 	}
 }
 
-// getCachedUserInfo 返回缓存的 UserInfo（fast path 用）。
-// 私有化理由：无生产调用方，仅测试中使用。
-func (sm *sessionManager) getCachedUserInfo() *types.UserInfo {
-	return sm.cachedUserInfo
-}
-
 // SetBackoff 设置 backoff 窗口。
 //
 // 行为约定：
@@ -285,7 +279,7 @@ func (sm *sessionManager) tryActivate(
 	return info, nil
 }
 
-// Activate wraps the 4-step activation, backoff check, and state management.
+// Activate 封装了 session 激活的 4 步 HTTP、backoff 检查和状态管理。
 // 调用方负责传实际的 activateFn，便于隔离测试。
 //
 // DCL 设计约束（为什么不用锁外 HTTP）：
@@ -299,7 +293,7 @@ func (sm *sessionManager) tryActivate(
 // 后续 goroutine 直接从缓存返回（不阻塞）。
 // 对不同 token：串行激活（不会死锁，约 200-500ms 内释放）。
 //
-// 删除了 DCL fast path：cachedUserInfo 在锁外无保护读写存在 data race，
+// 删除了 DCL（double-checked locking）即锁外预检查；保留了锁内单次检查 fast path。
 // sync.Mutex 未争用时开销 ≈25ns，直接持锁足够安全。
 func (sm *sessionManager) Activate(
 	ctx context.Context,
