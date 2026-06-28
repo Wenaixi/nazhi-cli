@@ -94,7 +94,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 
 	// --verbose 时让 SDK logger 输出 Debug 级别日志
 	// 否则 c.logDebug 被 slog LevelWarn 过滤，用户看不到 SDK 内部细节。
-	if verbose {
+	if verbose && !quiet {
 		opts = append(opts, client.WithLogger(
 			slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		))
