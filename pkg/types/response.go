@@ -112,6 +112,11 @@ func DecodeDataMap[T any](resp UnifiedResponse) (*T, error) {
 
 // DecodeUnified 是"解析响应体 + 检查业务码"二合一原语（候选 #3）。
 //
+// TODO: 当前无生产调用方，仅在测试中被调用。
+// 等待 SSO 域（auth.go）或业务域接入后，可消除 client 层 doBizAndDecode
+// 的 4 行 boilerplate（DecodeResponse + CheckCode + errors.Join ErrBusinessRejected
+// + 错误前缀）。
+//
 // 流程：
 //  1. json.Unmarshal 到 UnifiedResponse（失败 → 返回 wrap 后的解析错误）
 //  2. CheckCode 检查 code（code=1 通过；≠1 → 返回 *BusinessError）
