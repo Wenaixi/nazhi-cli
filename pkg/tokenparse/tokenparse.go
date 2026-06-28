@@ -13,21 +13,16 @@ import (
 // DefaultTokenTTL 是 server 不带 expires 信息时的兜底 TTL。
 const DefaultTokenTTL = 24 * time.Hour
 
-// ErrLocationParseFailed 是 tokenparse 包的 sentinel 错误。
-//
-// 调用方（pkg/client/auth.go）拿到本错误后用 fmt.Errorf("%w", client.ErrLocationParseFailed)
-// 包装一次，保留 pkg/client 的对外契约。
-//
-// 为什么不让 tokenparse 直接返回 pkg/client 的 sentinel：
-//   - 循环依赖（tokenparse → client → tokenparse）
-//   - 测试独立（tokenparse 测试不依赖 client 包状态）
-var ErrLocationParseFailed = errors.New("tokenparse: location header parse failed")
-
 // ExtractFromLocation 从 302 Location 头中提取 token 和过期时间。
+//
+// 错误处理：url.Parse 失败时直接返回底层错误（net/url 已是可读的 parse error）。
+// 不再定义包级 ErrLocationParseFailed sentinel——历史版本曾导出过该 sentinel，
+// 但 auth.go 包装时未用 %w 链入，调用方 errors.Is 永远不命中，纯死代码。
+// （dead-code 重构：refactor/remove-dead-location-parse-sentinel）
 func ExtractFromLocation(location string) (token string, exp time.Time, err error) {
 	u, perr := url.Parse(location)
 	if perr != nil {
-		return "", time.Time{}, wrapLocationParseErr(perr)
+		return "", time.Time{}, perr
 	}
 	q := u.Query()
 	if t := q.Get("token"); t != "" {
@@ -111,8 +106,4 @@ func extractTokenFromFragment(fragment string) string {
 		}
 	}
 	return ""
-}
-
-func wrapLocationParseErr(err error) error {
-	return errors.Join(ErrLocationParseFailed, err)
 }

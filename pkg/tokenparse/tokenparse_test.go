@@ -3,7 +3,6 @@ package tokenparse
 
 import (
 	"encoding/json"
-	"errors"
 	"testing"
 	"time"
 )
@@ -84,9 +83,8 @@ func TestExtractFromLocation_MalformedURL_ReturnsError(t *testing.T) {
 	if token != "" {
 		t.Errorf("畸形 URL 应返回空 token，实际 %q", token)
 	}
-	if !errors.Is(err, ErrLocationParseFailed) {
-		t.Errorf("error 应包装 ErrLocationParseFailed，实际 %v", err)
-	}
+	// 死代码删除：tokenparse 包不再定义 ErrLocationParseFailed sentinel。
+	// 错误（裸 url.Parse error）仍正常返回，调用方只需 err != nil 即可识别。
 }
 
 func TestExtractFromLocation_QueryTakesPriorityOverFragment(t *testing.T) {
@@ -269,16 +267,11 @@ func TestParseExpiresMap_AllInvalidFallsBackTo24h(t *testing.T) {
 }
 
 // ─── errors.Is / Unwrap 链路测试 ───
-
-func TestWrapLocationParseErr_PreservesInnerError(t *testing.T) {
-	_, _, locErr := ExtractFromLocation("http://[::1")
-	if locErr == nil {
-		t.Fatal("应返回 error")
-	}
-	if !errors.Is(locErr, ErrLocationParseFailed) {
-		t.Errorf("errors.Is 应命中 ErrLocationParseFailed，实际 %v", locErr)
-	}
-}
+//
+// 死代码删除：tokenparse 包不再导出 ErrLocationParseFailed sentinel。
+// 畸形 URL 走裸 url.Parse error，调用方用 err != nil 即可识别。
+// 原 TestWrapLocationParseErr_PreservesInnerError 因依赖被删除的 sentinel
+// 整体移除。
 
 // ─── DefaultTokenTTL 常量回归 ───
 
