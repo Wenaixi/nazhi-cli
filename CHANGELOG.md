@@ -59,7 +59,7 @@
 - **`LoginResponse.RefreshAfter` 字段删除** — 从未被服务端填充过，删掉免得误导调用方。
 - **`UnifiedResponse` 6 个孤儿字段删除** — DataString、PageBean、Note、InsertID、UpdateCount、IsAttendance 全仓库 0 引用。
 - **drain+close 全部统一** — 所有 HTTP 请求的 body 关闭前都会先 drain 再 close，保持 keep-alive 连接可重用。
-- **5+1 处业务错误用统一哨兵包装** — `SubmitSelfEvaluation`、`QuerySelfEvaluation`、`QuerySelfGradEvaluation`、`GetMyInfo`、`fetchDimensions`、`GetCircleTypeByTaskId` 的 CheckCode 改用 `ErrBusinessRejected` 而不是之前的各种散装错误。
+- **5+1 处业务错误用统一哨兵包装** — `SubmitSelfEvaluation`、`QuerySelfEvaluation`、`QuerySelfGradEvaluation`、`GetMyInfo`、`fetchDimensions` 的 CheckCode 改用 `ErrBusinessRejected` 而不是之前的各种散装错误。
 - **维度抓取不静默吞错误** — 之前 `fetchTasksForDimension` 遇到业务错误只 logDebug 就返回 nil，现在会返回 error 让调用方知情。
 - **上传客户端 50 次握手回归** — 修复新创建的 clean client 没复用 Transport 导致批量上传反复 TLS 握手。
 - **6 个 Option 加校验守卫** — `WithSSOBase`/`WithBaseURL`/`WithUploadURL`/`WithHTTPClient`/`WithOCRConcurrency`/`WithToken` 遇到空值或负值时 warn + 保留原值。

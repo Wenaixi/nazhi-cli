@@ -248,14 +248,6 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 
 获取任务维度列表（思想品德、学业水平、身心健康等）。
 
-#### GetCircleTypeByTaskID
-
-```go
-func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*map[string]any, error)
-```
-
-按任务 ID 查询圈子类型信息。
-
 ### 自我评价域 (self_eval.go)
 
 #### SubmitSelfEvaluation
