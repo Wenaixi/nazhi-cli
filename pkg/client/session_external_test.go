@@ -25,7 +25,7 @@ import (
 
 // TestSubmitTask_AutoActivatesSession 回归测试：SubmitTask 必须在请求前
 // 自动调用 ActivateSession 完成 4 步预热。
-// 历史 bug：SubmitTask / GetDimensions / GetCircleTypeByTaskId / GetMyInfo /
+// 历史 bug：SubmitTask / GetDimensions / GetMyInfo /
 // QuerySelfEvaluation / QuerySelfGradEvaluation / SubmitSelfEvaluation 都
 // 跳过 session 预热，HAR 验证的 4 步序列（/ → getMenu → getMenu → getMyInfo）
 // 没跑，后续接口返回空数据且 code=1 静默"成功"。
