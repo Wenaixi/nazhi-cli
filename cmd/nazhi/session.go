@@ -58,6 +58,15 @@ var sessionActivateCmd = &cobra.Command{
 			return
 		}
 
+		if info == nil {
+			markError()
+			printJSON(map[string]string{
+				"status": "empty",
+				"reason": "get_my_info_nil",
+			})
+			return
+		}
+
 		printJSON(info)
 	},
 }
