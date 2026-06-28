@@ -91,7 +91,7 @@ go test -tags=integration -run TestHAR_ -v ./test/integration/...
 
 ### 扩展 PII 守卫（v0.3.5+）
 
-`test/integration/har_pii_redacted_test.go` 从仅扫描 HAR fixtures 扩展到全仓库 `*_test.go` 文件，通过 Go AST 扫描字符串字面量，捕获数字型学生 ID 等 PII（如 38STUDENT_ID_REDACTED / 32USER_ID_REDACTED / STUDY_NUMBER_REDACTEDSTUDY_NUMBER_FRAGMENT_REDACTED）。**默认 tag 运行**（无 build tag），确保 `go test ./...` 必跑。
+`test/integration/har_pii_redacted_test.go` 从仅扫描 HAR fixtures 扩展到全仓库 `*_test.go` 文件，通过 Go AST 扫描字符串字面量，捕获数字型学生 ID 等 PII（如 <学生ID> / <用户ID> / <学号ID> 等格式）。**默认 tag 运行**（无 build tag），确保 `go test ./...` 必跑。
 
 ## 局限性
 

@@ -139,7 +139,7 @@ JWT (JSON Web Token), 算法 HS512：
   "exp": 1771592015,         // 秒
   "userDetails": {
     "loginType": "TEACHER",
-    "id": 38STUDENT_ID_REDACTED
+    "id": <学生ID> // filter-repo 清理后无法还原原始值
   }
 }
 ```
