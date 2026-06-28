@@ -106,7 +106,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, string(bodyBytes))
+		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 
 	// 5. 解析响应
