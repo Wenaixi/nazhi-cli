@@ -37,6 +37,8 @@ var sessionActivateCmd = &cobra.Command{
 			if errors.Is(err, client.ErrSessionBackoff) {
 				// ErrSessionBackoff 在冷却窗口内被抑制
 				// 输出友好 cooldown 提示而非 error JSON。
+				// 标记错误退出码，让 CI 脚本能区分成功 vs 冷却中。
+				markError()
 				printJSON(map[string]string{
 					"status":  "cooldown",
 					"message": "session 激活冷却中，上次激活失败请稍后重试",
@@ -44,6 +46,8 @@ var sessionActivateCmd = &cobra.Command{
 			} else if errors.Is(err, client.ErrEmptyUserInfo) {
 				// ErrEmptyUserInfo 是「业务成功但无数据」状态
 				//（非错误），与 whoami 对称输出 status envelope 而非裸 null。
+				// 标记错误退出码，让 CI 脚本能区分。
+				markError()
 				printJSON(map[string]string{
 					"status": "empty",
 					"reason": "get_my_info_empty",

@@ -30,6 +30,8 @@ var whoamiCmd = &cobra.Command{
 			// ErrEmptyUserInfo 表示「业务成功但无数据」状态（非错误），
 			// 按 status envelope 输出而非走 printError。
 			if errors.Is(err, client.ErrEmptyUserInfo) {
+				// 标记错误退出码，让 CI 脚本能区分「空数据完成」与「正确退出」。
+				markError()
 				printJSON(map[string]string{
 					"status": "empty",
 					"reason": "get_my_info_empty",
