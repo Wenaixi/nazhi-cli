@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -257,8 +258,13 @@ func (sm *sessionManager) tryActivate(
 ) (*types.UserInfo, error) {
 	// backoff 检查：上次失败且同 token 在窗口内 → 抑制
 	if sm.isBackoffHit(token) {
-		return nil, fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token: %v",
-			ErrSessionBackoff, token, time.Since(sm.lastAttempt), sm.lastErr)
+		// errors.Join 同时包装 ErrSessionBackoff 和 sm.lastErr，保持
+		// 错误链完整（errors.Is 可穿透到原始错误）。
+		return nil, errors.Join(
+			fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token",
+				ErrSessionBackoff, token, time.Since(sm.lastAttempt)),
+			sm.lastErr,
+		)
 	}
 
 	// backoff 检查后、激活前检查 ctx 是否已取消。避免 ctx 已取消时
@@ -280,6 +286,17 @@ func (sm *sessionManager) tryActivate(
 
 // Activate wraps the 4-step activation, backoff check, and state management.
 // 调用方负责传实际的 activateFn，便于隔离测试。
+//
+// DCL 设计约束（为什么不用锁外 HTTP）：
+//
+// TODO(C5, C6, C7): 如果引入 per-token cookie jar（每个 token 独立 jar），
+// 可将 4 步 HTTP 移出锁范围：锁内检查 → 无锁 HTTP → 锁内写入。目前
+// cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP 会竞态
+// 写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
+//
+// 对同 token：DCL fast path 保证只有首次 goroutine 持锁执行 4 步，
+// 后续 goroutine 直接从缓存返回（不阻塞）。
+// 对不同 token：串行激活（不会死锁，约 200-500ms 内释放）。
 //
 // 删除了 DCL fast path：cachedUserInfo 在锁外无保护读写存在 data race，
 // sync.Mutex 未争用时开销 ≈25ns，直接持锁足够安全。
