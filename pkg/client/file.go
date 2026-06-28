@@ -45,12 +45,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 若只 defer Close()，则 wire 上发出去的 body 缺终止边界，server 端 multipart
 	// parser 报 EOF 错误，100% 上传失败。
 	//
-	// 这里保留 defer Close() 兜底（设计意图：错误路径也要 Close
-	// 释放内部 buffer），与显式 Close 共同防御——显式调用负责正确路径，
-	// defer 负责任何早退路径。multipart.Writer.Close 是幂等的，可重复调用。
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	defer writer.Close()
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
 	if err != nil {
@@ -61,8 +57,9 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	// 显式 Close：在 NewRequest 之前写入终结边界到 buf。
-	// defer 的 Close 兜底处理本行之后的早退路径（虽然此处已无早退可能，
-	// 但保持对称防御层）。
+	// 注意：不保留 defer writer.Close()——显式 Close 在上方已经执行，
+	// writer 在 NewRequest 前已完成终结边界的写入。CreateFormFile 和
+	// part.Write 在 Close 前已返回，CreateFormFile/Write 路径无另存早退点。
 	if err := writer.Close(); err != nil {
 		return 0, fmt.Errorf("关闭 multipart writer 失败: %w", err)
 	}
