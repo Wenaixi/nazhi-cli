@@ -1354,3 +1354,30 @@ func TestLogin_302Path_LocationParseError_WrappedWithPercentW(t *testing.T) {
 	// 因此 auth.go:170 的 %w 修复虽然正确但本测试不验证 errors.Is(ErrLoginRejected)
 }
 
+// malformedLocationRT 是 http.RoundTripper mock：让 /validate 返回 302 +
+// 畸形 Location（绕过 net/http 预校验，让 auth.go 的 Location 解析代码路径执行）。
+type malformedLocationRT struct{}
+
+func (rt *malformedLocationRT) RoundTrip(req *http.Request) (*http.Response, error) {
+	if strings.Contains(req.URL.Path, "validate") &&
+		!strings.Contains(req.URL.Path, "validateCaptcha") &&
+		req.Method == http.MethodPost {
+		return &http.Response{
+			StatusCode: http.StatusFound,
+			Status:     "302 Found",
+			Header:     http.Header{"Location": []string{"http://[::1"}},
+			Body:       io.NopCloser(strings.NewReader("")),
+			Request:    req,
+		}, nil
+	}
+	return &http.Response{
+		StatusCode: http.StatusOK,
+		Status:     "200 OK",
+		Body: io.NopCloser(strings.NewReader(
+			`{"code":1,"msg":"成功"}`)),
+		Header:  http.Header{"Content-Type": []string{"application/json"}},
+		Request: req,
+	}, nil
+}
+
+func (rt *malformedLocationRT) Close() error { return nil }
