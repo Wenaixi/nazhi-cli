@@ -299,7 +299,7 @@ func TestFetchTasks_ContextCancel_PropagatesError(t *testing.T) {
 			_, _ = w.Write([]byte(unifiedJSON(1, "成功", nil, dims)))
 		case "/api/studentCircleNew/getCircleStatistics":
 			// 每个 handler 睡眠足够久，确保 context 先超时
-			time.Sleep(200 * time.Millisecond)
+			time.Sleep(50 * time.Millisecond)
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{

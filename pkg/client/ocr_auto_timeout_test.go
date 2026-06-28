@@ -68,7 +68,13 @@ func TestOCRRetry_AutoTimeoutWithoutCtxDeadline(t *testing.T) {
 		ocr:        mock,
 	}
 
-	// context.Background() 无 deadline → 触发自动派生 timeout
+	// context.Background() 无 deadline → 触发自动派生 timeout。
+	// 将 package-level 的 ocrTimeout 临时改为 3s（而非默认 30s），
+	// 让测试在 ~3s 内完成而非等 30s。完成后恢复原值。
+	origTimeout := ocrTimeout
+	ocrTimeout = 1 * time.Second
+	defer func() { ocrTimeout = origTimeout }()
+
 	start := time.Now()
 	_, err := c.ocrRecognizeWithRetry(context.Background())
 	elapsed := time.Since(start)

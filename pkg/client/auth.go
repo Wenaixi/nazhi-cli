@@ -74,10 +74,13 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 const (
 	maxOCRAttemptsPerImage   = 1
 	maxOCRImagesTotal        = 99
-	ocrTimeout               = 30 * time.Second
 	defaultTokenTTL          = 24 * time.Hour
 	expiresFallbackThreshold = 1 * time.Hour
 )
+
+// ocrTimeout 是 OCR 自动超时时长。
+// 定义为 var 而非 const，允许测试中覆写以加速测试。
+var ocrTimeout = 30 * time.Second
 
 // Login 完成 SSO 登录并返回 Token。
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
