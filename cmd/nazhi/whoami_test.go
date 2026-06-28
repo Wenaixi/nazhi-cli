@@ -152,9 +152,9 @@ func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码保持 0（空响应是正常状态，不是错误）
-	if got := pendingExitCode.Load(); got != 0 {
-		t.Errorf("空响应 whoami 不应标记 pendingExitCode=1，实际 %d", got)
+	// 退出码应为 1（空用户信息是失败状态，CI 需要区分）
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("空响应 whoami 应触发 pendingExitCode=1，实际 %d", got)
 	}
 
 	// stderr 不应有 error 标记
