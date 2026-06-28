@@ -364,7 +364,7 @@ func TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected(t *testing.T) {
 			dimID := r.URL.Query().Get("dimensionId")
 			if dimID == "30" || dimID == "40" {
 				// 后 2 个维度睡眠足够久，确保 context 先超时
-				time.Sleep(time.Second)
+				time.Sleep(300 * time.Millisecond)
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
