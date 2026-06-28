@@ -202,16 +202,17 @@ func (sm *sessionManager) StoreToken(token string) {
 	sm.lastFailedToken = ""
 }
 
-// RecordFailure 持锁记录激活失败，清空 UserInfo 缓存。
+// RecordFailure 持锁记录激活失败，按 token 匹配决定是否清缓存。
 // 调用方须持 sm.mu。
-//
-// 任何激活失败都意味着当前缓存的 UserInfo 可能已不可用（session 过期、
-// 服务器状态变更），统一清空让下次调用重新触发完整激活流程。
 func (sm *sessionManager) RecordFailure(token string, err error) {
 	sm.lastErr = err
 	sm.lastAttempt = time.Now()
 	sm.lastFailedToken = token
-	sm.cachedUserInfo = nil
+	// 只有 token 匹配时才清除 UserInfo 缓存，避免不同 token 的失败
+	// 污染当前活跃 token 的 cachedUserInfo
+	if sm.LoadToken() == token {
+		sm.cachedUserInfo = nil
+	}
 }
 
 // RecordSuccess 持锁记录激活成功，更新 token + backoff 清空 + 缓存 UserInfo。
@@ -263,6 +264,13 @@ func (sm *sessionManager) tryActivate(
 	if sm.isBackoffHit(token) {
 		return nil, fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token: %v",
 			ErrSessionBackoff, token, time.Since(sm.lastAttempt), sm.lastErr)
+	}
+
+	// backoff 检查后、激活前检查 ctx 是否已取消。避免 ctx 已取消时
+	// 仍发起 4 步网络请求（全部失败 → backoff 缓存 → 同 token 后续
+	// 正常调用也被抑制），减少误判。
+	if err := ctx.Err(); err != nil {
+		return nil, err
 	}
 
 	// 持锁激活：4 步串行执行，写 cookie jar 互斥
