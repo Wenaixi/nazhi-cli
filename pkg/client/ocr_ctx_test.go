@@ -76,7 +76,7 @@ func TestOCRRetry_RespectsContextCancel(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	mock := &fetchBlockingMockOCR{ocrSleepMS: 500}
+	mock := &fetchBlockingMockOCR{ocrSleepMS: 100}
 
 	c := &Client{
 		ssoBaseURL: srv.URL,
