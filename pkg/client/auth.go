@@ -205,7 +205,10 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return fmt.Errorf("验证码校验失败: %w", errors.Join(ErrBusinessRejected, err))
+		// 验证码校验失败属于 Login 流程的错误（不是普通业务 API 拒绝），
+		// 包装 ErrLoginRejected 而非 ErrBusinessRejected，让 SDK 用户
+		// 用 errors.Is(err, ErrLoginRejected) 能命中。
+		return fmt.Errorf("验证码校验失败: %w", errors.Join(ErrLoginRejected, err))
 	}
 
 	return nil
