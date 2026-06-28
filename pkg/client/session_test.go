@@ -831,3 +831,115 @@ func TestSessionManager_Activate_Backoff(t *testing.T) {
 		}
 	})
 }
+
+// ─── C5/C6 修复回归 ───
+
+// TestSessionBackoff_ErrorsIsPenetratesToOriginalErr 回归测试 C6：
+// 验证 backoff 错误的错误链穿透能力。
+//
+// 修复前：fmt.Errorf("%w: ...: %v", ErrSessionBackoff, ..., sm.lastErr)
+// 用 %v 格式化 sm.lastErr，断开错误链。errors.Is(err, originalErr) 返回 false。
+//
+// 修复后：errors.Join(ErrSessionBackoff, sm.lastErr) 让 errors.Is 穿透到原始错误。
+// SDK 用户可通过 errors.Is(err, myDomainErr) 精确识别 backoff 失败的具体根因。
+func TestSessionBackoff_ErrorsIsPenetratesToOriginalErr(t *testing.T) {
+	sm := newTestSM()
+
+	// 构造已知哨兵作为 sm.lastErr，验证穿透
+	originalErr := ErrNetwork
+	sm.lastErr = originalErr
+	sm.lastFailedToken = "tok"
+	sm.lastAttempt = time.Now()
+	sm.backoff = time.Hour // 长时间窗口确保命中
+
+	activateFn := func(ctx context.Context, token string) (*types.UserInfo, error) {
+		t.Error("backoff 命中时不应调用 activateFn")
+		return nil, nil
+	}
+
+	_, err := sm.tryActivate(context.Background(), "tok", activateFn)
+	if err == nil {
+		t.Fatal("backoff 命中应返回 error")
+	}
+
+	// 1. 必须能穿透到 ErrSessionBackoff
+	if !errors.Is(err, ErrSessionBackoff) {
+		t.Errorf("必须包装 ErrSessionBackoff，err=%v", err)
+	}
+
+	// 2. 必须能穿透到 sm.lastErr（C6 修复关键断言）
+	if !errors.Is(err, originalErr) {
+		t.Errorf("%%v 断链未修复：errors.Is(err, ErrNetwork) = false，err=%v", err)
+	}
+}
+
+// TestActivateSession_DCLFastPath_BackoffNotBlockNonSameToken 回归测试 C5：
+// 验证 backoff 抑制不会影响其他 token 的激活。
+//
+// 修复前：C5 文档化的 DCL 约束要求 4 步 HTTP 在锁内执行，
+// 这意味着同 Client 上不同 token 串行激活（持锁 200-500ms）。
+// 但 DCL fast path 保证已激活 token 立即从缓存返回。
+//
+// 修复后（C6 错误链修复 + C5 文档化）：
+// - 同 token 已激活 → DCL fast path 立即返回缓存（毫秒级）
+// - 不同 token 串行激活（200-500ms），但每步 backoff 检查抑制同 token 失败重试
+// - backoff 错误通过 errors.Join 保留原始错误链
+func TestActivateSession_DCLFastPath_BackoffNotBlockNonSameToken(t *testing.T) {
+	var step4Count int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/":
+			w.WriteHeader(http.StatusOK)
+		case "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
+		case "/api/studentInfo/getMyInfo":
+			atomic.AddInt32(&step4Count, 1)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三","studentNumber":"TEST2025001"}}`))
+		}
+	}))
+	defer srv.Close()
+
+	c, _ := New(
+		WithBaseURL(srv.URL),
+		WithTimeout(5*time.Second),
+	)
+
+	// 第一阶段：token-A 激活成功（写入 sm.token + cachedUserInfo）
+	infoA, err := c.ActivateSession(context.Background(), "tok-A")
+	if err != nil {
+		t.Fatalf("tok-A 激活失败: %v", err)
+	}
+	if infoA == nil || infoA.Name != "张三" {
+		t.Fatalf("tok-A 应返回有效 UserInfo，实际: %+v", infoA)
+	}
+	if n := atomic.LoadInt32(&step4Count); n != 1 {
+		t.Errorf("tok-A 步骤 4 应执行 1 次，实际 %d 次", n)
+	}
+
+	// 第二阶段：同 token 再次激活 → DCL fast path 立即从缓存返回
+	infoA2, err := c.ActivateSession(context.Background(), "tok-A")
+	if err != nil {
+		t.Fatalf("tok-A 二次激活失败: %v", err)
+	}
+	if infoA2 != infoA {
+		t.Error("tok-A 二次激活应返回同一缓存指针（fast path）")
+	}
+	if n := atomic.LoadInt32(&step4Count); n != 1 {
+		t.Errorf("tok-A 二次激活不应再触发步骤 4，实际 %d 次 — DCL fast path 失效", n)
+	}
+
+	// 第三阶段：不同 token 激活 — 串行执行（每步持锁），但完成
+	infoB, err := c.ActivateSession(context.Background(), "tok-B")
+	if err != nil {
+		t.Fatalf("tok-B 激活失败: %v", err)
+	}
+	if infoB == nil {
+		t.Error("tok-B 应返回有效 UserInfo")
+	}
+	if n := atomic.LoadInt32(&step4Count); n != 2 {
+		t.Errorf("tok-B 应执行步骤 4（不同 token 串行激活），实际共 %d 次", n)
+	}
+}

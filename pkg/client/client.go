@@ -31,7 +31,7 @@ type CaptchaRecognizer interface {
 // 每个实例拥有独立的 cookie jar，天然并发安全。
 //
 // session 激活状态机已提取到 sessionManager，不再直接持有
-// sessionToken / sessionMu / lastActivationErr 等字段。
+// sessionToken / sessionMu / lastErr（现为 sm.lastErr） 等字段。
 type Client struct {
 	ssoBaseURL   string       // SSO 根地址
 	baseURL      string       // 业务 API 根地址（port 8280）

@@ -70,7 +70,7 @@ var (
 	//   - ErrNetwork / ErrBusinessRejected：实际尝试过后的真实错误
 	//
 	// backoff 命中时返回本哨兵（包装上一个错误），
-	// 而非直接返回 lastActivationErr。这样 SDK 用户能通过 errors.Is 识别
+	// 而非直接返回 sm.lastErr。这样 SDK 用户能通过 errors.Is 识别
 	// 「这是被抑制的 stale 错误」并做出有意义的重试决策。
 	ErrSessionBackoff = errors.New("session activation backoff: in cooldown window")
 

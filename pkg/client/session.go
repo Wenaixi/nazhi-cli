@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -14,8 +15,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// defaultSessionBackoff 已迁移到 session_manager.go，此处保持导出供外部引用。
-// 激活失败后禁止重试的默认时间窗口。默认 5 秒。
+// defaultSessionBackoff 是激活失败后禁止重试的默认时间窗口。默认 5 秒。
 const defaultSessionBackoff = 5 * time.Second
 
 // ActivateSession 初始化目标平台业务 Session。
@@ -103,8 +103,8 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 	}
 
 	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
-	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免外层 sessionOnce.Do
-	// 持锁时再次进入 sessionOnce.Do 死锁（reentrancy 限制）。
+	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免 sm.mu（sync.Mutex）
+	// 持锁时再次进入死锁（不可重入限制）。
 	// 失败 propagate：步骤 4 是 4 步 HAR 契约的一部分。
 	return c.getMyInfoRaw(ctx, token)
 }
@@ -133,10 +133,6 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 	}
 	return body, nil
 }
-
-// copyMap 已被删除（B1 修复）：改为标准库 maps.Clone。
-// Go 1.21+ maps.Clone 等效手写循环且由 runtime 实现优化，
-// 维护负担更小（少 1 个内部函数需要 review/测试）。
 
 // ─── sessionManager: 业务 API session 激活状态机 ───
 //
@@ -262,8 +258,13 @@ func (sm *sessionManager) tryActivate(
 ) (*types.UserInfo, error) {
 	// backoff 检查：上次失败且同 token 在窗口内 → 抑制
 	if sm.isBackoffHit(token) {
-		return nil, fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token: %v",
-			ErrSessionBackoff, token, time.Since(sm.lastAttempt), sm.lastErr)
+		// errors.Join 同时包装 ErrSessionBackoff 和 sm.lastErr，保持
+		// 错误链完整（errors.Is 可穿透到原始错误）。
+		return nil, errors.Join(
+			fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token",
+				ErrSessionBackoff, token, time.Since(sm.lastAttempt)),
+			sm.lastErr,
+		)
 	}
 
 	// backoff 检查后、激活前检查 ctx 是否已取消。避免 ctx 已取消时
@@ -285,6 +286,17 @@ func (sm *sessionManager) tryActivate(
 
 // Activate wraps the 4-step activation, backoff check, and state management.
 // 调用方负责传实际的 activateFn，便于隔离测试。
+//
+// DCL 设计约束（为什么不用锁外 HTTP）：
+//
+// TODO(C5, C6, C7): 如果引入 per-token cookie jar（每个 token 独立 jar），
+// 可将 4 步 HTTP 移出锁范围：锁内检查 → 无锁 HTTP → 锁内写入。目前
+// cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP 会竞态
+// 写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
+//
+// 对同 token：DCL fast path 保证只有首次 goroutine 持锁执行 4 步，
+// 后续 goroutine 直接从缓存返回（不阻塞）。
+// 对不同 token：串行激活（不会死锁，约 200-500ms 内释放）。
 //
 // 删除了 DCL fast path：cachedUserInfo 在锁外无保护读写存在 data race，
 // sync.Mutex 未争用时开销 ≈25ns，直接持锁足够安全。
