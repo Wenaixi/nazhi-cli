@@ -41,11 +41,16 @@ func main() {
 	//   - 最终 os.Exit(1) 走与正常错误相同的退出码
 	// 注意：recover 必须在 main 顶层 defer，否则 panic 会跨过 rootCmd.Execute()
 	// 直接打到 Go runtime。Cobra 内部不主动 recover Run 回调 panic。
+	// G1: recover 后 main 函数的剩余代码（含 line 77 的 os.Exit(1)）不执行。
+	// 必须在这里退出，否则 exit code = 0，违反统一 exit code 1 契约。
+	// closeAllClients 的 defer（line 52）在 LIFO 顺序中先于本 handler 执行，
+	// 所以 os.Exit(1) 前 closeAllClients 已经运行了，无资源泄漏。
 	defer func() {
 		if r := recover(); r != nil {
 			// F9: 把 panic 转成 printError 输出，与正常 error 路径一致
 			// 不打 stack trace 给终端用户（生产 CLI 应当简洁）
 			printError(fmt.Errorf("内部错误: %v", r))
+			os.Exit(1)
 		}
 	}()
 

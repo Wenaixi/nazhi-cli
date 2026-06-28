@@ -215,8 +215,8 @@ func TestUploadFile_ViaBuildRequest(t *testing.T) {
 		gotContentType = r.Header.Get("Content-Type")
 		gotAccept = r.Header.Get("Accept")
 		gotUserAgent = r.Header.Get("User-Agent")
-		// 关键：必须读 body 完，buildRequest 行为契约里 io.ReadAll 关闭 body
-		_, _ = io.Copy(io.Discard, r.Body)
+		// F32b: 复用 drainAndClose helper 代替手写 io.Copy(io.Discard, ...)
+		drainAndClose(r.Body)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"code":1,"returnData":{"id":1}}`))
