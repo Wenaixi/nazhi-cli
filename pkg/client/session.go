@@ -226,8 +226,9 @@ func (sm *sessionManager) RecordSuccess(token string, info *types.UserInfo) {
 	}
 }
 
-// GetCachedUserInfo 返回缓存的 UserInfo（fast path 用）。
-func (sm *sessionManager) GetCachedUserInfo() *types.UserInfo {
+// getCachedUserInfo 返回缓存的 UserInfo（fast path 用）。
+// 私有化理由：无生产调用方，仅测试中使用。
+func (sm *sessionManager) getCachedUserInfo() *types.UserInfo {
 	return sm.cachedUserInfo
 }
 
