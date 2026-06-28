@@ -181,12 +181,16 @@ func (sm *sessionManager) isBackoffHit(token string) bool {
 }
 
 // LoadToken 原子读当前 session token（fast path 用）。
+// atomic.Value 存储类型必须是 string，type assertion 失败 panic 暴露编程错误。
 func (sm *sessionManager) LoadToken() string {
 	v := sm.token.Load()
 	if v == nil {
 		return ""
 	}
-	s, _ := v.(string)
+	s, ok := v.(string)
+	if !ok {
+		panic(fmt.Sprintf("sessionManager: token 存储类型异常，期望 string 实际 %T", v))
+	}
 	return s
 }
 
@@ -262,6 +266,13 @@ func (sm *sessionManager) tryActivate(
 			ErrSessionBackoff, token, time.Since(sm.lastAttempt), sm.lastErr)
 	}
 
+	// backoff 检查后、激活前检查 ctx 是否已取消。避免 ctx 已取消时
+	// 仍发起 4 步网络请求（全部失败 → backoff 缓存 → 同 token 后续
+	// 正常调用也被抑制），减少误判。
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// 持锁激活：4 步串行执行，写 cookie jar 互斥
 	info, err := activateFn(ctx, token)
 	if err != nil {
@@ -272,23 +283,21 @@ func (sm *sessionManager) tryActivate(
 	return info, nil
 }
 
-// Activate wraps the 4-step activation, DCL fast path, backoff check, and state management.
+// Activate wraps the 4-step activation, backoff check, and state management.
 // 调用方负责传实际的 activateFn，便于隔离测试。
+//
+// 删除了 DCL fast path：cachedUserInfo 在锁外无保护读写存在 data race，
+// sync.Mutex 未争用时开销 ≈25ns，直接持锁足够安全。
 func (sm *sessionManager) Activate(
 	ctx context.Context,
 	token string,
 	activateFn func(context.Context, string) (*types.UserInfo, error),
 ) (*types.UserInfo, error) {
 
-	// fast path：token 已匹配 → 直接返回缓存，零开销
-	if sm.LoadToken() == token {
-		return sm.cachedUserInfo, nil
-	}
-
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// 锁内重检
+	// 锁内检查：token 已匹配 → 直接返回缓存
 	if sm.LoadToken() == token {
 		return sm.cachedUserInfo, nil
 	}
