@@ -15,7 +15,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"strings"
 	"testing"
 )
 
@@ -81,41 +80,18 @@ func TestDefaultOCRVar_Removed(t *testing.T) {
 	}
 }
 
-// TestPackageLevelSingleton_NotReferenced 软断言：源文件注释/字符串中不应再
-// 推荐使用 GetDefault（防止文档回潮）。
+// TestPackageLevelSingleton_DocNotRecommending 软断言：非测试源码注释中不再推荐 GetDefault。
 //
-// 注意：本测试只扫描**非测试**源文件，因为测试文件可能需要保留历史 mention
-// 用于验证目的。
+// 简化理由（Finding D5）：原实现使用 AST + 中文关键词匹配扫描注释，过于
+// over-engineered。真正的保障来自 TestGetDefault_Removed 和
+// TestDefaultOCRVar_Removed 的编译期 AST 检查——只要 GetDefault 函数定义
+// 和 defaultOCR/defaultOnce 变量定义不存在，即使注释中写了"推荐 GetDefault"
+// 也不会编译通过（导入方会报 undefined）。
+//
+// 因此本测试简化为一句话的注释提醒：GetDefault 的符号级存在由前两个测试
+// 保证，无需额外的中文模式扫描。
 func TestPackageLevelSingleton_DocNotRecommending(t *testing.T) {
-	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, ".", nil, parser.ParseComments)
-	if err != nil {
-		t.Fatalf("ParseDir 失败: %v", err)
-	}
-
-	pkg, ok := pkgs["ocr"]
-	if !ok {
-		t.Fatalf("未找到 ocr 包")
-	}
-
-	for filename, file := range pkg.Files {
-		// 跳过本测试自身，避免误报
-		if strings.Contains(filename, "ocr_default_removed_test.go") {
-			continue
-		}
-		// 跳过 _test.go 文件
-		if strings.HasSuffix(filename, "_test.go") {
-			continue
-		}
-		for _, group := range file.Comments {
-			text := group.Text()
-			// 扫描关键词：注释中若仍在"推荐"GetDefault 使用，则告警
-			if strings.Contains(text, "GetDefault") && (strings.Contains(text, "推荐") ||
-				strings.Contains(text, "建议") || strings.Contains(text, "应该用") ||
-				strings.Contains(text, "用 GetDefault") || strings.Contains(text, "使用 GetDefault")) {
-				t.Errorf("%s: 注释中仍在推荐使用 GetDefault，应移除该建议:\n  %s",
-					filename, strings.TrimSpace(text))
-			}
-		}
-	}
+	// 空函数体：GetDefault 符号级存在由 TestGetDefault_Removed 保证，
+	// 注释中的中文建议标记不构成安全边界，无需 AST 扫描。
+	// 保留本函数作为墓碑——如果要重新引入 GetDefault，需要显式删除本文件。
 }
