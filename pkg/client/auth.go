@@ -102,7 +102,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if err != nil {
 		return nil, fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
 	}
-	c.logDebug("OCR 识别结果: %s", captcha)
+	c.logDebug("OCR 识别完成（%d 字符）", len(captcha))
 
 	if err := c.validateCaptcha(ctx, captcha); err != nil {
 		return nil, fmt.Errorf("Login 验证码预校验未通过: %w", err)
@@ -238,7 +238,7 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 			lastErr = fmt.Errorf("空白结果")
 			c.logDebug("OCR 第 %d 张图结果为空白", imgIdx+1)
 		} else {
-			c.logDebug("OCR 识别成功: img=%d result=%s", imgIdx+1, text)
+			c.logDebug("OCR 识别成功: img=%d result_len=%d", imgIdx+1, len(text))
 			return text, nil
 		}
 	}

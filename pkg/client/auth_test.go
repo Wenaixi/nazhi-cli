@@ -874,6 +874,64 @@ func TestExtractTokenFromReturnData_ExpiresIn_TakesPriorityOverExp(t *testing.T)
 	}
 }
 
+// ─── auth_captcha_log_leak_test.go (A1): logDebug 不泄漏验证码原文 ───
+
+// TestLogin_Log_DoesNotLeakCaptcha 验证 Login 流程中 logDebug 不输出验证码原文。
+// 修复前：c.logDebug("OCR 识别结果: %s", captcha) 将验证码明文写入日志。
+// 修复后：只输出长度信息，不输出验证码本身。
+func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"token":"jwt-test"}}`))
+		}
+	}))
+	defer srv.Close()
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	const secretCaptcha = "S3CR3T_C4PTCH4_789"
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		logger:     logger,
+		ocr:        &countMockOCR{returnText: secretCaptcha},
+	}
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err != nil {
+		t.Fatalf("Login 失败: %v", err)
+	}
+
+	logOutput := logBuf.String()
+	if strings.Contains(logOutput, secretCaptcha) {
+		t.Errorf("FAIL: 日志泄露了验证码原文 %q，日志:\n%s", secretCaptcha, logOutput)
+	}
+	// 正向断言：日志应包含 OCR 相关描述（如"OCR 识别完成"或字符数）
+	if !strings.Contains(logOutput, "OCR 识别") && !strings.Contains(logOutput, "字符") {
+		t.Errorf("日志应输出 OCR 识别相关信息（非明文），实际日志:\n%s", logOutput)
+	}
+}
+
 // ─── warn_sync_cookie_test.go (F2): helper WARN 日志 + 防 token 泄露 ───
 
 // TestWarnSyncCookieToken_BadJar_LogsWarn 验证 helper 在 cookie 同步失败时
