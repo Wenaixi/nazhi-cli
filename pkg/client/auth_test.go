@@ -424,8 +424,10 @@ func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("期望 Login 返回错误，实际 nil")
 	}
-	if !strings.Contains(err.Error(), "未找到 token") {
-		t.Errorf("期望 '未找到 token' 错误，实际: %v", err)
+	// F3 修复后:returnData 为 JSON null 时统一报 "returnData 为 null"
+	// （不再穿透到 tokenparse 报"token 字段类型异常"）。
+	if !strings.Contains(err.Error(), "returnData 为 null") {
+		t.Errorf("期望 'returnData 为 null' 错误（F3 修复后语义），实际: %v", err)
 	}
 
 	// 关键断言：logDebug 必须输出原始 body 摘要 + 错误原因
@@ -1431,5 +1433,63 @@ func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
 	// 关键断言 2：errors.Is 不应命中 ErrBusinessRejected
 	if errors.Is(err, ErrBusinessRejected) {
 		t.Errorf("errors.Is(err, ErrBusinessRejected) 应为 false（验证码校验不是业务 API 拒绝），err=%v", err)
+	}
+}
+
+// ─── F3: Login 200 null 检测容忍尾随空白 ───
+
+// TestLogin_NullReturnDataWithWhitespace 验证 server 返回
+// `{"returnData": null }`(returnData 前后带空格)时,Login 应识别为 null
+// 并返回 "returnData 为 null",而不是穿透到 tokenparse 报"token 字段类型异常"。
+//
+// 修复前:auth.go:159 的 `len(*loginResp.ReturnData) == 4 && string(...) == "null"`
+// 只匹配精确 4 字节 "null"。带空格(" null ", 6 bytes) → 条件不命中 →
+// 走 tokenparse.ExtractFromReturnData → json.Decoder 解出 data=nil map →
+// 报"token 字段类型异常(期望 string)",误导用户。
+//
+// 修复后:用 bytes.TrimSpace 容忍尾随空白,让任何 `null` 字面量都能被识别。
+func TestLogin_NullReturnDataWithWhitespace(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			// 关键:returnData 是 `null`(前后各带一个空格)
+			// 注意:返回的 JSON body 也带空格(模拟真实 server 行为)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData": null }`))
+		}
+	}))
+	defer srv.Close()
+
+	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误（returnData 为 null），实际 nil")
+	}
+
+	// 关键断言:错误信息应是 "returnData 为 null"，不是"token 字段类型异常"
+	if !strings.Contains(err.Error(), "returnData 为 null") {
+		t.Errorf("期望错误包含 'returnData 为 null'，实际: %v", err)
+	}
+	if strings.Contains(err.Error(), "token 字段类型异常") {
+		t.Errorf("错误不应穿透到 tokenparse 报'token 字段类型异常'，实际: %v", err)
+	}
+
+	// 必须命中 ErrLoginRejected
+	if !errors.Is(err, ErrLoginRejected) {
+		t.Errorf("errors.Is(err, ErrLoginRejected) 应为 true，err=%v", err)
 	}
 }
