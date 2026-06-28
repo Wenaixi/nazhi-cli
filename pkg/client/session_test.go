@@ -225,7 +225,7 @@ func TestActivateFailedToken_DoesNotClearOtherTokenCache_SameClient(t *testing.T
 	if c.sm.LoadToken() != "tok-A" {
 		t.Fatalf("sm token 应为 tok-A, 实际 %v", c.sm.LoadToken())
 	}
-	cached := c.sm.GetCachedUserInfo()
+	cached := c.sm.getCachedUserInfo()
 	if cached == nil || cached.Name != "张三" {
 		t.Fatalf("token-A 激活后 sm cachedUserInfo 应有数据: %+v", cached)
 	}
@@ -239,7 +239,7 @@ func TestActivateFailedToken_DoesNotClearOtherTokenCache_SameClient(t *testing.T
 		t.Fatal("token-B 激活应失败，但返回 nil")
 	}
 
-	cached = c.sm.GetCachedUserInfo()
+	cached = c.sm.getCachedUserInfo()
 	if cached == nil {
 		t.Fatal("F2 回归：token-B 失败不应清除 token-A 的 cachedUserInfo")
 	}
