@@ -132,9 +132,14 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	var result map[string]any
-	// 用 json.NewDecoder + UseNumber 替换 json.Unmarshal，与 auth.go
-	// extractTokenFromReturnData 一致。json.Unmarshal 默认将数字解为 float64，
-	// 在 >2^53 时精度损失。虽然文件 ID 通常在此范围内，但统一模式消除隐患。
+	// 这里无法用 types.DecodeReturnData[map[string]any] 替代手写 decoder。
+	//
+	// DecodeReturnData 用 json.Unmarshal，默认将数字解为 float64。
+	// 而当前代码用 json.NewDecoder + UseNumber 将数字解为 json.Number，
+	// 避免文件 ID 在 >2^53 时的 float64 精度损失。虽然文件 ID 通常在此范围内，
+	// 但与 auth.go extractTokenFromReturnData 保持一致更安全。
+	//
+	// 如果未来 DecodeReturnData 支持 UseNumber 模式，可以迁移。
 	dec := json.NewDecoder(bytes.NewReader(*unified.ReturnData))
 	dec.UseNumber()
 	if err := dec.Decode(&result); err != nil {
