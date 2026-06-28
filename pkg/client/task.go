@@ -307,12 +307,15 @@ func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimen
 // GetCircleTypeByTaskID 确认任务类型信息。
 //
 // 本方法在当前 SDK 中无业务调用方
-// （仅 task_id_lookup_test.go 等测试使用），且维护负担较高——
+// （仅 error_external_test.go 等测试使用），且维护负担较高——
 // 每次响应结构变更需同步更新解析逻辑。
 //
 // 计划：保留半年观察期（至 2026-12-27），如仍无业务调用方则在下个
 // major 版本（v0.4.0 或 v1.0.0）中删除。新业务应改用
 // `SubmitTask` 的 payload 反查机制获取 circleTypeId。
+//
+// 保留理由：error_external_test.go 有 2 个测试用例依赖本方法，
+// 删除会增加回归风险。截止日期前仅供测试调用，新业务勿依赖。
 //
 // Deprecated: 此方法计划在下个 major 版本删除，新业务请勿依赖。
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*map[string]any, error) {

@@ -30,12 +30,12 @@ var taskListCmd = &cobra.Command{
 		if err != nil {
 			// 用 errors.Is 精确匹配哨兵错误。
 			// 以下哨兵被视为 partial failure（有部分数据可用时输出 envelope）：
-			//   - ErrBusinessRejected / ErrInvalidPayload：业务错误（部分维度失败）
+			//   - ErrBusinessRejected：业务错误（部分维度失败）
 			//   - ErrEmptyUserInfo：session 激活返回空用户数据
 			//   - ErrSessionBackoff：session 激活在冷却窗口被抑制
+			// 注：ErrInvalidPayload 不在此列——FetchTasks 不返回此错误（SubmitTask 专用）。
 			// context 取消/超时独立于哨兵系统（标准库错误，非 client 哨兵）。
 			isPartialErr := errors.Is(err, client.ErrBusinessRejected) ||
-				errors.Is(err, client.ErrInvalidPayload) ||
 				errors.Is(err, client.ErrEmptyUserInfo) ||
 				errors.Is(err, client.ErrSessionBackoff) ||
 				errors.Is(err, context.Canceled) ||
