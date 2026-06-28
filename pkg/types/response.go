@@ -9,15 +9,14 @@ import (
 // UnifiedResponse 是目标平台的标准响应体结构。
 // 使用 json.RawMessage 延迟解析，先解外层 code，再根据 code 走对应路径。
 //
-// 历史注：旧版本曾带 6 个全仓 0 引用的孤儿字段（DataString / PageBean / Note /
-// InsertID / UpdateCount / IsAttendance），删除后收敛到实际被使用的 6 个活跃字段。
+// 历史注：旧版本曾带 7 个全仓 0 引用的孤儿字段（DataString / PageBean / Note /
+// InsertID / UpdateCount / IsAttendance / DataInt），删除后收敛到实际被使用的 5 个活跃字段。
 type UnifiedResponse struct {
 	Code       int              `json:"code"`
 	Msg        *string          `json:"msg"`
 	ReturnData *json.RawMessage `json:"returnData"`
 	DataList   *json.RawMessage `json:"dataList"`
 	DataMap    *json.RawMessage `json:"dataMap"`
-	DataInt    int              `json:"dataInt"`
 }
 
 // DecodeResponse 解码目标平台统一响应体。
