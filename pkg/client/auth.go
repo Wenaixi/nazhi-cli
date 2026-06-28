@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -150,13 +151,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		if err := types.CheckCode(loginResp); err != nil {
 			return nil, fmt.Errorf("登录失败: %w", errors.Join(ErrLoginRejected, err))
 		}
-		if loginResp.ReturnData == nil {
-			c.logDebug("Login 200 响应 returnData 为空 body=%s", logSafeBody(bodyBytes))
-			return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
-		}
-		// 检查 returnData 是否为 JSON null 字面量（{"returnData": null}），
-		// 避免误报"token 字段类型异常"。
-		if len(*loginResp.ReturnData) == 4 && string(*loginResp.ReturnData) == "null" {
+		if loginResp.ReturnData == nil || bytes.Equal(bytes.TrimSpace(*loginResp.ReturnData), []byte("null")) {
 			c.logDebug("Login 200 响应 returnData 为 null body=%s", logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: returnData 为 null", ErrLoginRejected)
 		}
