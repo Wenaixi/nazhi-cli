@@ -350,6 +350,15 @@ func (c *Client) logDebug(format string, args ...any) {
 	c.logger.Debug(fmt.Sprintf(format, args...))
 }
 
+// logSafeBody 截断 bytes 到 100 字符用于日志，防止敏感信息泄露。
+func logSafeBody(body []byte) string {
+	s := string(body)
+	if len(s) > 100 {
+		s = s[:100]
+	}
+	return s
+}
+
 // safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
 //
 // Recognize 实现可能在不可预见的边界条件下

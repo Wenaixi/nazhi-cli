@@ -105,7 +105,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if err != nil {
 		return nil, fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
 	}
-	c.logDebug("OCR 识别结果: %s", captcha)
+	c.logDebug("OCR 识别完成（%d 字符）", len(captcha))
 
 	if err := c.validateCaptcha(ctx, captcha); err != nil {
 		return nil, fmt.Errorf("Login 验证码预校验未通过: %w", err)
@@ -135,26 +135,26 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if httpResp.StatusCode == http.StatusOK {
 		var loginResp types.UnifiedResponse
 		if err := json.Unmarshal(bodyBytes, &loginResp); err != nil {
-			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, string(bodyBytes))
-			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %v", ErrLoginRejected, err)
+			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, logSafeBody(bodyBytes))
+			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %w", ErrLoginRejected, err)
 		}
 		if loginResp.Code != 1 {
 			return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, types.DerefOr(loginResp.Msg, "登录失败"))
 		}
 		if loginResp.ReturnData == nil {
-			c.logDebug("Login 200 响应 returnData 为空 body=%s", string(bodyBytes))
+			c.logDebug("Login 200 响应 returnData 为空 body=%s", logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
 		}
 		// 检查 returnData 是否为 JSON null 字面量（{"returnData": null}），
 		// 避免误报"token 字段类型异常"。
 		if len(*loginResp.ReturnData) == 4 && string(*loginResp.ReturnData) == "null" {
-			c.logDebug("Login 200 响应 returnData 为 null body=%s", string(bodyBytes))
+			c.logDebug("Login 200 响应 returnData 为 null body=%s", logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: returnData 为 null", ErrLoginRejected)
 		}
 		token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
 		if err != nil {
-			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
-			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
+			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, logSafeBody(bodyBytes))
+			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err)
 		}
 		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
 			c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
@@ -170,7 +170,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		token, expiresAt, locErr := tokenparse.ExtractFromLocation(location)
 		if locErr != nil {
 			c.logDebug("Login 302: Location 头解析失败: %v location=%s", locErr, location)
-			return nil, fmt.Errorf("%w: Location 头解析失败: %v", ErrLoginRejected, locErr)
+			return nil, fmt.Errorf("%w: Location 头解析失败: %w", ErrLoginRejected, locErr)
 		}
 		if token == "" {
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
@@ -183,7 +183,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	var errResp types.UnifiedResponse
 	if err := json.Unmarshal(bodyBytes, &errResp); err != nil {
-		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, string(bodyBytes))
+		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, logSafeBody(bodyBytes))
 	} else if errResp.Code != 1 {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
@@ -208,7 +208,10 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return fmt.Errorf("验证码校验失败: %w", errors.Join(ErrBusinessRejected, err))
+		// 验证码校验失败属于 Login 流程的错误（不是普通业务 API 拒绝），
+		// 包装 ErrLoginRejected 而非 ErrBusinessRejected，让 SDK 用户
+		// 用 errors.Is(err, ErrLoginRejected) 能命中。
+		return fmt.Errorf("验证码校验失败: %w", errors.Join(ErrLoginRejected, err))
 	}
 
 	return nil
@@ -241,7 +244,7 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 			lastErr = fmt.Errorf("空白结果")
 			c.logDebug("OCR 第 %d 张图结果为空白", imgIdx+1)
 		} else {
-			c.logDebug("OCR 识别成功: img=%d result=%s", imgIdx+1, text)
+			c.logDebug("OCR 识别成功: img=%d result_len=%d", imgIdx+1, len(text))
 			return text, nil
 		}
 	}
