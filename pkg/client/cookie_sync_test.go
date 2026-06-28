@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -104,7 +105,7 @@ func TestBuildLoginResponse_ParsesBodyToRawData(t *testing.T) {
 	if resp.RawData == nil {
 		t.Fatal("RawData 不应为 nil")
 	}
-	if code, ok := resp.RawData["code"]; !ok || code != float64(1) {
+	if code, ok := resp.RawData["code"]; !ok || code != json.Number("1") {
 		t.Errorf("RawData.code 应为 1，实际 %v", resp.RawData["code"])
 	}
 }

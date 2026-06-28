@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -52,7 +53,9 @@ func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes
 	// 用 json.Unmarshal 解析原始 body 为泛型 map，供 RawData 字段使用
 	var rawData map[string]any
 	if len(bodyBytes) > 0 {
-		_ = json.Unmarshal(bodyBytes, &rawData) // 解析失败返回 nil
+		dec := json.NewDecoder(bytes.NewReader(bodyBytes))
+		dec.UseNumber()
+		_ = dec.Decode(&rawData) // 解析失败返回 nil
 	}
 	return &types.LoginResponse{
 		Token:     token,
