@@ -110,8 +110,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	// 5. 解析响应
-	var unified types.UnifiedResponse
-	if err := json.Unmarshal(bodyBytes, &unified); err != nil {
+	unified, err := types.DecodeResponse(bodyBytes)
+	if err != nil {
 		return 0, fmt.Errorf("解析上传响应失败: %w", err)
 	}
 
