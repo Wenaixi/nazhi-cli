@@ -149,18 +149,26 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	//   - context 错误 + 无 partial tasks → 裸 errors.Join 返回
 	//   - context 错误 + 有 partial tasks → 包装 ErrBusinessRejected
 	//   - 业务错误 → 保持原样包装（全失败/部分失败分支不变）
+	//
+	// G5 修复：不再静默丢弃 context cancel 信息，保留 cancelledCount 让调用方可
+	// 感知「有 Y 个维度因 ctx cancel 失败」，区分「应重试」与「业务错误」。
 	if len(dimErrs) > 0 {
-		// 将 context 取消错误分离出来
+		// 将 context 取消错误分离出来，但保留维度计数
 		var bizErrs []error
+		var cancelledCount int
 		for _, de := range dimErrs {
 			if errors.Is(de, context.Canceled) || errors.Is(de, context.DeadlineExceeded) {
+				cancelledCount++
 				continue
 			}
 			bizErrs = append(bizErrs, de)
 		}
+		if cancelledCount > 0 {
+			bizErrs = append(bizErrs, fmt.Errorf("%d 个维度因 context 取消而失败（可重试）", cancelledCount))
+		}
 
 		// 仅有 context 取消错误
-		if len(bizErrs) == 0 {
+		if len(bizErrs) == 1 && cancelledCount > 0 && len(dimErrs) == cancelledCount {
 			joined := errors.Join(dimErrs...)
 			if len(allTasks) == 0 {
 				// 无 partial tasks：裸返回，不包装 ErrBusinessRejected
