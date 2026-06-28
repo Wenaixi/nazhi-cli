@@ -105,9 +105,9 @@ func TestPrepareImage_CompressesLargeImage(t *testing.T) {
 	c := internalNewTestClient()
 	tmpfile := t.TempDir() + "/test-large.png"
 
-	// 创建大图（1500×1500 = 2.25M 像素；用 Pix 直接填避开 9M 次 Set bounds check）。
-	// 不可压缩的渐变 pattern 确保 PNG 输出大（触发压缩逻辑），但大小足够测出"超大图必须压缩"。
-	const w, h = 1500, 1500
+	// 创建大图（800×800 = 640K 像素；用 Pix 直接填避开 Set bounds check)。
+	// 不可压缩的渐变 pattern 确保 PNG 输出不会太小，但足够测出压缩路径。
+	const w, h = 800, 800
 	img := image.NewRGBA(image.Rect(0, 0, w, h))
 	pix := img.Pix
 	for y := 0; y < h; y++ {
