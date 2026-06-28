@@ -41,7 +41,7 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 }
 
 // getMyInfoRaw 是 GetMyInfo 的内部版本（不预热 session），供 ActivateSession
-// 步骤 4 调用——避免外层 sessionOnce.Do 持锁时再次进入 sessionOnce.Do 死锁。
+// 步骤 4 调用——避免外层 sm.mu（sync.Mutex） 持锁时再次进入 sm.mu（sync.Mutex） 死锁。
 // 公开 SDK 用户请使用 GetMyInfo。
 //
 // 注意：本方法不迁移到 doBizGetDecode，因为它需要自定义 Referer header (/modify)，

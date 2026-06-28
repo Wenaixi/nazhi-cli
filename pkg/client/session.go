@@ -14,8 +14,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// defaultSessionBackoff 已迁移到 session_manager.go，此处保持导出供外部引用。
-// 激活失败后禁止重试的默认时间窗口。默认 5 秒。
+// defaultSessionBackoff 是激活失败后禁止重试的默认时间窗口。默认 5 秒。
 const defaultSessionBackoff = 5 * time.Second
 
 // ActivateSession 初始化目标平台业务 Session。
@@ -103,8 +102,8 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 	}
 
 	// 步骤4：GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
-	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免外层 sessionOnce.Do
-	// 持锁时再次进入 sessionOnce.Do 死锁（reentrancy 限制）。
+	// 关键：用内部 getMyInfoRaw 而非公开 GetMyInfo，避免 sm.mu（sync.Mutex）
+	// 持锁时再次进入死锁（不可重入限制）。
 	// 失败 propagate：步骤 4 是 4 步 HAR 契约的一部分。
 	return c.getMyInfoRaw(ctx, token)
 }
@@ -133,10 +132,6 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 	}
 	return body, nil
 }
-
-// copyMap 已被删除（B1 修复）：改为标准库 maps.Clone。
-// Go 1.21+ maps.Clone 等效手写循环且由 runtime 实现优化，
-// 维护负担更小（少 1 个内部函数需要 review/测试）。
 
 // ─── sessionManager: 业务 API session 激活状态机 ───
 //
