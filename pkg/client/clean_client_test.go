@@ -34,8 +34,8 @@ func TestNewCleanClient_ClonesHTTPTransport(t *testing.T) {
 	if cc.Jar != nil {
 		t.Error("cleanClient.Jar 必须 nil（防止 cookie 泄漏）")
 	}
-	if cc.Timeout != 5*time.Second {
-		t.Errorf("cleanClient.Timeout 应 = 5s，实际 %v", cc.Timeout)
+	if cc.Timeout != 30*time.Second {
+		t.Errorf("cleanClient.Timeout 应上浮至最小 30s，实际 %v", cc.Timeout)
 	}
 }
 

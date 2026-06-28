@@ -106,12 +106,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, string(bodyBytes))
+		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 
 	// 5. 解析响应
-	var unified types.UnifiedResponse
-	if err := json.Unmarshal(bodyBytes, &unified); err != nil {
+	unified, err := types.DecodeResponse(bodyBytes)
+	if err != nil {
 		return 0, fmt.Errorf("解析上传响应失败: %w", err)
 	}
 
@@ -165,7 +165,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	case json.Number:
 		idFloat, err = v.Float64()
 		if err != nil {
-			return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %v", ErrUploadRejected, err)
+			return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %w", ErrUploadRejected, err)
 		}
 	default:
 		return 0, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 或 json.Number 实际 %T", ErrUploadRejected, rawID)
@@ -230,8 +230,8 @@ func newCleanClient(c *Client) *http.Client {
 	}
 
 	timeout := c.http.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second // 文件上传的合理兜底超时
+	if timeout == 0 || timeout < 30*time.Second {
+		timeout = 30 * time.Second // 文件上传的合理兜底超时，确保不继承主 Client 过短 timeout
 	}
 	return &http.Client{
 		Transport: transport,

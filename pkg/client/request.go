@@ -351,7 +351,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, url, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return bodyBytes, fmt.Errorf("GET %s 返回非 200: %d body=%s", url, resp.StatusCode, string(bodyBytes))
+		return bodyBytes, fmt.Errorf("GET %s 返回非 200: %d body=%s", url, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 	return bodyBytes, nil
 }
