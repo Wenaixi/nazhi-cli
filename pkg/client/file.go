@@ -230,8 +230,8 @@ func newCleanClient(c *Client) *http.Client {
 	}
 
 	timeout := c.http.Timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second // 文件上传的合理兜底超时
+	if timeout == 0 || timeout < 30*time.Second {
+		timeout = 30 * time.Second // 文件上传的合理兜底超时，确保不继承主 Client 过短 timeout
 	}
 	return &http.Client{
 		Transport: transport,
