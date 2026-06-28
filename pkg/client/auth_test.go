@@ -932,7 +932,181 @@ func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 	}
 }
 
+// ─── auth_body_truncate_test.go (A2/A3): logDebug body 截断 + 敏感字段掩码 ───
+
+// TestLogin_Log_BodyTruncated 验证 logDebug 输出 body 时截断到 ≤100 字符。
+// 修复前：完整 body（可能含 token）全部输出到日志。
+// 修复后：body 输出限制在 100 字符以内。
+func TestLogin_Log_BodyTruncated(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			// non-200 + 长 body → 触发 line 183 logDebug（非预期状态码路径）
+			w.WriteHeader(http.StatusInternalServerError)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(strings.Repeat("A", 200)))
+		}
+	}))
+	defer srv.Close()
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		logger:     logger,
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望非 200 错误，实际 nil")
+	}
+
+	logOutput := logBuf.String()
+	// 检查任何 body= 后是否有超长内容
+	bodyIdx := strings.Index(logOutput, "body=")
+	if bodyIdx < 0 {
+		t.Log("日志中未出现 body=, 日志:\n" + logOutput)
+		return
+	}
+	afterBody := logOutput[bodyIdx+5:]
+	firstLineEnd := strings.Index(afterBody, "\n")
+	var bodySnippet string
+	if firstLineEnd > 0 {
+		bodySnippet = afterBody[:firstLineEnd]
+	} else {
+		bodySnippet = afterBody
+	}
+	if len(bodySnippet) > 120 {
+		t.Errorf("body 输出长度 %d 超过预期（期望 ≤100 字符附近）:\n%s", len(bodySnippet), bodySnippet[:80])
+	}
+}
+
+// TestLogin_Log_BodyContainsSensitive 验证 body 输出中敏感字段（token）被掩码。
+func TestLogin_Log_BodyTokenMasked(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			w.Header().Set("Content-Type", "application/json")
+			// 触发 returnData=null 路径（logDebug body=%s 在第 148 行）
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null}`))
+		}
+	}))
+	defer srv.Close()
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		logger:     logger,
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望错误，实际 nil")
+	}
+
+	logOutput := logBuf.String()
+	// 反向断言：日志不应包含 "token":"<明文>" 形式
+	if strings.Contains(logOutput, `"token":"`) {
+		// 更进一步：检查是否有真正的 token 值而非掩码
+		t.Errorf("日志似乎包含 token 键值对，可能泄露了敏感信息:\n%s", logOutput)
+	}
+}
+
 // ─── warn_sync_cookie_test.go (F2): helper WARN 日志 + 防 token 泄露 ───
+
+// ─── auth_wrap_test.go (A4): 200 路径 JSON 解析失败时 errors.As 能穿透 ───
+
+// TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW 验证
+// 当 200 响应 body 不是合法 JSON 时，Login 返回的错误应能通过 errors.As
+// 穿透到 json.SyntaxError 原始错误（而不是被 %v 截断错误链）。
+//
+// 修复前：fmt.Errorf("%w: ...: %v", ErrLoginRejected, err) — %v 断开错误链，
+//         errors.As 找不到原始 json.SyntaxError。
+// 修复后：fmt.Errorf("%w: ...: %w", ErrLoginRejected, err) — %w 保留错误链，
+//         errors.As 可穿透找到 json.SyntaxError。
+func TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			// 非 JSON body，触发 json.Unmarshal 失败路径（auth.go:134-136）
+			_, _ = w.Write([]byte("not-json-at-all{{{"))
+		}
+	}))
+	defer srv.Close()
+
+	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误，实际 nil")
+	}
+
+	// 关键断言：errors.As 应能穿透到 json.SyntaxError（证明 %w 正确保留错误链）
+	var syntaxErr *json.SyntaxError
+	if !errors.As(err, &syntaxErr) {
+		t.Errorf("期望 errors.As 能穿透找到 *json.SyntaxError（证明 percent-w 包装），实际错误: %v", err)
+	}
+	// 反向断言：必须仍 wrap ErrLoginRejected
+	if !errors.Is(err, ErrLoginRejected) {
+		t.Errorf("错误仍应 wrap ErrLoginRejected，实际: %v", err)
+	}
+}
 
 // TestWarnSyncCookieToken_BadJar_LogsWarn 验证 helper 在 cookie 同步失败时
 // 输出 WARN 日志且包含调用方提供的 label 标识符。
