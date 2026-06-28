@@ -45,12 +45,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 若只 defer Close()，则 wire 上发出去的 body 缺终止边界，server 端 multipart
 	// parser 报 EOF 错误，100% 上传失败。
 	//
-	// 这里保留 defer Close() 兜底（设计意图：错误路径也要 Close
-	// 释放内部 buffer），与显式 Close 共同防御——显式调用负责正确路径，
-	// defer 负责任何早退路径。multipart.Writer.Close 是幂等的，可重复调用。
 	var buf bytes.Buffer
 	writer := multipart.NewWriter(&buf)
-	defer writer.Close()
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
 	if err != nil {
@@ -61,8 +57,9 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	// 显式 Close：在 NewRequest 之前写入终结边界到 buf。
-	// defer 的 Close 兜底处理本行之后的早退路径（虽然此处已无早退可能，
-	// 但保持对称防御层）。
+	// 注意：不保留 defer writer.Close()——显式 Close 在上方已经执行，
+	// writer 在 NewRequest 前已完成终结边界的写入。CreateFormFile 和
+	// part.Write 在 Close 前已返回，CreateFormFile/Write 路径无另存早退点。
 	if err := writer.Close(); err != nil {
 		return 0, fmt.Errorf("关闭 multipart writer 失败: %w", err)
 	}
@@ -135,9 +132,14 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 
 	var result map[string]any
-	// 用 json.NewDecoder + UseNumber 替换 json.Unmarshal，与 auth.go
-	// extractTokenFromReturnData 一致。json.Unmarshal 默认将数字解为 float64，
-	// 在 >2^53 时精度损失。虽然文件 ID 通常在此范围内，但统一模式消除隐患。
+	// 这里无法用 types.DecodeReturnData[map[string]any] 替代手写 decoder。
+	//
+	// DecodeReturnData 用 json.Unmarshal，默认将数字解为 float64。
+	// 而当前代码用 json.NewDecoder + UseNumber 将数字解为 json.Number，
+	// 避免文件 ID 在 >2^53 时的 float64 精度损失。虽然文件 ID 通常在此范围内，
+	// 但与 auth.go extractTokenFromReturnData 保持一致更安全。
+	//
+	// 如果未来 DecodeReturnData 支持 UseNumber 模式，可以迁移。
 	dec := json.NewDecoder(bytes.NewReader(*unified.ReturnData))
 	dec.UseNumber()
 	if err := dec.Decode(&result); err != nil {
@@ -156,6 +158,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 但 float64 断言也要兼容——json.Number 需通过 Float64() 转换。
 	var idFloat float64
 	switch v := rawID.(type) {
+	case nil:
+		return 0, fmt.Errorf("%w: returnData.id 字段为 null", ErrUploadRejected)
 	case float64:
 		idFloat = v
 	case json.Number:

@@ -137,9 +137,9 @@ func TestUploadFile_IdIsNull(t *testing.T) {
 		t.Fatal("UploadFile 应返回错误")
 	}
 
-	// null 属于类型不匹配（不是 float64）
+	// null 字段应被 case nil 分支识别，错误信息明确说「null」
 	errMsg := err.Error()
-	if !strings.Contains(errMsg, "类型") {
-		t.Errorf("id=null 错误信息应说明类型问题, 实际: %v", err)
+	if !strings.Contains(errMsg, "null") {
+		t.Errorf("id=null 错误信息应说明字段为 null, 实际: %v", err)
 	}
 }

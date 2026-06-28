@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -100,4 +101,52 @@ func TestSubmitTask_BusinessError_NotMisclassifiedAsLogin(t *testing.T) {
 
 func ptr(s string) *string {
 	return &s
+}
+
+// ─── appendLocked helper 测试 ───
+
+// TestAppendLocked_ConcurrentSingleItem 验证 appendLocked 在 N 个 goroutine 并发
+// 追加单元素场景下无 race 且结果正确（执行 `go test -race` 验证）。
+func TestAppendLocked_ConcurrentSingleItem(t *testing.T) {
+	var mu sync.Mutex
+	var items []int
+	var wg sync.WaitGroup
+
+	const goroutines = 100
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func(n int) {
+			defer wg.Done()
+			appendLocked(&mu, &items, n)
+		}(i)
+	}
+	wg.Wait()
+
+	if len(items) != goroutines {
+		t.Errorf("期望 %d 个元素, 得到 %d", goroutines, len(items))
+	}
+}
+
+// TestAppendLocked_ConcurrentVariadic 验证 appendLocked 变长追加在 N 个 goroutine 并发
+// 追加切片场景下无 race 且结果正确。
+func TestAppendLocked_ConcurrentVariadic(t *testing.T) {
+	var mu sync.Mutex
+	var items []int
+	var wg sync.WaitGroup
+
+	const goroutines = 50
+	const batchSize = 3
+	for i := 0; i < goroutines; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			appendLocked(&mu, &items, 1, 2, 3)
+		}()
+	}
+	wg.Wait()
+
+	expected := goroutines * batchSize
+	if len(items) != expected {
+		t.Errorf("期望 %d 个元素, 得到 %d", expected, len(items))
+	}
 }

@@ -22,6 +22,21 @@ import (
 // 如未来业务接口维度数 > 50，可考虑调到此常量或暴露为 Client 字段。
 const fetchTasksConcurrentLimit = 8
 
+// appendLocked 在 mu 锁内安全地追加 items 到 slice。
+//
+// 消除 FetchTasks goroutine 闭包内重复的 mu.Lock + append + mu.Unlock 模式。
+// 使用 *[]T 而非 []T 返回值，避免调用方忽略 slice header realloc 的 bug：
+// append 在容量不足时会分配新底层数组，调用方必须用返回值回写原变量。
+// 传入指针让 helper 直接修改调用方的 slice header，调用方无需重新赋值。
+//
+// 泛型支持单元素追加（dimErrs = appendLocked(&mu, &dimErrs, err)）
+// 和变长追加（allTasks = appendLocked(&mu, &allTasks, tasks...)）。
+func appendLocked[T any](mu *sync.Mutex, slice *[]T, items ...T) {
+	mu.Lock()
+	*slice = append(*slice, items...)
+	mu.Unlock()
+}
+
 // fetchDimensions 拉取任务维度列表（FetchTasks / GetDimensions 共用）。
 // 内部包含 session 预热 + 响应解码，错误信息前缀由 caller 决定。
 func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix string) ([]types.Dimension, error) {
@@ -79,15 +94,6 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		if dim.ID == 0 {
 			continue
 		}
-		dim := dim // 捕获循环变量
-		// 循环变量捕获强约束。
-		//
-		// Go 1.22 之前每个 iteration 复用同一 dim 变量，
-		// 必须显式 dim := dim 捕获当前值给 goroutine 使用。
-		// Go 1.22+ 每个 iteration 自动生成新变量，此行变成无害冗余。
-		// 本项目 go.mod 指定 Go 1.26.1，已具备新语义，但保留 dim := dim
-		// 与显式注释作为防御——避免未来 refactor 把循环改为函数并意外丢捕获。
-		// 维护者约束：删除此行前请确认循环变量语义与 goroutine 闭包兼容。
 		g.Go(func() error {
 			// context 取消后直接 propagate，
 			// 防止 cancel 被 dimErrs 吞掉后包装为 ErrBusinessRejected，
@@ -97,9 +103,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			}
 			tasks, dimErr := c.fetchTasksForDimensionSafe(gctx, dim, headers)
 			if dimErr != nil {
-				mu.Lock()
-				dimErrs = append(dimErrs, dimErr)
-				mu.Unlock()
+				appendLocked(&mu, &dimErrs, dimErr)
 				// 不返回 error：保留"单维度失败不影响其他维度"语义，
 				// 失败信息通过 dimErrs 聚合后整体 propagate。
 				return nil
@@ -107,9 +111,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			if tasks == nil {
 				return nil
 			}
-			mu.Lock()
-			allTasks = append(allTasks, tasks...)
-			mu.Unlock()
+			appendLocked(&mu, &allTasks, tasks...)
 			return nil
 		})
 	}
