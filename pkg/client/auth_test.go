@@ -1055,16 +1055,19 @@ func TestLogin_Log_BodyTokenMasked(t *testing.T) {
 
 // ─── warn_sync_cookie_test.go (F2): helper WARN 日志 + 防 token 泄露 ───
 
-// ─── auth_wrap_test.go (A4): 200 路径 JSON 解析失败时 errors.As 能穿透 ───
+// ─── auth_wrap_test.go (A4/A5/A6): fmt.Errorf %w 包装穿透 ───
 
 // TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW 验证
 // 当 200 响应 body 不是合法 JSON 时，Login 返回的错误应能通过 errors.As
 // 穿透到 json.SyntaxError 原始错误（而不是被 %v 截断错误链）。
 //
 // 修复前：fmt.Errorf("%w: ...: %v", ErrLoginRejected, err) — %v 断开错误链，
-//         errors.As 找不到原始 json.SyntaxError。
+//
+//	errors.As 找不到原始 json.SyntaxError。
+//
 // 修复后：fmt.Errorf("%w: ...: %w", ErrLoginRejected, err) — %w 保留错误链，
-//         errors.As 可穿透找到 json.SyntaxError。
+//
+//	errors.As 可穿透找到 json.SyntaxError。
 func TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -1255,4 +1258,108 @@ func TestDerefOr_StringNilAndValue(t *testing.T) {
 func TestDerefOr_NotConfusedWithCmpOr(t *testing.T) {
 	t.Log("M2 fix 已完成：stringPtrOr 重命名为 derefOr（nil-safe，3 行实现）")
 	t.Log("注意：不能用 cmp.Or(*Msg, def) 替代，cmp.Or 在 Msg==nil 时 panic")
+}
+
+// ─── auth_wrap_test.go (A5): 200 路径 extractToken 错误改用 %w 包装 ───
+
+// TestLogin_200Path_ExtractTokenError_WrappedWithPercentW 验证
+// 当 returnData 中无 token 字段时（触发 extractTokenFromReturnData 返回错误），
+// Login 返回的错误应保留 tokenparse 返回的底层错误（不是用 %v 截断）。
+//
+// 修复前：fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err) — %v 断开错误链。
+// 修复后：fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err) — %w 保留错误链，
+//
+//	errors.Is 可穿透找到 tokenparse 返回的 errors.New("returnData 中无 token 字段")。
+func TestLogin_200Path_ExtractTokenError_WrappedWithPercentW(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			// returnData 是 JSON 对象但不含 token 字段 → 触发 extractToken 失败路径（auth.go:151-154）
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"other":"value"}}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误（extractToken 失败），实际 nil")
+	}
+
+	// 关键断言：err.Error() 应包含 tokenparse 返回的原始错误消息
+	if !strings.Contains(err.Error(), "returnData 中无 token 字段") &&
+		!strings.Contains(err.Error(), "returnData 中 token 字段类型异常") {
+		t.Errorf("期望错误链保留 tokenparse 原始错误消息，实际: %v", err)
+	}
+	// 反向断言：必须仍 wrap ErrLoginRejected
+	if !errors.Is(err, ErrLoginRejected) {
+		t.Errorf("错误仍应 wrap ErrLoginRejected，实际: %v", err)
+	}
+}
+
+// ─── auth_wrap_test.go (A6): 302 路径 Location 解析错误改用 %w 包装 ───
+
+// TestLogin_302Path_LocationParseError_WrappedWithPercentW 验证
+// 当 302 Location 是畸形 URL 时（触发 url.Parse 失败），
+// Login 返回的错误应保留 url.Parse 原始错误（不是用 %v 截断）。
+//
+// 修复前：fmt.Errorf("%w: Location 头解析失败: %v", ErrLoginRejected, locErr) — %v 断开错误链。
+// 修复后：fmt.Errorf("%w: Location 头解析失败: %w", ErrLoginRejected, locErr) — %w 保留错误链。
+func TestLogin_302Path_LocationParseError_WrappedWithPercentW(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			// 302 + Location 完全不是合法 URL（不是以 http:// 开头等格式）
+			// 用一个无法被 url.Parse 处理的格式（实际上 net/url 很宽容，
+			// 这里用一个会触发 tokenparse.ExtractFromLocation 内部解析失败的位置）
+			w.Header().Set("Location", "://malformed-no-scheme")
+			w.WriteHeader(http.StatusFound)
+		}
+	}))
+	defer srv.Close()
+
+	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误（Location 解析失败），实际 nil")
+	}
+
+	// 关键断言：err.Error() 应保留 url.Parse 原始错误（包含 "parse" 关键词）
+	if !strings.Contains(err.Error(), "parse") && !strings.Contains(err.Error(), "invalid") {
+		t.Errorf("期望错误链保留 url.Parse 原始错误消息，实际: %v", err)
+	}
+	// 反向断言：必须仍 wrap ErrLoginRejected
+	if !errors.Is(err, ErrLoginRejected) {
+		t.Errorf("错误仍应 wrap ErrLoginRejected，实际: %v", err)
+	}
 }
