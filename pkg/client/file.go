@@ -165,7 +165,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	case json.Number:
 		idFloat, err = v.Float64()
 		if err != nil {
-			return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %v", ErrUploadRejected, err)
+			return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %w", ErrUploadRejected, err)
 		}
 	default:
 		return 0, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 或 json.Number 实际 %T", ErrUploadRejected, rawID)
