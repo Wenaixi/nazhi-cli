@@ -1381,3 +1381,55 @@ func (rt *malformedLocationRT) RoundTrip(req *http.Request) (*http.Response, err
 }
 
 func (rt *malformedLocationRT) Close() error { return nil }
+
+// ─── auth_wrap_test.go (A7): validateCaptcha 错误改用 ErrLoginRejected ───
+
+// TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected 验证 validateCaptcha
+// 返回 code != 1 时，Login 包装的哨兵错误是 ErrLoginRejected 而非
+// ErrBusinessRejected。
+//
+// A7 修复前：errors.Join(ErrBusinessRejected, err) — SDK 用户用
+//
+//	errors.Is(err, ErrLoginRejected) 无法命中。
+//
+// A7 修复后：errors.Join(ErrLoginRejected, err) — 验证码校验失败属于
+//
+//	Login 流程错误，不是业务 API 拒绝。
+func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			// code=0：验证码错误，触发 auth.go:206-212 的包装路径
+			_, _ = w.Write([]byte(`{"code":0,"msg":"验证码错误"}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误（validateCaptcha 拒绝），实际 nil")
+	}
+
+	// 关键断言 1：errors.Is 必须命中 ErrLoginRejected
+	if !errors.Is(err, ErrLoginRejected) {
+		t.Errorf("errors.Is(err, ErrLoginRejected) 应为 true，实际错误链不包含 ErrLoginRejected，err=%v", err)
+	}
+
+	// 关键断言 2：errors.Is 不应命中 ErrBusinessRejected
+	if errors.Is(err, ErrBusinessRejected) {
+		t.Errorf("errors.Is(err, ErrBusinessRejected) 应为 false（验证码校验不是业务 API 拒绝），err=%v", err)
+	}
+}
