@@ -248,9 +248,8 @@ type TaskSubmitPayload struct {
 // ─── 任务提交结果 ───
 
 type TaskResult struct {
-	Code int            `json:"code"`
-	Msg  string         `json:"msg"`
-	Raw  map[string]any `json:"-"`
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
 }
 
 // ─── 维度 ───
