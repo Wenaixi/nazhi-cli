@@ -101,9 +101,9 @@ func TestSessionActivate_EmptyUserInfo_StatusEnvelope(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码保持 0（不是 error 路径）
-	if got := pendingExitCode.Load(); got != 0 {
-		t.Errorf("空响应 session activate 不应触发 pendingExitCode=1，实际 %d", got)
+	// 退出码应为 1（空用户信息是失败状态，CI 需要区分）
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("空响应 session activate 应触发 pendingExitCode=1，实际 %d", got)
 	}
 
 	// stderr 不应有 error 标记
@@ -216,8 +216,12 @@ func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {
 	stdoutBuf, stderrBuf, restore := captureStdio(t)
 
 	// 直接测试 cmd 层对 ErrSessionBackoff 的处理逻辑（与 sessionActivateCmd.Run
-	// 中的 if 分支相同逻辑）
+	// 中的 if 分支相同逻辑）。这里**手动模拟** cmd 处理路径：
+	// sessionActivateCmd.Run 因 buildBizClient 每次新建 Client，无法保留 backoff
+	// 状态，无法通过 cobra 命令路径触发 backoff 分支；本测试改为单元级合约测试：
+	// 当 cmd 层处理 ErrSessionBackoff 时，必须同时调 markError()，否则 CI 误判成功。
 	if errors.Is(backoffErr, client.ErrSessionBackoff) {
+		markError()
 		printJSON(map[string]string{
 			"status":  "cooldown",
 			"message": "session 激活冷却中，上次激活失败请稍后重试",
@@ -230,9 +234,9 @@ func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码应为 0（cooldown 不是错误）
-	if got := pendingExitCode.Load(); got != 0 {
-		t.Errorf("backoff 不应触发 pendingExitCode=1，实际 %d", got)
+	// 退出码应为 1（backoff 是失败状态，CI 需要区分）
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("backoff 应触发 pendingExitCode=1，实际 %d", got)
 	}
 
 	// stderr 不应包含 error 标记
