@@ -308,20 +308,23 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	// 用 initMu 保护整个初始化路径，确保多 goroutine 下也只解压一次。
 	// 关键设计：Close() 会把 closed=true、initErr=nil、initialized=false、
 	// o.ocr=nil，之后调 Recognize 走「重新初始化」分支（除非已 close）。
+	//
+	// 使用 defer Unlock 防止 initOnce panic 重新抛出后 initMu 永不解锁。
+	// 场景：initOnce 内 onnxruntime 初始化崩溃 → deferred recover 清理 tempDir →
+	// panic(r) 重新抛出 → o.initMu.Unlock() 永不执行 → 后续任 goroutine 调 Recognize
+	// 永久阻塞在 Lock()。defer 保证无论 initOnce 是否 panic，锁一定能释放。
 	o.initMu.Lock()
+	defer o.initMu.Unlock()
 	if o.closed.Load() {
-		o.initMu.Unlock()
 		return "", errors.New("OCR is closed")
 	}
 	if !o.initialized {
 		if err := o.initOnce(); err != nil {
-			o.initMu.Unlock()
 			return "", err
 		}
 	}
 	initErr := o.initErr
 	ocr := o.ocr
-	o.initMu.Unlock()
 
 	if initErr != nil {
 		return "", fmt.Errorf("OCR initialization failed: %w", initErr)
