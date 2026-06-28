@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -150,13 +151,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		if err := types.CheckCode(loginResp); err != nil {
 			return nil, fmt.Errorf("登录失败: %w", errors.Join(ErrLoginRejected, err))
 		}
-		if loginResp.ReturnData == nil {
-			c.logDebug("Login 200 响应 returnData 为空 body=%s", logSafeBody(bodyBytes))
-			return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
-		}
-		// 检查 returnData 是否为 JSON null 字面量（{"returnData": null}），
-		// 避免误报"token 字段类型异常"。
-		if len(*loginResp.ReturnData) == 4 && string(*loginResp.ReturnData) == "null" {
+		if loginResp.ReturnData == nil || bytes.Equal(bytes.TrimSpace(*loginResp.ReturnData), []byte("null")) {
 			c.logDebug("Login 200 响应 returnData 为 null body=%s", logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: returnData 为 null", ErrLoginRejected)
 		}
@@ -165,9 +160,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, logSafeBody(bodyBytes))
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err)
 		}
-		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
-			c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
-		}
+		c.warnIfExpiresAtFallback(expiresAt, "200")
 		return c.buildLoginResponse(token, expiresAt, bodyBytes, "200"), nil
 	}
 
@@ -184,9 +177,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		if token == "" {
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
 		}
-		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
-			c.logger.Warn("Login 302 fallback: Location 未带 expires_in/exp，使用 now+24h 兜底")
-		}
+		c.warnIfExpiresAtFallback(expiresAt, "302 fallback")
 		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback"), nil
 	}
 
@@ -197,6 +188,30 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
 	return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
+}
+
+// warnIfExpiresAtFallback 在 expiresAt 异常时输出 WARN 日志。两条 Login 路径
+// （200/302）共用，避免重复。
+//
+// 检测两类异常:
+//  1. fallback 触发：剩余寿命 > defaultTokenTTL-threshold（典型 24h 兜底），
+//     意味着 server 没带 expires_in/exp。
+//  2. 已过期/即将过期：剩余寿命 < expiresFallbackThreshold，server 给的 exp
+//     已是过去时间（或剩余过短），首次业务调用会立即 401。
+//
+// F4 修复前：只检测 (1)，过去时间 time.Until 为负数不大于 23h → 静默吞下。
+// F4 修复后：合并 (1) + (2)，两条都覆盖。
+func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
+	remaining := time.Until(expiresAt)
+	if remaining > defaultTokenTTL-expiresFallbackThreshold {
+		c.logger.Warn(fmt.Sprintf("Login %s: token 剩余寿命 %v > 23h（expiresAt=%s），server 可能未带 expires_in/exp，使用 now+24h 兜底",
+			label, remaining.Round(time.Second), expiresAt.Format(time.RFC3339)))
+		return
+	}
+	if remaining < expiresFallbackThreshold {
+		c.logger.Warn(fmt.Sprintf("Login %s: token 已过期或剩余 < %v（remaining=%v expiresAt=%s），首次业务调用将立即 401",
+			label, expiresFallbackThreshold, remaining.Round(time.Second), expiresAt.Format(time.RFC3339)))
+	}
 }
 
 // ─── 验证码内部辅助 ───
