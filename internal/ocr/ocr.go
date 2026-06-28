@@ -59,6 +59,9 @@ type OCR struct {
 	ocr         *ddddocr.DdddOcr
 	tempDir     string
 	mu          sync.Mutex // 保护 Classification 调用，支持单例并发安全
+	// testPanicHook 仅供内部测试触发 initOnce 内的 panic，
+	// 生产代码中始终为 nil，对运行路径零影响。
+	testPanicHook func()
 }
 
 // New 创建独立的 OCR 识别器（惰性初始化，首次调用时才提取模型文件）。
@@ -250,10 +253,11 @@ func platformLibNameFor(goos string) string {
 
 // initOnce 在 initMu 锁定状态下执行 OCR 实例的惰性初始化。
 // deferred recover 捕获 extractModels/ddddocr.New 的 panic，
-// 清理 tempDir + 重置 initialized，防止 tempDir 永久泄漏到 %TEMP%。
-func (o *OCR) initOnce() error {
+// 清理 tempDir + 保留 panic 根因到 initErr + 不标记 initialized，
+// 防止 tempDir 永久泄漏到 %TEMP% 且允许后续 Recognize 重试。
+func (o *OCR) initOnce() (retErr error) {
 	// deferred recover 捕获 initMu 临界区内 panic，
-	// 清理 tempDir + 重置 initialized
+	// 清理 tempDir + 保留根因到 initErr
 	var cleanupTempDir bool
 	defer func() {
 		if r := recover(); r != nil {
@@ -261,8 +265,12 @@ func (o *OCR) initOnce() error {
 				_ = os.RemoveAll(o.tempDir)
 				o.tempDir = ""
 			}
-			o.initialized = true
-			panic(r)
+			// 保留 panic 根因到 initErr，不标记 initialized，
+			// 让后续 Recognize 重试 initOnce 并把根因上报，
+			// 避免 *OCR 实例被「initialized=true + initErr=nil + ocr=nil」永久卡死。
+			o.initialized = false
+			o.initErr = fmt.Errorf("initOnce panic: %v", r)
+			retErr = o.initErr
 		}
 	}()
 
@@ -284,6 +292,9 @@ func (o *OCR) initOnce() error {
 	})
 
 	// 创建识别器，指定模型目录为解压目录
+	if o.testPanicHook != nil {
+		o.testPanicHook()
+	}
 	opts := ddddocr.DefaultOptions()
 	opts.ModelDir = o.tempDir
 	ocr, err := ddddocr.New(opts)
@@ -309,10 +320,11 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	// 关键设计：Close() 会把 closed=true、initErr=nil、initialized=false、
 	// o.ocr=nil，之后调 Recognize 走「重新初始化」分支（除非已 close）。
 	//
-	// 使用 defer Unlock 防止 initOnce panic 重新抛出后 initMu 永不解锁。
-	// 场景：initOnce 内 onnxruntime 初始化崩溃 → deferred recover 清理 tempDir →
-	// panic(r) 重新抛出 → o.initMu.Unlock() 永不执行 → 后续任 goroutine 调 Recognize
-	// 永久阻塞在 Lock()。defer 保证无论 initOnce 是否 panic，锁一定能释放。
+	// 使用 defer Unlock 防止 initOnce 内部 panic（recover 路径）后 initMu 永不解锁。
+	// 场景：initOnce 内 onnxruntime 初始化崩溃 → deferred recover 清理 tempDir +
+	// 把 panic 根因写入 initErr + 不重新抛出 → defer Unlock 仍能执行。
+	// 之前版本会 panic(r) 重新抛出，依赖 defer Unlock 才能正确释放锁；
+	// 现在 panic 被吞入 initErr，defer Unlock 也保证锁释放。
 	o.initMu.Lock()
 	defer o.initMu.Unlock()
 	if o.closed.Load() {
