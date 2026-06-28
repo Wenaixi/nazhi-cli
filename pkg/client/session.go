@@ -181,12 +181,16 @@ func (sm *sessionManager) isBackoffHit(token string) bool {
 }
 
 // LoadToken 原子读当前 session token（fast path 用）。
+// atomic.Value 存储类型必须是 string，type assertion 失败 panic 暴露编程错误。
 func (sm *sessionManager) LoadToken() string {
 	v := sm.token.Load()
 	if v == nil {
 		return ""
 	}
-	s, _ := v.(string)
+	s, ok := v.(string)
+	if !ok {
+		panic(fmt.Sprintf("sessionManager: token 存储类型异常，期望 string 实际 %T", v))
+	}
 	return s
 }
 
@@ -198,17 +202,16 @@ func (sm *sessionManager) StoreToken(token string) {
 	sm.lastFailedToken = ""
 }
 
-// RecordFailure 持锁记录激活失败，按 token 匹配决定是否清缓存。
+// RecordFailure 持锁记录激活失败，清空 UserInfo 缓存。
 // 调用方须持 sm.mu。
+//
+// 任何激活失败都意味着当前缓存的 UserInfo 可能已不可用（session 过期、
+// 服务器状态变更），统一清空让下次调用重新触发完整激活流程。
 func (sm *sessionManager) RecordFailure(token string, err error) {
 	sm.lastErr = err
 	sm.lastAttempt = time.Now()
 	sm.lastFailedToken = token
-	// 只有 token 匹配时才清除 UserInfo 缓存，避免不同 token 的失败
-	// 污染当前活跃 token 的 cachedUserInfo
-	if sm.LoadToken() == token {
-		sm.cachedUserInfo = nil
-	}
+	sm.cachedUserInfo = nil
 }
 
 // RecordSuccess 持锁记录激活成功，更新 token + backoff 清空 + 缓存 UserInfo。
