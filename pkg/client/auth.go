@@ -151,7 +151,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
 		if err != nil {
 			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, logSafeBody(bodyBytes))
-			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
+			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err)
 		}
 		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
 			c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
@@ -167,7 +167,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		token, expiresAt, locErr := tokenparse.ExtractFromLocation(location)
 		if locErr != nil {
 			c.logDebug("Login 302: Location 头解析失败: %v location=%s", locErr, location)
-			return nil, fmt.Errorf("%w: Location 头解析失败: %v", ErrLoginRejected, locErr)
+			return nil, fmt.Errorf("%w: Location 头解析失败: %w", ErrLoginRejected, locErr)
 		}
 		if token == "" {
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
