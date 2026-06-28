@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
 	"io"
 	"log/slog"
@@ -1491,5 +1492,78 @@ func TestLogin_NullReturnDataWithWhitespace(t *testing.T) {
 	// 必须命中 ErrLoginRejected
 	if !errors.Is(err, ErrLoginRejected) {
 		t.Errorf("errors.Is(err, ErrLoginRejected) 应为 true，err=%v", err)
+	}
+}
+
+// ─── F4: expiresAt 过去时间应触发 Warn ───
+
+// TestLogin_ExpiresAtInPast 验证 server 返回的 expiresAt 是过去时间
+// (1 小时前)时,Login 必须 Warn 提示 token 已过期。
+//
+// 修复前:条件 `time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold`
+// 只在"剩余时间过长"时 Warn。如果 expiresAt 已经过去(time.Until 返回负数),
+// 负数不大于 23h,条件不命中 → 静默吞下,首次业务调用立即 401。
+//
+// 修复后:提取 warnIfExpiresAtFallback helper,合并两种检测:
+//  1. 剩余 > 23h → server 没带 expires_in/exp,走 24h 兜底
+//  2. 剩余 < 1h → token 已过期或即将过期
+func TestLogin_ExpiresAtInPast(t *testing.T) {
+	// exp = 当前 unix 时间 - 1 小时(过去)
+	pastExp := time.Now().Add(-1 * time.Hour).Unix()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			// returnData.exp 是过去时间,tokenparse 走 exp 分支
+			w.Header().Set("Content-Type", "application/json")
+			body := fmt.Sprintf(`{"code":1,"msg":"成功","returnData":{"token":"jwt-past-exp","exp":%d}}`, pastExp)
+			_, _ = w.Write([]byte(body))
+		}
+	}))
+	defer srv.Close()
+
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
+		Level: slog.LevelDebug,
+	}))
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		logger:     logger,
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	resp, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err != nil {
+		t.Fatalf("Login 失败: %v", err)
+	}
+	if resp.Token != "jwt-past-exp" {
+		t.Errorf("token 应为 'jwt-past-exp'，实际: %s", resp.Token)
+	}
+
+	// 关键断言:即使返回成功(exp 解析无 error),日志必须 Warn 提示 token 过期
+	logOutput := logBuf.String()
+	if !strings.Contains(logOutput, "level=WARN") {
+		t.Errorf("期望 WARN 级别日志（exp 是过去时间），实际日志:\n%s", logOutput)
+	}
+	// 兜底告警应说明"过期"或"已过期"语义
+	if !strings.Contains(logOutput, "过期") && !strings.Contains(logOutput, "expir") &&
+		!strings.Contains(logOutput, "兜底") && !strings.Contains(logOutput, "fallback") {
+		t.Errorf("兜底告警应说明 '过期/兜底' 语义，实际日志:\n%s", logOutput)
 	}
 }
