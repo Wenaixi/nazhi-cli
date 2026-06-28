@@ -133,25 +133,30 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		var loginResp types.UnifiedResponse
 		if err := json.Unmarshal(bodyBytes, &loginResp); err != nil {
 			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, string(bodyBytes))
-		} else {
-			if loginResp.Code != 1 {
-				return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, types.DerefOr(loginResp.Msg, "登录失败"))
-			}
-			if loginResp.ReturnData == nil {
-				c.logDebug("Login 200 响应 returnData 为空 body=%s", string(bodyBytes))
-				return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
-			}
-			token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
-			if err != nil {
-				c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
-				return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
-			}
-			if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
-				c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
-			}
-			return c.buildLoginResponse(token, expiresAt, bodyBytes, "200"), nil
+			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %v", ErrLoginRejected, err)
 		}
-		return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
+		if loginResp.Code != 1 {
+			return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, loginResp.Code, types.DerefOr(loginResp.Msg, "登录失败"))
+		}
+		if loginResp.ReturnData == nil {
+			c.logDebug("Login 200 响应 returnData 为空 body=%s", string(bodyBytes))
+			return nil, fmt.Errorf("%w: 200 响应中未找到 token", ErrLoginRejected)
+		}
+		// 检查 returnData 是否为 JSON null 字面量（{"returnData": null}），
+		// 避免误报"token 字段类型异常"。
+		if len(*loginResp.ReturnData) == 4 && string(*loginResp.ReturnData) == "null" {
+			c.logDebug("Login 200 响应 returnData 为 null body=%s", string(bodyBytes))
+			return nil, fmt.Errorf("%w: returnData 为 null", ErrLoginRejected)
+		}
+		token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
+		if err != nil {
+			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, string(bodyBytes))
+			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err)
+		}
+		if time.Until(expiresAt) > defaultTokenTTL-expiresFallbackThreshold {
+			c.logger.Warn("Login 200: returnData 未带 expires_in/exp，使用 now+24h 兜底")
+		}
+		return c.buildLoginResponse(token, expiresAt, bodyBytes, "200"), nil
 	}
 
 	if httpResp.StatusCode == http.StatusFound {
@@ -162,7 +167,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		token, expiresAt, locErr := tokenparse.ExtractFromLocation(location)
 		if locErr != nil {
 			c.logDebug("Login 302: Location 头解析失败: %v location=%s", locErr, location)
-			return nil, fmt.Errorf("%w: Location 头解析失败", ErrLoginRejected)
+			return nil, fmt.Errorf("%w: Location 头解析失败: %v", ErrLoginRejected, locErr)
 		}
 		if token == "" {
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
