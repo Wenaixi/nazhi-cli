@@ -746,15 +746,16 @@ func TestSessionManager_RecordFailure(t *testing.T) {
 		}
 	})
 
-	t.Run("failure clears cachedUserInfo even for different token", func(t *testing.T) {
+	t.Run("failure does NOT clear cache for different token", func(t *testing.T) {
 		sm := newTestSM()
 		sm.token.Store("activeToken")
-		sm.cachedUserInfo = &types.UserInfo{Name: "test"}
+		expectedInfo := &types.UserInfo{Name: "test"}
+		sm.cachedUserInfo = expectedInfo
 
 		sm.RecordFailure("otherToken", errors.New("activation failed"))
 
-		if sm.cachedUserInfo != nil {
-			t.Error("任何 token 失败后 cachedUserInfo 都应被清空，避免过期数据")
+		if sm.cachedUserInfo != expectedInfo {
+			t.Error("不同 token 失败不应清空当前 token 的缓存")
 		}
 	})
 }
