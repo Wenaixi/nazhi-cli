@@ -748,7 +748,9 @@ func TestExtractTokenFromLocation_Fallback24h(t *testing.T) {
 // 的错误传播契约对称。
 // 用例：`http://[::1` 是缺少闭合 `]` 的 IPv6 字面量，net/url 必返回 parse error。
 // 修复前：静默返回 ("", now+24h) — 错误吞掉，调用方看到「未找到 token」。
-// 修复后：返回包装 tokenparse.ErrLocationParseFailed 的 error。
+// 修复后：返回裸 url.Parse error（不再包 tokenparse.ErrLocationParseFailed，
+// 因为该 sentinel 已删除——auth.go:165 包装时未用 %w 链入，对 Login 调用方
+// 本来就不可达，纯死代码）。
 func TestExtractTokenFromLocation_MalformedURL_ReturnsError(t *testing.T) {
 	loc := "http://[::1"
 	token, _, err := tokenparse.ExtractFromLocation(loc)
@@ -757,9 +759,6 @@ func TestExtractTokenFromLocation_MalformedURL_ReturnsError(t *testing.T) {
 	}
 	if token != "" {
 		t.Errorf("畸形 URL 应返回空 token，实际 %q", token)
-	}
-	if !errors.Is(err, tokenparse.ErrLocationParseFailed) {
-		t.Errorf("error 应包装 tokenparse.ErrLocationParseFailed，实际 %v", err)
 	}
 }
 
