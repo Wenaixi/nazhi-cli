@@ -109,36 +109,3 @@ func DecodeDataList[T any](resp UnifiedResponse) ([]T, error) {
 func DecodeDataMap[T any](resp UnifiedResponse) (*T, error) {
 	return decodeField[T](resp.DataMap, "dataMap")
 }
-
-// DecodeUnified 是"解析响应体 + 检查业务码"二合一原语（候选 #3）。
-//
-// Deprecated: 当前无生产调用方，仅在测试中被调用。三个月观察期。
-// TODO(2026-09-28): 仍无调用方，v0.4.0 删除。
-// 等待 SSO 域（auth.go）或业务域接入后，可消除 client 层 doBizAndDecode
-// 的 4 行 boilerplate（DecodeResponse + CheckCode + errors.Join ErrBusinessRejected
-// + 错误前缀）。
-// 处置计划：2026-09-28 前仍无生产调用方 → 标记 Deprecated；v0.4.0 删除。
-//
-// 流程：
-//  1. json.Unmarshal 到 UnifiedResponse（失败 → 返回 wrap 后的解析错误）
-//  2. CheckCode 检查 code（code=1 通过；≠1 → 返回 *BusinessError）
-//
-// 返回值语义：
-//   - 成功（code=1）：resp != nil, err == nil
-//   - 业务拒绝（code≠1）：resp == nil, err 为 *BusinessError（errors.As 可取）
-//   - JSON 解析失败：resp == nil, err 含 "解析响应体失败" 前缀
-//
-// 设计动机：消除 client 层 doBizAndDecode 的 4 行 boilerplate
-// （DecodeResponse + CheckCode + errors.Join ErrBusinessRejected + 错误前缀），
-// 让 SSO 域（auth.go）和业务域都能复用。types 包不依赖 client.ErrBusinessRejected，
-// 业务拒绝的 sentinel wrap 由 client 层在编排时附加。
-func DecodeUnified(body []byte) (*UnifiedResponse, error) {
-	resp, err := DecodeResponse(body)
-	if err != nil {
-		return nil, err // 已是 wrap "解析响应体失败" 的格式
-	}
-	if err := CheckCode(resp); err != nil {
-		return nil, err
-	}
-	return &resp, nil
-}
