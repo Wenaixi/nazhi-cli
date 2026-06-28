@@ -158,6 +158,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 但 float64 断言也要兼容——json.Number 需通过 Float64() 转换。
 	var idFloat float64
 	switch v := rawID.(type) {
+	case nil:
+		return 0, fmt.Errorf("%w: returnData.id 字段为 null", ErrUploadRejected)
 	case float64:
 		idFloat = v
 	case json.Number:
