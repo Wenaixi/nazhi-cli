@@ -348,7 +348,6 @@ case errors.Is(err, client.ErrEmptyUserInfo):
 | `ErrOCRNotConfigured` | OCR 未配置（!ddddocr 构建且未注入 WithCustomOCR） |
 | `ErrSessionBackoff` | session 激活在冷却窗口内 |
 | `ErrEmptyUserInfo` | 业务成功但无用户数据 |
-| `ErrLocationParseFailed` | Login 302 Location 头解析失败 |
 
 ## 高级用法
 
