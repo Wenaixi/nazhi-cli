@@ -56,6 +56,15 @@ type UserInfo struct {
 	NationalStudentNumber string `json:"nationalStudentNumber"` // 全国学号
 
 	// 学校 / 班级 / 年级
+	//
+	// SchoolID 学校 ID。
+	// JSON tag 为 schoolId（驼峰）——getMyInfo API 使用此格式。
+	// 注意：
+	//   - getSchoolIdByStudentNumber 使用 school_id（蛇形）作为 JSON key，
+	//     由 GetSchoolID 以 string 形式返回，最终由调用方（Login 等）使用
+	//   - SelfEvalStatus.SchoolID 使用 school_id（蛇形）作为 JSON tag
+	// 两条 API 路径（getMyInfo vs getSchoolIdByStudentNumber）的 JSON 命名风格
+	// 不同，但数据类型最终都会归一为 int64 或 string。
 	SchoolID   int64  `json:"schoolId"`
 	SchoolName string `json:"schoolName"` // 平台返回 null 时为空字符串
 	GradeID    int64  `json:"gradeId"`
