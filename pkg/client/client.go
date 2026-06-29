@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -33,10 +34,11 @@ type CaptchaRecognizer interface {
 // session 激活状态机已提取到 sessionManager，不再直接持有
 // sessionToken / sessionMu / lastErr（现为 sm.lastErr） 等字段。
 type Client struct {
-	ssoBaseURL   string       // SSO 根地址
-	baseURL      string       // 业务 API 根地址（port 8280）
-	uploadURL    string       // 文件上传服务器地址
-	http         *http.Client // 独立 cookie jar
+	ssoBaseURL    string       // SSO 根地址
+	baseURL       string       // 业务 API 根地址（port 8280）
+	baseURLParsed *url.URL     // baseURL 预解析结果，F6: 避免每次 syncCookieToken 重复 url.Parse
+	uploadURL     string       // 文件上传服务器地址
+	http          *http.Client // 独立 cookie jar
 	logger       *slog.Logger
 	ocr          CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
@@ -320,7 +322,11 @@ func New(opts ...Option) (*Client, error) {
 	for _, opt := range opts {
 		opt(c)
 	}
-	// 所有 Options 跑完后统一注入 cookie（baseURL / Jar 都是最终值）
+	// 所有 Options 跑完后预解析 baseURL（F6）并统一注入 cookie
+	// 预解析必须在 syncCookieToken 之前，以免 syncCookieToken 懒解析报错
+	if parsed, err := url.Parse(c.baseURL); err == nil {
+		c.baseURLParsed = parsed
+	}
 	if c.pendingToken != "" {
 		if err := c.syncCookieToken(c.pendingToken); err != nil {
 			return c, err // 仍返回 c 让调用方能 Close() 清理资源，但 error 必须 propagate

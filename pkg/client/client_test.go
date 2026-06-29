@@ -183,44 +183,59 @@ func TestGetSchoolID(t *testing.T) {
 // ─── 测试: Login ───
 
 func TestLogin(t *testing.T) {
-	callStep := 0
+	var (
+		mu               sync.Mutex
+		initDone         bool
+		gotSchoolID      bool
+		gotCaptcha       bool
+		captchaValidated bool
+	)
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/uiStudentLogin/login":
-			callStep = 1
+			mu.Lock()
+			initDone = true
+			mu.Unlock()
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("<html>login</html>"))
 		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
-			if callStep != 1 {
-				t.Errorf("调用顺序错误: getSchoolId 应在 login 之后")
+			mu.Lock()
+			if !initDone {
+				t.Errorf("getSchoolId 应在 login 之后")
 			}
-			callStep = 2
+			gotSchoolID = true
+			mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
 				{"school_id": "173", "NAME": "福清一中"},
 			})))
 		case "/kaptcha/kaptcha.jpg":
-			if callStep != 2 {
-				t.Errorf("调用顺序错误: kaptcha 应在 getSchoolId 之后")
+			mu.Lock()
+			if !initDone {
+				t.Errorf("kaptcha 应在 login 之后")
 			}
-			callStep = 3
+			gotCaptcha = true
+			mu.Unlock()
 			w.Header().Set("Content-Type", "image/jpeg")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte{0xFF, 0xD8, 0xFF})
 		case "/uiStudentLogin/validateCaptcha":
-			if callStep != 3 {
-				t.Errorf("调用顺序错误: validateCaptcha 应在 kaptcha 之后")
+			mu.Lock()
+			if !gotSchoolID || !gotCaptcha {
+				t.Errorf("validateCaptcha 应在 getSchoolId 和 kaptcha 之后")
 			}
-			callStep = 4
+			captchaValidated = true
+			mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "验证码校验成功", nil, nil)))
 		case "/teacher/auth/studentLogin/validate":
-			if callStep != 4 {
-				t.Errorf("调用顺序错误: validate 应在验证码之后")
+			mu.Lock()
+			if !captchaValidated {
+				t.Errorf("validate 应在验证码之后")
 			}
-			callStep = 5
+			mu.Unlock()
 			var body map[string]string
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			if body["username"] != "TEST2025001" {

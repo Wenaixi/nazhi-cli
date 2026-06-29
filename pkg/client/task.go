@@ -87,8 +87,12 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	// 每个 goroutine 写各自的本地切片，errgroup 不保护共享切片写入，
 	// 所以最后在主线程用 mutex 串行合并，避免 race。
 	var mu sync.Mutex
-	var allTasks []types.Task
-	var dimErrs []error // F-GroupD-F 修复：业务错误不再静默，累积而非 fail-fast
+
+	// F7: 预分配切片容量，避免多次扩容。
+	// dimErrs 最多 len(dimensions) 个；allTasks 平均每维度 ~5-10 个任务。
+	dimCount := len(dimensions)
+	allTasks := make([]types.Task, 0, dimCount*10)
+	dimErrs := make([]error, 0, dimCount)
 	for _, dim := range dimensions {
 		// 跳过"全部"维度（id=0），它只是汇总
 		if dim.ID == 0 {
