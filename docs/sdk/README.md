@@ -394,6 +394,6 @@ c, _ := client.New(
 - `LoginRequest` / `LoginResponse`
 - `Task` / `TaskSubmitPayload` / `TaskResult`
 - `UserInfo`（51 字段）
-- `SelfEvalStatus` / `SelfGradStatus`
+- `SelfEvalStatus`
 - `Dimension`
 - `UnifiedResponse` + 泛型辅助 `DecodeReturnData[T]` / `DecodeDataList[T]` / `DecodeDataMap[T]`
