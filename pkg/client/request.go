@@ -51,6 +51,7 @@ const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/
 //     第 3-8 路无需重新握手（http.DefaultTransport 默认=2，导致 6/8 请求需 TCP+TLS 握手）。
 //   - 共享 Transport 连接池：避免与 file.go cleanTransport 产生认知冲突，
 //     两者各自独立的 idle 池，但配置对齐。
+//   - TLSHandshakeTimeout=10s：TLS 慢握手场景（弱网 / 服务器负载高）不无限等待。
 //   - 不设置 DisableCompression：平台返回 JSON 多数 < 1KB，压缩获益小但非有害。
 func newHTTPClient() *http.Client {
 	jar, _ := cookiejar.New(nil)
@@ -65,6 +66,7 @@ func newHTTPClient() *http.Client {
 			MaxIdleConnsPerHost:   16,
 			IdleConnTimeout:       90 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
+			TLSHandshakeTimeout:   10 * time.Second,
 			DisableCompression:    false,
 		},
 	}
