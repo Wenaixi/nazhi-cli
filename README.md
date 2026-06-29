@@ -18,6 +18,7 @@
 - CLI + SDK 双形态 — 脚本可调用，集成方导入 Go 包
 - 完整测试覆盖 — 单元测试 + race 检测 + 真实环境集成测试 + HAR 驱动测试
 - HAR 对齐 — 4 步 Session 激活、双重 Token 注入，全部逆向抓包验证
+- Windows OCR 自愈 — DLL 句柄释放失败不再污染 stderr，下一次启动自动扫掉历史残留临时目录
 
 ## 📚 文档
 
@@ -130,15 +131,19 @@ nazhi
 ├── whoami               # 获取用户信息
 ├── task
 │   ├── list             # 任务列表
-│   └── submit           # 提交任务
+│   └── submit           # 提交任务（支持 @payload.json）
 ├── self-eval
 │   ├── submit           # 提交自我评价
 │   └── status           # 查询评价状态
-└── file
-    └── upload           # 上传图片
+├── file
+│   └── upload           # 上传图片（独立公共服务，不接受 --token 参数）
 ├── version              # 显示版本信息
 └── completion           # 生成 shell 自动补全脚本
 ```
+
+> 💡 `file upload` 子命令**不接受 `--token`** 是有意设计：上传服务器（`doc.nazhisoft.com`）
+> 是独立公共服务，SDK 内部主动清除 Authorization / X-Auth-Token / Cookie 三个 Header，
+> 避免给公共服务发送业务域 token 触发风控。
 
 详见 [CLI 参考](docs/cli/README.md)
 
@@ -148,6 +153,7 @@ nazhi
 import (
     "github.com/Wenaixi/nazhi-cli/pkg/client"
     "github.com/Wenaixi/nazhi-cli/pkg/types"
+    "github.com/Wenaixi/nazhi-cli/pkg/tokenparse"  // v0.4.0 新包：SSO token 解析
 )
 
 c, _ := client.New(  // v0.3.1+ 返回 (*Client, error)，错误来自 WithHTTPClient 自定义 Jar 时的 syncCookieToken 失败
@@ -168,6 +174,9 @@ c.ActivateSession(ctx, token)
 // 业务操作
 tasks, _ := c.FetchTasks(ctx, token)
 c.SubmitSelfEvaluation(ctx, token, "很好的学期")
+
+// 直接用 tokenparse 解析 Location 头（v0.4.0+，自定义登录流程时使用）
+// token, _ := tokenparse.ExtractFromLocation(locationHeader)
 ```
 
 详见 [SDK 参考](docs/sdk/README.md)

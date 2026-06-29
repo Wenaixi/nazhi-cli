@@ -89,9 +89,28 @@ go test -tags=integration -run TestHAR_ -v ./test/integration/...
 2. **extractTokenFromLocation 脆弱**：原代码用 `strings.Index`，无法处理 fragment。改用 `net/url.Parse`。
 3. **FetchTasks 静默失败**：单维度失败被吞，改用 `c.logDebug` 记录。
 
-### 扩展 PII 守卫（v0.3.5+）
+### 扩展 PII 守卫（v0.3.5 重写为 SHA-256 哈希方案）
 
-`test/integration/har_pii_redacted_test.go` 从仅扫描 HAR fixtures 扩展到全仓库 `*_test.go` 文件，通过 Go AST 扫描字符串字面量，捕获数字型学生 ID 等 PII（如 <学生ID> / <用户ID> / <学号ID> 等格式）。**默认 tag 运行**（无 build tag），确保 `go test ./...` 必跑。
+`test/integration/har_pii_redacted_test.go` 的 `TestNoRealPII` 从仅扫描 HAR fixtures
+扩展到全仓库 `*_test.go` + `har_fixtures/*.json`，通过 Go AST + JSON 遍历扫描所有
+字符串字面量。**默认 tag 运行**（无 build tag），确保 `go test ./...` 必跑。
+
+**双检策略**：
+1. **模式匹配**：正则捕获 `G\d{15}`（学号）、18 位身份证号等已知格式，捕获新增值。
+2. **哈希比对**：对 AST 解析出的每个字符串字面量 / JSON 字符串值算 SHA-256 hex 摘要，
+   与预计算的 PII 哈希集比对（见源码中 `piiHexMap`）。
+
+#### 自反性陷阱与修复
+
+v0.3.5 之前的守卫把真实姓名、学号、身份证号等明文写在 `forbidden` 常量里
+（"用 PII 防御 PII"）。结果是守卫自身成了新的泄露源——任何能看仓库源码的人都
+能直接读到这些明文 PII（包括 hex 字符串拼接绕过 AST 自检的变体）。
+
+修复后 `piiHexMap` 只存 64 字符 SHA-256 hex 摘要（单向不可逆）：
+
+- 任何人看到这些 hex 也无法反推出原始 PII
+- 守卫扫描时算 hash 查表，命中即报违规
+- 教训：「用 PII 的不可逆表示，而非 PII 本身」；字符串拼接只防"自己看自己"，防不住"别人看你"
 
 ## 局限性
 

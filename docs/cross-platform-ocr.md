@@ -66,11 +66,12 @@ Go 编译时按 `(GOOS, GOARCH)` 只取对应文件嵌入。
 `go-ddddocr` → `onnxruntime_go` v1.25.0 强制要磁盘路径（C 运行时 `dlopen` / `LoadLibrary` 不支持内存模块）。
 
 `ocr.go` 启动时：
-1. `os.MkdirTemp()` 创建临时目录
+1. `os.MkdirTemp()` 创建临时目录（`nazhi-cli-ocr-*` 前缀）
 2. 写入 onnxruntime 库（按平台命名）
 3. `ddddocr.SetOnnxRuntimePath(libPath)`
 4. 加载 ONNX 模型 + 字符集
-5. 清理时 `os.RemoveAll(tempDir)`
+5. **v0.4.0 新增**：best-effort 清扫 `%TEMP%` 下历史进程遗留的同前缀目录（见下文）
+6. 清理时 `os.RemoveAll(tempDir)`（**v0.4.0 新增**：Windows DLL 占用降级，见下文）
 
 ## 进程级单例
 
@@ -100,6 +101,74 @@ v0.3.5 起，OCR 引擎通过 Go build tags 可选启用：
 **pkg/client 新增文件**：
 - `client_ocr_enabled.go` — `//go:build ddddocr`，`defaultOCR()` 返回 `ocr.NewPool(0)`
 - `client_ocr_disabled.go` — `//go:build !ddddocr`，`defaultOCR()` 返回 nil，`WithOCRConcurrency` 为占位 warn
+
+## v0.4.0 三轮 OCR 修复
+
+### 轮次 A：Windows DLL 占用降级（commit 5ff0ea8）
+
+**问题**：在 Windows 上执行 `nazhi login`（`-tags=ddddocr` 构建）后，`Pool.Close` →
+`OCR.Close` 调 `os.RemoveAll` 删临时目录时，`onnxruntime.dll` 仍被 CGO `LoadLibrary` 持锁，
+Windows 在进程退出前不会释放该 DLL 的 mmap 文件句柄。`RemoveAll` 命中 `onnxruntime.dll`
+返回 `ERROR_ACCESS_DENIED(5)` / `ERROR_SHARING_VIOLATION(32)`，被 `Pool.Close` 并入返回值，
+污染 stderr：
+
+> "关闭 Client 资源失败: 关闭 OCR 识别器: 清理临时目录 ...: unlinkat ...\onnxruntime.dll: Access is denied."
+
+**修复**（`internal/ocr/ocr.go`）：
+- 抽 `cleanupTempDir` helper，注入 `removeDirFn` 函数变量便于测试 mock
+- 用 `errors.As` 判定 `syscall.Errno`，仅对 Windows 两个占用类 errno（5 / 32）降级返回 nil
+- 其他错误（Linux EPERM、磁盘满、只读卷、路径不存在）照常返回，**不静默吞错**
+
+### 轮次 B：GOOS=windows 平台守卫（commit a81c9f3）
+
+**问题**：5ff0ea8 引入的 `isPlatformLibBusy` 仅判 `syscall.Errno` 数值（5 / 32），注释承诺
+「非 Windows 永远 false」但代码未做平台守卫。Linux 上 `EIO=5` / `EPIPE=32` 也是合法 errno，
+会被误判为「DLL 占用」而吞掉真实 I/O 错误，违反「不静默吞错」铁律。
+
+**修复**：
+- 抽 `goosFn` 函数变量作为平台注入点，默认 `runtime.GOOS`，便于测试不依赖 build tag
+- `isPlatformLibBusy` 入口加 `goosFn() != "windows"` 守卫，非 Windows 直接返 false
+- `cleanupTempDir` doc 块新增「跨平台」段落，明确降级语义只在 Windows 生效
+
+### 轮次 C：启动清扫历史 temp 目录（commit 7d5dd65）
+
+**问题**：每次 `extractModels` 会用 `os.MkdirTemp("", "nazhi-cli-ocr-*")` 建一个唯一新目录。
+Windows 上 `onnxruntime.dll` 被 CGO `LoadLibrary` 占用，`Close()` 删不掉同进程的 `tempDir`
+（已有上轮降级处理），进程退出后句柄释放，旧目录才能被下次进程清掉——累积到 966+ 个，约 3.8MB。
+
+**修复**：业界惯例（Chrome / VSCode 同款）在新建临时目录时顺手 best-effort 清扫 `%TEMP%`
+下历史进程遗留的同前缀目录：
+
+- 新增 `sweepStaleTempDirs(currentDir)` helper，注入点 `tempDirFn / readDirFn / removeDirFn / sweepFn`
+- `extractModels` 在 dir 建好后调用 `sweepFn(dir)`，best-effort（`_ = ...`）
+- **本进程新建的目录被显式跳过**（避免误删正在使用的实例）
+- **删不掉的静默跳过**（如仍被其它运行中的实例 `LoadLibrary` 占用）
+- **防误删**：仅匹配 `ocrTempPrefix` 前缀的目录，其它程序目录 / 文件 / 非目录条目一律不碰
+
+测试覆盖（5 个新用例）：保留 current / 不碰其它程序目录 / 单个删失败不阻断 / `ReadDir` 失败返回 nil /
+`TestExtractModels_CallsSweepAfterMkdirTemp` 集成断言（确保 helper 真的被 `extractModels` 调用）。
+
+### 三轮修复的注入点风格
+
+```go
+// 默认走标准库函数，测试可在用例内替换为可控 mock
+var (
+    removeDirFn = os.RemoveAll        // cleanupTempDir 注入点
+    tempDirFn   = os.TempDir          // sweepStaleTempDirs 注入点
+    readDirFn   = os.ReadDir          // sweepStaleTempDirs 注入点
+    sweepFn     = sweepStaleTempDirs  // extractModels 拦截点（集成测试用）
+    goosFn      = func() string { return runtime.GOOS }  // 平台注入点
+)
+```
+
+Windows errno 数值常量（避免依赖 syscall 包内 Windows-only 常量名）：
+
+```go
+const (
+    errnoAccessDeniedWin     syscall.Errno = 5   // ERROR_ACCESS_DENIED
+    errnoSharingViolationWin syscall.Errno = 32  // ERROR_SHARING_VIOLATION
+)
+```
 
 ## CI 矩阵
 

@@ -146,7 +146,7 @@ nazhi session activate --token "eyJhbGciOiJIUzI1NiJ9.xxx"
 | `--base-url` | ❌ | `NAZHI_BASE_URL` | 业务 API 根地址，默认 `http://139.159.205.146:8280` |
 | `--timeout` | ❌ | `NAZHI_TIMEOUT` | HTTP 超时 |
 
-**输出**：完整 51 字段用户信息。
+**输出**：完整 49 字段用户信息。
 
 ## nazhi whoami
 
@@ -162,7 +162,7 @@ nazhi whoami --token "eyJhbGciOiJIUzI1NiJ9.xxx"
 | `--base-url` | ❌ | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | ❌ | `NAZHI_TIMEOUT` | HTTP 超时 |
 
-**输出**：51 字段 `UserInfo` 对象。
+**输出**：49 字段 `UserInfo` 对象。
 
 ## nazhi task list
 

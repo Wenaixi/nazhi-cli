@@ -1,12 +1,17 @@
-# SDK 参考 (pkg/client, pkg/types)
+# SDK 参考 (pkg/client, pkg/types, pkg/tokenparse)
 
-nazhi-cli 的 Go SDK 提供纳智综合评价系统的完整编程接口。
+nazhi-cli 的 Go SDK 提供纳智综合评价系统的完整编程接口。三个公开包：
+
+- `pkg/client` — 核心 SDK（Client 构造 + 全部业务方法 + Option 模式）
+- `pkg/types` — 领域类型（请求/响应/任务/用户）+ 统一响应泛型解码
+- `pkg/tokenparse` — SSO token 解析（Location 头 / ReturnData → (token, expiresAt)）
 
 ## 安装
 
 ```bash
 go get github.com/Wenaixi/nazhi-cli/pkg/client
 go get github.com/Wenaixi/nazhi-cli/pkg/types
+go get github.com/Wenaixi/nazhi-cli/pkg/tokenparse
 ```
 
 ## 快速开始
@@ -88,6 +93,9 @@ c, _ := client.New(client.WithToken("xxx"))  // 默认配置下 err 始终为 ni
 
 ### Option 模式
 
+所有 Option 都是 `var`，每个 Client 实例独立持有（赋值给 `c.xxx`）。空字符串/零值会被
+拒绝并 `logger.Warn` 保留当前值，不会静默覆盖。
+
 | Option | 说明 | 默认值 |
 |--------|------|--------|
 | `WithSSOBase(url)` | SSO 根地址 | `https://www.nazhisoft.com` |
@@ -99,6 +107,11 @@ c, _ := client.New(client.WithToken("xxx"))  // 默认配置下 err 始终为 ni
 | `WithToken(t)` | 预置 X-Auth-Token（同时写 Header + Cookie） | 无 |
 | `WithCustomOCR(r)` | 自定义 OCR（测试用或 CGO-free 构建） | 默认 ddddocr 引擎 / nil（!ddddocr） |
 | `WithOCRConcurrency(n)` | 设置 OCR 并发池大小（仅 ddddocr 构建有效） | 0（懒加载单实例） |
+
+> `WithHTTPClient` 陷阱：替换后 `syncCookieToken` 假设新 client 有 `*cookiejar.Jar`。
+> 若新 client 没设 `Jar` 字段（零值 nil），`client.New()` 直接返回 error，
+> 提示需要 `&http.Client{Jar: cookiejar.New(nil)}`。
+> 默认配置（不传 `WithHTTPClient`）下 `err` 始终为 `nil`。
 
 ### 并发安全
 
@@ -314,6 +327,8 @@ case errors.Is(err, client.ErrLoginRejected):
     // 学号/密码错误
 case errors.Is(err, client.ErrOCRNotConfigured):
     // 未配置验证码识别器（!ddddocr 构建且未注入 WithCustomOCR）
+case errors.Is(err, client.ErrOCRPanic):
+    // OCR 识别器 panic 已被 recover（极少见，识别器实现 bug）
 case errors.Is(err, client.ErrNetwork):
     // 网络问题（超时/DNS/断连）
 case errors.Is(err, client.ErrFileTooLarge):
@@ -338,6 +353,7 @@ case errors.Is(err, client.ErrEmptyUserInfo):
 | `ErrInvalidPayload` | 任务 payload 字段缺失 |
 | `ErrBusinessRejected` | 业务请求被拒绝（参数错/任务已提交） |
 | `ErrOCRNotConfigured` | OCR 未配置（!ddddocr 构建且未注入 WithCustomOCR） |
+| `ErrOCRPanic` | OCR 识别器 panic 已被 recover |
 | `ErrSessionBackoff` | session 激活在冷却窗口内 |
 | `ErrEmptyUserInfo` | 业务成功但无用户数据 |
 
@@ -386,6 +402,36 @@ c, _ := client.New(
 
 > **CGO-free 场景**（不带 `-tags ddddocr` 构建）：必须使用 `WithCustomOCR` 注入识别器，
 > 否则 `Login()` 返回 `ErrOCRNotConfigured`。
+
+### 资源释放
+
+`Client` 内部持有独立的 `*http.Client`、`sync.Pool`、OCR 临时目录等资源。
+业务完成后调用 `Close()` 释放（多 goroutine 协程并发跑 OCR 后尤其需要，
+否则 Windows 下 onnxruntime DLL 会临时占用 `os.TempDir`，导致清理失败）：
+
+```go
+c, _ := client.New(client.WithToken(token))
+defer c.Close()
+```
+
+## token 解析 (pkg/tokenparse)
+
+v0.4.0 新增包。封装 SSO 登录 token 从 302 Location 头或 ReturnData JSON
+字节流提取的逻辑：位置、`expires_in` / `exp` 解析、缺失时兜底 `DefaultTokenTTL = 24h`。
+
+```go
+import "github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
+
+// 场景 A：从 302 Location 头提取
+//   location := "https://www.nazhisoft.com/uiStudentLogin/login?token=eyJhbGciOiJIUzI1NiJ9..."
+token, exp, err := tokenparse.ExtractFromLocation(location)
+if err != nil { /* url.Parse 失败 */ }
+
+// 场景 B：从 ReturnData JSON 字节提取
+//   raw := []byte(`{"code":1,"returnData":{"token":"xxx","expires_in":3600}}`)
+token, exp, err = tokenparse.ExtractFromReturnData(raw)
+if err != nil { /* 空 body / token 类型异常 */ }
+```
 
 ## 类型定义 (pkg/types)
 
