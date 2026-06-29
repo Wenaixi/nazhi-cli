@@ -26,8 +26,8 @@ nazhi
 ├── self-eval
 │   ├── submit                      提交自我评价
 │   └── status                      查询评价状态
-└── file
-    └── upload                      上传图片
+├── file
+│   └── upload                      上传图片
 ├── version                         显示版本信息
 └── completion                      生成 shell 自动补全脚本
 ```
