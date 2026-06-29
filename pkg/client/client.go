@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -375,6 +376,7 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 	}
 	defer func() {
 		if r := recover(); r != nil {
+			os.Stderr.Write(debug.Stack())
 			err = fmt.Errorf("%w: %v", ErrOCRPanic, r)
 		}
 	}()
