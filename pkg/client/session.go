@@ -45,29 +45,16 @@ const defaultSessionBackoff = 5 * time.Second
 //     的获取/释放顺序一致，不会形成循环等待。
 //
 // 并发安全：本方法委托给 sm.Activate（内部持锁 DCL），
-// 与 ensureActivated 共享同一 sm.mu 锁，避免并发 4 步写入 cookie jar 污染。
 //
 // Backoff 缓存：失败时通过 sm.RecordFailure 更新 lastErr / lastAttempt /
 // lastFailedToken。CLI 路径（直接调 ActivateSession）与业务方法路径
-// （通过 ensureActivated 间接调）共享同一份 backoff 缓存，
+// （通过 ActivateSession 间接调）共享同一份 backoff 缓存，
 // 同 token 在窗口内的重复调用会被抑制。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {
 	return c.sm.Activate(ctx, token, c.activateSessionLocked)
 }
 
-// ensureActivated 是内部 fast-path 入口，供业务方法（GetMyInfo、doBizAndDecode 等）
-// 在首次业务请求前确保 session 已激活。
-//
-// 语义等价于 ActivateSession，但命名更强调「按需激活」而非「显式激活」。
-// 实现上完全委托给 sm.Activate，获得 DCL fast path、backoff 检查和状态管理。
-//
-// 调用方契约：业务方法应在首次 HTTP 请求前调本方法。
-// 不持锁调用（sm.Activate 内部负责），与 ActivateSession 共享锁 + backoff 缓存。
-func (c *Client) ensureActivated(ctx context.Context, token string) (*types.UserInfo, error) {
-	return c.sm.Activate(ctx, token, c.activateSessionLocked)
-}
-
-// activateSessionLocked 是 ActivateSession/ensureActivated 的内部 4 步实现，
+// activateSessionLocked 是 ActivateSession 的内部 4 步实现，
 // **调用方必须持 sm.mu 锁**。
 //
 // 持锁契约：sm.Activate 负责保证 sm.mu 已 Lock；本函数不重复 Lock 避免死锁。
