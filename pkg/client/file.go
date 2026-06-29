@@ -46,6 +46,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// parser 报 EOF 错误，100% 上传失败。
 	//
 	var buf bytes.Buffer
+	buf.Grow(len(fileData) + 1024)
 	writer := multipart.NewWriter(&buf)
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
