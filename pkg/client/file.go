@@ -214,35 +214,17 @@ func newCleanClient(c *Client) *http.Client {
 			// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不缓存
 			//  - http.DefaultTransport 是进程单例，多 Client 共享缓存会引入隐性耦合
 			//  - 自定义 RT 无法 Clone
-			// F9：标记 fallback=true，后续直接走 fallback 路径不再 type-switch
-			c.cleanTransportFallback = true
-		}
+					}
 	})
 
 	var transport http.RoundTripper
-	switch {
-	case c.cleanTransport != nil:
-		// 缓存命中：复用首次 Clone 出的 Transport
-		transport = c.cleanTransport
-	case c.cleanTransportFallback:
-		// F9 修复：sentinel 标记 fallback=true 后，**直接读 c.http.Transport 当前值**，
-		// 不再 type-switch。这样运行时若 Transport 被替换为 *http.Transport，
-		// 行为契约是"透传当前值"而非"误走 Clone 分支"
-		if c.http.Transport == nil {
-			transport = http.DefaultTransport
-		} else {
-			transport = c.http.Transport
-		}
-	default:
-		// sync.Once 还未跑完的并发路径——理论上不会发生（Do 同步），保守处理
-		// 与 fallback 路径同款行为
-		if c.http.Transport == nil {
-			transport = http.DefaultTransport
-		} else {
-			transport = c.http.Transport
-		}
-	}
-
+if c.cleanTransport != nil {
+transport = c.cleanTransport
+} else if c.http.Transport == nil {
+transport = http.DefaultTransport
+} else {
+transport = c.http.Transport
+}
 	timeout := c.http.Timeout
 	if timeout == 0 || timeout < 30*time.Second {
 		timeout = 30 * time.Second // 文件上传的合理兜底超时，确保不继承主 Client 过短 timeout
