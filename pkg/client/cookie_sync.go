@@ -14,20 +14,31 @@ import (
 
 // syncCookieToken 将 JWT token 同步到 HTTP cookie jar 中（X-Auth-Token）。
 // 业务 API 通过 cookie 鉴权而非 Authorization 头。
+//
+// F6 优化：baseURL 在 New() 阶段已预解析到 c.baseURLParsed，避免每次调用 url.Parse。
+// 若直接构造 Client（绕过 New()），则懒解析一次并缓存回 c.baseURLParsed。
 func (c *Client) syncCookieToken(token string) error {
 	if c.http == nil {
-		return fmt.Errorf("syncCookieToken: HTTP client 为 nil，无法同步 token 到 cookie")
+		return fmt.Errorf("syncCookieToken 失败: HTTP client 为 nil，无法同步 token 到 cookie")
 	}
 	jar, ok := c.http.Jar.(*cookiejar.Jar)
 	if !ok {
-		return fmt.Errorf("syncCookieToken: HTTP client 的 Jar 不是 *cookiejar.Jar（实际类型 %T），X-Auth-Token 无法同步到 cookie。"+
+		return fmt.Errorf("syncCookieToken 失败: HTTP client 的 Jar 不是 *cookiejar.Jar（实际类型 %T），X-Auth-Token 无法同步到 cookie。"+
 			"修复：用 client.New() 默认 HTTP 客户端，或显式 &http.Client{Jar: cookiejar.New(nil)} 创建",
 			c.http.Jar)
 	}
-	u, err := url.Parse(c.baseURL)
-	if err != nil {
-		return fmt.Errorf("syncCookieToken: 解析 base URL %q 失败: %w", c.baseURL, err)
+
+	// 优先使用预解析的 baseURLParsed，否则懒解析一次并缓存
+	u := c.baseURLParsed
+	if u == nil {
+		var err error
+		u, err = url.Parse(c.baseURL)
+		if err != nil {
+			return fmt.Errorf("syncCookieToken 失败: 解析 base URL %q 出错: %w", c.baseURL, err)
+		}
+		c.baseURLParsed = u
 	}
+
 	jar.SetCookies(u, []*http.Cookie{{
 		Name:  "X-Auth-Token",
 		Value: token,
