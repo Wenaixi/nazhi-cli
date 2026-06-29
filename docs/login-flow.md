@@ -1,12 +1,23 @@
 # 登录流程详解
 
-## SSO 完整流程
+## SSO 完整流程 (v0.4.0 并发优化)
 
 ```
-InitSession → GetSchoolID → OCR识别（内部含获取验证码图片 + 多图多试）→ ValidateCaptcha → Login
-                                                                                   ↓
-                                                                              302 → 提取 token
+InitSession → [ GetSchoolID ‖ OCR识别 ] (errgroup 并发, F5)
+                                    ↓
+                            ValidateCaptcha (依赖 OCR 结果, 串行)
+                                    ↓
+                                  Login POST
+                                    ↓
+                              200 JSON 优先 (tokenparse.ExtractFromReturnData)
+                              302 Location fallback (tokenparse.ExtractFromLocation)
+                                    ↓
+                              syncCookieToken (X-Auth-Token)
 ```
+
+**v0.4.0 F5 优化**：`GetSchoolID` 和 OCR 识别**无数据依赖**，通过 `errgroup.WithContext`
+并发执行；`InitSession` 仍串行前置（必须最先建立 JSESSIONID），`validateCaptcha` 依赖
+OCR 结果故串行。
 
 ## 步骤详解
 
@@ -55,14 +66,26 @@ Content-Type: application/json
 // v0.3.5+ OCR 可选构建：
 //   不加 -tags ddddocr 时 c.ocr == nil，Login() 立即返回 ErrOCRNotConfigured，
 //   调用方需用 WithCustomOCR 注入识别器。
+//
+// v0.4.0 F5 并发：此步骤与 Step 2 GetSchoolID 通过 errgroup 并发执行；
+// ctx cancel 在循环顶部检测（提前 break），避免 99 张图全失败才退出。
+//
+// v0.4.0 自动超时：ocrRecognizeWithRetry 入口自动加 30s timeout（var ocrTimeout）
+// 防止 99 张图 OCR 卡死整个 Login 调用，测试可注入更短值加速。
 for imgIdx := 0; imgIdx < 99; imgIdx++ {
-    imgBytes := c.fetchCaptchaImage(ctx)  // 私有方法：GET /kaptcha/kaptcha.jpg?t=<ms>
-    text, err := c.ocr.Recognize(imgBytes)
+    if ctxErr := ctx.Err(); ctxErr != nil { break }  // 循环顶部 ctx 守卫
+    imgBytes, err := c.fetchCaptchaImage(ctx)  // GET /kaptcha/kaptcha.jpg?seq=<atomic>
+    if err != nil { continue }
+    text, err := c.safeOCRRecognize(imgBytes)  // defer recover 兜底 panic
     if err == nil && text != "" {
         return text, nil
     }
 }
 ```
+
+OCR 失败错误（v0.4.0）：`ErrOCRPanic`（识别器 panic 已被 `safeOCRRecognize` recover）、
+`"OCR pool is closed"`（Pool 已 Close 后调 Recognize）、`"OCR is closed"`（OCR 实例已 Close）。
+常量定义在 `pkg/client/auth.go`：`maxOCRAttemptsPerImage=1`、`maxOCRImagesTotal=99`。
 
 ### Step 4: ValidateCaptcha
 
@@ -94,12 +117,45 @@ Content-Type: application/json
 
 - **SDK 优先处理 200 JSON**，fallback 到 302 Location
 
+**v0.4.0 token 解析下沉**（架构深化 #4）：两条路径的 token 提取统一走
+`pkg/tokenparse` 包：
+
+```go
+// 200 路径
+token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
+
+// 302 fallback 路径
+token, expiresAt, err := tokenparse.ExtractFromLocation(location)
+```
+
+两者均返回 `(token string, expiresAt time.Time, err error)` 三元组，过期时间解析规则：
+
+| 字段 | 来源 | 单位 |
+|------|------|------|
+| `expires_in`（优先）| SSO query | 秒，相对当前时间 |
+| `exp` | SSO query 或 JWT | Unix 秒，绝对时间 |
+| **兜底 24h** | `tokenparse.DefaultTokenTTL` | 当两者都不存在 |
+
+**expiresAt 异常告警**（v0.4.0 F4 合并检测）：触发两类 warning
+（通过 `c.logger.Warn` 走用户注入的 slog handler）：
+- 剩余寿命 > 23h → 触发兜底（server 没带 expires_in/exp）
+- 剩余寿命 < 1h → token 已过期/即将过期，首次业务调用将立即 401
+
 ### Step 6: Token 持久化
 
 ```go
 // SDK 内部：写 Cookie 到 SSO + 业务两个域名
-c.syncCookieToken(token)
+c.syncCookieToken(token)  // 走 c.warnSyncCookieToken，失败仅 warn 不中断
 ```
+
+**v0.4.0 优化**：`syncCookieToken` 把 `baseURL` 在 `New()` 阶段预解析到 `c.baseURLParsed`
+（`pkg/client/cookie_sync.go`），避免每次调用 `url.Parse`。
+直接构造 `Client{}` 绕过 `New()` 时，懒解析一次并缓存回 `c.baseURLParsed`。
+
+返回 `LoginResponse{ Token, ExpiresAt, RawData }`：
+- `Token`：JWT 字符串
+- `ExpiresAt`：`tokenparse` 解析出来的过期时间（绝对 time.Time）
+- `RawData`：服务端 200 响应的原始 JSON map 透传（用于调试 / 自定义字段读取）
 
 ## 业务 Session 激活（4 步 HAR 对齐）
 
@@ -145,6 +201,11 @@ JWT (JSON Web Token), 算法 HS512：
 ```
 
 **注意**：JWT 双时间戳单位——`created` 是毫秒，`exp` 是秒。
+
+**token 解析契约**（v0.4.0）：`pkg/tokenparse` 包暴露两个公开函数，
+均返回 `(string, time.Time, error)`。畸形 URL 直接返回 `url.Parse` 底层错误（已是可读的 parse error）；
+`ErrLocationParseFailed` sentinel **已在 v0.4.0 删除**（曾因 `auth.go` 包装时未用 `%w` 链入，
+`errors.Is` 永远不命中，纯死代码）。
 
 ## 完整时序图
 

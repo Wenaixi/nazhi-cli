@@ -22,6 +22,19 @@
 
 **重要**：使用 `flagChanged()` 判断用户是否显式传了标志，未传才用环境变量。这样用户传 `--timeout 15` 不会被环境变量 `NAZHI_TIMEOUT=30` 覆盖。
 
+## 命令 ↔ 变量映射（urlType 分流）
+
+CLI 在 `buildClientOpts` 中按 `urlType` 分流读取 URL 与 token，避免无关变量污染：
+
+| urlType | 命令 | URL 来源 | Token 来源 |
+|---------|------|---------|-----------|
+| `sso` | `login`、`school` | `--sso-base` / `NAZHI_SSO_BASE` | **不读 token**（由 Login 流程获取） |
+| `base` | `session`、`whoami`、`task`、`self-eval` | `--base-url` / `NAZHI_BASE_URL` | `--token` / `NAZHI_TOKEN`（必填） |
+| `upload` | `file upload` | `--upload-url` / `NAZHI_UPLOAD_URL` | **不读 token**（文件服务器独立，发送 token 反而被风控） |
+
+> 设计要点：`file upload` 命令根本不注册 `--token` flag，`NAZHI_TOKEN` 即使设了值也会被
+> `urlType=="upload"` 分支短路（F16 修复，回归测试 `TestBuildClientOpts_UploadIgnoresNAZHI_TOKEN`）。
+
 ## 三种使用方式
 
 ### 方式 1：临时环境变量
