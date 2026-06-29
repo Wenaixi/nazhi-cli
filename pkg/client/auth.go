@@ -85,7 +85,6 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 const (
 	maxOCRAttemptsPerImage   = 1
 	maxOCRImagesTotal        = 99
-	defaultTokenTTL          = 24 * time.Hour
 	expiresFallbackThreshold = 1 * time.Hour
 )
 
@@ -224,7 +223,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 // F4 修复后：合并 (1) + (2)，两条都覆盖。
 func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 	remaining := time.Until(expiresAt)
-	if remaining > defaultTokenTTL-expiresFallbackThreshold {
+	if remaining > tokenparse.DefaultTokenTTL-expiresFallbackThreshold {
 		c.logger.Warn(fmt.Sprintf("Login %s: token 剩余寿命 %v > 23h（expiresAt=%s），server 可能未带 expires_in/exp，使用 now+24h 兜底",
 			label, remaining.Round(time.Second), expiresAt.Format(time.RFC3339)))
 		return
