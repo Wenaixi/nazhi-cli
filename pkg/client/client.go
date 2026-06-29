@@ -49,9 +49,7 @@ type Client struct {
 	// 握手（每次 Clone 出独立对象，丢失累加的 idle 连接池，keep-alive 失效）。
 	// 修复后首次 Clone 缓存，后续复用同一 Transport 实例，clean idle 池跨上传累积。
 	cleanTransportInit      sync.Once
-	cleanTransport          *http.Transport 
-	cleanTransportFallback  bool            // 懒加载的 cloned Transport（仅 *http.Transport 路径）
-}
+	cleanTransport          *http.Transport }
 
 // ─── Option 模式 ───
 
