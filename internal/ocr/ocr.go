@@ -299,6 +299,8 @@ func (o *OCR) initOnce() (retErr error) {
 	opts.ModelDir = o.tempDir
 	ocr, err := ddddocr.New(opts)
 	if err != nil {
+		_ = os.RemoveAll(o.tempDir)
+		o.tempDir = ""
 		o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
 		o.initialized = true
 		return o.initErr

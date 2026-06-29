@@ -196,7 +196,7 @@ func TestPrintError_DepthGuard_NoInfiniteLoop(t *testing.T) {
 
 // TestPrintPrompt_NonTTYStdinSuppressesOutput L finding 回归测试
 // stdin 不是 TTY 时（CI / 管道环境）printPrompt 必须不输出。
-// 模拟方法：把 os.Stdin 替换成空文件（ModeCharDevice=0 → isTerminalStdin 返回 false）。
+// 模拟方法：用 os.Pipe 替换 os.Stdin（管道永远不是 TTY）。
 // 测试结束后恢复原始 stdin。
 func TestPrintPrompt_NonTTYStdinSuppressesOutput(t *testing.T) {
 	origStderr := os.Stderr
@@ -207,25 +207,18 @@ func TestPrintPrompt_NonTTYStdinSuppressesOutput(t *testing.T) {
 	os.Stderr = w
 	defer func() { os.Stderr = origStderr }()
 
-	// 准备一个非 TTY stdin：空文件就是 regular file，ModeCharDevice = 0
-	tmpFile, err := os.CreateTemp("", "nazhi-prompt-test-")
-	if err != nil {
-		t.Fatalf("CreateTemp 失败: %v", err)
-	}
-	t.Cleanup(func() { _ = tmpFile.Close(); _ = os.Remove(tmpFile.Name()) })
-
+	// 用 os.Pipe 替换 stdin，管道永远不被识别为 TTY
 	origStdin := os.Stdin
-	os.Stdin = tmpFile
-	t.Cleanup(func() { os.Stdin = origStdin })
+	stdinR, stdinW, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe stdin 失败: %v", err)
+	}
+	os.Stdin = stdinR
+	t.Cleanup(func() { os.Stdin = origStdin; _ = stdinR.Close(); _ = stdinW.Close() })
 
 	origQuiet := quiet
 	quiet = false
 	t.Cleanup(func() { quiet = origQuiet })
-
-	// sanity check：mock 后的 stdin 确实不被认为是 TTY
-	if isTerminalStdin() {
-		t.Skip("运行环境 stdin 被识别为 TTY，无法触发 NonTTY 守卫；跳过")
-	}
 
 	printPrompt("TEST_PROMPT_NONTTY_SHOULD_NOT_APPEAR")
 

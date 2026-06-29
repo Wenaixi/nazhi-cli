@@ -376,6 +376,7 @@ func TestHAR_FetchTasks(t *testing.T) {
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token-for-har-test"),
 	)
+	t.Cleanup(func() { _ = c2.Close() })
 
 	// 跑真 SDK 的 FetchTasks
 	tasks, err := c2.FetchTasks(context.Background(), "fake-jwt-token-for-har-test")
@@ -476,6 +477,7 @@ func TestHAR_SubmitTask(t *testing.T) {
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
 	)
+	t.Cleanup(func() { _ = c.Close() })
 
 	// 用真实 HAR addCircle 的字段（解码 GBK 中文）
 	payload := types.TaskSubmitPayload{
@@ -551,6 +553,7 @@ func TestHAR_SubmitSelfEvaluation(t *testing.T) {
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
 	)
+	t.Cleanup(func() { _ = c.Close() })
 
 	t.Log("→ POST /api/studentMoralEduNew/addSelfEvaluation (SDK SubmitSelfEvaluation)")
 	err := c.SubmitSelfEvaluation(context.Background(), "fake-jwt-token", "这学期的表现很好，认真听讲，积极发言")
@@ -594,6 +597,7 @@ func TestHAR_SubmitTask_Military(t *testing.T) {
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
 	)
+	t.Cleanup(func() { _ = c.Close() })
 
 	// 真实军训 payload（从 military.json 提取）
 	payload := types.TaskSubmitPayload{
@@ -652,6 +656,7 @@ func TestHAR_SubmitTask_ClassMeeting(t *testing.T) {
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
 	)
+	t.Cleanup(func() { _ = c.Close() })
 
 	payload := types.TaskSubmitPayload{
 		ID:                  nil,
@@ -709,6 +714,7 @@ func TestHAR_SubmitTask_Labor(t *testing.T) {
 		client.WithTimeout(10*time.Second),
 		client.WithToken("fake-jwt-token"),
 	)
+	t.Cleanup(func() { _ = c.Close() })
 
 	payload := types.TaskSubmitPayload{
 		ID:                  nil,
