@@ -234,7 +234,9 @@ func (sm *sessionManager) SetBackoff(d time.Duration) {
 	if d <= 0 {
 		return
 	}
+	sm.mu.Lock()
 	sm.backoff = d
+	sm.mu.Unlock()
 }
 
 // tryActivate 在 sm.mu 持锁状态下执行 backoff 检查 + 4 步激活 + 状态记录。
