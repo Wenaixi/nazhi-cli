@@ -66,6 +66,13 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	if !flagChanged(cmd, "timeout") {
 		timeoutSec = envInt(timeoutEnv, timeoutSec)
 	}
+	// cleanup-timeout: timeout <= 0 时使用默认值 30 秒。
+	// GetInt("timeout") 在 flag 未注册或值为 0 时返回 0，导致无超时（阻塞）。
+	// fileUploadCmd 默认 timeout=30，但 buildClientOpts 通用路径不感知默认。
+	const defaultTimeout = 30
+	if timeoutSec <= 0 {
+		timeoutSec = defaultTimeout
+	}
 
 	opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
 
