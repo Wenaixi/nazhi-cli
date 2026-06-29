@@ -71,6 +71,24 @@ func TestWarnSyncCookieToken_NoPanicOnBadJar(t *testing.T) {
 
 // ─── buildLoginResponse 测试 ───
 
+// TestBuildLoginResponse_InvalidJsonBody_RawDataNotEmpty 验证 body 非法 JSON 时 RawData 为空 map ≠ nil。
+func TestBuildLoginResponse_InvalidJsonBody_RawDataNotEmpty(t *testing.T) {
+	c := &Client{
+		ssoBaseURL: "https://sso.example.com",
+		baseURL:    "https://biz.example.com",
+		uploadURL:  "https://up.example.com",
+		http:       newHTTPClient(),
+	}
+	// 非法 JSON（截断/乱码等场景）
+	resp := c.buildLoginResponse("test-token", time.Now(), []byte("{invalid}"), "200")
+	if resp == nil {
+		t.Fatal("buildLoginResponse 不应返回 nil")
+	}
+	if resp.RawData == nil {
+		t.Fatal("F3 BUG: 非法 JSON body 后 RawData 为 nil，下游 302 路径可 panic")
+	}
+}
+
 // TestBuildLoginResponse_NoPanicOnEmptyBody 验证 bodyBytes 为空时不 panic。
 func TestBuildLoginResponse_NoPanicOnEmptyBody(t *testing.T) {
 	c := &Client{
