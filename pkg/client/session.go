@@ -177,12 +177,18 @@ func (sm *sessionManager) LoadToken() string {
 	return s
 }
 
+// clearBackoff 清除 backoff 状态（lastErr + lastFailedToken）。
+// 调用方须持 sm.mu。
+func (sm *sessionManager) clearBackoff() {
+	sm.lastErr = nil
+	sm.lastFailedToken = ""
+}
+
 // StoreToken 持锁写 token，并清除 backoff 状态。
 // 调用方须持 sm.mu。
 func (sm *sessionManager) StoreToken(token string) {
 	sm.token.Store(token)
-	sm.lastErr = nil
-	sm.lastFailedToken = ""
+	sm.clearBackoff()
 }
 
 // RecordFailure 持锁记录激活失败，按 token 匹配决定是否清缓存。
@@ -202,8 +208,7 @@ func (sm *sessionManager) RecordFailure(token string, err error) {
 // 调用方须持 sm.mu。
 func (sm *sessionManager) RecordSuccess(token string, info *types.UserInfo) {
 	sm.token.Store(token)
-	sm.lastErr = nil
-	sm.lastFailedToken = ""
+	sm.clearBackoff()
 	if info != nil {
 		sm.cachedUserInfo = info
 	}
