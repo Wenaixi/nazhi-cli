@@ -11,7 +11,6 @@ import (
 var (
 	verbose bool
 	quiet   bool
-	output  string
 )
 
 var rootCmd = &cobra.Command{
@@ -41,16 +40,15 @@ func main() {
 	//   - 最终 os.Exit(1) 走与正常错误相同的退出码
 	// 注意：recover 必须在 main 顶层 defer，否则 panic 会跨过 rootCmd.Execute()
 	// 直接打到 Go runtime。Cobra 内部不主动 recover Run 回调 panic。
-	// G1: recover 后 main 函数的剩余代码（含 line 77 的 os.Exit(1)）不执行。
-	// 必须在这里退出，否则 exit code = 0，违反统一 exit code 1 契约。
-	// closeAllClients 的 defer（line 52）在 LIFO 顺序中先于本 handler 执行，
-	// 所以 os.Exit(1) 前 closeAllClients 已经运行了，无资源泄漏。
+	// F4: recover handler 不再直接 os.Exit(1)，而是 printError 设 pendingExitCode=1，
+	// 让执行流 fall through 到 line 77 的 pendingExitCode 统一出口。
+	// LIFO 顺序下 closeAllClients 的 defer（行 64-69）在处理本函数前
+	// 已运行释放资源，行 85 的 closeAllClients 幂等安全。
 	defer func() {
 		if r := recover(); r != nil {
 			// F9: 把 panic 转成 printError 输出，与正常 error 路径一致
 			// 不打 stack trace 给终端用户（生产 CLI 应当简洁）
 			printError(fmt.Errorf("内部错误: %v", r))
-			os.Exit(1)
 		}
 	}()
 
@@ -72,10 +70,9 @@ func main() {
 	}
 	if pendingExitCode.Load() != 0 {
 		// os.Exit 之前显式调 closeAllClients。
-		// 原代码 `defer func() { closeAllClients() }()` 在 main 顶部（第 31-37 行）
-		// 但 Go 规范明确：os.Exit 不运行 deferred functions。意味着任何 CLI 错误
-		// 退出（pendingExitCode=1）的路径都泄漏 ONNX session + tempDir +
-		// keep-alive 连接。
+		// 原代码仅靠 defer closeAllClients()，但 Go 规范明确：os.Exit 不运行
+		// deferred functions。意味着任何 CLI 错误退出（pendingExitCode=1）的路径
+		// 都泄漏 ONNX session + tempDir + keep-alive 连接。
 		// 修复：os.Exit 前显式 closeAllClients()。幂等安全：closeAllClients 内
 		// 部把全局 pendingClients 置 nil，二次调用是 no-op，defer 再跑也不会出错。
 		_ = closeAllClients()
@@ -93,9 +90,6 @@ func init() {
 	// 全局标志
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "详细日志输出到 stderr")
 	rootCmd.PersistentFlags().BoolVar(&quiet, "quiet", false, "静默模式，关闭所有 stderr 输出")
-	// --output 当前仅支持 json（未来扩展 yaml/text 时再实现）
-	rootCmd.PersistentFlags().StringVar(&output, "output", "json", "输出格式（当前仅支持 json）")
-	rootCmd.PersistentFlags().Lookup("output").NoOptDefVal = "json"
 
 	// 一级命令
 	rootCmd.AddCommand(loginCmd)
