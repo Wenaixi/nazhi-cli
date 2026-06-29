@@ -16,15 +16,10 @@ var schoolCmd = &cobra.Command{
 	Example: `  nazhi school -u 学号
   nazhi school -u 学号 --sso-base https://www.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// B1 修复：用 flagChanged() 守卫 username 读取
-		// 避免用户显式传 --username "" 时被 NAZHI_USERNAME 环境变量覆盖。
-		// 与 login.go:31-35 模式对称。
-		var username string
-		if flagChanged(cmd, "username") {
-			username, _ = cmd.Flags().GetString("username")
-		} else {
-			username = envString("NAZHI_USERNAME", "")
-		}
+		// username 用 applyURLFlag 统一收口，消除 6 行重复模板。
+		// 语义：flag 显式传递 → 用 flag 值（含显式空字符串）；未传 → env fallback。
+		// 与 login.go:29 对称。
+		username := applyURLFlag(cmd, "username", "NAZHI_USERNAME")
 		if username == "" {
 			printError(fmt.Errorf("--username 为必填（也可通过 NAZHI_USERNAME 环境变量设置）"))
 			return
