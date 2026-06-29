@@ -6,7 +6,7 @@
 // 设计契约
 //   - panic 发生后 recover
 //   - 走 pendingExitCode = 1 + printError 路径（与 cobra 正常 error 路径一致）
-//   - 不打 stack trace 给终端用户（避免噪声 + 信息泄露）
+//   - debug.Stack() 输出到 stderr 辅助生产问题定位
 //   - 仍然走 closeAllClients() 释放 ONNX session + tempDir + keep-alive
 //
 // 测试策略：子进程派生子 nazhi，触发 panic，断言
