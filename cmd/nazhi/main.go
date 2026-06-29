@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 
 	"github.com/Wenaixi/nazhi-cli/internal/version"
 	"github.com/spf13/cobra"
@@ -35,9 +36,7 @@ func main() {
 	// 设计契约
 	//   - panic 发生 → recover
 	//   - pendingExitCode 标记为 1（与正常 error 路径一致）
-	//   - 不打 stack trace 给终端用户（避免噪声 + 信息泄露）
-	//   - 后续 closeAllClients() 仍跑（defer 在 panic 后也会运行，但 os.Exit 不会）
-	//   - 最终 os.Exit(1) 走与正常错误相同的退出码
+	//   - debug.Stack() 输出到 stderr 辅助定位
 	// 注意：recover 必须在 main 顶层 defer，否则 panic 会跨过 rootCmd.Execute()
 	// 直接打到 Go runtime。Cobra 内部不主动 recover Run 回调 panic。
 	// F4: recover handler 不再直接 os.Exit(1)，而是 printError 设 pendingExitCode=1，
@@ -47,8 +46,9 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			// F9: 把 panic 转成 printError 输出，与正常 error 路径一致
-			// 不打 stack trace 给终端用户（生产 CLI 应当简洁）
-			printError(fmt.Errorf("内部错误: %v", r))
+			// 同时输出 debug.Stack() 到 stderr 辅助生产问题定位
+			_, _ = fmt.Fprintln(os.Stderr, "panic stack trace:")
+			_, _ = os.Stderr.Write(debug.Stack())
 		}
 	}()
 
