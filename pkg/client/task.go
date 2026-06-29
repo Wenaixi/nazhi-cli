@@ -8,6 +8,9 @@ import (
 	"strconv"
 	"sync"
 
+	"os"
+	"runtime/debug"
+
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -80,6 +83,9 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	limit := len(dimensions)
 	if limit > fetchTasksConcurrentLimit {
 		limit = fetchTasksConcurrentLimit
+	}
+	if limit == 0 {
+		limit = 1
 	}
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(limit)
@@ -274,6 +280,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
 	defer func() {
 		if r := recover(); r != nil {
+			os.Stderr.Write(debug.Stack())
 			tasks = nil
 			err = fmt.Errorf("维度 %d(%s) panic: %v", dim.ID, dim.Name, r)
 		}
