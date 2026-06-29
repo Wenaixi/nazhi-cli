@@ -1,11 +1,10 @@
 //go:build ddddocr
 // +build ddddocr
 
-// Package client imports internal/ocr under -tags ddddocr.
-// This crosses the public→private boundary — external consumers
-// of pkg/client cannot use this build tag in their own modules
-// (Go rejects imports of internal/ packages). For external SDK
-// consumers, use WithCustomOCR() to inject a recognizer.
+// Package client 在 -tags ddddocr 构建下导入 internal/ocr。
+// 此文件跨越了 public -> private 边界——外部 pkg/client 的使用方
+// 在自己的模块中无法使用此 build tag（Go 拒绝导入 internal/ 包）。
+// 外部 SDK 使用者请使用 WithCustomOCR() 注入识别器。
 package client
 
 import "github.com/Wenaixi/nazhi-cli/internal/ocr"
