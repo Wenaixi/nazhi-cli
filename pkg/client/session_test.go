@@ -64,7 +64,7 @@ func TestActivateSessionIfNeeded_BackoffHundredConcurrent(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.ensureActivated(context.Background(), "shared-token"); err != nil {
+			if _, err := c.ActivateSession(context.Background(), "shared-token"); err != nil {
 				atomic.AddInt32(&errCount, 1)
 			}
 		}()
@@ -300,8 +300,8 @@ func TestActivateSessionIfNeeded_ConcurrentSameToken(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.ensureActivated(context.Background(), "shared-token"); err != nil {
-				t.Errorf("ensureActivated 失败: %v", err)
+			if _, err := c.ActivateSession(context.Background(), "shared-token"); err != nil {
+				t.Errorf("ActivateSession 失败: %v", err)
 			}
 		}()
 	}
@@ -367,8 +367,8 @@ func TestActivateSessionIfNeeded_ConcurrentDifferentTokens(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.ensureActivated(context.Background(), tokens[i]); err != nil {
-				t.Errorf("token=%s ensureActivated 失败: %v", tokens[i], err)
+			if _, err := c.ActivateSession(context.Background(), tokens[i]); err != nil {
+				t.Errorf("token=%s ActivateSession 失败: %v", tokens[i], err)
 			}
 		}()
 	}
@@ -588,7 +588,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 		go func() {
 			defer wg.Done()
 			<-start
-			if _, err := c.ensureActivated(context.Background(), "shared-token"); err != nil {
+			if _, err := c.ActivateSession(context.Background(), "shared-token"); err != nil {
 				atomic.AddInt32(&errCount, 1)
 			}
 		}()
