@@ -247,7 +247,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	if statResp.Code != 1 {
 		// F-GroupD-F：业务错误 propagate，不再静默。
 		msg := types.DerefOr(statResp.Msg, "")
-		return nil, fmt.Errorf("维度 %d(%s) 业务错误: code=%d msg=%s", dim.ID, dim.Name, statResp.Code, msg)
+		return nil, fmt.Errorf("%w: 维度 %d(%s) 业务错误: code=%d msg=%s", ErrBusinessRejected, dim.ID, dim.Name, statResp.Code, msg)
 	}
 
 	tasks, err = types.DecodeDataList[types.Task](statResp)
