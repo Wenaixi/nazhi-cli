@@ -1,8 +1,9 @@
+//go:build ddddocr && windows
+
 // Package ocr 内部白盒测试：SetOnnxRuntimePath 全局状态竞争测试。
 package ocr
 
 import (
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -11,10 +12,6 @@ import (
 // TestRecognize_ConcurrentInitNoRace 验证多个 OCR 实例并发初始化不触发
 // SetOnnxRuntimePath 和 ddddocr.New 的全局状态竞争。
 func TestRecognize_ConcurrentInitNoRace(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Skip("竞争测试只需要在 Windows 上验证初始化路径的稳定性，其他平台跳过")
-	}
-
 	const goroutines = 8
 	var wg sync.WaitGroup
 	wg.Add(goroutines)
