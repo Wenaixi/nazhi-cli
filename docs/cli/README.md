@@ -255,7 +255,7 @@ nazhi file upload -f ./photo.jpg
 |------|------|---------|------|
 | `-f, --file` | ✅ | — | 本地图片路径 |
 | `--upload-url` | ❌ | `NAZHI_UPLOAD_URL` | 上传服务器，默认 `http://doc.nazhisoft.com` |
-| `--timeout` | ❌ | `NAZHI_TIMEOUT` | HTTP 超时 |
+| `--timeout` | ❌ | `NAZHI_TIMEOUT` | HTTP 超时，默认 `30` 秒 |
 
 **不支持 `--token`**：文件服务器独立，发送 token 反而被风控。
 
