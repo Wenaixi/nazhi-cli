@@ -329,20 +329,35 @@ func TestFindingE_QuerySelfGradEvaluation_BizError(t *testing.T) {
 }
 
 // TestFindingE_GetMyInfo_BizError 验证 GetMyInfo 在 server 返回 code != 1 时
-// 包装为 ErrBusinessRejected。注：GetMyInfo 是「最佳努力」设计，调用方通常吞掉
-// 错误，但语义上仍应保留 ErrBusinessRejected 信号（与其他业务错误对齐）。
+// 包装为 ErrBusinessRejected（与 TestGetMyInfo_BizError_WrapsErrBusinessRejected
+// 使用不同的 mock 结构，确保全路径覆盖）。
+//
+// 此测试不依赖 warmupBizHandler（步骤 4 的 sync.Once 缓存会阻止错误路径触发），
+// 改用裸 httptest.Server + client.New 直接对齐 getMyInfoRaw 路径。
 func TestFindingE_GetMyInfo_BizError(t *testing.T) {
-	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(unifiedJSON(0, "用户信息缺失", nil, nil)))
-	})))
-	defer biz.Close()
+		switch r.URL.Path {
+		case "/":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(unifiedJSON(1, "成功", nil, nil)))
+		case "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(unifiedJSON(1, "成功", nil, nil)))
+		case "/api/studentInfo/getMyInfo":
+			// 步骤 4 返回 code=0 → ensureActivated 返回 err
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(unifiedJSON(0, "用户信息缺失", nil, nil)))
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
 
-	c := newTestClient(nil, biz, nil)
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
 	_, err := c.GetMyInfo(context.Background(), "test-token")
 	if err == nil {
-		t.Skip("GetMyInfo 在 best-effort 模式下可能吞错，此测试不强制要求返回 err")
+		t.Fatal("GetMyInfo 应返回业务错误，但返回 nil")
 	}
 	assertBusinessError(t, err, "GetMyInfo")
 }

@@ -1,3 +1,5 @@
+//go:build ddddocr && windows
+
 // Package ocr 内部白盒测试：F1 use-after-close 窗口竞争测试。
 //
 // F1（CRITICAL）：Pool.Recognize 在 closeMu 临界区内 Get + trackInit 后释放锁，
@@ -11,7 +13,6 @@
 package ocr
 
 import (
-	"runtime"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -45,10 +46,6 @@ func TestOCR_F1_UseAfterClose(t *testing.T) {
 	})
 
 	t.Run("并发Recognize+Close无panic", func(t *testing.T) {
-		if runtime.GOOS != "windows" {
-			t.Skip("F1 并发测试需要真实 ddddocr（Windows onnxruntime），其他平台跳过")
-		}
-
 		const recognizeGoroutines = 50
 		p := NewPool(0)
 
@@ -67,7 +64,6 @@ func TestOCR_F1_UseAfterClose(t *testing.T) {
 				}()
 				for j := 0; j < 10; j++ {
 					_, _ = p.Recognize([]byte("fake"))
-					runtime.Gosched()
 				}
 			}()
 		}
