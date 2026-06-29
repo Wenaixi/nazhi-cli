@@ -282,19 +282,12 @@ func (sm *sessionManager) tryActivate(
 // Activate 封装了 session 激活的 4 步 HTTP、backoff 检查和状态管理。
 // 调用方负责传实际的 activateFn，便于隔离测试。
 //
-// DCL 设计约束（为什么不用锁外 HTTP）：
-//
-// TODO(C5, C6, C7): 如果引入 per-token cookie jar（每个 token 独立 jar），
-// 可将 4 步 HTTP 移出锁范围：锁内检查 → 无锁 HTTP → 锁内写入。目前
-// cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP 会竞态
-// 写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
+// 持锁 4 步契约：cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP
+// 会竞态写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
 //
 // 对同 token：DCL fast path 保证只有首次 goroutine 持锁执行 4 步，
 // 后续 goroutine 直接从缓存返回（不阻塞）。
 // 对不同 token：串行激活（不会死锁，约 200-500ms 内释放）。
-//
-// 删除了 DCL（double-checked locking）即锁外预检查；保留了锁内单次检查 fast path。
-// sync.Mutex 未争用时开销 ≈25ns，直接持锁足够安全。
 func (sm *sessionManager) Activate(
 	ctx context.Context,
 	token string,
