@@ -77,7 +77,7 @@ func (c *Client) ssoHeaders() map[string]string {
 	return map[string]string{
 		"Accept":           "application/json, text/javascript, */*; q=0.01",
 		"User-Agent":       defaultUserAgent,
-		"Referer":          c.ssoURL("/uiStudentLogin/login"),
+		"Referer":          c.ssoBaseURL + "/uiStudentLogin/login",
 		"Origin":           c.ssoBaseURL,
 		"X-Requested-With": "XMLHttpRequest",
 	}
@@ -92,7 +92,7 @@ func (c *Client) bizHeaders(token string) map[string]string {
 		// E1 修复：改走 c.bizURL() helper，与 session.go / task.go
 		// / self_eval.go 保持一致。如未来给 baseURL 加 TrimSuffix / 路径校验，
 		// helper 单一入口会同步所有调用点。
-		"Referer": c.bizURL("/homepage"),
+		"Referer": c.baseURL + "/homepage",
 	}
 }
 
@@ -173,7 +173,7 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	}
 	headers := c.bizHeaders(token)
 
-	bodyBytes, err := c.httpDo(ctx, method, c.bizURL(path), body, headers, "")
+	bodyBytes, err := c.httpDo(ctx, method, c.baseURL + path, body, headers, "")
 	if err != nil {
 		return nil, fmt.Errorf("%s 请求失败: %w", opName, err)
 	}

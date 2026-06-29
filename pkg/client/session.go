@@ -81,24 +81,24 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 	headers := c.bizHeaders(token)
 
 	// 步骤1：GET /（首页，建立业务域 session）
-	if _, err := c.doBizGet(ctx, c.bizURL("/"), headers); err != nil {
+	if _, err := c.doBizGet(ctx, c.baseURL + "/", headers); err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤1（首页）失败: %w", err)
 	}
 
 	// 步骤2/3 共享 getMenu 行为（仅 Referer 不同）→ 提取 doGetMenu helper。
-	menuURL := c.bizURL("/api/studentInfo/getMenu")
+	menuURL := c.baseURL + "/api/studentInfo/getMenu"
 
 	// 步骤2 响应体不参与兜底解析，但请求必须发出以满足 HAR 4 步契约。
 	// helper 内部已 drain+close，丢弃返回的 body 即可。
 	// token 走 url.Values 编码，避免 & / = / 空格等字符破坏
 	// Referer URL 结构（Referer 头会被浏览器/代理/服务端日志记录）。
-	step2Referer := c.bizURL("/homepage") + "?" + url.Values{"token": {token}}.Encode()
+	step2Referer := c.baseURL + "/homepage" + "?" + url.Values{"token": {token}}.Encode()
 	if _, err := c.doGetMenu(ctx, menuURL, headers, step2Referer, "步骤2"); err != nil {
 		return nil, err
 	}
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
-	if _, err := c.doGetMenu(ctx, menuURL, headers, c.bizURL("/home"), "步骤3"); err != nil {
+	if _, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL + "/home", "步骤3"); err != nil {
 		return nil, err
 	}
 
