@@ -139,3 +139,78 @@ func TestNewCleanClient_DefaultTransportNotCached(t *testing.T) {
 		t.Errorf("fallback 路径应持续返回 DefaultTransport，实际 %T", cc2.Transport)
 	}
 }
+
+// TestNewCleanClient_FallbackPathNoCloneAfterFirst 验证 sync.Once.Do 走过
+// fallback 分支（自定义 RoundTripper 或 nil Transport）后，sentinel 标记
+// "已 fallback"，后续调用直接走 fallback 路径，不再每次重新 type-switch 判断
+// 也不再误走 *http.Transport Clone 分支。
+//
+// F9 修复契约：
+//   - 第一次调用：c.http.Transport 是自定义 RT（非 *http.Transport），
+//     sync.Once.Do 走 default 分支，标记 fallback=true
+//   - 第二次调用：即使有人运行时把 c.http.Transport 换成 *http.Transport，
+//     sentinel 仍为 fallback=true，**绝不**误走 Clone 分支（会丢失自定义 RT 语义）
+//   - 实际行为：fallback=true 时直接透传 c.http.Transport 或用 DefaultTransport
+//
+// 修复前 bug：第二次进入 if c.cleanTransport != nil → false, 然后 re-do type
+// switch（虽然 sync.Once 不会再进 Do 闭包，但外层 if-else 每次都跑），导致运行时
+// 替换 Transport 时行为不稳定。
+func TestNewCleanClient_FallbackPathNoCloneAfterFirst(t *testing.T) {
+	// 第一次：c.http.Transport 是自定义 RT（走 fallback）
+	customRT := customRoundTripper{}
+	c := &Client{
+		http: &http.Client{Transport: customRT, Timeout: 5 * time.Second},
+	}
+
+	cc1 := newCleanClient(c)
+	if cc1.Transport != customRT {
+		t.Fatalf("首次调用应对自定义 RT 透传，实际 %T", cc1.Transport)
+	}
+
+	// 运行时把 Transport 换成 *http.Transport
+	// F9 修复后：sentinel 已是 fallback=true，**不应**走 Clone 路径，
+	// 也不应返回 stale 的 customRT（因为 fallback 路径每次都读 c.http.Transport 当前值）
+	replacedTransport := &http.Transport{MaxIdleConns: 99}
+	c.http.Transport = replacedTransport
+
+	cc2 := newCleanClient(c)
+	// F9 修复后行为：fallback 路径直接读 c.http.Transport 透传，
+	// 不应再误入 Clone 分支（Clone 出的 Transport 不会等于 replacedTransport，
+	// 也不应等于 customRT）
+	if cc2.Transport == customRT {
+		t.Errorf("fallback 路径应读 c.http.Transport 当前值，不应缓存旧 customRT")
+	}
+	// 行为契约：sentinel 标记 fallback=true 后，透传 c.http.Transport 当前值
+	// （即 replacedTransport）
+	if cc2.Transport != replacedTransport {
+		t.Errorf("fallback sentinel 路径应透传 c.http.Transport 当前值，期望 %p, 实际 %p",
+			replacedTransport, cc2.Transport)
+	}
+}
+
+// TestNewCleanClient_NilTransportFallbackNoClone 验证 c.http.Transport=nil
+// 走过 sync.Once fallback 后，sentinel 标记 fallback=true，后续即使 c.http.Transport
+// 变成 *http.Transport 也不应走 Clone 分支（避免 sentinel 状态泄漏）。
+func TestNewCleanClient_NilTransportFallbackNoClone(t *testing.T) {
+	// 第一次：c.http.Transport = nil（走 fallback）
+	c := &Client{
+		http: &http.Client{Timeout: 5 * time.Second}, // Transport = nil
+	}
+
+	cc1 := newCleanClient(c)
+	if cc1.Transport != http.DefaultTransport {
+		t.Fatalf("首次调用 Transport=nil 应回退 http.DefaultTransport，实际 %T", cc1.Transport)
+	}
+
+	// 运行时把 Transport 换成 *http.Transport
+	// F9 修复后：sentinel 标记 fallback=true，**不应**走 Clone 分支
+	replacedTransport := &http.Transport{MaxIdleConns: 99}
+	c.http.Transport = replacedTransport
+
+	cc2 := newCleanClient(c)
+	// F9 修复后行为：sentinel=fallback, 透传 c.http.Transport 当前值
+	if cc2.Transport != replacedTransport {
+		t.Errorf("fallback sentinel 后应透传 c.http.Transport 当前值，期望 %p, 实际 %p",
+			replacedTransport, cc2.Transport)
+	}
+}

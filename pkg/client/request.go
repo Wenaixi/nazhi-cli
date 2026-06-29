@@ -77,7 +77,7 @@ func (c *Client) ssoHeaders() map[string]string {
 	return map[string]string{
 		"Accept":           "application/json, text/javascript, */*; q=0.01",
 		"User-Agent":       defaultUserAgent,
-		"Referer":          c.ssoURL("/uiStudentLogin/login"),
+		"Referer":          c.ssoBaseURL + "/uiStudentLogin/login",
 		"Origin":           c.ssoBaseURL,
 		"X-Requested-With": "XMLHttpRequest",
 	}
@@ -92,7 +92,7 @@ func (c *Client) bizHeaders(token string) map[string]string {
 		// E1 修复：改走 c.bizURL() helper，与 session.go / task.go
 		// / self_eval.go 保持一致。如未来给 baseURL 加 TrimSuffix / 路径校验，
 		// helper 单一入口会同步所有调用点。
-		"Referer": c.bizURL("/homepage"),
+		"Referer": c.baseURL + "/homepage",
 	}
 }
 
@@ -173,7 +173,7 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	}
 	headers := c.bizHeaders(token)
 
-	bodyBytes, err := c.httpDo(ctx, method, c.bizURL(path), body, headers, "")
+	bodyBytes, err := c.httpDo(ctx, method, c.baseURL + path, body, headers, "")
 	if err != nil {
 		return nil, fmt.Errorf("%s 请求失败: %w", opName, err)
 	}
@@ -250,11 +250,9 @@ func (c *Client) logRequestHeaders(req *http.Request) {
 	}
 }
 
-// httpDo 执行 HTTP 请求，自动设置请求头，返回响应体字节。
-// 改名自 doRequest，降级为内部私有。
-// headers 是可选的自定义请求头（合并到公共头之上）。
-// contentType 为空时默认 application/json。
-func (c *Client) httpDo(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) ([]byte, error) {
+// do 是 httpDo 和 rawDoWithResp 共享的构建+打印+执行核心。
+// 提取自 cleanup-httpDo：消除 ~8 行重复 boilerplate（buildRequest + logDebug + logRequestHeaders + Do + 错误包装）。
+func (c *Client) do(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Response, error) {
 	req, err := c.buildRequest(ctx, method, url, body, headers, contentType)
 	if err != nil {
 		return nil, err
@@ -265,7 +263,19 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("%w: 请求失败: %w", ErrNetwork, err)
+		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)
+	}
+	return resp, nil
+}
+
+// httpDo 执行 HTTP 请求，自动设置请求头，返回响应体字节。
+// 改名自 doRequest，降级为内部私有。
+// headers 是可选的自定义请求头（合并到公共头之上）。
+// contentType 为空时默认 application/json。
+func (c *Client) httpDo(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) ([]byte, error) {
+	resp, err := c.do(ctx, method, url, body, headers, contentType)
+	if err != nil {
+		return nil, err
 	}
 	defer drainAndClose(resp.Body)
 
@@ -280,16 +290,9 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 
 // rawDoWithResp 执行请求并返回 *http.Response（调用者负责关闭 Body）。
 func (c *Client) rawDoWithResp(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Response, error) {
-	req, err := c.buildRequest(ctx, method, url, body, headers, contentType)
+	resp, err := c.do(ctx, method, url, body, headers, contentType)
 	if err != nil {
 		return nil, err
-	}
-
-	c.logDebug("→ %s %s", method, url)
-	c.logRequestHeaders(req)
-	resp, err := c.http.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)
 	}
 	return resp, nil
 }

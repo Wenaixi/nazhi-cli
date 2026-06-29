@@ -50,10 +50,10 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	headers := c.bizHeaders(token)
 	// Referer 走 c.bizURL() helper，与其他业务接口对称
 	// （避免 baseURL 拼接分散在多处，未来 baseURL 变更只需改 helper 一处）
-	headers["Referer"] = c.bizURL("/modify")
+	headers["Referer"] = c.baseURL + "/modify"
 
 	bodyBytes, err := c.httpDo(ctx, http.MethodGet,
-		c.bizURL("/api/studentInfo/getMyInfo"),
+		c.baseURL + "/api/studentInfo/getMyInfo",
 		nil, headers, "",
 	)
 	if err != nil {
