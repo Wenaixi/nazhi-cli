@@ -151,9 +151,12 @@ func decodeImage(path string) (image.Image, error) {
 
 	// magic bytes sniff
 	var head [12]byte
-	n, _ := io.ReadFull(f, head[:])
+	n, err := io.ReadFull(f, head[:])
 	if n == 0 {
 		return nil, errors.New("file is empty")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("读取图片文件头失败: %w", err)
 	}
 
 	format := sniffFormat(head[:n])
@@ -201,7 +204,7 @@ func sniffFormat(head []byte) string {
 		return "gif"
 	}
 	// WEBP: "RIFF" + 4 bytes + "WEBP"
-	if len(head) >= 12 && string(head[0:4]) == "RIFF" && string(head[8:12]) == "WEBP" {
+	if len(head) >= 12 && bytes.Equal(head[:4], []byte("RIFF")) && bytes.Equal(head[8:12], []byte("WEBP")) {
 		return "webp"
 	}
 	return ""

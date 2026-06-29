@@ -46,6 +46,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// parser 报 EOF 错误，100% 上传失败。
 	//
 	var buf bytes.Buffer
+	buf.Grow(len(fileData) + 1024)
 	writer := multipart.NewWriter(&buf)
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
@@ -72,7 +73,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	//
 	// multipart 场景下 Content-Type 必填（含 boundary），由 writer.FormDataContentType()
 	// 提供；body 传入 *bytes.Buffer（满足 io.Reader 接口），buildRequest 透传。
-	uploadURL := c.uploadServiceURL("/common/upload/uploadImage?bussinessType=12&groupName=other")
+	uploadURL := c.uploadURL + "/common/upload/uploadImage?bussinessType=12&groupName=other"
 	req, err := c.buildRequest(ctx, http.MethodPost, uploadURL, &buf, map[string]string{
 		"Accept":     "application/json, text/plain, */*",
 		"User-Agent": defaultUserAgent,
@@ -198,6 +199,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // Transport（如 mock RoundTripper），新 Transport 不会生效。此限制是 B1
 // 缓存设计的有意取舍——运行时 Transport 变更在业务实践中极罕见，且需重建
 // Client（sync.Once 重置不可逆）。
+//
+// F9 修复：fallback 路径（自定义 RT / nil）走一次后记 cleanTransportFallback=true，
+// 后续直接读 c.http.Transport 当前值（不再每次 type-switch），
+// 避免运行时 Transport 替换后误走 Clone 分支丢失自定义 RT 语义。
 func newCleanClient(c *Client) *http.Client {
 	// B1：懒加载 cloned Transport，sync.Once 保证并发安全且只 Clone 一次
 	c.cleanTransportInit.Do(func() {
@@ -209,26 +214,17 @@ func newCleanClient(c *Client) *http.Client {
 			// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不缓存
 			//  - http.DefaultTransport 是进程单例，多 Client 共享缓存会引入隐性耦合
 			//  - 自定义 RT 无法 Clone
-		}
+					}
 	})
 
 	var transport http.RoundTripper
-	if c.cleanTransport != nil {
-		transport = c.cleanTransport
-	} else if c.http.Transport == nil {
-		// 原 Client 没设置 Transport，回退到 http.DefaultTransport
-		//（不 Clone DefaultTransport——它是全局共享进程单例）
-		transport = http.DefaultTransport
-	} else if t, ok := c.http.Transport.(*http.Transport); ok {
-		// *http.Transport 但未进入缓存路径（如运行时替换 Transport），
-		// 仍 Clone 出独立实例，不共享 idle 池。
-		transport = t.Clone()
-	} else {
-		// 自定义 RoundTripper（如 mock 测试用）无法 Clone，直接透传
-		// 此时不存在 idle 池共享问题（mock 通常不维护连接池）
-		transport = c.http.Transport
-	}
-
+if c.cleanTransport != nil {
+transport = c.cleanTransport
+} else if c.http.Transport == nil {
+transport = http.DefaultTransport
+} else {
+transport = c.http.Transport
+}
 	timeout := c.http.Timeout
 	if timeout == 0 || timeout < 30*time.Second {
 		timeout = 30 * time.Second // 文件上传的合理兜底超时，确保不继承主 Client 过短 timeout

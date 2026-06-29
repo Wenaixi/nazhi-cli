@@ -22,7 +22,7 @@ import (
 // InitSession 访问登录页建立 JSESSIONID Cookie。
 // 内部流程中自动调用，一般不需要外部显式调用。
 func (c *Client) InitSession(ctx context.Context) error {
-	u := c.ssoURL("/uiStudentLogin/login")
+	u := c.ssoBaseURL + "/uiStudentLogin/login"
 	if _, err := c.doBizGet(ctx, u, c.ssoHeaders()); err != nil {
 		return fmt.Errorf("InitSession 失败: %w", err)
 	}
@@ -33,10 +33,10 @@ func (c *Client) InitSession(ctx context.Context) error {
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
 func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID string, schoolName string, err error) {
-	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber?" + url.Values{"userName": {username}}.Encode())
+	u := c.ssoBaseURL + "/teacher/auth/studentLogin/getSchoolIdByStudentNumber?" + url.Values{"userName": {username}}.Encode()
 
 	headers := c.ssoHeaders()
-	headers["Referer"] = c.ssoURL("/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode())
+	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode()
 
 	bodyBytes, err := c.httpDo(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
@@ -149,7 +149,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 
 	httpResp, err := c.rawDoWithResp(ctx, http.MethodPost,
-		c.ssoURL("/teacher/auth/studentLogin/validate"),
+		c.ssoBaseURL + "/teacher/auth/studentLogin/validate",
 		loginBody, c.ssoHeaders(), "",
 	)
 	if err != nil {
@@ -239,7 +239,7 @@ func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 
 func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	bodyBytes, err := c.httpDo(ctx, http.MethodPost,
-		c.ssoURL("/uiStudentLogin/validateCaptcha"),
+		c.ssoBaseURL + "/uiStudentLogin/validateCaptcha",
 		map[string]string{"captcha": captcha},
 		c.ssoHeaders(), "",
 	)
@@ -306,7 +306,7 @@ var captchaSeq atomic.Int64
 // 改用 url.Values 编码替代 fmt.Sprintf+strconv.FormatInt 混合拼接风格。
 func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	seq := captchaSeq.Add(1)
-	u := c.ssoURL("/kaptcha/kaptcha.jpg?" + url.Values{"seq": {strconv.FormatInt(seq, 10)}}.Encode())
+	u := c.ssoBaseURL + "/kaptcha/kaptcha.jpg?" + url.Values{"seq": {strconv.FormatInt(seq, 10)}}.Encode()
 	imgBytes, err := c.doBizGet(ctx, u, c.ssoHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("获取验证码图片失败: %w", err)

@@ -50,72 +50,61 @@ type Client struct {
 	// 解决 B1：原实现每次 UploadFile 都 t.Clone() → 50 张图 50 次完整 DNS+TCP+TLS
 	// 握手（每次 Clone 出独立对象，丢失累加的 idle 连接池，keep-alive 失效）。
 	// 修复后首次 Clone 缓存，后续复用同一 Transport 实例，clean idle 池跨上传累积。
-	cleanTransportInit sync.Once
-	cleanTransport     *http.Transport // 懒加载的 cloned Transport（仅 *http.Transport 路径）
-}
+	cleanTransportInit      sync.Once
+	cleanTransport          *http.Transport }
 
 // ─── Option 模式 ───
 
 // Option 是 Client 构造函数的选项函数。
 type Option func(*Client)
 
-// withURLGuard 提取 URL 型 Option（WithSSOBase / WithBaseURL / WithUploadURL）
-// 的通用守卫逻辑。
-//
-// 三者 guard 模式完全相同：空字符串 → warn + 保留原值；非空 → setter(c, url)。
-// name 用于 warn 消息前缀；getter 获取字段当前值（warn 时输出）；setter 负责赋值。
-func withURLGuard(name string, getter func(*Client) string, setter func(*Client, string)) func(string) Option {
-	return func(url string) Option {
-		return func(c *Client) {
-			if url == "" {
-				c.logger.Warn(name+": 空字符串被拒绝，保持当前值",
-					"current", getter(c))
-				return
-			}
-			setter(c, url)
-		}
-	}
-}
-
 // WithSSOBase 设置 SSO 根地址。
 //
 // 行为约定：
 //   - url == ""：拒绝设置并 warn，保持当前 ssoBaseURL（防止空字符串
-//     静默覆盖 New() 已设的 defaultSSOBase，导致 ssoURL() 拼接出畸形 URL）
+//     静默覆盖 New() 已设的 defaultSSOBase，导致 SSO 拼接出畸形 URL）
 //   - 否则：设置 ssoBaseURL
-//
-// 设计一致：与 WithTimeout 一样是「runtime degraded-warn + 不修改字段」，
-// 而非 build-time fail-fast——保持与 Option 校验风格一致。
-var WithSSOBase = withURLGuard("WithSSOBase",
-	func(c *Client) string { return c.ssoBaseURL },
-	func(c *Client, v string) { c.ssoBaseURL = v },
-)
+var WithSSOBase = func(url string) Option {
+	return func(c *Client) {
+		if url == "" {
+			c.logger.Warn("WithSSOBase: 空字符串被拒绝，保持当前值", "current", c.ssoBaseURL)
+			return
+		}
+		c.ssoBaseURL = url
+	}
+}
 
 // WithBaseURL 设置业务 API 根地址。
 //
 // 行为约定：
 //   - url == ""：拒绝设置并 warn，保持当前 baseURL（防止空字符串
-//     静默覆盖 New() 已设的 defaultBaseURL，导致 bizURL() 拼出畸形 URL）
+//     静默覆盖 New() 已设的 defaultBaseURL，导致 biz 拼接出畸形 URL）
 //   - 否则：设置 baseURL
-//
-// 设计一致：与 WithSSOBase / WithTimeout 同款 warn + 不修改字段守卫。
-var WithBaseURL = withURLGuard("WithBaseURL",
-	func(c *Client) string { return c.baseURL },
-	func(c *Client, v string) { c.baseURL = v },
-)
+var WithBaseURL = func(url string) Option {
+	return func(c *Client) {
+		if url == "" {
+			c.logger.Warn("WithBaseURL: 空字符串被拒绝，保持当前值", "current", c.baseURL)
+			return
+		}
+		c.baseURL = url
+	}
+}
 
 // WithUploadURL 设置文件上传服务器地址。
 //
 // 行为约定：
 //   - url == ""：拒绝设置并 warn，保持当前 uploadURL（防止空字符串
-//     静默覆盖 New() 已设的 defaultUploadURL，导致 uploadServiceURL() 拼出畸形 URL）
+//     静默覆盖 New() 已设的 defaultUploadURL，导致上传拼接出畸形 URL）
 //   - 否则：设置 uploadURL
-//
-// 设计一致：与 WithSSOBase / WithBaseURL 同款 warn + 不修改字段守卫。
-var WithUploadURL = withURLGuard("WithUploadURL",
-	func(c *Client) string { return c.uploadURL },
-	func(c *Client, v string) { c.uploadURL = v },
-)
+var WithUploadURL = func(url string) Option {
+	return func(c *Client) {
+		if url == "" {
+			c.logger.Warn("WithUploadURL: 空字符串被拒绝，保持当前值", "current", c.uploadURL)
+			return
+		}
+		c.uploadURL = url
+	}
+}
 
 // withDurationGuard 生成 Duration 型 Option 的守卫工厂。
 // 与 withURLGuard 对称，消除 WithTimeout / WithSessionBackoff 中重复的 d<0 / d==0 守卫。
@@ -384,20 +373,6 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 	return c.ocr.Recognize(imgBytes)
 }
 
-// ssoURL 拼接 SSO 路径。
-func (c *Client) ssoURL(path string) string {
-	return c.ssoBaseURL + path
-}
-
-// bizURL 拼接业务 API 路径。
-func (c *Client) bizURL(path string) string {
-	return c.baseURL + path
-}
-
-// uploadServiceURL 拼接文件上传路径。
-func (c *Client) uploadServiceURL(path string) string {
-	return c.uploadURL + path
-}
 
 // ─── 资源释放 ───
 
