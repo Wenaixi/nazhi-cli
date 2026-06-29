@@ -1334,10 +1334,8 @@ func TestLogin_302Path_LocationParseError_WrappedWithPercentW(t *testing.T) {
 		baseURL:    "http://mock-sso",
 		uploadURL:  "http://mock-sso",
 		http: &http.Client{
-			Transport: rt,
-			CheckRedirect: func(req *http.Request, via []*http.Request) error {
-				return http.ErrUseLastResponse
-			},
+			Transport:     rt,
+			CheckRedirect: noRedirect,
 		},
 		logger: slog.New(slog.DiscardHandler),
 		ocr:    &countMockOCR{returnText: "AB12"},
