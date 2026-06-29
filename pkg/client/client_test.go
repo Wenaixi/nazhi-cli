@@ -4,6 +4,7 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -843,12 +844,18 @@ func TestConcurrentLoginsSucceed(t *testing.T) {
 	errs := make(chan error, 5)
 	for i := 0; i < 5; i++ {
 		go func() {
+			var loginErr error
+			defer func() {
+				if r := recover(); r != nil {
+					loginErr = fmt.Errorf("并发登录 goroutine panic: %v", r)
+				}
+				errs <- loginErr
+			}()
 			c := newTestClientWithOCR(sso, "AB12", nil)
-			_, err := c.Login(context.Background(), types.LoginRequest{
+			_, loginErr = c.Login(context.Background(), types.LoginRequest{
 				Username: "TEST2025001",
 				Password: "TestPass123",
 			})
-			errs <- err
 		}()
 	}
 	for i := 0; i < 5; i++ {
