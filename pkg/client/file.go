@@ -214,17 +214,17 @@ func newCleanClient(c *Client) *http.Client {
 			// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不缓存
 			//  - http.DefaultTransport 是进程单例，多 Client 共享缓存会引入隐性耦合
 			//  - 自定义 RT 无法 Clone
-					}
+		}
 	})
 
 	var transport http.RoundTripper
-if c.cleanTransport != nil {
-transport = c.cleanTransport
-} else if c.http.Transport == nil {
-transport = http.DefaultTransport
-} else {
-transport = c.http.Transport
-}
+	if c.cleanTransport != nil {
+		transport = c.cleanTransport
+	} else if c.http.Transport == nil {
+		transport = http.DefaultTransport
+	} else {
+		transport = c.http.Transport
+	}
 	timeout := c.http.Timeout
 	if timeout == 0 || timeout < 30*time.Second {
 		timeout = 30 * time.Second // 文件上传的合理兜底超时，确保不继承主 Client 过短 timeout

@@ -72,7 +72,7 @@ func TestSyncCookieToken_ErrorPrefixUnified_R15C(t *testing.T) {
 		},
 		{
 			name: "non-cookiejar Jar",
-			c: &Client{http: &http.Client{Jar: nil}},
+			c:    &Client{http: &http.Client{Jar: nil}},
 		},
 		{
 			name: "malformed baseURL",

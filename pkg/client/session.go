@@ -68,7 +68,7 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 	headers := c.bizHeaders(token)
 
 	// 步骤1：GET /（首页，建立业务域 session）
-	if _, err := c.doBizGet(ctx, c.baseURL + "/", headers); err != nil {
+	if _, err := c.doBizGet(ctx, c.baseURL+"/", headers); err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤1（首页）失败: %w", err)
 	}
 
@@ -85,7 +85,7 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 	}
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
-	if _, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL + "/home", "步骤3"); err != nil {
+	if _, err := c.doGetMenu(ctx, menuURL, headers, c.baseURL+"/home", "步骤3"); err != nil {
 		return nil, err
 	}
 

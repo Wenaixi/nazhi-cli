@@ -149,7 +149,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 
 	httpResp, err := c.rawDoWithResp(ctx, http.MethodPost,
-		c.ssoBaseURL + "/teacher/auth/studentLogin/validate",
+		c.ssoBaseURL+"/teacher/auth/studentLogin/validate",
 		loginBody, c.ssoHeaders(), "",
 	)
 	if err != nil {
@@ -239,7 +239,7 @@ func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 
 func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	bodyBytes, err := c.httpDo(ctx, http.MethodPost,
-		c.ssoBaseURL + "/uiStudentLogin/validateCaptcha",
+		c.ssoBaseURL+"/uiStudentLogin/validateCaptcha",
 		map[string]string{"captcha": captcha},
 		c.ssoHeaders(), "",
 	)

@@ -173,7 +173,7 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	}
 	headers := c.bizHeaders(token)
 
-	bodyBytes, err := c.httpDo(ctx, method, c.baseURL + path, body, headers, "")
+	bodyBytes, err := c.httpDo(ctx, method, c.baseURL+path, body, headers, "")
 	if err != nil {
 		return nil, fmt.Errorf("%s 请求失败: %w", opName, err)
 	}

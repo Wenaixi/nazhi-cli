@@ -53,7 +53,7 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	headers["Referer"] = c.baseURL + "/modify"
 
 	bodyBytes, err := c.httpDo(ctx, http.MethodGet,
-		c.baseURL + "/api/studentInfo/getMyInfo",
+		c.baseURL+"/api/studentInfo/getMyInfo",
 		nil, headers, "",
 	)
 	if err != nil {

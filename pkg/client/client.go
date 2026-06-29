@@ -39,9 +39,9 @@ type Client struct {
 	baseURLParsed *url.URL     // baseURL 预解析结果，F6: 避免每次 syncCookieToken 重复 url.Parse
 	uploadURL     string       // 文件上传服务器地址
 	http          *http.Client // 独立 cookie jar
-	logger       *slog.Logger
-	ocr          CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
-	pendingToken string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
+	logger        *slog.Logger
+	ocr           CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
+	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// sm 管理业务 session 的激活状态机（4 步 HAR 激活、backoff 缓存、DCL fast path）。
 	sm *sessionManager
@@ -50,8 +50,9 @@ type Client struct {
 	// 解决 B1：原实现每次 UploadFile 都 t.Clone() → 50 张图 50 次完整 DNS+TCP+TLS
 	// 握手（每次 Clone 出独立对象，丢失累加的 idle 连接池，keep-alive 失效）。
 	// 修复后首次 Clone 缓存，后续复用同一 Transport 实例，clean idle 池跨上传累积。
-	cleanTransportInit      sync.Once
-	cleanTransport          *http.Transport }
+	cleanTransportInit sync.Once
+	cleanTransport     *http.Transport
+}
 
 // ─── Option 模式 ───
 
@@ -372,7 +373,6 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 	}()
 	return c.ocr.Recognize(imgBytes)
 }
-
 
 // ─── 资源释放 ───
 
