@@ -52,12 +52,3 @@ func TestLoginResponse_NoUserInfoField(t *testing.T) {
 	}
 }
 
-// TestLoginResponse_GodocMentionsGetMyInfo 守护：LoginResponse godoc
-// 明确指引调用方用 Client.GetMyInfo() 获取用户信息，避免误用死字段。
-func TestLoginResponse_GodocMentionsGetMyInfo(t *testing.T) {
-	// 通过 reflect 获取 LoginResponse 的 doc 字符串（来自源码注释）。
-	// 这里改用更简单的方式：直接断言源码包含 "GetMyInfo" 字样。
-	// （这个测试通过 go vet + 编译时反射无法直接拿到 godoc，所以放在源代码
-	//  review 阶段人工保证；这里只保证 JSON 行为正确。）
-	t.Skip("godoc 内容由源码 review 保证，不做运行时断言")
-}
