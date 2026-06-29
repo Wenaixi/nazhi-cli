@@ -45,29 +45,16 @@ const defaultSessionBackoff = 5 * time.Second
 //     的获取/释放顺序一致，不会形成循环等待。
 //
 // 并发安全：本方法委托给 sm.Activate（内部持锁 DCL），
-// 与 ensureActivated 共享同一 sm.mu 锁，避免并发 4 步写入 cookie jar 污染。
 //
 // Backoff 缓存：失败时通过 sm.RecordFailure 更新 lastErr / lastAttempt /
 // lastFailedToken。CLI 路径（直接调 ActivateSession）与业务方法路径
-// （通过 ensureActivated 间接调）共享同一份 backoff 缓存，
+// （通过 ActivateSession 间接调）共享同一份 backoff 缓存，
 // 同 token 在窗口内的重复调用会被抑制。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {
 	return c.sm.Activate(ctx, token, c.activateSessionLocked)
 }
 
-// ensureActivated 是内部 fast-path 入口，供业务方法（GetMyInfo、doBizAndDecode 等）
-// 在首次业务请求前确保 session 已激活。
-//
-// 语义等价于 ActivateSession，但命名更强调「按需激活」而非「显式激活」。
-// 实现上完全委托给 sm.Activate，获得 DCL fast path、backoff 检查和状态管理。
-//
-// 调用方契约：业务方法应在首次 HTTP 请求前调本方法。
-// 不持锁调用（sm.Activate 内部负责），与 ActivateSession 共享锁 + backoff 缓存。
-func (c *Client) ensureActivated(ctx context.Context, token string) (*types.UserInfo, error) {
-	return c.sm.Activate(ctx, token, c.activateSessionLocked)
-}
-
-// activateSessionLocked 是 ActivateSession/ensureActivated 的内部 4 步实现，
+// activateSessionLocked 是 ActivateSession 的内部 4 步实现，
 // **调用方必须持 sm.mu 锁**。
 //
 // 持锁契约：sm.Activate 负责保证 sm.mu 已 Lock；本函数不重复 Lock 避免死锁。
@@ -190,12 +177,18 @@ func (sm *sessionManager) LoadToken() string {
 	return s
 }
 
+// clearBackoff 清除 backoff 状态（lastErr + lastFailedToken）。
+// 调用方须持 sm.mu。
+func (sm *sessionManager) clearBackoff() {
+	sm.lastErr = nil
+	sm.lastFailedToken = ""
+}
+
 // StoreToken 持锁写 token，并清除 backoff 状态。
 // 调用方须持 sm.mu。
 func (sm *sessionManager) StoreToken(token string) {
 	sm.token.Store(token)
-	sm.lastErr = nil
-	sm.lastFailedToken = ""
+	sm.clearBackoff()
 }
 
 // RecordFailure 持锁记录激活失败，按 token 匹配决定是否清缓存。
@@ -215,8 +208,7 @@ func (sm *sessionManager) RecordFailure(token string, err error) {
 // 调用方须持 sm.mu。
 func (sm *sessionManager) RecordSuccess(token string, info *types.UserInfo) {
 	sm.token.Store(token)
-	sm.lastErr = nil
-	sm.lastFailedToken = ""
+	sm.clearBackoff()
 	if info != nil {
 		sm.cachedUserInfo = info
 	}
@@ -234,7 +226,9 @@ func (sm *sessionManager) SetBackoff(d time.Duration) {
 	if d <= 0 {
 		return
 	}
+	sm.mu.Lock()
 	sm.backoff = d
+	sm.mu.Unlock()
 }
 
 // tryActivate 在 sm.mu 持锁状态下执行 backoff 检查 + 4 步激活 + 状态记录。
@@ -282,19 +276,12 @@ func (sm *sessionManager) tryActivate(
 // Activate 封装了 session 激活的 4 步 HTTP、backoff 检查和状态管理。
 // 调用方负责传实际的 activateFn，便于隔离测试。
 //
-// DCL 设计约束（为什么不用锁外 HTTP）：
-//
-// TODO(C5, C6, C7): 如果引入 per-token cookie jar（每个 token 独立 jar），
-// 可将 4 步 HTTP 移出锁范围：锁内检查 → 无锁 HTTP → 锁内写入。目前
-// cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP 会竞态
-// 写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
+// 持锁 4 步契约：cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP
+// 会竞态写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
 //
 // 对同 token：DCL fast path 保证只有首次 goroutine 持锁执行 4 步，
 // 后续 goroutine 直接从缓存返回（不阻塞）。
 // 对不同 token：串行激活（不会死锁，约 200-500ms 内释放）。
-//
-// 删除了 DCL（double-checked locking）即锁外预检查；保留了锁内单次检查 fast path。
-// sync.Mutex 未争用时开销 ≈25ns，直接持锁足够安全。
 func (sm *sessionManager) Activate(
 	ctx context.Context,
 	token string,

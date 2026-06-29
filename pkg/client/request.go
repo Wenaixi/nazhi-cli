@@ -168,7 +168,7 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 // 可被 doBizGet 语义替代的调用点（GET + 无 body）可直接用现有 doBizGet 或本函数。
 // POST + body 场景是本函数的主要受益者。
 func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method string, body any) (*types.UnifiedResponse, error) {
-	if _, err := c.ensureActivated(ctx, token); err != nil {
+	if _, err := c.ActivateSession(ctx, token); err != nil {
 		return nil, fmt.Errorf("%s 预热 session 失败: %w", opName, err)
 	}
 	headers := c.bizHeaders(token)
