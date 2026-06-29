@@ -66,7 +66,9 @@ func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes
 	if len(bodyBytes) > 0 {
 		dec := json.NewDecoder(bytes.NewReader(bodyBytes))
 		dec.UseNumber()
-		_ = dec.Decode(&rawData) // 解析失败返回 nil
+		if err := dec.Decode(&rawData); err != nil && rawData == nil {
+			rawData = make(map[string]any)
+		}
 	}
 	return &types.LoginResponse{
 		Token:     token,
