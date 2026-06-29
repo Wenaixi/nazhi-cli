@@ -105,23 +105,22 @@ func TestBuildLoginResponse_NoPanicOnEmptyBody(t *testing.T) {
 	}
 }
 
-// TestBuildLoginResponse_RawDataIsNil 验证 buildLoginResponse 的 RawData 为 nil。
-// Finding #8: 旧代码对 bodyBytes 二次 JSON 解析（同字节 decode 两次），
-// RawData 仅在测试中使用且 json:"-" 不参与序列化，故直接置 nil。
-func TestBuildLoginResponse_RawDataIsNil(t *testing.T) {
+// TestBuildLoginResponse_EmptyBody_RawDataIsNil 验证 bodyBytes 为空时 RawData 为 nil。
+// 合并冲突时选择保留 group A 的实现（带错误处理的 decode 块），
+// 优于 group D 的"直接置 nil"。空 body 场景下不进入 decode 分支，RawData 保持 nil。
+func TestBuildLoginResponse_EmptyBody_RawDataIsNil(t *testing.T) {
 	c := &Client{
 		ssoBaseURL: "https://sso.example.com",
 		baseURL:    "https://biz.example.com",
 		uploadURL:  "https://up.example.com",
 		http:       newHTTPClient(),
 	}
-	body := []byte(`{"code":1,"msg":"成功","returnData":{"token":"jwt"}}`)
 	now := time.Now()
-	resp := c.buildLoginResponse("jwt", now, body, "200")
+	resp := c.buildLoginResponse("jwt", now, nil, "200")
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}
 	if resp.RawData != nil {
-		t.Error("RawData 应为 nil（不再二次 JSON 解析 bodyBytes）")
+		t.Error("RawData 在 bodyBytes 为空时应为 nil（decode 块不执行）")
 	}
 }
