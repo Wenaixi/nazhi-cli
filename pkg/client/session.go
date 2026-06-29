@@ -237,14 +237,24 @@ func (sm *sessionManager) SetBackoff(d time.Duration) {
 // 语义等价于原 Client.activateWithBackoffCheck，下沉到 sessionManager。
 //
 // 职责链：
-//  1. backoff 检查（同 token 在窗口内 → 返回 ErrSessionBackoff）
-//  2. 调用 activateFn 执行 4 步激活（持锁写 cookie jar）
-//  3. 失败 → RecordFailure；成功 → RecordSuccess
+//  1. 检查 ctx 是否已取消（优先于 backoff，避免 ctx 取消被掩盖为
+//     ErrSessionBackoff）
+//  2. backoff 检查（同 token 在窗口内 → 返回 ErrSessionBackoff）
+//  3. 调用 activateFn 执行 4 步激活（持锁写 cookie jar）
+//  4. 失败 → RecordFailure；成功 → RecordSuccess
 func (sm *sessionManager) tryActivate(
 	ctx context.Context,
 	token string,
 	activateFn func(context.Context, string) (*types.UserInfo, error),
 ) (*types.UserInfo, error) {
+	// 先检查 ctx 是否已取消，优先于 backoff 检查。避免 ctx 已取消时
+	// 被 backoff 窗口掩盖为 ErrSessionBackoff（backoff 在窗口内 → 返回
+	// ErrSessionBackoff，调用方看到 ErrSessionBackoff 而非 context.Canceled，
+	// 错误处理被误导）。
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+
 	// backoff 检查：上次失败且同 token 在窗口内 → 抑制
 	if sm.isBackoffHit(token) {
 		// errors.Join 同时包装 ErrSessionBackoff 和 sm.lastErr，保持
@@ -254,13 +264,6 @@ func (sm *sessionManager) tryActivate(
 				ErrSessionBackoff, token, time.Since(sm.lastAttempt)),
 			sm.lastErr,
 		)
-	}
-
-	// backoff 检查后、激活前检查 ctx 是否已取消。避免 ctx 已取消时
-	// 仍发起 4 步网络请求（全部失败 → backoff 缓存 → 同 token 后续
-	// 正常调用也被抑制），减少误判。
-	if err := ctx.Err(); err != nil {
-		return nil, err
 	}
 
 	// 持锁激活：4 步串行执行，写 cookie jar 互斥
