@@ -26,9 +26,12 @@ func TestOCR_F2_CloseRecognizeRace(t *testing.T) {
 			ocrs[i] = &OCR{}
 		}
 
+		var wg sync.WaitGroup
+		wg.Add(goroutines)
 		for i := 0; i < goroutines; i++ {
 			o := ocrs[i]
 			go func() {
+				defer wg.Done()
 				defer func() {
 					if r := recover(); r != nil {
 						panics.Add(1)
@@ -40,8 +43,7 @@ func TestOCR_F2_CloseRecognizeRace(t *testing.T) {
 				}
 			}()
 		}
-
-		time.Sleep(3 * time.Second)
+		wg.Wait()
 
 		if n := panics.Load(); n > 0 {
 			t.Errorf("F2 修复失败：%d 个 goroutine panic（应为 0）", n)
