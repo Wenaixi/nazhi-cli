@@ -229,7 +229,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	// 说明：int64 参数纯数字，直接 strconv.FormatInt 拼接 URL 安全，
 	// 无需 URL 编码（数字不包含特殊字符）。如需未来扩展为字符串参数，
 	// 应改用 url.Values.Encode()。
-	statURL := c.baseURL + "/api/studentCircleNew/getCircleStatistics?dimensionId=" + strconv.FormatInt(dim.ID, 10)
+	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics") + "?dimensionId=" + strconv.FormatInt(dim.ID, 10)
 	statBody, err := c.httpDo(ctx, http.MethodGet, statURL, nil, headers, "")
 	if err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
@@ -247,7 +247,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	if statResp.Code != 1 {
 		// F-GroupD-F：业务错误 propagate，不再静默。
 		msg := types.DerefOr(statResp.Msg, "")
-		return nil, fmt.Errorf("维度 %d(%s) 业务错误: code=%d msg=%s", dim.ID, dim.Name, statResp.Code, msg)
+		return nil, fmt.Errorf("%w: 维度 %d(%s) 业务错误: code=%d msg=%s", ErrBusinessRejected, dim.ID, dim.Name, statResp.Code, msg)
 	}
 
 	tasks, err = types.DecodeDataList[types.Task](statResp)

@@ -327,6 +327,13 @@ func New(opts ...Option) (*Client, error) {
 
 // ─── 内部辅助 ───
 
+// bizURL 拼接业务 API 完整 URL。
+// 用 helper 统一管理 baseURL + path 拼接，
+// 避免 5+ 处生产代码裸用 c.baseURL + path。
+func (c *Client) bizURL(path string) string {
+	return c.baseURL + path
+}
+
 // logDebug 输出 debug 日志（通过 slog Debug 级别）。
 //
 // 用 fmt.Sprintf 先格式化再传给 slog。
