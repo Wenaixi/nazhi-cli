@@ -1,7 +1,6 @@
 package client
 
 import (
-	"encoding/json"
 	"testing"
 	"time"
 )
@@ -88,8 +87,10 @@ func TestBuildLoginResponse_NoPanicOnEmptyBody(t *testing.T) {
 	}
 }
 
-// TestBuildLoginResponse_ParsesBodyToRawData 验证 bodyBytes 正确解析为 RawData。
-func TestBuildLoginResponse_ParsesBodyToRawData(t *testing.T) {
+// TestBuildLoginResponse_RawDataIsNil 验证 buildLoginResponse 的 RawData 为 nil。
+// Finding #8: 旧代码对 bodyBytes 二次 JSON 解析（同字节 decode 两次），
+// RawData 仅在测试中使用且 json:"-" 不参与序列化，故直接置 nil。
+func TestBuildLoginResponse_RawDataIsNil(t *testing.T) {
 	c := &Client{
 		ssoBaseURL: "https://sso.example.com",
 		baseURL:    "https://biz.example.com",
@@ -102,10 +103,7 @@ func TestBuildLoginResponse_ParsesBodyToRawData(t *testing.T) {
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}
-	if resp.RawData == nil {
-		t.Fatal("RawData 不应为 nil")
-	}
-	if code, ok := resp.RawData["code"]; !ok || code != json.Number("1") {
-		t.Errorf("RawData.code 应为 1，实际 %v", resp.RawData["code"])
+	if resp.RawData != nil {
+		t.Error("RawData 应为 nil（不再二次 JSON 解析 bodyBytes）")
 	}
 }

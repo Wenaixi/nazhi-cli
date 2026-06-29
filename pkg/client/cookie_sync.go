@@ -1,8 +1,6 @@
 package client
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/cookiejar"
@@ -58,19 +56,16 @@ func (c *Client) warnSyncCookieToken(token, label string) {
 }
 
 // buildLoginResponse 构建 LoginResponse，内部调用 warnSyncCookieToken。
+//
+// 注意：bodyBytes 入参保留签名为后续可能的 RawData 扩展留有余地。
+// 当前 RawData 字段仅在测试中使用且 json:"-" 不参与序列化，
+// 故直接置 nil 避免对已有 DecodeResponse 的 bodyBytes 二次 JSON 解析。
 func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
 	c.warnSyncCookieToken(token, label)
 
-	// 用 json.Unmarshal 解析原始 body 为泛型 map，供 RawData 字段使用
-	var rawData map[string]any
-	if len(bodyBytes) > 0 {
-		dec := json.NewDecoder(bytes.NewReader(bodyBytes))
-		dec.UseNumber()
-		_ = dec.Decode(&rawData) // 解析失败返回 nil
-	}
 	return &types.LoginResponse{
 		Token:     token,
 		ExpiresAt: expiresAt,
-		RawData:   rawData,
+		RawData:   nil,
 	}
 }
