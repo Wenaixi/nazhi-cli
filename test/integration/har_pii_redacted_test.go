@@ -69,6 +69,7 @@ func TestNoRealPII(t *testing.T) {
 		"../../pkg/types",
 		"../../cmd/nazhi",
 		"../../internal",
+		"../../.claude",
 		".",
 	}
 
