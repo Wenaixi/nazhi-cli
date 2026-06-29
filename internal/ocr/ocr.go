@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -91,6 +92,62 @@ func isPlatformLibBusy(err error) bool {
 // 注入点：测试可在用例内临时改成 "linux" / "windows" 等验证平台分支语义，
 // 不依赖真实运行环境（避免跨 OS runner 行为差异）。
 var goosFn = func() string { return runtime.GOOS }
+
+// tempDirFn / readDirFn 是 sweepStaleTempDirs 的注入点，参考 removeDirFn / goosFn
+// 的注入风格：默认走 os.TempDir / os.ReadDir，测试可在用例内替换为可控 mock。
+var (
+	tempDirFn = os.TempDir
+	readDirFn = os.ReadDir
+)
+
+// sweepFn 是 sweepStaleTempDirs 自身的注入点，便于 extractModels 集成测试
+// 拦截「helper 被调用」事件。默认走 sweepStaleTempDirs。
+var sweepFn = sweepStaleTempDirs
+
+// ocrTempPrefix 是 sweepStaleTempDirs 识别「本工具遗留临时目录」的唯一前缀。
+// 宁可少删不可误删——前缀必须与 extractModels 的 os.MkdirTemp 模板完全一致。
+const ocrTempPrefix = "nazhi-cli-ocr-"
+
+// sweepStaleTempDirs 清理 os.TempDir() 下历史进程遗留的 nazhi-cli-ocr-* 目录。
+//
+// 调用时机：在 extractModels 成功建出当前目录之后、返回之前。
+// currentDir 是本次新建的目录绝对路径，自身被跳过（避免误删正在使用的实例）。
+//
+// 行为约束（业界惯例，Chrome/VSCode 等同款）：
+//   - best-effort：单个目录删不掉（如仍被其它运行中的实例 LoadLibrary 占用）
+//     静默跳过，不中断、不冒泡为致命错误——这天然安全，占用中的目录 OS 会拒绝删除。
+//   - 防误删：仅匹配 ocrTempPrefix 前缀的目录，其它程序目录（chrome-*、vscode-*、
+//     go-build-* 等）、文件、非目录条目一律不碰。
+//   - 失败不阻断：sweep 失败（如 ReadDir 失败）不影响 extractModels 的主流程返回值。
+func sweepStaleTempDirs(currentDir string) error {
+	entries, err := readDirFn(tempDirFn())
+	if err != nil {
+		// 读不到 %TEMP% 列表（权限拒绝、路径不存在等）静默返回：
+		// 清扫是锦上添花，扫不到也不影响 OCR 初始化主路径。
+		return nil
+	}
+	for _, e := range entries {
+		name := e.Name()
+		if !strings.HasPrefix(name, ocrTempPrefix) {
+			continue
+		}
+		// 必须按「目录」处理——os.MkdirTemp 创的是目录，但 %TEMP% 里可能混入
+		// 同前缀的遗留文件（理论上不存在，但 IsDir 过滤可让 helper 防御性更强）。
+		if !e.IsDir() {
+			continue
+		}
+		fullPath := filepath.Join(tempDirFn(), name)
+		// 跳过本次刚建的目录——可能仍有 goroutine 后续用到（虽然路径已绑定到 o.tempDir，
+		// 但显式跳过更清晰，也避免一种边界：currentDir 由 MkdirTemp 返回、绝对路径
+		// 与 ReadDir 拼接结果在大小写不敏感文件系统上不一致）。
+		if currentDir != "" && fullPath == currentDir {
+			continue
+		}
+		// best-effort：删除失败（如 DLL 占用）静默跳过。
+		_ = removeDirFn(fullPath)
+	}
+	return nil
+}
 
 // Windows errno 数值常量（避免依赖 syscall 包内 Windows-only 常量名，
 // 方便在跨平台测试中模拟 Windows 行为）。
@@ -514,6 +571,10 @@ func (o *OCR) extractModels() (string, error) {
 	if err := writeModelFile(dir, "charsets_old.json", charsetJSON); err != nil {
 		return "", err
 	}
+
+	// 顺手 best-effort 清扫 %TEMP% 下历史进程遗留的 nazhi-cli-ocr-* 目录。
+	// 本次新建的 dir 会被显式跳过；sweep 失败不影响本次初始化。
+	_ = sweepFn(dir)
 
 	return dir, nil
 }
