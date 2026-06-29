@@ -89,8 +89,8 @@ func TestSyncCookieToken_BaseURLMalformed_Propagates(t *testing.T) {
 	if err == nil {
 		t.Fatal("base URL 畸形时应 propagate error，实际 nil")
 	}
-	if !strings.Contains(err.Error(), "syncCookieToken") {
-		t.Errorf("error 应包含 syncCookieToken 前缀，实际: %v", err)
+	if !strings.Contains(err.Error(), "syncCookieToken 失败") {
+		t.Errorf("error 应包含 syncCookieToken 失败前缀，实际: %v", err)
 	}
 }
 
