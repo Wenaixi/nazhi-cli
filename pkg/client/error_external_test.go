@@ -327,7 +327,6 @@ func TestFindingE_QuerySelfGradEvaluation_BizError(t *testing.T) {
 	_, err := c.QuerySelfGradEvaluation(context.Background(), "test-token")
 	assertBusinessError(t, err, "QuerySelfGradEvaluation")
 }
-}
 
 // TestFindingE_GetMyInfo_BizError 验证 GetMyInfo 在 server 返回 code != 1 时
 // 包装为 ErrBusinessRejected（与 TestGetMyInfo_BizError_WrapsErrBusinessRejected
