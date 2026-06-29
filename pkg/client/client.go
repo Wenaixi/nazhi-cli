@@ -379,20 +379,6 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 	return c.ocr.Recognize(imgBytes)
 }
 
-// ssoURL 拼接 SSO 路径。
-func (c *Client) ssoURL(path string) string {
-	return c.ssoBaseURL + path
-}
-
-// bizURL 拼接业务 API 路径。
-func (c *Client) bizURL(path string) string {
-	return c.baseURL + path
-}
-
-// uploadServiceURL 拼接文件上传路径。
-func (c *Client) uploadServiceURL(path string) string {
-	return c.uploadURL + path
-}
 
 // ─── 资源释放 ───
 
