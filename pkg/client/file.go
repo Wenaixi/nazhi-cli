@@ -198,6 +198,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // Transport（如 mock RoundTripper），新 Transport 不会生效。此限制是 B1
 // 缓存设计的有意取舍——运行时 Transport 变更在业务实践中极罕见，且需重建
 // Client（sync.Once 重置不可逆）。
+//
+// F9 修复：fallback 路径（自定义 RT / nil）走一次后记 cleanTransportFallback=true，
+// 后续直接读 c.http.Transport 当前值（不再每次 type-switch），
+// 避免运行时 Transport 替换后误走 Clone 分支丢失自定义 RT 语义。
 func newCleanClient(c *Client) *http.Client {
 	// B1：懒加载 cloned Transport，sync.Once 保证并发安全且只 Clone 一次
 	c.cleanTransportInit.Do(func() {
@@ -209,24 +213,33 @@ func newCleanClient(c *Client) *http.Client {
 			// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不缓存
 			//  - http.DefaultTransport 是进程单例，多 Client 共享缓存会引入隐性耦合
 			//  - 自定义 RT 无法 Clone
+			// F9：标记 fallback=true，后续直接走 fallback 路径不再 type-switch
+			c.cleanTransportFallback = true
 		}
 	})
 
 	var transport http.RoundTripper
-	if c.cleanTransport != nil {
+	switch {
+	case c.cleanTransport != nil:
+		// 缓存命中：复用首次 Clone 出的 Transport
 		transport = c.cleanTransport
-	} else if c.http.Transport == nil {
-		// 原 Client 没设置 Transport，回退到 http.DefaultTransport
-		//（不 Clone DefaultTransport——它是全局共享进程单例）
-		transport = http.DefaultTransport
-	} else if t, ok := c.http.Transport.(*http.Transport); ok {
-		// *http.Transport 但未进入缓存路径（如运行时替换 Transport），
-		// 仍 Clone 出独立实例，不共享 idle 池。
-		transport = t.Clone()
-	} else {
-		// 自定义 RoundTripper（如 mock 测试用）无法 Clone，直接透传
-		// 此时不存在 idle 池共享问题（mock 通常不维护连接池）
-		transport = c.http.Transport
+	case c.cleanTransportFallback:
+		// F9 修复：sentinel 标记 fallback=true 后，**直接读 c.http.Transport 当前值**，
+		// 不再 type-switch。这样运行时若 Transport 被替换为 *http.Transport，
+		// 行为契约是"透传当前值"而非"误走 Clone 分支"
+		if c.http.Transport == nil {
+			transport = http.DefaultTransport
+		} else {
+			transport = c.http.Transport
+		}
+	default:
+		// sync.Once 还未跑完的并发路径——理论上不会发生（Do 同步），保守处理
+		// 与 fallback 路径同款行为
+		if c.http.Transport == nil {
+			transport = http.DefaultTransport
+		} else {
+			transport = c.http.Transport
+		}
 	}
 
 	timeout := c.http.Timeout
