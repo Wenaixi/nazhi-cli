@@ -8,7 +8,7 @@
 | `0.3.x` | 仅安全修复 |
 | `< 0.3` | 不再支持，请升级 |
 
-> v0.4.0 是 review-tdd 第 15/16 轮全面修复 + 架构深化版，带入 session 并发安全、
+> 0.4.0 是 review-tdd 第 15/16 轮全面修复 + 架构深化版，带入 session 并发安全、
 > OCR Windows DLL 占用降级、token 提取拆 `pkg/tokenparse` 等多项安全相关改进。
 
 ## 报告安全问题

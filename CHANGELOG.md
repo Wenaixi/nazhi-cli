@@ -9,62 +9,39 @@
 
 ## [0.4.0] - 2026-06-30
 
-v0.3.5 → v0.4.0 期间累计 **305 个 commit**，**172 文件**改动，**+12641/-6515 行**。
-主要方向：review-tdd 第 15/16 轮全面修复 + 架构深化（5/8 候选）+ OCR Windows 三轮 TDD 修复。
+v0.3.5 → v0.4.0 之间合入 305 个 commit，172 个文件改动。
 
-### Features
+### 新增
 
-- **架构深化（5/8 候选实施）**—
-  - **#1+#5 session 收口**：`ActivateSession` 4 入口收为 1 公开 + 1 内部，删除 `activateWithBackoffCheck` / `activateSessionIfNeeded`，新增 `ensureActivated` fast-path；`sessionManager` 封装 `SetBackoff` 守卫 d≤0 + `tryActivate` 内部方法
-  - **#2 HTTP helper 私有化**：`doRequest`→`httpDo`、`doRequestWithResp`→`rawDoWithResp`（私有化），公开 API 保持不变
-  - **#3 DecodeUnified 原语**：`pkg/types/response.go` 新增 `DecodeUnified()` 原语（组合 `DecodeResponse` + `CheckCode`）
-  - **#4 tokenparse 新包 + DerefOr[T]**：新建 `pkg/tokenparse/` 封装 token 解析（121 行 + 289 行测试），泛型 `DerefOr[T]` 升到 `pkg/types/deref.go`，auth.go 瘦身 ~40%（415→249 行）
-- **OCR 启动时清扫临时目录残留**—`extractModels` 建好本进程目录后 best-effort 扫 `%TEMP%` 下别的 `nazhi-cli-ocr-*` 历史残留：能删的（已退出进程）删掉，删不掉（其他运行实例）跳过；前缀精确匹配，绝不误删其他程序目录（chrome-*, vscode-*...）。Windows 上彻底解决「login 后 %TEMP% 永久堆积」问题
+- session 激活 4 入口收口为 1 个公开方法 + 1 个内部 fast-path；`sessionManager` 封装 `SetBackoff`（d≤0 守卫）与 `tryActivate`
+- HTTP helper 私有化（`doRequest` → `httpDo`、`doRequestWithResp` → `rawDoWithResp`），公开 API 保持不变
+- `pkg/types/response.go` 新增 `DecodeUnified()` 原语（组合 `DecodeResponse` + `CheckCode`）
+- 新建 `pkg/tokenparse/` 包封装 SSO token 解析（Location 头 + returnData）；泛型 `DerefOr[T]` 升到 `pkg/types/deref.go`；auth.go 瘦身约 40%
+- `extractModels` 建好本进程目录后扫一遍 `%TEMP%` 下其他 `nazhi-cli-ocr-*` 残留，能删的删（已退出进程）、删不动的跳过（其他运行实例），绝不误删其他程序目录。Windows 登录后 `%TEMP%` 不再无限堆积
 
-### Fixed
+### 修复
 
-**OCR Windows 三轮 TDD 修复**：
+OCR Windows 三轮 TDD 修复：
 
-- **5ff0ea8** Windows DLL 占用降级—`Close` 时删 onnxruntime.dll 因 `LoadLibrary` 句柄未释放被 OS 拒绝（`Access is denied`），抽 `cleanupTempDir` helper 对 Windows 两类 errno（`ERROR_ACCESS_DENIED(5)` / `ERROR_SHARING_VIOLATION(32)`）降级返 nil。stderr 不再被权限错误污染
-- **a81c9f3** GOOS=windows 守卫—上一轮注释承诺「非 Windows 永远 false」但代码不保证（Linux errno 5=EIO、32=EPIPE 也会命中），加 `goosFn` 注入点 + `runtime.GOOS == "windows"` 守卫，让降级只在 Windows 生效，避免误吞 Linux 真实错误
-- **7d5dd65** 启动时清扫—见 Features 段
+- `5ff0ea8` **Windows DLL 占用降级**：`Close` 时删 `onnxruntime.dll` 因 `LoadLibrary` 句柄未释放被拒（`Access is denied`），抽 `cleanupTempDir` 对 Windows 两类 errno（`ERROR_ACCESS_DENIED` / `ERROR_SHARING_VIOLATION`）降级返 nil。stderr 不再被权限错误污染
+- `a81c9f3` **GOOS 守卫**：上一轮注释承诺「非 Windows 永远 false」但代码不保证（Linux errno 5=EIO、32=EPIPE 也会命中），加 `goosFn` 注入点 + `runtime.GOOS == "windows"` 守卫，降级只在 Windows 生效
+- `7d5dd65` **启动时清扫**：见新增段最后一条
 
-**review-tdd 第 15/16 轮（v0.4.0 核心修复）**：
+review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover 走 `closeAllClients` LIFO；`--output` 死代码删除；`Login` 并发（CallStep 改 mutex）；顶层 panic recover 输出 `debug.Stack()` 到 stderr；`buildLoginResponse` 非法 JSON 保底 `RawData` 为空 map（Finding #8）+ RawData 置 nil 消除二次解析；`image_prep` 缩放级联优化（resize N 次后统一 encode）；Transport 加 `TLSHandshakeTimeout=10s` 防网络挂起；`tryActivate` 先检查 `ctx.Err()` 再检查 backoff（避免被掩盖）；`bizURL` helper 集中处理裸 baseURL 拼接；`noRedirect` 共享变量；OCR Pool `o.mu` panic defer Unlock 防死锁；引用已删接口的文档清理；中文注释规范化。
 
-- **session 并发与状态**：`SetBackoff` race 修复、`main panic` `closeAllClients` LIFO 顺序、`--output` 死代码删除、`Login` 并发（CallStep 改用 mutex 保护状态变量替代严格排序）
-- **panic 处理**：`main.go` 顶层 panic recover 输出 `debug.Stack()` 到 stderr（之前只 `os.Exit(1)` 无任何调试信息）
-- **cookie_sync 吞错**：`buildLoginResponse` 非法 JSON 后保底初始化 `RawData` 为空 map（修复 Finding #8）+ RawData 置 nil 消除二次 JSON 解析
-- **image_prep 缩放级联优化**：从「缩放一次编一次」改为「resize N 次后统一 encode 一次」（Finding #11 + #12）
-- **网络层**：`Transport` 加 `TLSHandshakeTimeout=10s` 防止网络挂起
-- **ctx 取消传播**：`tryActivate` 先检查 `ctx.Err()` 再检查 backoff（避免被 backoff 掩盖）
-- **bizURL helper 注释**：3 处裸 `baseURL` 拼接改走 `c.bizURL()` helper 集中处理
-- **noRedirect 共享变量**：从 3 处 `CheckRedirect` 抽到共享 `noRedirect` 变量
-- **OCR Pool `o.mu` 死锁**：`Classification` panic 时 `defer Unlock` 防死锁
-- **docs 同步 + 注释中文化**：`docs/login-flow.md` 等引用已删接口清理；中文注释规范化
+### 兼容性
 
-**review-tdd 第 15 轮**：`e5ce42f` 20 行 switch 压缩为 7 行 if-else chain；`84d4922` 编译残留 `}` 清理；`78fc5b7` URL guard 内联到 var Option；`78bd161` 3 个 1-line 同构 helper 删除
-
-**review-tdd 第 16 轮**：`groupA` 实现空 body RawData 场景修正（`9d29915` 测试覆盖）
-
-### Changed
-
-- **Client 公开 API 强化**：`ActivateSession` / `FetchTasks` 等业务方法现在统一返回 `(*Client, error)`，错误路径走 `ErrBusinessRejected` / `ErrEmptyUserInfo` 哨兵
-- **OCR Pool 资源管理**：v0.3.5 已有的 Pool.Close 并发安全加固 + v0.4.0 启动清扫，形成完整生命周期
-- **错误哨兵扩展**：使用更频繁的 `errors.Is(err, ErrXxx)` 模式，调用方语义判断更精确
-
-### Build
-
-- 版本号：`0.4.0`（维护在 `internal/version/version.go`）
-- 构建：所有路径显式 `-tags=ddddocr`；Makefile `build` target 仍缺 tag，**需手动** `go build -tags=ddddocr`（已知坑，CI 已正确）
-- 测试：45+ 个 OCR 测试在 race + ddddocr 双 tag 下全绿；新增 `ocr_win_cleanup_test.go` / `ocr_sweep_test.go`
-- 跨平台：5 平台（linux/darwin/windows × amd64/arm64）vet 验证全部通过；macOS x86_64 不支持（Microsoft 已停发）
-
-### Compatibility
-
-- **BREAKING**：v0.3.1 的 `client.New(...)` 改返 `(*Client, error)` 在 v0.4.0 仍是稳定的——`(*Client, error)` 签名不变
-- `Login()` / `ActivateSession()` / `FetchTasks()` 等业务方法签名与 v0.3.5 完全一致
+- `client.New(...)` 仍返 `(*Client, error)`（v0.3.1 起的契约不变）
+- `Login` / `ActivateSession` / `FetchTasks` / `SubmitTask` / `SubmitSelfEvaluation` / `QuerySelfEvaluation` / `GetMyInfo` / `UploadFile` / `GetSchoolID` 业务方法签名与 v0.3.5 完全一致
 - 环境变量清单（`NAZHI_USERNAME` / `NAZHI_PASSWORD` / `NAZHI_TOKEN` / `NAZHI_SSO_BASE` / `NAZHI_BASE_URL` / `NAZHI_UPLOAD_URL` / `NAZHI_TIMEOUT`）与 v0.3.5 一致
-- `file upload` 子命令仍**不接受 `--token`**（v0.4.0 强化帮助文字：独立公共服务不需要业务域 token）
+- `file upload` 仍不接受 `--token`（独立公共服务，不需要业务域 token）
+
+### 构建
+
+- 版本号：`0.4.0`
+- 所有路径显式 `-tags=ddddocr`；Makefile `build` target 仍缺 tag（已知坑，需手动 `go build -tags=ddddocr`；CI 已正确）
+- 测试：45+ OCR 测试 race + ddddocr 双 tag 全绿；新增 `ocr_win_cleanup_test.go` / `ocr_sweep_test.go`
+- 跨平台：5 平台（linux/darwin/windows × amd64/arm64）vet 通过；macOS x86_64 不支持（Microsoft 已停发）
 
 ## [0.3.5] - 2026-06-26
 
