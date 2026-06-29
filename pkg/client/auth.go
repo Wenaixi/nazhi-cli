@@ -14,6 +14,7 @@ import (
 
 	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
+	"golang.org/x/sync/errgroup"
 )
 
 // ─── InitSession ───
@@ -93,30 +94,50 @@ const (
 var ocrTimeout = 30 * time.Second
 
 // Login 完成 SSO 登录并返回 Token。
+//
+// F5 优化：GetSchoolID 和 OCR 验证码识别无数据依赖，通过 errgroup 并发执行。
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
 	if c.ocr == nil {
 		return nil, ErrOCRNotConfigured
 	}
 
+	// 步骤 1: InitSession（串行前置，必须最先建立 JSESSIONID）
 	if err := c.InitSession(ctx); err != nil {
 		return nil, fmt.Errorf("Login InitSession 失败: %w", err)
 	}
 
+	// 步骤 2&3: GetSchoolID + OCR 识别并发进行（F5 无数据依赖）
 	schoolID := req.SchoolID
+	var captcha string
+
+	g, gctx := errgroup.WithContext(ctx)
+
 	if schoolID == "" {
+		g.Go(func() error {
+			sid, _, err := c.GetSchoolID(gctx, req.Username)
+			if err != nil {
+				return fmt.Errorf("Login GetSchoolID 失败: %w", err)
+			}
+			schoolID = sid
+			return nil
+		})
+	}
+
+	g.Go(func() error {
 		var err error
-		schoolID, _, err = c.GetSchoolID(ctx, req.Username)
+		captcha, err = c.ocrRecognizeWithRetry(gctx)
 		if err != nil {
-			return nil, fmt.Errorf("Login GetSchoolID 失败: %w", err)
+			return fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
 		}
+		c.logDebug("OCR 识别完成（%d 字符）", len(captcha))
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
-	captcha, err := c.ocrRecognizeWithRetry(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
-	}
-	c.logDebug("OCR 识别完成（%d 字符）", len(captcha))
-
+	// 步骤 4: 验证码预校验（依赖 OCR 结果，串行执行）
 	if err := c.validateCaptcha(ctx, captcha); err != nil {
 		return nil, fmt.Errorf("Login 验证码预校验未通过: %w", err)
 	}
