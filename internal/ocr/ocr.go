@@ -40,8 +40,11 @@ var removeDirFn = os.RemoveAll
 // 这种 OS 级占用错误会在进程退出时由 OS 自然清理（句柄释放 → 文件可删），
 // 没必要把非「业务可控」的 stderr 污染当作 Close 失败上报。
 //
-// 「不静默吞错」铁律保留：仅 DLL/原生库占用导致的两类 Windows errno 才降级，
+// 「不静默吞错」铁律保留：仅 Windows 下 DLL/原生库占用导致的两类 errno 才降级，
 // 其他错误（Linux EPERM、磁盘满、只读卷、路径不存在等）照常返回。
+//
+// 跨平台：由 isPlatformLibBusy 的 GOOS 守卫保证降级只在 Windows 生效，
+// Linux/macOS 上数值相同的 errno（EIO=5、EPIPE=32）不会被错认为「DLL 占用」。
 //
 // 注意：这里不构造 fs.ErrPermission 短路，因为 Linux 上权限拒绝（perm denied）
 // 是真实的环境问题，需要让调用方知情。
@@ -67,15 +70,27 @@ func cleanupTempDir(dir string) error {
 //	Windows syscall.Errno == ERROR_SHARING_VIOLATION   (32)
 //
 // 用 errors.As 而非字符串匹配，避免对 error 文案的脆弱依赖（不同语言/版本
-// 系统的 Windows 错误消息可能本地化不同）。非 Windows 平台永远返 false，
-// 即不命中降级分支——Linux/macOS 上能删就是真删了，不会触发这条路径。
+// 系统的 Windows 错误消息可能本地化不同）。goosFn 默认返回 runtime.GOOS，
+// 便于测试不依赖 build tag / 跨平台执行环境即可断言平台行为。
+//
+// 平台守卫（关键）：仅在 GOOS == "windows" 时才判 errno，否则永远 false。
+// 否则 Linux 上 errno=5(EIO) / errno=32(EPIPE) 也是合法 errno，会被误判为
+// 「DLL 占用」而吞掉真实 I/O 错误，违反「不静默吞错」铁律。
 func isPlatformLibBusy(err error) bool {
+	if goosFn() != "windows" {
+		return false
+	}
 	var sysErr syscall.Errno
 	if !errors.As(err, &sysErr) {
 		return false
 	}
 	return sysErr == errnoAccessDeniedWin || sysErr == errnoSharingViolationWin
 }
+
+// goosFn 暴露当前平台名供 isPlatformLibBusy 使用，默认走 runtime.GOOS。
+// 注入点：测试可在用例内临时改成 "linux" / "windows" 等验证平台分支语义，
+// 不依赖真实运行环境（避免跨 OS runner 行为差异）。
+var goosFn = func() string { return runtime.GOOS }
 
 // Windows errno 数值常量（避免依赖 syscall 包内 Windows-only 常量名，
 // 方便在跨平台测试中模拟 Windows 行为）。

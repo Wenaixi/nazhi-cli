@@ -20,6 +20,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -146,5 +147,104 @@ func TestOCR_CloseWindowsBusyDLL_NoStderrPollution(t *testing.T) {
 	// o.ocr 留 nil：跳过 ddddocr.Close 路径，测试只关心 RemoveAll 降级
 	if err := o.Close(); err != nil {
 		t.Fatalf("Close 应对 DLL 占用降级返回 nil，实际：%v", err)
+	}
+}
+
+// TestCleanupTempDir_LinuxEIO_Propagates 平台守卫 RED 测试：非 Windows 平台
+// 上 syscall.Errno 数值（5=EIO、32=EPIPE）也会被 Windows 错误码命中。
+// 若 isPlatformLibBusy 不加 GOOS 守卫，Linux 上 os.RemoveAll 因磁盘 I/O
+// 故障返回裸 EIO/EPIPE 会被误判为「DLL 占用」而吞掉，违反「不静默吞错」铁律。
+//
+// 本测试：goosFn 注入 "linux" + 注入 errnoAccessDeniedWin(5)，断言 cleanupTempDir
+// 必须返回 wrap 错误（不能降级为 nil）。
+func TestCleanupTempDir_LinuxEIO_Propagates(t *testing.T) {
+	origGoos := goosFn
+	defer func() { goosFn = origGoos }()
+	goosFn = func() string { return "linux" }
+
+	origRm := removeDirFn
+	defer func() { removeDirFn = origRm }()
+	removeDirFn = func(path string) error {
+		return &os.PathError{
+			Op:   "RemoveAll",
+			Path: path,
+			Err:  errnoAccessDeniedWin, // 数值 = 5，与 Linux EIO 同值
+		}
+	}
+
+	err := cleanupTempDir("/tmp/nazhi-cli-ocr-fake")
+	if err == nil {
+		t.Fatalf("Linux + errno=5(EIO) 必须透传错误，不能降级为 nil（违反「不静默吞错」铁律）")
+	}
+	// 进一步断言：必须是 wrap 后的业务错误，而非 raw syscall error
+	if !strings.Contains(err.Error(), "清理临时目录") {
+		t.Errorf("应保留 wrap 中文错误信息，实际：%v", err)
+	}
+}
+
+// TestCleanupTempDir_LinuxEPIPE_Propagates 同上场景，覆盖 errno=32(EPIPE)。
+func TestCleanupTempDir_LinuxEPIPE_Propagates(t *testing.T) {
+	origGoos := goosFn
+	defer func() { goosFn = origGoos }()
+	goosFn = func() string { return "linux" }
+
+	origRm := removeDirFn
+	defer func() { removeDirFn = origRm }()
+	removeDirFn = func(path string) error {
+		return &os.PathError{
+			Op:   "RemoveAll",
+			Path: path,
+			Err:  errnoSharingViolationWin, // 数值 = 32，与 Linux EPIPE 同值
+		}
+	}
+
+	err := cleanupTempDir("/tmp/nazhi-cli-ocr-fake")
+	if err == nil {
+		t.Fatalf("Linux + errno=32(EPIPE) 必须透传错误，不能降级为 nil")
+	}
+}
+
+// TestCleanupTempDir_WindowsAccessDenied_StillDowngrades 回归护栏：补 GOOS
+// 守卫后，Windows 路径上的降级行为不能退化。确保 RED→GREEN 修复不破坏
+// Windows DLL 持锁的核心降级语义。
+func TestCleanupTempDir_WindowsAccessDenied_StillDowngrades(t *testing.T) {
+	origGoos := goosFn
+	defer func() { goosFn = origGoos }()
+	goosFn = func() string { return "windows" }
+
+	origRm := removeDirFn
+	defer func() { removeDirFn = origRm }()
+	removeDirFn = func(path string) error {
+		return &os.PathError{
+			Op:   "RemoveAll",
+			Path: path,
+			Err:  errnoAccessDeniedWin,
+		}
+	}
+
+	if err := cleanupTempDir(`C:\fake\nazhi-cli-ocr-busy`); err != nil {
+		t.Fatalf("Windows + errno=5 应降级为 nil，实际：%v", err)
+	}
+}
+
+// TestCleanupTempDir_DarwinAccessDenied_Propagates 覆盖 darwin：注释说
+// 「非 Windows 平台永远 false」，GOOS 守卫应不止排除 linux，也排除 macOS。
+func TestCleanupTempDir_DarwinAccessDenied_Propagates(t *testing.T) {
+	origGoos := goosFn
+	defer func() { goosFn = origGoos }()
+	goosFn = func() string { return "darwin" }
+
+	origRm := removeDirFn
+	defer func() { removeDirFn = origRm }()
+	removeDirFn = func(path string) error {
+		return &os.PathError{
+			Op:   "RemoveAll",
+			Path: path,
+			Err:  errnoAccessDeniedWin,
+		}
+	}
+
+	if err := cleanupTempDir("/tmp/nazhi-cli-ocr-darwin"); err == nil {
+		t.Fatal("darwin + errno=5 必须透传，不应降级")
 	}
 }
