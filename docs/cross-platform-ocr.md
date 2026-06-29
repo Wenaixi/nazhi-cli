@@ -70,8 +70,8 @@ Go 编译时按 `(GOOS, GOARCH)` 只取对应文件嵌入。
 2. 写入 onnxruntime 库（按平台命名）
 3. `ddddocr.SetOnnxRuntimePath(libPath)`
 4. 加载 ONNX 模型 + 字符集
-5. **v0.4.0 新增**：best-effort 清扫 `%TEMP%` 下历史进程遗留的同前缀目录（见下文）
-6. 清理时 `os.RemoveAll(tempDir)`（**v0.4.0 新增**：Windows DLL 占用降级，见下文）
+5. best-effort 清扫 `%TEMP%` 下历史进程遗留的同前缀目录（见下文）
+6. 清理时 `os.RemoveAll(tempDir)`（Windows DLL 占用降级，见下文）
 
 ## 进程级单例
 
@@ -102,7 +102,7 @@ v0.3.5 起，OCR 引擎通过 Go build tags 可选启用：
 - `client_ocr_enabled.go` — `//go:build ddddocr`，`defaultOCR()` 返回 `ocr.NewPool(0)`
 - `client_ocr_disabled.go` — `//go:build !ddddocr`，`defaultOCR()` 返回 nil，`WithOCRConcurrency` 为占位 warn
 
-## v0.4.0 三轮 OCR 修复
+## Windows OCR 三轮修复
 
 ### 轮次 A：Windows DLL 占用降级（commit 5ff0ea8）
 

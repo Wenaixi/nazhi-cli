@@ -416,7 +416,7 @@ defer c.Close()
 
 ## token 解析 (pkg/tokenparse)
 
-v0.4.0 新增包。封装 SSO 登录 token 从 302 Location 头或 ReturnData JSON
+新增包。封装 SSO 登录 token 从 302 Location 头或 ReturnData JSON
 字节流提取的逻辑：位置、`expires_in` / `exp` 解析、缺失时兜底 `DefaultTokenTTL = 24h`。
 
 ```go

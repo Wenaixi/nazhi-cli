@@ -49,7 +49,7 @@ ci: 调整 workflow
 chore(deps): 依赖升级
 ```
 
-实战提交示例（v0.4.0 期间真实存在的风格）：
+实战提交示例（真实历史 commit 风格）：
 
 - `fix(ocr): 降级限定 Windows 平台，避免 Linux EIO/EPIPE 误吞`
 - `fix(cookie_sync): 修正 RawData nil 测试为 group A 实现的空 body 场景`
