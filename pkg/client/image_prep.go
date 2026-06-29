@@ -97,7 +97,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		}
 	}
 
-	// 缩放级联（保持质量 40，每步基于上一步结果累乘 ×scale）
+	// 缩放级联（先只 resize 不 encode，累乘缩小后统一编码一次）
 	current := img
 	for _, scale := range getScaleFactors() {
 		b := current.Bounds()
@@ -106,36 +106,20 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		if w < MinImageDimension || h < MinImageDimension {
 			break
 		}
-		resized := imaging.Resize(current, w, h, imaging.Lanczos)
-		data, err = encodeJPEG(resized, 40)
-		if err != nil {
-			// break 而非 continue。
-			//
-			// 原代码 `continue` 会跳过下面的 `current = resized`，下一轮用
-			// 未更新的 current 计算 w/h → 同一尺寸重复 encodeJPEG 必然同样失败
-			// （jpeg encoder 内部错误是确定性的，重试无意义）→ 浪费 1-7 轮
-			// CPU 后才在 MinImageDimension 边界 break 返回 ErrImageTooLarge。
-			//
-			// 修复：break + logDebug，让失败原因可观测，立即进入兜底逻辑。
-			c.logDebug("缩放级联 encodeJPEG 失败，跳出循环：scale=%v err=%v", scale, err)
-			break
-		}
-		if len(data) <= MaxImageSize {
-			return data, "image/jpeg", nil
-		}
-		// 关键：下一轮基于当前 resized 而非原图（累乘语义）
-		current = resized
+		current = imaging.Resize(current, w, h, imaging.Lanczos)
 	}
 
-	// 兜底：返回当前最小结果
-	if data == nil {
-		return nil, "", ErrImageTooLarge
+	// 统一编码为 JPG（quality=40），只 encode 一次
+	data, err = encodeJPEG(current, 40)
+	if err != nil {
+		c.logDebug("缩放级联最终 encodeJPEG 失败：err=%v", err)
+		return nil, "", fmt.Errorf("缩放级联编码失败: %w", err)
 	}
-	// 兜底前检查大小，若仍超限返回错误（避免首次 break 就兜底的边界 bug）
-	if len(data) > MaxImageSize {
-		return nil, "", ErrImageTooLarge
+	if len(data) <= MaxImageSize {
+		return data, "image/jpeg", nil
 	}
-	return data, "image/jpeg", nil
+	// 兜底：缩小到极限仍超限
+	return nil, "", ErrImageTooLarge
 }
 
 // decodeImage sniff 文件 magic bytes 解码任意格式。
