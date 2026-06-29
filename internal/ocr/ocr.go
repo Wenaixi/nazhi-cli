@@ -16,8 +16,75 @@ import (
 	"runtime"
 	"sync"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/yangbin1322/go-ddddocr/ddddocr"
+)
+
+// ─── 临时目录清理（含 Windows DLL 占用降级）───
+
+// removeDirFn 是 cleanupTempDir 注入的目录删除函数，便于测试 mock。
+// 默认是 os.RemoveAll。测试可通过赋值换成可控返回的 mock。
+var removeDirFn = os.RemoveAll
+
+// cleanupTempDir 删除给定的临时目录，并对 OS 级「文件被占用」类错误降级。
+//
+// 为什么需要降级：在 Windows 上运行时，OCR 引擎初始化时会通过 CGO
+// LoadLibrary 加载 onnxruntime.dll；Windows 在进程退出前不会释放该 DLL
+// 的 mmap 文件句柄。当 Close() 在进程退出前调用 os.RemoveAll 删临时目录时，
+// 删到 onnxruntime.dll 时会被 OS 拒绝：
+//
+//	ERROR_ACCESS_DENIED       (errno 5)
+//	ERROR_SHARING_VIOLATION   (errno 32)
+//
+// 这种 OS 级占用错误会在进程退出时由 OS 自然清理（句柄释放 → 文件可删），
+// 没必要把非「业务可控」的 stderr 污染当作 Close 失败上报。
+//
+// 「不静默吞错」铁律保留：仅 DLL/原生库占用导致的两类 Windows errno 才降级，
+// 其他错误（Linux EPERM、磁盘满、只读卷、路径不存在等）照常返回。
+//
+// 注意：这里不构造 fs.ErrPermission 短路，因为 Linux 上权限拒绝（perm denied）
+// 是真实的环境问题，需要让调用方知情。
+func cleanupTempDir(dir string) error {
+	if dir == "" {
+		return nil
+	}
+	err := removeDirFn(dir)
+	if err == nil {
+		return nil
+	}
+	if isPlatformLibBusy(err) {
+		// ponytail: OS 级 DLL 占用错误是进程级状态副作用，进程退出时自愈，
+		// 上报反而污染 stderr。限定 errno 不放宽，避免吞真错误。
+		return nil
+	}
+	return fmt.Errorf("清理临时目录 %s: %w", dir, err)
+}
+
+// isPlatformLibBusy 判定 OS 级「文件被占用」类错误。当前覆盖：
+//
+//	Windows syscall.Errno == ERROR_ACCESS_DENIED       (5)
+//	Windows syscall.Errno == ERROR_SHARING_VIOLATION   (32)
+//
+// 用 errors.As 而非字符串匹配，避免对 error 文案的脆弱依赖（不同语言/版本
+// 系统的 Windows 错误消息可能本地化不同）。非 Windows 平台永远返 false，
+// 即不命中降级分支——Linux/macOS 上能删就是真删了，不会触发这条路径。
+func isPlatformLibBusy(err error) bool {
+	var sysErr syscall.Errno
+	if !errors.As(err, &sysErr) {
+		return false
+	}
+	return sysErr == errnoAccessDeniedWin || sysErr == errnoSharingViolationWin
+}
+
+// Windows errno 数值常量（避免依赖 syscall 包内 Windows-only 常量名，
+// 方便在跨平台测试中模拟 Windows 行为）。
+//
+//	ERROR_ACCESS_DENIED       = 5
+//	ERROR_SHARING_VIOLATION   = 32
+const (
+	errnoAccessDeniedWin     syscall.Errno = 5
+	errnoSharingViolationWin syscall.Errno = 32
 )
 
 // ─── 进程级全局同步 ───
@@ -396,8 +463,8 @@ func (o *OCR) Close() error {
 		o.mu.Unlock()
 	}
 	if tempDir != "" {
-		if err := os.RemoveAll(tempDir); err != nil {
-			errs = append(errs, fmt.Errorf("清理临时目录 %s: %w", tempDir, err))
+		if err := cleanupTempDir(tempDir); err != nil {
+			errs = append(errs, err)
 		}
 	}
 	if len(errs) > 0 {
