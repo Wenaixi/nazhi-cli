@@ -354,12 +354,11 @@ func (o *OCR) Recognize(imageData []byte) (string, error) {
 	//  → T0 持已关闭 session → ddddocr C 运行时 segfault。
 	// 持 o.mu 后 Load closed 是无锁快速路径，Close 后立即返回错误，永不调 Classification。
 	o.mu.Lock()
+	defer o.mu.Unlock()
 	if o.closed.Load() {
-		o.mu.Unlock()
 		return "", errors.New("OCR is closed")
 	}
 	result, err := ocr.Classification(imageData)
-	o.mu.Unlock()
 	if err != nil {
 		return "", fmt.Errorf("OCR 识别失败: %w", err)
 	}
