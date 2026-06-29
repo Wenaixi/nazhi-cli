@@ -317,7 +317,7 @@ func TestImagePrep_ScaleCascadeHasLogDebug(t *testing.T) {
 	// 锚点：encodeJPEG 调用之后紧随的 `if err != nil {` 错误处理块。
 	// 源码用两步式（先 data, err = encodeJPEG(...)，再单独 if err != nil），
 	// 不是 if-init 复合形式。
-	anchor := "data, err = encodeJPEG(resized, 40)"
+	anchor := "data, err = encodeJPEG(current, 40)"
 	idx := strings.Index(body, anchor)
 	if idx < 0 {
 		t.Fatalf("找不到 %q 锚点，源码结构可能改了", anchor)
@@ -328,8 +328,8 @@ func TestImagePrep_ScaleCascadeHasLogDebug(t *testing.T) {
 		block = block[:600]
 	}
 
-	if !strings.Contains(block, "break") {
-		t.Errorf("F4 修复契约：encodeJPEG 失败分支必须含 break（不能 continue），实际块:\n%s", block)
+	if !strings.Contains(block, "return") {
+		t.Errorf("F4 修复契约：encodeJPEG 失败分支必须含 return，实际块:\n%s", block)
 	}
 	if !strings.Contains(block, "logDebug") {
 		t.Errorf("F4 修复契约：encodeJPEG 失败 break 前应 logDebug 记录原因，实际块:\n%s", block)
