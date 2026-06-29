@@ -51,4 +51,3 @@ func TestLoginResponse_NoUserInfoField(t *testing.T) {
 		t.Errorf("LoginResponse 序列化应保留 expires_at 字段，实际: %s", data)
 	}
 }
-
