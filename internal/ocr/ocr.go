@@ -14,6 +14,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -404,6 +405,8 @@ func (o *OCR) initOnce() (retErr error) {
 				_ = os.RemoveAll(o.tempDir)
 				o.tempDir = ""
 			}
+			// 输出 stack trace 到 stderr，避免 CGO 层 panic 的堆栈永久丢失
+			fmt.Fprintf(os.Stderr, "initOnce panic stack:\n%s\n", debug.Stack())
 			// 保留 panic 根因到 initErr，不标记 initialized，
 			// 让后续 Recognize 重试 initOnce 并把根因上报，
 			// 避免 *OCR 实例被「initialized=true + initErr=nil + ocr=nil」永久卡死。
@@ -431,8 +434,11 @@ func (o *OCR) initOnce() (retErr error) {
 	})
 
 	// 创建识别器，指定模型目录为解压目录
+	// testPanicHook 只触发一次，防止重试时无限 panic+recover 循环（F3）
 	if o.testPanicHook != nil {
-		o.testPanicHook()
+		hook := o.testPanicHook
+		o.testPanicHook = nil
+		hook()
 	}
 	opts := ddddocr.DefaultOptions()
 	opts.ModelDir = o.tempDir
