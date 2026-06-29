@@ -109,3 +109,33 @@ func TestSessionManager_TryActivate_BackoffHit(t *testing.T) {
 		t.Errorf("应包装 ErrSessionBackoff，实际: %v", err)
 	}
 }
+
+// TestTryActivate_CtxCanceledOverridesBackoff 守护：ctx 取消时即使 backoff 窗口激活
+// 也应返回 context.Canceled 而非 ErrSessionBackoff。
+// Gap-1: 旧顺序先查 backoff 后查 ctx.Err()，ctx 取消被掩盖为 ErrSessionBackoff。
+func TestTryActivate_CtxCanceledOverridesBackoff(t *testing.T) {
+	sm := newTestSM()
+	sm.lastErr = errors.New("previous fail")
+	sm.lastFailedToken = "tok"
+	sm.lastAttempt = time.Now()
+	sm.backoff = time.Hour // 长时间窗口
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel() // 立即取消
+
+	activateFn := func(ctx context.Context, token string) (*types.UserInfo, error) {
+		t.Error("ctx 已取消时不应调 activateFn")
+		return nil, nil
+	}
+
+	_, err := sm.tryActivate(ctx, "tok", activateFn)
+	if err == nil {
+		t.Fatal("ctx 已取消应返回 error")
+	}
+	if errors.Is(err, ErrSessionBackoff) {
+		t.Error("ctx 已取消时不应返回 ErrSessionBackoff，应返回 context.Canceled")
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("应返回 context.Canceled，实际: %v", err)
+	}
+}
