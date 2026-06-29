@@ -44,6 +44,10 @@ const defaultUploadURL = "http://doc.nazhisoft.com"
 // defaultUserAgent 是所有 HTTP 请求的 User-Agent 默认值。
 const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
 
+// noRedirect 禁用 HTTP 自动重定向。
+// 包级复用，消除 3 处相同闭包（request.go / file.go / auth_test.go）。
+var noRedirect = func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }
+
 // newHTTPClient 创建带独立 cookie jar 和自定义 Transport 的 HTTP 客户端。
 //
 // Transport 配置要点：
@@ -57,9 +61,7 @@ func newHTTPClient() *http.Client {
 	return &http.Client{
 		Jar: jar,
 		// 不自动跟随重定向——我们需要手动从 Location 头提取 token
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+		CheckRedirect: noRedirect,
 		Transport: &http.Transport{
 			MaxIdleConns:          100,
 			MaxIdleConnsPerHost:   16,

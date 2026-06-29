@@ -199,10 +199,6 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // Transport（如 mock RoundTripper），新 Transport 不会生效。此限制是 B1
 // 缓存设计的有意取舍——运行时 Transport 变更在业务实践中极罕见，且需重建
 // Client（sync.Once 重置不可逆）。
-//
-// F9 修复：fallback 路径（自定义 RT / nil）走一次后记 cleanTransportFallback=true，
-// 后续直接读 c.http.Transport 当前值（不再每次 type-switch），
-// 避免运行时 Transport 替换后误走 Clone 分支丢失自定义 RT 语义。
 func newCleanClient(c *Client) *http.Client {
 	// B1：懒加载 cloned Transport，sync.Once 保证并发安全且只 Clone 一次
 	c.cleanTransportInit.Do(func() {
@@ -230,10 +226,8 @@ func newCleanClient(c *Client) *http.Client {
 		timeout = 30 * time.Second // 文件上传的合理兜底超时，确保不继承主 Client 过短 timeout
 	}
 	return &http.Client{
-		Transport: transport,
-		Timeout:   timeout,
-		CheckRedirect: func(req *http.Request, via []*http.Request) error {
-			return http.ErrUseLastResponse
-		},
+		Transport:     transport,
+		Timeout:       timeout,
+		CheckRedirect: noRedirect,
 	}
 }
