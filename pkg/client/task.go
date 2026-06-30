@@ -355,6 +355,8 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 }
 
 // GetDimensions 获取任务维度列表。
+//
+// SDK 高级用户使用，CLI 暂未暴露此命令。
 func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimension, error) {
 	return c.fetchDimensions(ctx, token, "GetDimensions")
 }

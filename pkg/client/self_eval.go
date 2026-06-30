@@ -45,6 +45,7 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 
 // QuerySelfGradEvaluation 查询毕业状态。
 //
+// SDK 高级用户使用，CLI 暂未暴露此命令。
 // 使用 doBizGetDecode 的 fallback 链（returnData → dataMap），
 // 替换原有的 selfEvalGet + tryDecodeFallback 模式。
 func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error) {
