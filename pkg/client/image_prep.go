@@ -27,11 +27,9 @@ const MaxImageSize = 5 * 1024 * 1024
 // MinImageDimension 缩放下限（像素），低于此值停止缩放。
 const MinImageDimension = 10
 
-// getQualitySteps 返回质量级联切片（每次返回新副本，保证不可变）。
-// F8.1 优化：从 {80, 60, 40} 砍到 {80}。
-// 实际使用中 80% 的场景 quality=80 足够压到 ≤5MB，不够的走缩放级联更高效。
-// 省两次 encode（省 ~40% 的级联编码时间）。
-func getQualitySteps() []int { return []int{80} }
+// qualityAfterOptimization 图片质量预设，经 F8.1 优化后的取值。
+// 80% 的场景 quality=80 足够压到 ≤5MB，不够的走缩放级联更高效。
+const qualityAfterOptimization = 80
 
 // getScaleFactors 返回缩放级联切片（每次返回新副本，保证不可变）。
 // 从包级可变 var 改为函数返回，防止测试修改污染全局。
@@ -90,19 +88,18 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 	// F8.1 优化：如果 data 远超上限（>2×MaxImageSize），跳过质量级联（省三次 encode），
 	// 直接进缩放级联。quality=80 对超大图片通常不够降到 ≤5MB，缩放最少省 50% 体积。
+	q := qualityAfterOptimization
 	if len(data) > 2*MaxImageSize {
 		goto scaleCascade
 	}
 
 	// 质量级联（只跑一次 quality=80）
-	for _, q := range getQualitySteps() {
-		data, err = encodeJPEG(img, q)
-		if err != nil {
-			return nil, "", fmt.Errorf("质量 %d 编码失败: %w", q, err)
-		}
-		if len(data) <= MaxImageSize {
-			return data, "image/jpeg", nil
-		}
+	data, err = encodeJPEG(img, q)
+	if err != nil {
+		return nil, "", fmt.Errorf("质量 %d 编码失败: %w", q, err)
+	}
+	if len(data) <= MaxImageSize {
+		return data, "image/jpeg", nil
 	}
 
 	// F8.1 优化：添加 scaleCascade 标签，质量级联跳过时直接跳入
