@@ -691,3 +691,102 @@ var errEmpty = constErr("empty jpeg output")
 type constErr string
 
 func (e constErr) Error() string { return string(e) }
+
+// ─── group-B F3: UploadFile 错误链对外暴露 ErrFileTooLarge（不论根因） ───
+
+// TestUploadFile_PrepErrorIncludesErrFileTooLarge (F3) 锁定 file.go 修复契约：
+// UploadFile 在 prepareImageForUpload 抛 ErrImageTooLarge（image_prep 局部
+// sentinel）时，返回的错误链必须同时包含 ErrFileTooLarge，让调用方用
+// errors.Is(err, ErrFileTooLarge) 单一识别所有「文件过大」路径。
+//
+// 修复前：file.go L33-34 wrap 时仅传递 prepareImageForUpload 原 err，
+// UploadFile 错误链只有 ErrImageTooLarge → ErrFileTooLarge 不可命中，
+// 调用方只能 imports 引入 image_prep 局部 sentinel（包外不可见）。
+//
+// 修复后：file.go wrap 时 errors.Join 进 ErrFileTooLarge。
+//
+// 测试采用 AST 静态扫描 file.go，定位 UploadFile 函数体，确认 wrap 语句
+// 使用 errors.Join(...ErrFileTooLarge..., ...)，避免环境敏感（大图不
+// 保证触发 ErrImageTooLarge）的运行时测试。
+func TestUploadFile_PrepErrorIncludesErrFileTooLarge(t *testing.T) {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "file.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse file.go: %v", err)
+	}
+	// 1. 定位 UploadFile 函数
+	var uploadFn *ast.FuncDecl
+	for _, decl := range f.Decls {
+		if fd, ok := decl.(*ast.FuncDecl); ok && fd.Name.Name == "UploadFile" {
+			uploadFn = fd
+			break
+		}
+	}
+	if uploadFn == nil {
+		t.Fatal("找不到 UploadFile 函数")
+	}
+	// 2. 找含 "图片预处理失败" 字面量的 fmt.Errorf 调用，
+	//    断言其参数里含 errors.Join(...ErrFileTooLarge...)
+	var foundFix bool
+	var foundOldStyle bool
+	ast.Inspect(uploadFn.Body, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
+		}
+		se, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || se.Sel.Name != "Errorf" {
+			return true
+		}
+		// 看第一个 string arg 里是否含 "图片预处理失败"
+		if len(call.Args) < 2 {
+			return true
+		}
+		bl, ok := call.Args[0].(*ast.BasicLit)
+		if !ok || bl.Kind != token.STRING {
+			return true
+		}
+		if !strings.Contains(bl.Value, "图片预处理失败") {
+			return true
+		}
+		// 第二个参数应是 errors.Join 或直接 %w wrap
+		// 找参数中是否含 errors.Join(...ErrFileTooLarge...)
+		containsJoinWithErrFileTooLarge := false
+		containsFmtErrorf := false
+		ast.Inspect(call, func(n2 ast.Node) bool {
+			if cc, ok2 := n2.(*ast.CallExpr); ok2 {
+				if ss, ok3 := cc.Fun.(*ast.SelectorExpr); ok3 && ss.Sel.Name == "Join" {
+					// 找 ErrFileTooLarge 是否是 Join 的某个参数
+					ast.Inspect(cc, func(n3 ast.Node) bool {
+						if id, ok4 := n3.(*ast.Ident); ok4 && id.Name == "ErrFileTooLarge" {
+							containsJoinWithErrFileTooLarge = true
+							return false
+						}
+						return true
+					})
+				}
+				if ss, ok3 := cc.Fun.(*ast.SelectorExpr); ok3 && ss.Sel.Name == "Errorf" {
+					containsFmtErrorf = true
+				}
+			}
+			return true
+		})
+		// F3 修复契约：
+		//   调用形式必须是 errors.Join(ErrFileTooLarge, <prepare err>) 链入，
+		//   不再用裸 fmt.Errorf("%w", err) 让 ErrFileTooLarge 不在链上。
+		_ = containsFmtErrorf
+		if containsJoinWithErrFileTooLarge {
+			foundFix = true
+		} else {
+			// 检测有"图片预处理失败"但没用 join——属于当前 bug 行为
+			foundOldStyle = true
+		}
+		return false
+	})
+	if foundOldStyle && !foundFix {
+		t.Errorf("F3 漏洞：UploadFile '图片预处理失败' wrap 仍裸用 fmt.Errorf %%w，未 errors.Join 进 ErrFileTooLarge，调用方 errors.Is(err, ErrFileTooLarge) 不可命中 image_prep 路径")
+	}
+	if !foundFix {
+		t.Errorf("F3 修复契约：UploadFile 错误 wrap 应使用 errors.Join(ErrFileTooLarge, err)，未检测到。")
+	}
+}
