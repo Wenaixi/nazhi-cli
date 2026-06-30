@@ -93,4 +93,70 @@ var (
 	// safeOCRRecognize 用 defer recover 捕获 panic 并包装为本哨兵，
 	// 避免 panic 扩散到 Login 流程、crash 整个进程。
 	ErrOCRPanic = errors.New("OCR recognizer panic: recovered")
+
+	// ErrRateLimited 服务端限流响应（HTTP 429）。
+	//
+	// 触发场景：目标平台返回 429 Too Many Requests。
+	// 与 ErrNetwork / ErrBusinessRejected 的语义边界：
+	//   - ErrRateLimited：服务端主动节流，SDK 用户应退避后重试
+	//     （可用 Retry-After 头判断等待时间）
+	//   - ErrBusinessRejected：业务校验失败（HTTP 200 + code=0 或 业务 4xx）
+	//   - ErrNetwork：网络层失败（连接拒绝/超时等），与服务端策略无关
+	//
+	// request.go 的 doBizGet 在收到 429 时包装本哨兵，
+	// SDK 用户通过 errors.Is(err, ErrRateLimited) 精确识别限流场景，
+	// 触发退避策略而非立即报错或重连。
+	ErrRateLimited = errors.New("rate limited: HTTP 429 too many requests")
+
+	// ErrServiceUnavailable 服务端不可用（HTTP 5xx）。
+	//
+	// 触发场景：目标平台返回 5xx（502/503/504 等）。
+	// 与 ErrNetwork / ErrRateLimited 的语义边界：
+	//   - ErrServiceUnavailable：服务端主动拒绝或临时过载，
+	//     SDK 用户应等待重试（指数退避）
+	//   - ErrNetwork：客户端网络层失败（连不上服务端）
+	//   - ErrRateLimited：限流（429），属于可预期的服务端策略
+	//
+	// request.go 的 doBizGet 在收到 5xx 时包装本哨兵。
+	ErrServiceUnavailable = errors.New("service unavailable: HTTP 5xx")
+
+	// ErrTimeout 请求超时。
+	//
+	// 触发场景：上下文 deadline 触发 / net/http 内部超时。
+	// 与 ErrNetwork 的语义边界：
+	//   - ErrTimeout：超时（带 deadline 信息），SDK 用户可按 deadline 调整
+	//   - ErrNetwork：网络层失败（连接拒绝 / DNS 失败 / TLS 失败）
+	//
+	// 主要用途：让 SDK 用户能 errors.Is 区分「超时」与「连不上」，
+	// 决定是否调大 timeout 或换网络。
+	ErrTimeout = errors.New("timeout: request exceeded deadline")
+
+	// ErrInvalidResponse 服务端返回非 200 状态码（4xx 排除 429）。
+	//
+	// 触发场景：目标平台返回 4xx 但非 429（404/403/400 等）。
+	// 与 ErrBusinessRejected / ErrRateLimited 的语义边界：
+	//   - ErrInvalidResponse：HTTP 协议层错误（4xx），通常是请求语法错误或权限缺失
+	//   - ErrBusinessRejected：业务逻辑拒绝（HTTP 200 + code=0）
+	//   - ErrRateLimited：HTTP 429 限流（独立处理）
+	//
+	// request.go 的 doBizGet 在收到 4xx-other 时包装本哨兵，
+	// 让 SDK 用户能精确识别「HTTP 层错误」与「业务层错误」，
+	// 避免错误地把 404 等当成业务拒绝走重登录流程。
+	ErrInvalidResponse = errors.New("invalid response: HTTP non-200 non-429")
+
+	// ErrRetryable 表示「context 取消导致的失败，可重试」。
+	//
+	// 触发场景：FetchTasks 中部分维度因 ctx cancel 而失败（cancelledCount > 0），
+	// task.go 用 cancelPlaceholder = fmt.Errorf("%w: ...", ErrRetryable, ...) 包装，
+	// SDK 用户可通过 errors.Is(err, ErrRetryable) 区分「ctx cancel 应重试」
+	// 与「业务错误不应重试」。
+	//
+	// 与 ErrBusinessRejected 的语义边界：
+	//   - ErrRetryable：ctx cancel 引发的「可重试」语义标记
+	//   - ErrBusinessRejected：服务端业务拒绝（code=0），不应盲目重试
+	//
+	// F2.1 修复：原 cancelPlaceholder 用裸 fmt.Errorf，错误消息含「可重试」但
+	// 缺少 sentinel 标识，SDK 用户只能字符串匹配。改为 fmt.Errorf("%w: ...")
+	// 让 errors.Is 精确识别。
+	ErrRetryable = errors.New("retryable: context cancelled")
 )

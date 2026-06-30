@@ -125,19 +125,23 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			return nil
 		})
 	}
+	// errgroup 因 context 取消返回 error 时：
+	//
+	//   - 全部失败（无 partial tasks）：裸包装 ErrRetryable 让 errors.Is 识别可重试语义
+	//   - 部分失败（有 partial tasks）：双包 ErrBusinessRejected（让 cmd 层 envelope 识别
+	//     partial 状态） + ErrRetryable（让 errors.Is 识别 cancel 重试）
+	//   - 业务错误（非 ctx error）：保持原包装
+	//
+	// F2.2 修复：取消时的两条路径（纯 cancel + 混合）都让 errors.Is(err, ErrRetryable)
+	// 命中；保留 partial tasks 的同时让 cmd 层 envelope 输出 retryable 信号。
 	if err := g.Wait(); err != nil {
-		// errgroup 因 context 取消返回 error 时，
-		// 若已有部分维度成功完成（allTasks 非空），应包装 ErrBusinessRejected。
-		//
-		// 动机：g.Go 闭包中 gctx.Err() 检查会在 ctx 取消后返回 DeadlineExceeded
-		// 给 errgroup，导致 g.Wait() 返回 context error 并丢弃 allTasks。
-		// 有 partial tasks 时包装 ErrBusinessRejected 让 cmd 层 envelope 可识别。
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			if len(allTasks) > 0 {
 				return allTasks, fmt.Errorf("%w: FetchTasks context 取消后部分维度成功: %w",
-					ErrBusinessRejected, err)
+					ErrBusinessRejected,
+					fmt.Errorf("%w: %w", ErrRetryable, err))
 			}
-			return nil, err
+			return nil, fmt.Errorf("%w: FetchTasks 全部维度因 context 取消失败: %w", ErrRetryable, err)
 		}
 		return nil, fmt.Errorf("FetchTasks 并发拉取失败: %w", err)
 	}
@@ -179,9 +183,12 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		}
 		// 取消信号占位不进 bizErrs（避免 failedCount 含占位虚高 1），
 		// 但仍 join 进 joined 保留信号——cmd 层仍能感知 cancel 数。
+		//
+		// F2.1 修复：用 %w 包装 ErrRetryable，让 SDK 用户能 errors.Is 识别
+		//「context 取消导致的失败」并触发重试。原裸 fmt.Errorf 只能字符串匹配。
 		var cancelPlaceholder error
 		if cancelledCount > 0 {
-			cancelPlaceholder = fmt.Errorf("%d 个维度因 context 取消而失败（可重试）", cancelledCount)
+			cancelPlaceholder = fmt.Errorf("%w: %d 个维度因 context 取消而失败", ErrRetryable, cancelledCount)
 		}
 
 		// 仅有 context 取消错误
@@ -283,15 +290,39 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 //
 // panic 信息：包含 dim.ID + dim.Name 便于排查（panic 路径无法
 // 依赖 errgroup 自带的 nil-safe 包装，必须自己构建可读错误）。
+//
+// 错误链保留（F10.1）：recover() 返回的是 any，r 是 error 时走 %w
+// 保留 chain，让 SDK 用户能用 errors.Is 识别 panic 根因（典型场景：
+// mock 误实现 panic(errors.New("xxx")) → 调试时能直接定位根 error）。
 func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			os.Stderr.Write(debug.Stack())
 			tasks = nil
-			err = fmt.Errorf("维度 %d(%s) panic: %v", dim.ID, dim.Name, r)
+			err = wrapPanicAsErr(dim, r)
 		}
 	}()
 	return c.fetchTasksForDimension(ctx, dim, headers)
+}
+
+// wrapPanicAsErr 把 recover() 拿到的 any 转成可读 error。
+//
+// r 是 error：走 %w 保留 chain（errors.Is 可穿透命中根因）。
+// r 不是 error（string / struct / runtime.nilError 等）：走 %v 兜底。
+// r == nil：返回明确 error，避免 nil 走调用链误导调用方。
+//
+// ponytail：抽出来让 fetchTasksForDimensionSafe defer 闭包保持 3 行内，
+// 同时让「r 是 error / 不是 error / nil」三条分支 100% 可测，
+// 不污染 fetchTasksForDimension 加测试钩子。
+func wrapPanicAsErr(dim types.Dimension, r any) error {
+	switch v := r.(type) {
+	case nil:
+		return fmt.Errorf("维度 %d(%s) panic: <nil>", dim.ID, dim.Name)
+	case error:
+		return fmt.Errorf("维度 %d(%s) panic: %w", dim.ID, dim.Name, v)
+	default:
+		return fmt.Errorf("维度 %d(%s) panic: %v", dim.ID, dim.Name, v)
+	}
 }
 
 // SubmitTask 提交一次任务。
