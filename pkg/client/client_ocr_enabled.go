@@ -7,14 +7,24 @@
 // 外部 SDK 使用者请使用 WithCustomOCR() 注入识别器。
 package client
 
-import "github.com/Wenaixi/nazhi-cli/internal/ocr"
+import (
+	"runtime"
+
+	"github.com/Wenaixi/nazhi-cli/internal/ocr"
+)
 
 // defaultOCR 在指定 -tags ddddocr 时返回 ddddocr Pool 单例。
+// F8.2 优化：默认预加载 min(4, runtime.NumCPU()) 个实例实现 OCR 并发，
+// 避免 99 张验证码串行识别 ≈60s。每实例约 50MB，N=4 约 200MB。
 // 与 client_ocr_disabled.go 中的 nil 默认行为对称：
 //   - 启用 ddddocr → 客户端开箱即用，无需注入自定义 OCR
 //   - 禁用 ddddocr → 必须用 WithCustomOCR 注入 AI/外部识别器
 func defaultOCR() CaptchaRecognizer {
-	return ocr.NewPool(0)
+	n := runtime.NumCPU()
+	if n > 4 {
+		n = 4
+	}
+	return ocr.NewPool(n)
 }
 
 // WithOCRConcurrency 设置 OCR 实例池预分配数量（ddddocr 构建）。

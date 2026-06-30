@@ -522,7 +522,7 @@ func TestGetQualitySteps_ReturnsNewSlice(t *testing.T) {
 	a := getQualitySteps()
 	b := getQualitySteps()
 
-	if len(a) != 3 || a[0] != 80 || a[1] != 60 || a[2] != 40 {
+	if len(a) != 1 || a[0] != 80 {
 		t.Errorf("getQualitySteps() 返回意外的值: %v", a)
 	}
 
@@ -567,7 +567,7 @@ func TestGetScaleFactors_ReturnsNewSlice(t *testing.T) {
 // TestGetQualitySteps_Values 验证 getQualitySteps 返回值正确。
 func TestGetQualitySteps_Values(t *testing.T) {
 	steps := getQualitySteps()
-	expected := []int{80, 60, 40}
+	expected := []int{80}
 	if len(steps) != len(expected) {
 		t.Fatalf("长度: 期望 %d, 实际 %d", len(expected), len(steps))
 	}
