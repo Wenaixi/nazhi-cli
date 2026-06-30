@@ -125,19 +125,23 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 			return nil
 		})
 	}
+	// errgroup 因 context 取消返回 error 时：
+	//
+	//   - 全部失败（无 partial tasks）：裸包装 ErrRetryable 让 errors.Is 识别可重试语义
+	//   - 部分失败（有 partial tasks）：双包 ErrBusinessRejected（让 cmd 层 envelope 识别
+	//     partial 状态） + ErrRetryable（让 errors.Is 识别 cancel 重试）
+	//   - 业务错误（非 ctx error）：保持原包装
+	//
+	// F2.2 修复：取消时的两条路径（纯 cancel + 混合）都让 errors.Is(err, ErrRetryable)
+	// 命中；保留 partial tasks 的同时让 cmd 层 envelope 输出 retryable 信号。
 	if err := g.Wait(); err != nil {
-		// errgroup 因 context 取消返回 error 时，
-		// 若已有部分维度成功完成（allTasks 非空），应包装 ErrBusinessRejected。
-		//
-		// 动机：g.Go 闭包中 gctx.Err() 检查会在 ctx 取消后返回 DeadlineExceeded
-		// 给 errgroup，导致 g.Wait() 返回 context error 并丢弃 allTasks。
-		// 有 partial tasks 时包装 ErrBusinessRejected 让 cmd 层 envelope 可识别。
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			if len(allTasks) > 0 {
 				return allTasks, fmt.Errorf("%w: FetchTasks context 取消后部分维度成功: %w",
-					ErrBusinessRejected, err)
+					ErrBusinessRejected,
+					fmt.Errorf("%w: %w", ErrRetryable, err))
 			}
-			return nil, err
+			return nil, fmt.Errorf("%w: FetchTasks 全部维度因 context 取消失败: %w", ErrRetryable, err)
 		}
 		return nil, fmt.Errorf("FetchTasks 并发拉取失败: %w", err)
 	}
