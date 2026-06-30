@@ -299,7 +299,7 @@ func New(opts ...Option) (*Client, error) {
 		uploadURL:  defaultUploadURL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:        defaultOCR(), // build tag 决定：!ddddocr → nil, ddddocr → ocr.NewPool(0)
+		ocr:        defaultOCR(), // build tag 决定：!ddddocr → nil, ddddocr → ocr.NewPool(min(4, NumCPU))
 		sm:         &sessionManager{},
 	}
 	for _, opt := range opts {
