@@ -143,7 +143,7 @@ func decodeImage(path string) (image.Image, error) {
 	}
 	defer f.Close()
 
-	// magic bytes sniff
+	// 通过魔数探测判断文件类型
 	var head [12]byte
 	n, err := io.ReadFull(f, head[:])
 	if n == 0 {
