@@ -123,7 +123,7 @@ func TestRegression_WithHTTPClient_NoJar_DoesNotPanic(t *testing.T) {
 	}
 }
 
-// ─── HIGH #9: extractTokenFromLocation URL 解析 ───
+// ─── HIGH #9: tokenparse.ExtractFromLocation URL 解析 ───
 
 // TestRegression_Login_TruncatesTokenAtAmpersand 验证 token 解析在
 // query 含 & 时正确截断（HAR 验证）。

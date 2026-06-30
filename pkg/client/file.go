@@ -53,7 +53,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		return 0, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
 	}
 	if len(fileData) > MaxImageSize {
-		return 0, fmt.Errorf("%w: 压缩后仍达 %d 字节（上限 %d）", ErrFileTooLarge, len(fileData), MaxImageSize)
+		// A3 修复：让两条"图片过大"路径的 sentinel 行为一致。
+		// 兜底路径也用 errors.Join 包含 ErrImageTooLarge。
+		return 0, fmt.Errorf("压缩后仍达 %d 字节: %w", len(fileData),
+			errors.Join(ErrFileTooLarge, ErrImageTooLarge))
 	}
 	c.logDebug("图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 
@@ -131,7 +134,18 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 避免大 HTTP 错误响应的 body 全部读入内存（服务端 502/503 有时带完整 HTML 堆栈）。
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, logSafeBody(errBody))
+		// A2 修复：复用 request.go 的 sentinel 分类（429→ErrRateLimited, 5xx→ErrServiceUnavailable）。
+		// 让 SDK 用户能通过 errors.Is 精确识别上传失败原因。
+		var sentinel error
+		switch {
+		case resp.StatusCode == http.StatusTooManyRequests:
+			sentinel = ErrRateLimited
+		case resp.StatusCode >= 500 && resp.StatusCode < 600:
+			sentinel = ErrServiceUnavailable
+		default:
+			sentinel = ErrUploadRejected
+		}
+		return 0, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -171,7 +185,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// DecodeReturnData 用 json.Unmarshal，默认将数字解为 float64。
 	// 而当前代码用 json.NewDecoder + UseNumber 将数字解为 json.Number，
 	// 避免文件 ID 在 >2^53 时的 float64 精度损失。虽然文件 ID 通常在此范围内，
-	// 但与 auth.go extractTokenFromReturnData 保持一致更安全。
+	// 但与 tokenparse.ExtractFromReturnData 保持一致更安全。
 	//
 	// 如果未来 DecodeReturnData 支持 UseNumber 模式，可以迁移。
 	dec := json.NewDecoder(bytes.NewReader(*unified.ReturnData))
