@@ -360,7 +360,30 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, url, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return bodyBytes, fmt.Errorf("GET %s 返回非 200: %d body=%s", url, resp.StatusCode, logSafeBody(bodyBytes))
+		// G2 修复：按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过
+		// errors.Is 精确识别原因（限流 / 服务端异常 / HTTP 层错误）。
+		//
+		// 分发规则：
+		//   - 429 → ErrRateLimited（限流，SDK 用户退避后重试，可用 Retry-After）
+		//   - 5xx → ErrServiceUnavailable（服务端临时不可用，指数退避）
+		//   - 其他 4xx → ErrInvalidResponse（HTTP 协议层错误，区别于业务 code=0）
+		//
+		// 与 F9.2 sentinel 配对，doBizGet 是业务侧 GET helper（非 session/login 场景），
+		// 这里的 sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
+		var sentinel error
+		switch {
+		case resp.StatusCode == http.StatusTooManyRequests:
+			sentinel = ErrRateLimited
+		case resp.StatusCode >= 500 && resp.StatusCode < 600:
+			sentinel = ErrServiceUnavailable
+		case resp.StatusCode >= 400 && resp.StatusCode < 500:
+			sentinel = ErrInvalidResponse
+		default:
+			// 3xx 等意外状态码（不应出现在 CheckRedirect=noRedirect 配置下）
+			sentinel = ErrInvalidResponse
+		}
+		return bodyBytes, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
+			sentinel, url, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 	return bodyBytes, nil
 }
