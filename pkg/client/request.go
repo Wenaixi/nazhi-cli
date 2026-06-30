@@ -56,6 +56,10 @@ var noRedirect = func(_ *http.Request, _ []*http.Request) error { return http.Er
 //   - 共享 Transport 连接池：避免与 file.go cleanTransport 产生认知冲突，
 //     两者各自独立的 idle 池，但配置对齐。
 //   - TLSHandshakeTimeout=10s：TLS 慢握手场景（弱网 / 服务器负载高）不无限等待。
+//   - ResponseHeaderTimeout=15s（F8.6）：服务端 TCP 握手完成后故意不写响应头
+//     （慢响应头 / 假死 / DoS）时强制返回错误，避免无限等待。仅靠 c.http.Timeout
+//     不够细粒度——TLSHandshakeTimeout 只覆盖握手阶段，ResponseHeader 阶段
+//     net/http 默认无限等。
 //   - 不设置 DisableCompression：平台返回 JSON 多数 < 1KB，压缩获益小但非有害。
 func newHTTPClient() *http.Client {
 	jar, _ := cookiejar.New(nil)
@@ -69,6 +73,7 @@ func newHTTPClient() *http.Client {
 			IdleConnTimeout:       90 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 15 * time.Second,
 			DisableCompression:    false,
 		},
 	}
@@ -355,7 +360,30 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, url, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		return bodyBytes, fmt.Errorf("GET %s 返回非 200: %d body=%s", url, resp.StatusCode, logSafeBody(bodyBytes))
+		// G2 修复：按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过
+		// errors.Is 精确识别原因（限流 / 服务端异常 / HTTP 层错误）。
+		//
+		// 分发规则：
+		//   - 429 → ErrRateLimited（限流，SDK 用户退避后重试，可用 Retry-After）
+		//   - 5xx → ErrServiceUnavailable（服务端临时不可用，指数退避）
+		//   - 其他 4xx → ErrInvalidResponse（HTTP 协议层错误，区别于业务 code=0）
+		//
+		// 与 F9.2 sentinel 配对，doBizGet 是业务侧 GET helper（非 session/login 场景），
+		// 这里的 sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
+		var sentinel error
+		switch {
+		case resp.StatusCode == http.StatusTooManyRequests:
+			sentinel = ErrRateLimited
+		case resp.StatusCode >= 500 && resp.StatusCode < 600:
+			sentinel = ErrServiceUnavailable
+		case resp.StatusCode >= 400 && resp.StatusCode < 500:
+			sentinel = ErrInvalidResponse
+		default:
+			// 3xx 等意外状态码（不应出现在 CheckRedirect=noRedirect 配置下）
+			sentinel = ErrInvalidResponse
+		}
+		return bodyBytes, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
+			sentinel, url, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 	return bodyBytes, nil
 }
