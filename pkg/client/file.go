@@ -69,6 +69,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	buf, ok := bufObj.(*bytes.Buffer)
 	if !ok || buf == nil {
 		buf = &bytes.Buffer{}
+		// pool 返回了错误类型或 nil，分包新建 buf 时预分配
+		// fileData+1KB 空间以避免 multipart 构造时多次扩容
 		buf.Grow(len(fileData) + 1024)
 	}
 	defer func() {
