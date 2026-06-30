@@ -45,8 +45,14 @@ func main() {
 	// 已运行释放资源，行 85 的 closeAllClients 幂等安全。
 	defer func() {
 		if r := recover(); r != nil {
-			// F9: 把 panic 转成 printError 输出，与正常 error 路径一致
-			// 同时输出 debug.Stack() 到 stderr 辅助生产问题定位
+			// F7/F9: 把 panic 转成与正常 error 路径一致的 exit code 1。
+			// 必须先调 markError() 设 pendingExitCode=1，
+			// 否则 main 末尾的 pendingExitCode.Load() != 0 分支不触发，
+			// 进程以 exit 0 退出，CI 脚本误判 panic 为成功。
+			// 然后 printError 输出 JSON envelope 与正常 error 路径保持一致，
+			// 同时 debug.Stack() 写到 stderr 辅助生产问题定位。
+			markError()
+			printError(fmt.Errorf("内部错误: %v", r))
 			_, _ = fmt.Fprintln(os.Stderr, "panic stack trace:")
 			_, _ = os.Stderr.Write(debug.Stack())
 		}
