@@ -4,11 +4,49 @@ import (
 	"bytes"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
 
 // ─── syncCookieToken 测试 ───
+
+// TestSyncCookieToken_ConcurrentRaceFree 验证 F3 修复：
+// 直接构造 Client{} 绕过 New() 时并发 syncCookieToken 不再触发 race detector。
+// 修复前：c.baseURLParsed 在懒解析分支读-检查-写无锁保护，
+// 多个 goroutine 同时进入懒解析分支写字段会被 race detector 报警。
+// 修复后：c.baseURLParsed 改 atomic.Pointer[url.URL]，所有访问原子化，
+// 热路径 Load 无锁直接读，懒解析路径 CompareAndSwap 防重复解析。
+func TestSyncCookieToken_ConcurrentRaceFree(t *testing.T) {
+	c := &Client{
+		ssoBaseURL: "https://sso.example.com",
+		baseURL:    "https://biz.example.com",
+		uploadURL:  "https://up.example.com",
+		http:       newHTTPClient(),
+	}
+	// 注意：直接构造 Client{}，未调 New()，c.baseURLParsed 仍为零值，
+	// 全部 syncCookieToken 调用都走懒解析分支——这是 race 唯一触发路径。
+
+	const goroutines = 50
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := 0; i < goroutines; i++ {
+		go func() {
+			defer wg.Done()
+			_ = c.syncCookieToken("test-token")
+		}()
+	}
+	wg.Wait()
+
+	// 验证懒解析最终生效
+	u := c.baseURLParsed.Load()
+	if u == nil {
+		t.Fatal("并发 syncCookieToken 后 baseURLParsed 应被解析")
+	}
+	if u.String() != "https://biz.example.com" {
+		t.Errorf("baseURLParsed 内容错误: %q", u.String())
+	}
+}
 
 // TestSyncCookieToken_NilJar_ReturnsError 验证 jar 为 nil 时返回 error。
 func TestSyncCookieToken_NilJar_ReturnsError(t *testing.T) {

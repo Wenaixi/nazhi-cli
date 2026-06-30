@@ -23,12 +23,12 @@ func TestNew_PreParsesBaseURL_R15C(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = c.Close() })
 
-	if c.baseURLParsed == nil {
+	if c.baseURLParsed.Load() == nil {
 		t.Fatal("New() 后 c.baseURLParsed 应已被预解析，实际 nil")
 	}
-	if c.baseURLParsed.String() != "https://biz.example.com:8280" {
+	if got := c.baseURLParsed.Load().String(); got != "https://biz.example.com:8280" {
 		t.Errorf("baseURLParsed 期望 %q，实际 %q",
-			"https://biz.example.com:8280", c.baseURLParsed.String())
+			"https://biz.example.com:8280", got)
 	}
 }
 
@@ -47,7 +47,7 @@ func TestSyncCookieToken_LazyParseFallback_R15C(t *testing.T) {
 	if err := c.syncCookieToken("tok"); err != nil {
 		t.Fatalf("syncCookieToken 失败: %v", err)
 	}
-	if c.baseURLParsed == nil {
+	if c.baseURLParsed.Load() == nil {
 		t.Fatal("懒解析后 c.baseURLParsed 应非 nil")
 	}
 }

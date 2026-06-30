@@ -8,8 +8,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strings"
 	"time"
 
@@ -269,6 +271,11 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 
 	resp, err := c.http.Do(req)
 	if err != nil {
+		// A1 修复：检测超时错误并用 ErrTimeout 包装。
+		// 让 SDK 用户能 errors.Is(err, ErrTimeout) 区分「超时」vs「连不上」。
+		if isTimeoutError(err) {
+			return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrTimeout, url, err)
+		}
 		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)
 	}
 	return resp, nil
@@ -382,8 +389,29 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 			// 3xx 等意外状态码（不应出现在 CheckRedirect=noRedirect 配置下）
 			sentinel = ErrInvalidResponse
 		}
-		return bodyBytes, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
+		return nil, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
 			sentinel, url, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 	return bodyBytes, nil
+}
+
+// isTimeoutError 检测错误是否为超时相关。
+// 检查 ctx.DeadlineExceeded、*url.Error 超时、以及 net.OpErr 超时。
+func isTimeoutError(err error) bool {
+	if errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		if urlErr.Timeout() {
+			return true
+		}
+	}
+	var netErr *net.OpError
+	if errors.As(err, &netErr) {
+		if netErr.Timeout() {
+			return true
+		}
+	}
+	return false
 }
