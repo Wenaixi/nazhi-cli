@@ -167,21 +167,26 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	if len(dimErrs) > 0 {
 		// 将 context 取消错误分离出来，但保留维度计数
 		var bizErrs []error
+		var ctxErrs []error
 		var cancelledCount int
 		for _, de := range dimErrs {
 			if errors.Is(de, context.Canceled) || errors.Is(de, context.DeadlineExceeded) {
 				cancelledCount++
+				ctxErrs = append(ctxErrs, de)
 				continue
 			}
 			bizErrs = append(bizErrs, de)
 		}
+		// 取消信号占位不进 bizErrs（避免 failedCount 含占位虚高 1），
+		// 但仍 join 进 joined 保留信号——cmd 层仍能感知 cancel 数。
+		var cancelPlaceholder error
 		if cancelledCount > 0 {
-			bizErrs = append(bizErrs, fmt.Errorf("%d 个维度因 context 取消而失败（可重试）", cancelledCount))
+			cancelPlaceholder = fmt.Errorf("%d 个维度因 context 取消而失败（可重试）", cancelledCount)
 		}
 
 		// 仅有 context 取消错误
-		if len(bizErrs) == 1 && cancelledCount > 0 && len(dimErrs) == cancelledCount {
-			joined := errors.Join(dimErrs...)
+		if len(bizErrs) == 0 && cancelledCount > 0 {
+			joined := errors.Join(append(ctxErrs, cancelPlaceholder)...)
 			if len(allTasks) == 0 {
 				// 无 partial tasks：裸返回，不包装 ErrBusinessRejected
 				return nil, joined
@@ -191,8 +196,9 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 				ErrBusinessRejected, joined)
 		}
 
-		// 有真正的业务错误，保持原 ErrBusinessRejected 包装语义
-		joined := errors.Join(bizErrs...)
+		// 有真正的业务错误，保持原 ErrBusinessRejected 包装语义。
+		// 占位不进 bizErrs，所以 failedCount 仅算真业务失败维度。
+		joined := errors.Join(append(append(bizErrs, ctxErrs...), cancelPlaceholder)...)
 		failedCount := len(bizErrs)
 
 		if len(allTasks) == 0 {

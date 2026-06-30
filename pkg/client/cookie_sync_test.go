@@ -1,6 +1,9 @@
 package client
 
 import (
+	"bytes"
+	"log/slog"
+	"strings"
 	"testing"
 	"time"
 )
@@ -122,5 +125,48 @@ func TestBuildLoginResponse_EmptyBody_RawDataIsNil(t *testing.T) {
 	}
 	if resp.RawData != nil {
 		t.Error("RawData 在 bodyBytes 为空时应为 nil（decode 块不执行）")
+	}
+}
+
+// ─── group-B F2: partial decode 应发 logger.Warn + RawData 不留半成品 ───
+
+// TestBuildLoginResponse_PartialDecode_LogsAndClearsRawData 验证当 body 是合法
+// 起始 + 尾随垃圾的 partial JSON 时，buildLoginResponse 必须：
+//  1. 通过 c.logger.Warn 告知调用方（不能 silent 失败）
+//  2. RawData 不能保留半成品 map（半成品对下游查找是误导）
+//
+// 修复前：partial decode 成功（rawData != nil）但 err != nil → silent，
+// RawData 留下半成品，调用方拿到"看起来有效但字段不全"的 RawData。
+//
+// 修复后：partial decode 错误时记 logger.Warn(...partial decode...) 并
+// RawData = nil（防半成品被下游使用）。
+func TestBuildLoginResponse_PartialDecode_LogsAndClearsRawData(t *testing.T) {
+	var warnBuf bytes.Buffer
+	c := &Client{
+		ssoBaseURL: "https://sso.example.com",
+		baseURL:    "https://biz.example.com",
+		uploadURL:  "https://up.example.com",
+		http:       newHTTPClient(),
+		logger:     slog.New(slog.NewTextHandler(&warnBuf, &slog.HandlerOptions{Level: slog.LevelDebug})),
+	}
+
+	// 真正的 partial decode：完整有效的 JSON 对象后跟额外 token 触发 err。
+	// json.Decoder.Decode() 在解析完第一个 value 后遇到非空白字节返回错误，
+	// 此时 rawData 已含第一个 value 的字段但 err != nil——典型 partial 场景。
+	// 完全无法解析（如 {"token":"abc","garbage）的 rawData == nil，走原 rawData==nil 兜底分支。
+	partial := []byte(`{"token":"abc","user":"u1"}extra-garbage-data`)
+	_ = partial
+
+	resp := c.buildLoginResponse("jwt-token", time.Now(), partial, "partial-test")
+	if resp == nil {
+		t.Fatal("buildLoginResponse 不应返回 nil")
+	}
+	if resp.RawData != nil {
+		t.Errorf("F2 修复契约：partial decode 错误时 RawData 应清零（防半成品），实际得到半成品: %+v", resp.RawData)
+	}
+
+	warnOut := warnBuf.String()
+	if !strings.Contains(warnOut, "partial decode") && !strings.Contains(warnOut, "RawData") {
+		t.Errorf("F2 silent 失败：logger 应发出 partial decode 警告，实际日志: %q", warnOut)
 	}
 }
