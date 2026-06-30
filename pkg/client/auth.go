@@ -230,13 +230,17 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 	remaining := time.Until(expiresAt)
 	if remaining > tokenparse.DefaultTokenTTL-expiresFallbackThreshold {
-		c.logger.Warn(fmt.Sprintf("Login %s: token 剩余寿命 %v > 23h（expiresAt=%s），server 可能未带 expires_in/exp，使用 now+24h 兜底",
-			label, remaining.Round(time.Second), expiresAt.Format(time.RFC3339)))
+		c.logger.Warn("Login token 剩余寿命过长，server 可能未带 expires_in/exp，使用 now+24h 兜底",
+			"label", label,
+			"remaining", remaining.Round(time.Second),
+			"expiresAt", expiresAt.Format(time.RFC3339))
 		return
 	}
 	if remaining < expiresFallbackThreshold {
-		c.logger.Warn(fmt.Sprintf("Login %s: token 已过期或剩余 < %v（remaining=%v expiresAt=%s），首次业务调用将立即 401",
-			label, expiresFallbackThreshold, remaining.Round(time.Second), expiresAt.Format(time.RFC3339)))
+		c.logger.Warn("Login token 已过期或剩余 < 1h，首次业务调用将立即 401",
+			"label", label,
+			"remaining", remaining.Round(time.Second),
+			"expiresAt", expiresAt.Format(time.RFC3339))
 	}
 }
 
