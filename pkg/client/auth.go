@@ -207,7 +207,13 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	} else if err := types.CheckCode(errResp); err != nil {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
-	return nil, fmt.Errorf("%w: 非预期状态码 %d", ErrLoginRejected, httpResp.StatusCode)
+	// F4 修复：非预期状态码错误消息附 logSafeBody(bodyBytes) 截断摘要（100 字节）。
+	// 修复前错误消息仅含 "非预期状态码 %d"，body 信息丢给 c.logDebug（默认 LevelWarn
+	// 下被静默过滤），用户必须开 verbose 才能定位。修复后错误消息直接带 body 片段，
+	// 用户无论 verbose 与否都能在打印的 error 上看到原始响应摘要（典型 nginx 503
+	// HTML、CDN challenge、HTML 错误页等）。
+	return nil, fmt.Errorf("%w: 非预期状态码 %d body=%s",
+		ErrLoginRejected, httpResp.StatusCode, logSafeBody(bodyBytes))
 }
 
 // warnIfExpiresAtFallback 在 expiresAt 异常时输出 WARN 日志。两条 Login 路径

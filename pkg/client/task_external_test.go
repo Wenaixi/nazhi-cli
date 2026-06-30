@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -468,5 +470,122 @@ func TestGetDimensions_BizError(t *testing.T) {
 	_, err := c.GetDimensions(context.Background(), "test-token")
 	if err == nil {
 		t.Fatal("期望业务错误，但得到 nil")
+	}
+}
+
+// ─── task_cancelled_count_test.go (group-B F1): 失败数不虚高 ───
+
+// TestFetchTasks_MixedBizAndCancel_FailedCountAccurate 验证混合场景下：
+//   - 2 个维度立即返回真业务错误（code=0 → 进 dimErrs 走 bizErrs 路径）
+//   - 3 个维度 handler 睡眠 → ctx 超时 → 走 cancelledCount 路径
+//
+// 失败语义上：只有 2 个真业务失败，3 个 ctx 取消（可重试）。
+// 修复前 L178-180 把占位 append 到 bizErrs，failedCount:=len(bizErrs) = 3 → 错误消息
+// 报"3 个维度部分失败"，虚高 1（占位错误不应算入失败数）。
+//
+// RED 阶段：断言错误消息里的失败数 == 2（不含 cancelledCount 占位），
+// 即 "%d 个维度" 的 %d 等于真实业务失败维度数。
+// GREEN 阶段：占位不进 bizErrs，failedCount 仅算真业务数。
+//
+// 注意：所有 tasks 都是 0 条（每个立即返回的维度都是 code=0 → 不返回 task），
+// 但 ctx 取消会让 allTasks 仍空 → 走"全维度业务失败"分支。
+// 修复后错误消息应是 "%d 个维度均失败"（allTasks 为空），
+// %d 应 = 2（不含占位的 3）。
+func TestFetchTasks_MixedBizAndCancel_FailedCountAccurate(t *testing.T) {
+	dims := []map[string]any{
+		{"id": int64(10), "name": "维度A"},
+		{"id": int64(20), "name": "维度B"},
+		{"id": int64(30), "name": "维度C"},
+		{"id": int64(40), "name": "维度D"},
+		{"id": int64(50), "name": "维度E"},
+	}
+
+	var handlerMu sync.Mutex
+	canceled := false
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getDimensions":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(unifiedJSON(1, "成功", nil, dims)))
+		case "/api/studentCircleNew/getCircleStatistics":
+			dimID := r.URL.Query().Get("dimensionId")
+			if dimID == "10" || dimID == "20" {
+				// 立即返回真业务错误（code=0）
+				handlerMu.Lock()
+				w.Header().Set("Content-Type", "application/json")
+				handlerMu.Unlock()
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(unifiedJSON(0, "业务失败"+dimID, nil, nil)))
+				return
+			}
+			// 维度 C/D/E 睡眠直到 ctx 取消：
+			// - 若已收到 cancel 信号则立即返回 500 减少 round-trip
+			// - 否则阻塞到 ctx.Done()
+			handlerMu.Lock()
+			isCanceled := canceled
+			handlerMu.Unlock()
+			if isCanceled {
+				w.WriteHeader(http.StatusInternalServerError)
+				return
+			}
+			// 简单阻塞：让 handler 在 cancel 触发时由 transport 关闭连接
+			// net/http server 的 connection close 会让 client 收到 cancel。
+			// 这里睡眠足够长；ctx 取消时 transport 会断开。
+			time.Sleep(2 * time.Second)
+		default:
+			t.Errorf("未预期的请求: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+
+	// 50ms 超时，让维度 A/B 完成，触发 cancel 让 C/D/E 失败。
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	// 一旦 ctx 取消就允许后续 handler 短路（最佳努力，不影响 race 判定）。
+	go func() {
+		<-ctx.Done()
+		handlerMu.Lock()
+		canceled = true
+		handlerMu.Unlock()
+	}()
+
+	tasks, err := c.FetchTasks(ctx, "test-token")
+	if err == nil {
+		t.Fatal("期望混合错误，但得到 nil")
+	}
+	if !errors.Is(err, client.ErrBusinessRejected) {
+		t.Fatalf("期望包装 ErrBusinessRejected，得到: %v", err)
+	}
+	// allTasks 应为空：所有立即返回的维度都是业务失败（C/D/E 因 cancel 也没拿到 task）
+	if len(tasks) != 0 {
+		t.Errorf("期望 allTasks 空（无 partial），得到 %d", len(tasks))
+	}
+	// 关键断言：errMsg 里 "X 个维度" 的 X 应等于真业务失败数 = 2，
+	// 不应包含 cancelledCount 的 3（这是占位，不是真业务失败）。
+	errMsg := err.Error()
+	// 关键断言：failedCount 必须是真业务失败数 = 2，不应含 cancelledCount 占位。
+	// 错误消息格式："...全部 X 个维度均失败..." 中 X 应 = 2。
+	//
+	// ponytail：占位 fmt.Errorf("%d 个维度因 context 取消而失败（可重试）")
+	// 应保留以告知 cancel 数，但它**不应**进 failedCount。
+	// 用正则锚定"X 个维度均失败"或"X 个维度部分失败"中的 X，避免误中占位文本。
+	// 修复后：应匹配 "...全部 2 个维度均失败..."；占位"3 个维度因 context 取消"
+	// 不该出现"全部 3 个维度"或"2 个维度部分失败"等格式。
+	//
+	// 严格断言：错误消息不应包含"全部 3 个维度"（虚高）或"3 个维度部分失败"（虚高）。
+	if strings.Contains(errMsg, "全部 3 个维度") {
+		t.Errorf("F1 虚高：failedCount 含占位 → 错误包含 %q，应 = 2。errMsg=%s", "全部 3 个维度", errMsg)
+	}
+	if strings.Contains(errMsg, "3 个维度部分失败") {
+		t.Errorf("F1 虚高：failedCount 含占位 → 错误包含 %q，应 = 2 个真业务。errMsg=%s", "3 个维度部分失败", errMsg)
+	}
+	// 反向断言：应出现"全部 2 个维度"或"2 个维度部分失败"。
+	if !strings.Contains(errMsg, "全部 2 个维度") {
+		t.Errorf("F1 应体现 2 个真业务失败，但 errMsg 未出现 %q。errMsg=%s", "全部 2 个维度", errMsg)
 	}
 }

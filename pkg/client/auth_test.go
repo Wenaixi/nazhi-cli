@@ -1565,3 +1565,66 @@ func TestLogin_ExpiresAtInPast(t *testing.T) {
 		t.Errorf("兜底告警应说明 '过期/兜底' 语义，实际日志:\n%s", logOutput)
 	}
 }
+
+// ─── group-B F4: Login 非预期状态码错误附 body 摘要 ───
+
+// TestLogin_UnexpectedStatus_BodyInError 验证 Login 在非 200/302 状态码 +
+// 非 JSON body 时，返回的错误消息必须包含 body 摘要，否则排查困难。
+//
+// 修复前：auth.go L210 错误消息仅含"非预期状态码 %d"，body 信息丢失，
+// 排错时需开 verbose 日志看 c.logDebug 才能定位（默认 LevelWarn 不输出）。
+// 修复后：错误消息内嵌 logSafeBody(bodyBytes)，用户 -v 或非 -v 都能看到。
+func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
+	// 自定义 HTML error body（典型 nginx/网关 503 错误页）
+	const errBody = "<html><body><h1>503 Service Unavailable - gateway timeout</h1></body></html>"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			// 503 + 非 JSON HTML body
+			w.Header().Set("Content-Type", "text/html")
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte(errBody))
+		}
+	}))
+	defer srv.Close()
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误，实际 nil")
+	}
+	if !errors.Is(err, ErrLoginRejected) {
+		t.Fatalf("期望包装 ErrLoginRejected，得到: %v", err)
+	}
+
+	// 关键断言：错误消息必须含 body 摘要（截断 100 字）
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "body=") {
+		t.Errorf("F4 修复契约：非预期状态码错误消息必须含 body 摘要（logSafeBody），便于排查。实际 errMsg=%q", errMsg)
+	}
+	// 摘要应包含原 body 的前 100 字节内容（这里 body 较短，全部包含）
+	if !strings.Contains(errMsg, "503") || !strings.Contains(errMsg, "html") {
+		t.Errorf("F4 修复契约：body 摘要应包含原 body 关键内容（503/html）。实际 errMsg=%q", errMsg)
+	}
+}
