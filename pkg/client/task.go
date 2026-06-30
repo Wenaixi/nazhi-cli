@@ -179,9 +179,12 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		}
 		// 取消信号占位不进 bizErrs（避免 failedCount 含占位虚高 1），
 		// 但仍 join 进 joined 保留信号——cmd 层仍能感知 cancel 数。
+		//
+		// F2.1 修复：用 %w 包装 ErrRetryable，让 SDK 用户能 errors.Is 识别
+		//「context 取消导致的失败」并触发重试。原裸 fmt.Errorf 只能字符串匹配。
 		var cancelPlaceholder error
 		if cancelledCount > 0 {
-			cancelPlaceholder = fmt.Errorf("%d 个维度因 context 取消而失败（可重试）", cancelledCount)
+			cancelPlaceholder = fmt.Errorf("%w: %d 个维度因 context 取消而失败", ErrRetryable, cancelledCount)
 		}
 
 		// 仅有 context 取消错误
