@@ -1,10 +1,10 @@
 // auth_test.go 聚合 pkg/client 内部白盒测试，覆盖以下修复回归：
 //   - F1: Login drain+close 让 keep-alive 池归还连接
 //   - F2: 200/302 路径对称 expiresAt warn + warnSyncCookieToken helper 去重
-//   - F2-EXTRACT-TOKEN-ASYM: extractTokenFromLocation 畸形 URL 返回 error
+//   - F2-EXTRACT-TOKEN-ASYM: tokenparse.ExtractFromLocation 畸形 URL 返回 error
 //   - F8-CAPTCHA-URL-COLLISION: captchaSeq atomic 保证 URL 唯一
-//   - F10-FRAGMENT-URLDECODE: extractTokenFromFragment URL 解码
-//   - G2: extractTokenFromReturnData 解析 expires_in/exp
+//   - F10-FRAGMENT-URLDECODE: tokenparse.ExtractFromFragment URL 解码
+//   - G2: tokenparse.ExtractFromReturnData 解析 expires_in/exp
 //   - G3: Login 200 ReadAll 错误含 status + read 字节数
 //   - M2: stringPtrOr → derefOr 重命名 + nil-safe 语义
 package client
@@ -35,7 +35,7 @@ import (
 // 兜底（now+24h）时，告警必须以 WARN 级别输出，与 302 路径语义对称。
 // 场景：server 返回 200 + UnifiedResponse，returnData 含 token 但**无**exp/expires_in
 // 字段（HAR 验证的登录响应现状，server 不带过期信息）。
-// extractTokenFromReturnData 返回 now+24h → Login 应 Warn 提示。
+// tokenparse.ExtractFromReturnData 返回 now+24h → Login 应 Warn 提示。
 // 修复前：完全静默（200 路径无任何 expiresAt warn 代码）。
 // 修复后：c.logger.Warn → 默认 LevelWarn 下用户立即知道 server 行为异常。
 func TestLogin_200Path_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
@@ -379,7 +379,7 @@ func TestLogin_DrainsBody_On200UnexpectedEOFPath(t *testing.T) {
 // 必须 logDebug 输出原始 body 摘要（便于排查非 UnifiedResponse 错误响应）。
 // 场景 1：body 是空对象 {} → json.Unmarshal 成功但 loginResp.ReturnData 为 nil
 //
-//	→ extractTokenFromReturnData 返回 "returnData 为空" 错误
+//	→ tokenparse.ExtractFromReturnData 返回 "returnData 为空" 错误
 //	→ 当前实现：吞掉错误，错误信息只说"未找到 token"
 //	→ 修复后：logDebug 输出 body + 错误
 func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
@@ -397,7 +397,7 @@ func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
 		case "/teacher/auth/studentLogin/validate":
 			// 关键：返回 200 + 空对象 {} → json.Unmarshal 成功但无 token 字段
 			w.Header().Set("Content-Type", "application/json")
-			// 返回 returnData=null 让 extractTokenFromReturnData 失败
+			// 返回 returnData=null 让 tokenparse.ExtractFromReturnData 失败
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null}`))
 		}
 	}))
@@ -747,7 +747,7 @@ func TestExtractTokenFromLocation_Fallback24h(t *testing.T) {
 	}
 }
 
-// F2-EXTRACT-TOKEN-ASYM RED 测试：畸形 URL 返回 error，与 extractTokenFromReturnData
+// F2-EXTRACT-TOKEN-ASYM RED 测试：畸形 URL 返回 error，与 tokenparse.ExtractFromLocation
 // 的错误传播契约对称。
 // 用例：`http://[::1` 是缺少闭合 `]` 的 IPv6 字面量，net/url 必返回 parse error。
 // 修复前：静默返回 ("", now+24h) — 错误吞掉，调用方看到「未找到 token」。
@@ -1263,10 +1263,10 @@ func TestDerefOr_NotConfusedWithCmpOr(t *testing.T) {
 	t.Log("注意：不能用 cmp.Or(*Msg, def) 替代，cmp.Or 在 Msg==nil 时 panic")
 }
 
-// ─── auth_wrap_test.go (A5): 200 路径 extractToken 错误改用 %w 包装 ───
+// ─── auth_wrap_test.go (A5): 200 路径 tokenparse 错误改用 %w 包装 ───
 
 // TestLogin_200Path_ExtractTokenError_WrappedWithPercentW 验证
-// 当 returnData 中无 token 字段时（触发 extractTokenFromReturnData 返回错误），
+// 当 returnData 中无 token 字段时（触发 tokenparse.ExtractFromReturnData 返回错误），
 // Login 返回的错误应保留 tokenparse 返回的底层错误（不是用 %v 截断）。
 //
 // 修复前：fmt.Errorf("%w: 200 响应中未找到 token: %v", ErrLoginRejected, err) — %v 断开错误链。
@@ -1288,7 +1288,7 @@ func TestLogin_200Path_ExtractTokenError_WrappedWithPercentW(t *testing.T) {
 		case "/teacher/auth/studentLogin/validate":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			// returnData 是 JSON 对象但不含 token 字段 → 触发 extractToken 失败路径（auth.go:151-154）
+			// returnData 是 JSON 对象但不含 token 字段 → 触发 tokenparse.ExtractFromReturnData 失败路径（auth.go:151-154）
 			_, _ = w.Write([]byte(`{"code":1,"returnData":{"other":"value"}}`))
 		}
 	}))
@@ -1302,7 +1302,7 @@ func TestLogin_200Path_ExtractTokenError_WrappedWithPercentW(t *testing.T) {
 		SchoolID: "173",
 	})
 	if err == nil {
-		t.Fatal("期望 Login 返回错误（extractToken 失败），实际 nil")
+		t.Fatal("期望 Login 返回错误（token 提取失败），实际 nil")
 	}
 
 	// 关键断言：err.Error() 应包含 tokenparse 返回的原始错误消息
