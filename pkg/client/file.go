@@ -97,7 +97,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 同时禁用自动重定向（CheckRedirect=ErrUseLastResponse），与 SSO 流程策略一致，
 	// 防止 302 跳转到第三方主机时附带请求头。
 	//
-	// 共享 Transport 让连接池/TLS 握手/代理配置复用，批量上传 50 张图时
+	// 共享 Transport 让连接池/TLS 握手/代理配置复用，批量上传 N 张图时
 	// 只需 1 次 DNS+TCP+TLS 握手，后续 keep-alive 复用。
 	resp, err := newCleanClient(c).Do(req)
 	if err != nil {
