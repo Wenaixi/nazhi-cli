@@ -58,6 +58,13 @@ chore(deps): 依赖升级
 > 中文描述也可以接受，但保持一行能概括为佳。BREAKING CHANGE 在 body 末尾
 > 用 `BREAKING: xxx` 单独成段说明。
 
+### 提交格式硬性约束
+
+- **subject 必须以 `<type>(<scope>): <subject>` 开头**，例如 `fix(ocr): xxx`
+- **禁止任何装饰字符、空 preamble 行、机器人标签或横幅**（如 `@bot`、机器人自动生成的脚注、CI 触发器的复读等）
+- **禁止以 `@`、`[`、`(`、`<` 等非 Conventional 字符开头**——这类前缀会被 Git 工具链误判为
+  mention/标签或与 changelog 生成器冲突，导致 release 工具解析失败
+
 ## Pull Request
 
 - PR 标题同样遵循 Conventional Commits
