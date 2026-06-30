@@ -189,45 +189,38 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // Authorization 头，杜绝业务域鉴权信息泄露到文件上传公共服务。
 //
 // 性能优化：
-//   - Clone c.http.Transport 共享 Dialer/TLSConfig/代理配置，
-//     但 idle 连接池独立。Client.Close() 的 CloseIdleConnections
-//     只关闭 clean client 自己的 idle 池，不殃及业务 Client 到 sso/api 主机的
-//     keep-alive 连接。
-//   - B1：clonedTransport 缓存在 c.cleanTransport 字段，由 sync.Once 保护，
-//     首次 Clone 后复用同一实例。修复前每次 UploadFile 都 t.Clone() 一次，
-//     50 张图 = 50 次完整 DNS+TCP+TLS 握手（每次 Clone 都产生新 Transport 实例，
-//     累加的 idle 连接池被丢弃，keep-alive 完全失效）。修复后 50 张图共享同一
-//     clean idle 池，TLS 握手仅 1 次。
+//   - 每次调用现场 Clone c.http.Transport（type assertion + t.Clone()），
+//     共享 Dialer/TLSConfig/代理配置，但 idle 连接池独立。Client.Close() 的
+//     CloseIdleConnections 只关闭本次 clean client 自己的 idle 池，不殃及业务
+//     Client 到 sso/api 主机的 keep-alive 连接。
+//   - 批量上传场景（N 张图）下，每张图产生独立 clean idle 池：keep-alive 复用
+//     限于本张图生命周期内的多次重定向/分块下载；图与图之间不会泄露 idle conn
+//     到不同 doc server host（若有自定义路由）。Clone 成本是 O(1) struct copy +
+//     重置 idle pool，远低于一次完整 DNS+TCP+TLS 握手。
 //
 // 同时禁用自动重定向（与 SSO 流程策略一致），防止 302 跳转到第三方主机
 // 时附带请求头。
 //
-// 注意：cleanTransport 通过 sync.Once 缓存一次后不再感知运行时
-// c.http.Transport 的变更。典型场景：测试中第一次 UploadFile 后动态替换
-// Transport（如 mock RoundTripper），新 Transport 不会生效。此限制是 B1
-// 缓存设计的有意取舍——运行时 Transport 变更在业务实践中极罕见，且需重建
-// Client（sync.Once 重置不可逆）。
+// 注意：每个 newCleanClient 调用现场 Clone 一次（O(1) struct copy +
+// 重置 idle conn pool），确保运行时 c.http.Transport 变更（如测试中
+// mock RoundTripper）能被即时感知，不被任何缓存字段粘住。
 func newCleanClient(c *Client) *http.Client {
-	// B1：懒加载 cloned Transport，sync.Once 保证并发安全且只 Clone 一次
-	c.cleanTransportInit.Do(func() {
-		switch t := c.http.Transport.(type) {
-		case *http.Transport:
-			// Clone 出独立 Transport：配置共享但 idle 池独立
-			c.cleanTransport = t.Clone()
-		default:
-			// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不缓存
-			//  - http.DefaultTransport 是进程单例，多 Client 共享缓存会引入隐性耦合
-			//  - 自定义 RT 无法 Clone
-		}
-	})
-
 	var transport http.RoundTripper
-	if c.cleanTransport != nil {
-		transport = c.cleanTransport
-	} else if c.http.Transport == nil {
-		transport = http.DefaultTransport
-	} else {
-		transport = c.http.Transport
+	switch t := c.http.Transport.(type) {
+	case *http.Transport:
+		// F5.6 修复：每次现场 Clone，不缓存到 Client 字段。
+		// Clone 成本 O(1) struct copy + 重置 idle conn pool，
+		// 远低于一次 TLS 握手。运行时 Transport 变更即时感知。
+		transport = t.Clone()
+	default:
+		// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不 Clone
+		//  - http.DefaultTransport 是进程单例，Clone 会创建额外 idle 池
+		//  - 自定义 RT 无法 Clone
+		if c.http.Transport == nil {
+			transport = http.DefaultTransport
+		} else {
+			transport = c.http.Transport
+		}
 	}
 	timeout := c.http.Timeout
 	if timeout != 0 && timeout < 30*time.Second {
