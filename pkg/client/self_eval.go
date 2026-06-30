@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -41,11 +40,6 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 	if err != nil {
 		return nil, err
 	}
-	// doBizGetDecode 返回 (nil, err) 时 err!=nil 已触发上述分支，
-	// 但保留 v==nil 的安全兜底（防御性编程，避免 future refactor 破坏契约）
-	if v == nil {
-		return nil, fmt.Errorf("QuerySelfEvaluation: 未找到评价记录")
-	}
 	return v, nil
 }
 
@@ -61,9 +55,6 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 	)
 	if err != nil {
 		return nil, err
-	}
-	if v == nil {
-		return nil, fmt.Errorf("QuerySelfGradEvaluation: 响应中既无 returnData 也无 dataMap（code=1 但无数据）")
 	}
 	return v, nil
 }

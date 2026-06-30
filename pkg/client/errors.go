@@ -129,6 +129,8 @@ var (
 	//
 	// 主要用途：让 SDK 用户能 errors.Is 区分「超时」与「连不上」，
 	// 决定是否调大 timeout 或换网络。
+	//
+	// ponytail: reserved for future timeout wrapping — not dead code
 	ErrTimeout = errors.New("timeout: request exceeded deadline")
 
 	// ErrInvalidResponse 服务端返回非 200 状态码（4xx 排除 429）。
