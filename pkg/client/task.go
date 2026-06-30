@@ -283,15 +283,39 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 //
 // panic 信息：包含 dim.ID + dim.Name 便于排查（panic 路径无法
 // 依赖 errgroup 自带的 nil-safe 包装，必须自己构建可读错误）。
+//
+// 错误链保留（F10.1）：recover() 返回的是 any，r 是 error 时走 %w
+// 保留 chain，让 SDK 用户能用 errors.Is 识别 panic 根因（典型场景：
+// mock 误实现 panic(errors.New("xxx")) → 调试时能直接定位根 error）。
 func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			os.Stderr.Write(debug.Stack())
 			tasks = nil
-			err = fmt.Errorf("维度 %d(%s) panic: %v", dim.ID, dim.Name, r)
+			err = wrapPanicAsErr(dim, r)
 		}
 	}()
 	return c.fetchTasksForDimension(ctx, dim, headers)
+}
+
+// wrapPanicAsErr 把 recover() 拿到的 any 转成可读 error。
+//
+// r 是 error：走 %w 保留 chain（errors.Is 可穿透命中根因）。
+// r 不是 error（string / struct / runtime.nilError 等）：走 %v 兜底。
+// r == nil：返回明确 error，避免 nil 走调用链误导调用方。
+//
+// ponytail：抽出来让 fetchTasksForDimensionSafe defer 闭包保持 3 行内，
+// 同时让「r 是 error / 不是 error / nil」三条分支 100% 可测，
+// 不污染 fetchTasksForDimension 加测试钩子。
+func wrapPanicAsErr(dim types.Dimension, r any) error {
+	switch v := r.(type) {
+	case nil:
+		return fmt.Errorf("维度 %d(%s) panic: <nil>", dim.ID, dim.Name)
+	case error:
+		return fmt.Errorf("维度 %d(%s) panic: %w", dim.ID, dim.Name, v)
+	default:
+		return fmt.Errorf("维度 %d(%s) panic: %v", dim.ID, dim.Name, v)
+	}
 }
 
 // SubmitTask 提交一次任务。
