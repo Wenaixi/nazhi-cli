@@ -294,7 +294,7 @@ func (p *Pool) trackInit(o *OCR) {
 // （在 o.mu 临界区内、Classification 前），形成两层防御：
 //   - 层 1（Pool）：closeMu 保证 trackInit 窗口不泄漏
 //   - 层 2（OCR）：atomic closed 二次检查保证永不访问已关闭 session
-func (p *Pool) Recognize(imageData []byte) (string, error) {
+func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 	// 临界区：close 检查 + Get + trackInit 原子完成
 	var o *OCR
 	p.closeMu.Lock()
@@ -310,8 +310,20 @@ func (p *Pool) Recognize(imageData []byte) (string, error) {
 		return "", errors.New("OCR pool is closed")
 	}
 
-	defer p.pool.Put(o)
-	return o.Recognize(imageData)
+	// F5.3 修复：o.Recognize 内部 panic 时不 Put 回 pool（状态不明的实例
+	// 可能含残缺的 tempDir / nil ocr 等），让 GC 回收。正常返回才归还。
+	// 注意：initOnce 的 deferred recover 已清理 tempDir，不会泄漏。
+	panicked := true
+	defer func() {
+		if panicked {
+			_ = recover() // 吞掉，不 Put 回去
+		} else {
+			p.pool.Put(o)
+		}
+	}()
+	result, err = o.Recognize(imageData)
+	panicked = false
+	return result, err
 }
 
 // Close 释放池中所有已完成惰性初始化的 OCR 实例 (ONNX session + 临时目录)。
