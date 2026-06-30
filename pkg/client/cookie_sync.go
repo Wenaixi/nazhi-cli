@@ -17,6 +17,11 @@ import (
 //
 // F6 优化：baseURL 在 New() 阶段已预解析到 c.baseURLParsed，避免每次调用 url.Parse。
 // 若直接构造 Client（绕过 New()），则懒解析一次并缓存回 c.baseURLParsed。
+//
+// F3 修复：c.baseURLParsed 改 atomic.Pointer[url.URL]，所有访问原子化。
+// 修复前用 *url.URL + sync.Mutex 仍被 race detector 报警——
+// url.Parse 内部对返回的 *url.URL 字段写入与 jar.SetCookies 的字段读取
+// 虽跨不同 goroutine 但共享同一 *url.URL，atomic.Pointer 让所有访问原子化解决。
 func (c *Client) syncCookieToken(token string) error {
 	if c.http == nil {
 		return fmt.Errorf("syncCookieToken 失败: HTTP client 为 nil，无法同步 token 到 cookie")
@@ -28,15 +33,20 @@ func (c *Client) syncCookieToken(token string) error {
 			c.http.Jar)
 	}
 
-	// 优先使用预解析的 baseURLParsed，否则懒解析一次并缓存
-	u := c.baseURLParsed
+	// 优先使用预解析的 baseURLParsed，否则懒解析一次并缓存。
+	// Load / CompareAndSwap 全原子，热路径无锁；懒解析路径用 CAS 防重复解析。
+	u := c.baseURLParsed.Load()
 	if u == nil {
-		var err error
-		u, err = url.Parse(c.baseURL)
+		parsed, err := url.Parse(c.baseURL)
 		if err != nil {
 			return fmt.Errorf("syncCookieToken 失败: 解析 base URL %q 出错: %w", c.baseURL, err)
 		}
-		c.baseURLParsed = u
+		if c.baseURLParsed.CompareAndSwap(nil, parsed) {
+			u = parsed
+		} else {
+			// 输给另一 goroutine 的 CAS，使用赢家写入的 url.URL
+			u = c.baseURLParsed.Load()
+		}
 	}
 
 	jar.SetCookies(u, []*http.Cookie{{

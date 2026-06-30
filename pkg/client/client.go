@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime/debug"
 	"strings"
+	"sync/atomic"
 	"time"
 )
 
@@ -34,9 +35,12 @@ type CaptchaRecognizer interface {
 // session 激活状态机已提取到 sessionManager，不再直接持有
 // sessionToken / sessionMu / lastErr（现为 sm.lastErr） 等字段。
 type Client struct {
-	ssoBaseURL    string       // SSO 根地址
-	baseURL       string       // 业务 API 根地址（port 8280）
-	baseURLParsed *url.URL     // baseURL 预解析结果，F6: 避免每次 syncCookieToken 重复 url.Parse
+	ssoBaseURL string // SSO 根地址
+	baseURL    string // 业务 API 根地址（port 8280）
+	// baseURLParsed 预解析结果，F6 优化 + F3 修复：atomic.Pointer 实现 lock-free 读 + CAS 懒解析写入。
+	// 之前用 *url.URL + sync.Mutex 仍有 race detector 报警（jar.SetCookies 读 url 字段时与另一 goroutine 的 url.Parse 写 url 字段同步缺失），
+	// 改 atomic.Pointer 后所有访问原子化，go test -race 不再报警。
+	baseURLParsed atomic.Pointer[url.URL]
 	uploadURL     string       // 文件上传服务器地址
 	http          *http.Client // 独立 cookie jar
 	logger        *slog.Logger
@@ -308,7 +312,7 @@ func New(opts ...Option) (*Client, error) {
 	// 所有 Options 跑完后预解析 baseURL（F6）并统一注入 cookie
 	// 预解析必须在 syncCookieToken 之前，以免 syncCookieToken 懒解析报错
 	if parsed, err := url.Parse(c.baseURL); err == nil {
-		c.baseURLParsed = parsed
+		c.baseURLParsed.Store(parsed)
 	}
 	if c.pendingToken != "" {
 		if err := c.syncCookieToken(c.pendingToken); err != nil {
