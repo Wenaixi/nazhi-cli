@@ -61,13 +61,32 @@ func (c *Client) warnSyncCookieToken(token, label string) {
 func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
 	c.warnSyncCookieToken(token, label)
 
-	// 用 json.Unmarshal 解析原始 body 为泛型 map，供 RawData 字段使用
+	// 用 json.Unmarshal 解析原始 body 为泛型 map，供 RawData 字段使用。
+	//
+	// F2 修复：partial decode 防御。json.Decoder 默认读完一个 JSON value 后，
+	// 后跟非空白字符时返回 err=nil（默认 Mode=non_strict），导致 rawData 已
+	// 填但调用方不知道后面还有未解析内容——下游用户拿到"看起来有效"的
+	// 半成品 map 而不知其不完整。
+	//
+	// 新行为：
+	//   1. 解析失败（err != nil）：完全兜底空 map（向后兼容）
+	//   2. 解析成功后用 dec.More() 检查 reader 残留——
+	//      有残留即视为 partial（log warn + RawData = nil 防止下游误用）
 	var rawData map[string]any
 	if len(bodyBytes) > 0 {
 		dec := json.NewDecoder(bytes.NewReader(bodyBytes))
 		dec.UseNumber()
-		if err := dec.Decode(&rawData); err != nil && rawData == nil {
+		if err := dec.Decode(&rawData); err != nil {
 			rawData = make(map[string]any)
+		} else if dec.More() {
+			// json.Decoder 已读完第一个 JSON value，reader 还有内容未解析
+			// → 原行为 silent 成功，下游拿到半成品。新行为：log warn + 清零。
+			if c.logger != nil {
+				c.logger.Warn("buildLoginResponse: RawData partial decode 失败",
+					"keys", len(rawData),
+					"tip", "body 含多个 JSON value 或尾部残留")
+			}
+			rawData = nil
 		}
 	}
 	return &types.LoginResponse{
