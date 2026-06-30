@@ -9,10 +9,21 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
+
+// multipartBufPool 复用 multipart 构造过程的字节缓冲，避免每次 UploadFile
+// 都分配 5MB+ 的 bytes.Buffer。F8.3 优化。
+var multipartBufPool = sync.Pool{
+	New: func() any {
+		b := &bytes.Buffer{}
+		b.Grow(5*1024 + 1024) // 预分配 5MB+1KB 匹配原 Grow 语义
+		return b
+	},
+}
 
 // UploadFile 上传图片到文件服务器，返回图片 ID。
 //
@@ -53,9 +64,18 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 若只 defer Close()，则 wire 上发出去的 body 缺终止边界，server 端 multipart
 	// parser 报 EOF 错误，100% 上传失败。
 	//
-	var buf bytes.Buffer
-	buf.Grow(len(fileData) + 1024)
-	writer := multipart.NewWriter(&buf)
+	var buf *bytes.Buffer
+	bufObj := multipartBufPool.Get()
+	buf, ok := bufObj.(*bytes.Buffer)
+	if !ok || buf == nil {
+		buf = &bytes.Buffer{}
+		buf.Grow(len(fileData) + 1024)
+	}
+	defer func() {
+		buf.Reset()
+		multipartBufPool.Put(buf)
+	}()
+	writer := multipart.NewWriter(buf)
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
 	if err != nil {
@@ -105,6 +125,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 	defer drainAndClose(resp.Body)
 
+	// F8.3 优化：先判 status code 再读 body。非 200 时只读 64KB 用于错误消息，
+	// 避免大 HTTP 错误响应的 body 全部读入内存（服务端 502/503 有时带完整 HTML 堆栈）。
+	if resp.StatusCode != http.StatusOK {
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, logSafeBody(errBody))
+	}
+
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
 		// 关键修复: 之前用 `bodyBytes, _ := io.ReadAll(resp.Body)` 吞噬错误,
@@ -112,10 +139,6 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		// 后续 json.Unmarshal([]) 返回 EOF, 报「解析上传响应失败: EOF」丢失根因。
 		// 现在包装为 ErrNetwork 哨兵, 上层可 errors.Is 识别。
 		return 0, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return 0, fmt.Errorf("%w: status=%d body=%s", ErrUploadRejected, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 
 	// 5. 解析响应
