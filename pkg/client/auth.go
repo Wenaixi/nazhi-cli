@@ -161,23 +161,24 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return nil, fmt.Errorf("Login 读取响应体失败: status=%d read=%d bytes: %w",
 			httpResp.StatusCode, len(bodyBytes), err)
 	}
+	bodySnippet := logSafeBody(bodyBytes)
 
 	if httpResp.StatusCode == http.StatusOK {
 		loginResp, err := types.DecodeResponse(bodyBytes)
 		if err != nil {
-			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, logSafeBody(bodyBytes))
+			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, bodySnippet)
 			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %w", ErrLoginRejected, err)
 		}
 		if err := types.CheckCode(loginResp); err != nil {
 			return nil, fmt.Errorf("登录失败: %w", errors.Join(ErrLoginRejected, err))
 		}
 		if loginResp.ReturnData == nil || bytes.Equal(bytes.TrimSpace(*loginResp.ReturnData), []byte("null")) {
-			c.logDebug("Login 200 响应 returnData 为 null body=%s", logSafeBody(bodyBytes))
+			c.logDebug("Login 200 响应 returnData 为 null body=%s", bodySnippet)
 			return nil, fmt.Errorf("%w: returnData 为 null", ErrLoginRejected)
 		}
 		token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
 		if err != nil {
-			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, logSafeBody(bodyBytes))
+			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, bodySnippet)
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err)
 		}
 		c.warnIfExpiresAtFallback(expiresAt, "200")
@@ -203,7 +204,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	errResp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, logSafeBody(bodyBytes))
+		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, bodySnippet)
 	} else if err := types.CheckCode(errResp); err != nil {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
@@ -230,13 +231,17 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 	remaining := time.Until(expiresAt)
 	if remaining > tokenparse.DefaultTokenTTL-expiresFallbackThreshold {
-		c.logger.Warn(fmt.Sprintf("Login %s: token 剩余寿命 %v > 23h（expiresAt=%s），server 可能未带 expires_in/exp，使用 now+24h 兜底",
-			label, remaining.Round(time.Second), expiresAt.Format(time.RFC3339)))
+		c.logger.Warn("Login token 剩余寿命过长，server 可能未带 expires_in/exp，使用 now+24h 兜底",
+			"label", label,
+			"remaining", remaining.Round(time.Second),
+			"expiresAt", expiresAt.Format(time.RFC3339))
 		return
 	}
 	if remaining < expiresFallbackThreshold {
-		c.logger.Warn(fmt.Sprintf("Login %s: token 已过期或剩余 < %v（remaining=%v expiresAt=%s），首次业务调用将立即 401",
-			label, expiresFallbackThreshold, remaining.Round(time.Second), expiresAt.Format(time.RFC3339)))
+		c.logger.Warn("Login token 已过期或剩余 < 1h，首次业务调用将立即 401",
+			"label", label,
+			"remaining", remaining.Round(time.Second),
+			"expiresAt", expiresAt.Format(time.RFC3339))
 	}
 }
 
