@@ -143,4 +143,20 @@ var (
 	// 让 SDK 用户能精确识别「HTTP 层错误」与「业务层错误」，
 	// 避免错误地把 404 等当成业务拒绝走重登录流程。
 	ErrInvalidResponse = errors.New("invalid response: HTTP non-200 non-429")
+
+	// ErrRetryable 表示「context 取消导致的失败，可重试」。
+	//
+	// 触发场景：FetchTasks 中部分维度因 ctx cancel 而失败（cancelledCount > 0），
+	// task.go 用 cancelPlaceholder = fmt.Errorf("%w: ...", ErrRetryable, ...) 包装，
+	// SDK 用户可通过 errors.Is(err, ErrRetryable) 区分「ctx cancel 应重试」
+	// 与「业务错误不应重试」。
+	//
+	// 与 ErrBusinessRejected 的语义边界：
+	//   - ErrRetryable：ctx cancel 引发的「可重试」语义标记
+	//   - ErrBusinessRejected：服务端业务拒绝（code=0），不应盲目重试
+	//
+	// F2.1 修复：原 cancelPlaceholder 用裸 fmt.Errorf，错误消息含「可重试」但
+	// 缺少 sentinel 标识，SDK 用户只能字符串匹配。改为 fmt.Errorf("%w: ...")
+	// 让 errors.Is 精确识别。
+	ErrRetryable = errors.New("retryable: context cancelled")
 )
