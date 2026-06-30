@@ -102,7 +102,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// multipart 场景下 Content-Type 必填（含 boundary），由 writer.FormDataContentType()
 	// 提供；body 传入 *bytes.Buffer（满足 io.Reader 接口），buildRequest 透传。
 	uploadURL := c.uploadURL + "/common/upload/uploadImage?bussinessType=12&groupName=other"
-	req, err := c.buildRequest(ctx, http.MethodPost, uploadURL, &buf, map[string]string{
+	req, err := c.buildRequest(ctx, http.MethodPost, uploadURL, buf, map[string]string{
 		"Accept":     "application/json, text/plain, */*",
 		"User-Agent": defaultUserAgent,
 	}, writer.FormDataContentType())
