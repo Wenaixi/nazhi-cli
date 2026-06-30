@@ -333,9 +333,9 @@ func (c *Client) bizURL(path string) string {
 // 原实现直接 c.logger.Debug(format, args...) 被 slog 当成 key-value 对，
 // 不会做 %s/%d 插值，导致日志输出原始的格式字符串而非插值结果。
 //
-// - nil logger 静默返回，避免 nil panic
-// - LevelEnabled 提前检查，非 Debug 级别时跳过 fmt.Sprintf 分配
-// OCR 99 张图 × 5 个 logDebug = 500+ 次浪费的格式字符串分配。
+//   - nil logger 静默返回，避免 nil panic
+//   - LevelEnabled 提前检查，非 Debug 级别时跳过 fmt.Sprintf 分配
+//     （OCR 热路径会反复调用此函数，无 debug 级别时应避免无谓格式化分配）
 func (c *Client) logDebug(format string, args ...any) {
 	if c.logger == nil {
 		return
