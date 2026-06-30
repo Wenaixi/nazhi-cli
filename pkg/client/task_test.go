@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -148,5 +149,31 @@ func TestAppendLocked_ConcurrentVariadic(t *testing.T) {
 	expected := goroutines * batchSize
 	if len(items) != expected {
 		t.Errorf("期望 %d 个元素, 得到 %d", expected, len(items))
+	}
+}
+
+// ─── isContextError helper 测试 ───
+
+// TestIsContextError 验证 isContextError 对 context.Canceled、context.DeadlineExceeded 返回 true，
+// 对其他错误返回 false。
+func TestIsContextError(t *testing.T) {
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"context.Canceled", context.Canceled, true},
+		{"context.DeadlineExceeded", context.DeadlineExceeded, true},
+		{"wrapped context.Canceled", fmt.Errorf("wrap: %w", context.Canceled), true},
+		{"nil error", nil, false},
+		{"other error", errors.New("some other error"), false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := isContextError(tt.err)
+			if got != tt.want {
+				t.Errorf("isContextError(%v) = %v, want %v", tt.err, got, tt.want)
+			}
+		})
 	}
 }

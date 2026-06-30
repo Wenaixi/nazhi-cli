@@ -40,6 +40,11 @@ func appendLocked[T any](mu *sync.Mutex, slice *[]T, items ...T) {
 	mu.Unlock()
 }
 
+// isContextError 判断是否为上下文取消或超时错误。
+func isContextError(err error) bool {
+	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
+}
+
 // fetchDimensions 拉取任务维度列表（FetchTasks / GetDimensions 共用）。
 // 内部包含 session 预热 + 响应解码，错误信息前缀由 caller 决定。
 func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix string) ([]types.Dimension, error) {
@@ -135,7 +140,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	// F2.2 修复：取消时的两条路径（纯 cancel + 混合）都让 errors.Is(err, ErrRetryable)
 	// 命中；保留 partial tasks 的同时让 cmd 层 envelope 输出 retryable 信号。
 	if err := g.Wait(); err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if isContextError(err) {
 			if len(allTasks) > 0 {
 				return allTasks, fmt.Errorf("%w: FetchTasks context 取消后部分维度成功: %w",
 					ErrBusinessRejected,
@@ -174,7 +179,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 		var ctxErrs []error
 		var cancelledCount int
 		for _, de := range dimErrs {
-			if errors.Is(de, context.Canceled) || errors.Is(de, context.DeadlineExceeded) {
+			if isContextError(de) {
 				cancelledCount++
 				ctxErrs = append(ctxErrs, de)
 				continue
@@ -251,7 +256,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	statURL := c.bizURL("/api/studentCircleNew/getCircleStatistics") + "?dimensionId=" + strconv.FormatInt(dim.ID, 10)
 	statBody, err := c.httpDo(ctx, http.MethodGet, statURL, nil, headers, "")
 	if err != nil {
-		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		if isContextError(err) {
 			return nil, err // 上下文取消应 propagate，不做 best-effort 吞没
 		}
 		c.logDebug("FetchTasks 维度 %d(%s) 请求失败: %v", dim.ID, dim.Name, err)
