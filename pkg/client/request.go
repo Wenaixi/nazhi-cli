@@ -56,6 +56,10 @@ var noRedirect = func(_ *http.Request, _ []*http.Request) error { return http.Er
 //   - 共享 Transport 连接池：避免与 file.go cleanTransport 产生认知冲突，
 //     两者各自独立的 idle 池，但配置对齐。
 //   - TLSHandshakeTimeout=10s：TLS 慢握手场景（弱网 / 服务器负载高）不无限等待。
+//   - ResponseHeaderTimeout=15s（F8.6）：服务端 TCP 握手完成后故意不写响应头
+//     （慢响应头 / 假死 / DoS）时强制返回错误，避免无限等待。仅靠 c.http.Timeout
+//     不够细粒度——TLSHandshakeTimeout 只覆盖握手阶段，ResponseHeader 阶段
+//     net/http 默认无限等。
 //   - 不设置 DisableCompression：平台返回 JSON 多数 < 1KB，压缩获益小但非有害。
 func newHTTPClient() *http.Client {
 	jar, _ := cookiejar.New(nil)
@@ -69,6 +73,7 @@ func newHTTPClient() *http.Client {
 			IdleConnTimeout:       90 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
 			TLSHandshakeTimeout:   10 * time.Second,
+			ResponseHeaderTimeout: 15 * time.Second,
 			DisableCompression:    false,
 		},
 	}
