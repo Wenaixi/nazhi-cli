@@ -517,28 +517,10 @@ func TestPrepareImage_PngTransparentStillFlattens(t *testing.T) {
 
 // image_prep_immutable_test.go: G4 getQualitySteps/getScaleFactors 不可变验证。
 
-// TestGetQualitySteps_ReturnsNewSlice 验证每次调用都返回不同副本。
-func TestGetQualitySteps_ReturnsNewSlice(t *testing.T) {
-	a := getQualitySteps()
-	b := getQualitySteps()
-
-	if len(a) != 1 || a[0] != 80 {
-		t.Errorf("getQualitySteps() 返回意外的值: %v", a)
-	}
-
-	// 修改 a 不应影响 b
-	if len(b) > 0 {
-		a[0] = 999
-		if b[0] == 999 {
-			t.Errorf("G4 回归：修改 getQualitySteps() 的返回副本影响了其他调用方，"+
-				"a[0]=%d, b[0]=%d (期望 b[0] 保持 80)", a[0], b[0])
-		}
-	}
-
-	ha := reflect.ValueOf(a).Pointer()
-	hb := reflect.ValueOf(b).Pointer()
-	if ha == hb {
-		t.Error("getQualitySteps() 两次调用返回了同一底层数组")
+// TestGetQualitySteps_Immutable 验证 qualityAfterOptimization 常量值正确。
+func TestGetQualitySteps_Immutable(t *testing.T) {
+	if qualityAfterOptimization != 80 {
+		t.Errorf("qualityAfterOptimization = %d, 期望 80", qualityAfterOptimization)
 	}
 }
 
@@ -564,17 +546,10 @@ func TestGetScaleFactors_ReturnsNewSlice(t *testing.T) {
 	}
 }
 
-// TestGetQualitySteps_Values 验证 getQualitySteps 返回值正确。
+// TestGetQualitySteps_Values 验证 qualityAfterOptimization 常量值正确。
 func TestGetQualitySteps_Values(t *testing.T) {
-	steps := getQualitySteps()
-	expected := []int{80}
-	if len(steps) != len(expected) {
-		t.Fatalf("长度: 期望 %d, 实际 %d", len(expected), len(steps))
-	}
-	for i, v := range steps {
-		if v != expected[i] {
-			t.Errorf("步骤 %d: 期望 %d, 实际 %d", i, expected[i], v)
-		}
+	if qualityAfterOptimization != 80 {
+		t.Errorf("qualityAfterOptimization = %d, 期望 80", qualityAfterOptimization)
 	}
 }
 
