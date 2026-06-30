@@ -83,6 +83,8 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 // ─── Login ───
 
 const (
+	// maxOCRAttemptsPerImage 是单张验证码图片的识别次数。
+	// ddddocr 对同图识别是确定性的，重试无意义，固定为 1。
 	maxOCRAttemptsPerImage   = 1
 	maxOCRImagesTotal        = 99
 	expiresFallbackThreshold = 1 * time.Hour
