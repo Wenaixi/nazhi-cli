@@ -40,11 +40,6 @@ func appendLocked[T any](mu *sync.Mutex, slice *[]T, items ...T) {
 	mu.Unlock()
 }
 
-// isContextError 判断是否为上下文取消或超时错误。
-func isContextError(err error) bool {
-	return errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded)
-}
-
 // fetchDimensions 拉取任务维度列表（FetchTasks / GetDimensions 共用）。
 // 内部包含 session 预热 + 响应解码，错误信息前缀由 caller 决定。
 func (c *Client) fetchDimensions(ctx context.Context, token string, errPrefix string) ([]types.Dimension, error) {
@@ -268,10 +263,8 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 		c.logDebug("FetchTasks 维度 %d(%s) 响应解析失败: %v", dim.ID, dim.Name, err)
 		return nil, err // propagate 解析错误到 dimErrs，不再静默吞咽
 	}
-	if statResp.Code != 1 {
-		// F-GroupD-F：业务错误 propagate，不再静默。
-		msg := types.DerefOr(statResp.Msg, "")
-		return nil, fmt.Errorf("%w: 维度 %d(%s) 业务错误: code=%d msg=%s", ErrBusinessRejected, dim.ID, dim.Name, statResp.Code, msg)
+	if err := types.CheckCode(statResp); err != nil {
+		return nil, fmt.Errorf("%w: 维度 %d(%s) 业务错误: %w", ErrBusinessRejected, dim.ID, dim.Name, err)
 	}
 
 	tasks, err = types.DecodeDataList[types.Task](statResp)
