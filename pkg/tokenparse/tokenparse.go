@@ -1,4 +1,4 @@
-// Package tokenparse 封装 SSO 登录 token 解析逻辑。
+﻿// Package tokenparse 封装 SSO 登录 token 解析逻辑。
 package tokenparse
 
 import (
@@ -101,7 +101,7 @@ func valueToString(v any) (string, error) {
 	case json.Number:
 		return x.String(), nil
 	case float64:
-		return strconv.FormatInt(int64(x), 10), nil
+		return strconv.FormatFloat(x, 'f', 0, 64), nil
 	default:
 		return "", errors.New("valueToString: 不支持的类型")
 	}
@@ -118,3 +118,4 @@ func extractTokenFromFragment(fragment string) string {
 	}
 	return ""
 }
+
