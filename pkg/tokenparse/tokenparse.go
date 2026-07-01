@@ -2,8 +2,10 @@
 package tokenparse
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
@@ -49,7 +51,7 @@ func ExtractFromLocation(location string) (token string, exp time.Time, err erro
 			qm[k] = vs[0]
 		}
 	}
-	return token, parseExpiresMap(qm), nil
+	return token, parseExpiresMap(qm, token), nil
 }
 
 // ExtractFromReturnData 从 ReturnData 字节中提取 token 和过期时间。
@@ -70,12 +72,12 @@ func ExtractFromReturnData(raw json.RawMessage) (string, time.Time, error) {
 	if token == "" {
 		return "", time.Time{}, ErrTokenFieldMissing
 	}
-	return token, parseExpiresMap(data), nil
+	return token, parseExpiresMap(data, token), nil
 }
 
 // ─── 内部辅助 ───
 
-func parseExpiresMap(q map[string]any) time.Time {
+func parseExpiresMap(q map[string]any, token string) time.Time {
 	now := time.Now()
 	if v, ok := q["expires_in"]; ok {
 		if s, err := valueToString(v); err == nil && s != "" {
@@ -91,7 +93,44 @@ func parseExpiresMap(q map[string]any) time.Time {
 			}
 		}
 	}
+	// returnData 没带 expires_in 或 exp → 尝试从 JWT token payload 提取 exp 声明。
+	// JWT 的 exp 是服务端签发的真实过期时间，比 24h 兜底准确。
+	if jwtExp, err := extractExpFromJWT(token); err == nil {
+		return jwtExp
+	}
 	return now.Add(DefaultTokenTTL)
+}
+
+// extractExpFromJWT 从 JWT token payload 中提取 exp 声明。
+// 仅解码 payload（第二部分 base64url），不做签名校验——token 是服务端刚刚签发的，
+// 在 Login 流程中可信。exp 为 Unix 秒级时间戳（Standard JWT Claims）。
+func extractExpFromJWT(token string) (time.Time, error) {
+	parts := strings.Split(token, ".")
+	if len(parts) < 2 || parts[1] == "" {
+		return time.Time{}, errors.New("非 JWT 格式")
+	}
+	// base64url 解码（标准 JWT 使用无填充的 RawURLEncoding）
+	b, err := base64.RawURLEncoding.DecodeString(parts[1])
+	if err != nil {
+		return time.Time{}, fmt.Errorf("payload base64 解码失败: %w", err)
+	}
+	var claims map[string]any
+	if err := json.Unmarshal(b, &claims); err != nil {
+		return time.Time{}, fmt.Errorf("payload JSON 解析失败: %w", err)
+	}
+	if v, ok := claims["exp"]; ok {
+		switch n := v.(type) {
+		case float64:
+			if n > 0 {
+				return time.Unix(int64(n), 0), nil
+			}
+		case json.Number:
+			if exp, err := n.Int64(); err == nil && exp > 0 {
+				return time.Unix(exp, 0), nil
+			}
+		}
+	}
+	return time.Time{}, errors.New("payload 中未找到 exp 声明")
 }
 
 func valueToString(v any) (string, error) {

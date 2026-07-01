@@ -227,17 +227,25 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 //
 // 检测两类异常:
 //
-//  1. fallback 触发：剩余寿命 > defaultTokenTTL-threshold（典型 24h 兜底），
-//     意味着 server 没带 expires_in/exp。
+//  1. fallback 触发：server 响应没带 expires_in/exp 且 JWT payload 也无 exp 声明，
+//     退回到 now+24h 兜底。此时 remaining 精确 ≈24h（±4h 窗口）。
 //  2. 已过期/即将过期：剩余寿命 < expiresFallbackThreshold，server 给的 exp
 //     已是过去时间（或剩余过短），首次业务调用会立即 401。
+//
+// v0.4.1 升级：tokenparse 新增 extractExpFromJWT 从 JWT payload 提取 exp 声明后，
+// server 不传 expires_in/exp 时不再立即触发 24h 兜底 warn——JWT 自身的 exp 声明
+// 仍是服务端签发的合法过期时间。仅当精确检测到 24h 兜底（≈24h 窗口）时才 warn。
 //
 // F4 修复前：只检测 (1)，过去时间 time.Until 为负数不大于 23h → 静默吞下。
 // F4 修复后：合并 (1) + (2)，两条都覆盖。
 func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 	remaining := time.Until(expiresAt)
-	if remaining > tokenparse.DefaultTokenTTL-expiresFallbackThreshold {
-		c.logger.Warn("Login token 剩余寿命过长，server 可能未带 expires_in/exp，使用 now+24h 兜底",
+	// 精确检测 24h 兜底：remaining 恰好 ≈24h（±4h 窗口）。
+	// v0.4.1：新增 JWT payload exp 提取后，JWT 自身的 exp（如 14 天）不是 fallback，
+	// 只有精确匹配 24h 窗口才是真兜底。
+	if remaining > tokenparse.DefaultTokenTTL-2*expiresFallbackThreshold &&
+		remaining < tokenparse.DefaultTokenTTL+expiresFallbackThreshold {
+		c.logger.Warn("Login token 剩余寿命恰好 ≈24h，服务器可能未带 expires_in/exp",
 			"label", label,
 			"remaining", remaining.Round(time.Second),
 			"expiresAt", expiresAt.Format(time.RFC3339))
