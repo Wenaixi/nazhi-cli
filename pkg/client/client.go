@@ -213,8 +213,11 @@ func WithHTTPClient(hc *http.Client) Option {
 	}
 }
 
-// WithCustomOCR 是测试用 Option，注入自定义验证码识别器。
-// 仅在测试中使用。
+// WithCustomOCR 注入自定义验证码识别器。
+//
+// 适用场景：
+//   - 测试时注入 mock 验证码识别器
+//   - CGO-free 构建（!ddddocr）时注入外部识别器（如 AI 服务）
 //
 // 行为约定：
 //   - r == nil：拒绝设置并 warn，保持当前值（防止 nil 静默覆盖
