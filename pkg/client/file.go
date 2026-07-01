@@ -41,7 +41,7 @@ var multipartBufPool = sync.Pool{
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error) {
 	// 1. 图片预处理
-	fileData, mimeType, err := c.prepareImageForUpload(filePath)
+	fileData, mimeType, err := c.prepareImageForUpload(ctx, filePath)
 	if err != nil {
 		// F3 修复：errors.Join(ErrFileTooLarge, err) 让 ErrFileTooLarge 进错误链，
 		// 调用方 errors.Is(err, ErrFileTooLarge) 单一识别所有「文件过大」路径——
