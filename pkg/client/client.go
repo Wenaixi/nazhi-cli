@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
@@ -56,53 +57,65 @@ type Client struct {
 // Option 是 Client 构造函数的选项函数。
 type Option func(*Client)
 
-// WithSSOBase 设置 SSO 根地址。
+// withURLGuard 生成字符串型 Option 的守卫工厂，消除 WithSSOBase / WithBaseURL /
+// WithUploadURL / WithToken 中重复的空字符串守卫 + warn 模式。
 //
-// 行为约定：
-//   - url == ""：拒绝设置并 warn，保持当前 ssoBaseURL（防止空字符串
-//     静默覆盖 New() 已设的 defaultSSOBase，导致 SSO 拼接出畸形 URL）
-//   - 否则：设置 ssoBaseURL
-var WithSSOBase = func(url string) Option {
-	return func(c *Client) {
-		if url == "" {
-			c.logger.Warn("WithSSOBase: 空字符串被拒绝，保持当前值", "current", c.ssoBaseURL)
-			return
+// 返回 func(string) Option：
+//   - v 为空或纯空白：warn 并拒绝设置，保持当前值
+//   - 否则：TrimSpace 后调用 setter
+func withURLGuard(name string, setter func(*Client, string)) func(string) Option {
+	return func(v string) Option {
+		if strings.TrimSpace(v) == "" {
+			return func(c *Client) {
+				c.logger.Warn(name + ": 空字符串被拒绝，保持当前值")
+			}
 		}
-		c.ssoBaseURL = url
+		return func(c *Client) {
+			setter(c, strings.TrimSpace(v))
+		}
 	}
 }
+
+// withNilGuard 生成指针/接口型 Option 的守卫工厂，消除 WithHTTPClient /
+// WithLogger / WithCustomOCR 中重复的 nil 守卫 + warn 模式。
+//
+// 返回 func(T) Option：
+//   - v 为 nil：warn 并拒绝设置，保持当前值
+//   - 否则：调用 setter
+func withNilGuard[T any](name string, setter func(*Client, T)) func(T) Option {
+	return func(v T) Option {
+		if isNil(v) {
+			return func(c *Client) {
+				c.logger.Warn(name + ": nil 被拒绝，保持当前值")
+			}
+		}
+		return func(c *Client) {
+			setter(c, v)
+		}
+	}
+}
+
+// isNil 安全检查任意值是否为 nil，处理 typed nil 指针/接口。
+func isNil(v any) bool {
+	if v == nil {
+		return true
+	}
+	rv := reflect.ValueOf(v)
+	switch rv.Kind() {
+	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
+		return rv.IsNil()
+	}
+	return false
+}
+
+// WithSSOBase 设置 SSO 根地址。
+var WithSSOBase = withURLGuard("WithSSOBase", func(c *Client, v string) { c.ssoBaseURL = v })
 
 // WithBaseURL 设置业务 API 根地址。
-//
-// 行为约定：
-//   - url == ""：拒绝设置并 warn，保持当前 baseURL（防止空字符串
-//     静默覆盖 New() 已设的 defaultBaseURL，导致 biz 拼接出畸形 URL）
-//   - 否则：设置 baseURL
-var WithBaseURL = func(url string) Option {
-	return func(c *Client) {
-		if url == "" {
-			c.logger.Warn("WithBaseURL: 空字符串被拒绝，保持当前值", "current", c.baseURL)
-			return
-		}
-		c.baseURL = url
-	}
-}
+var WithBaseURL = withURLGuard("WithBaseURL", func(c *Client, v string) { c.baseURL = v })
 
 // WithUploadURL 设置文件上传服务器地址。
-//
-// 行为约定：
-//   - url == ""：拒绝设置并 warn，保持当前 uploadURL（防止空字符串
-//     静默覆盖 New() 已设的 defaultUploadURL，导致上传拼接出畸形 URL）
-//   - 否则：设置 uploadURL
-var WithUploadURL = func(url string) Option {
-	return func(c *Client) {
-		if url == "" {
-			c.logger.Warn("WithUploadURL: 空字符串被拒绝，保持当前值", "current", c.uploadURL)
-			return
-		}
-		c.uploadURL = url
-	}
-}
+var WithUploadURL = withURLGuard("WithUploadURL", func(c *Client, v string) { c.uploadURL = v })
 
 // withDurationGuard 生成 Duration 型 Option 的守卫工厂。
 // 与 withURLGuard 对称，消除 WithTimeout / WithSessionBackoff 中重复的 d<0 / d==0 守卫。
@@ -179,18 +192,7 @@ var WithSessionBackoff = withDurationGuard("WithSessionBackoff",
 //   - l == nil：拒绝设置并 warn，保持当前 logger（防止 nil 覆盖后
 //     后续 c.logger.Warn/Debug/Error 全部 nil pointer panic）
 //   - 否则：替换 logger
-//
-// 设计一致：与 WithHTTPClient nil 守卫对称（风格）。
-func WithLogger(l *slog.Logger) Option {
-	return func(c *Client) {
-		if l == nil {
-			c.logger.Warn("WithLogger: nil logger 被拒绝，保持当前值",
-				"tip", "用 slog.New(slog.NewTextHandler(...)) 创建自定义 logger")
-			return
-		}
-		c.logger = l
-	}
-}
+var WithLogger = withNilGuard[*slog.Logger]("WithLogger", func(c *Client, l *slog.Logger) { c.logger = l })
 
 // WithHTTPClient 设置自定义 HTTP 客户端（完全替换默认客户端）。
 // 注意：替换后 cookie jar 由调用者负责。
@@ -199,18 +201,7 @@ func WithLogger(l *slog.Logger) Option {
 //   - hc == nil：拒绝设置并 warn，保持当前 c.http（防止 nil 静默覆盖
 //     默认带 cookie jar 的客户端，导致后续请求 0 cookie → 空 dataList）
 //   - 否则：完全替换 c.http
-//
-// 设计一致：与 WithTimeout 的「c.http == nil 拒绝」对称守卫。
-func WithHTTPClient(hc *http.Client) Option {
-	return func(c *Client) {
-		if hc == nil {
-			c.logger.Warn("WithHTTPClient: nil 客户端被拒绝，保持当前值",
-				"tip", "如需禁用 HTTP 客户端请直接调用 Close() 或不构造 Client")
-			return
-		}
-		c.http = hc
-	}
-}
+var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client, hc *http.Client) { c.http = hc })
 
 // WithCustomOCR 注入自定义验证码识别器。
 //
@@ -222,18 +213,7 @@ func WithHTTPClient(hc *http.Client) Option {
 //   - r == nil：拒绝设置并 warn，保持当前值（防止 nil 静默覆盖
 //     已注入的识别器，导致后续 Login 返回 ErrOCRNotConfigured）
 //   - 否则：替换识别器
-//
-// 设计一致：与 WithLogger(nil) / WithHTTPClient(nil) 的 nil 拒绝守卫对称。
-func WithCustomOCR(r CaptchaRecognizer) Option {
-	return func(c *Client) {
-		if r == nil {
-			c.logger.Warn("WithCustomOCR: nil recognizer 被拒绝，保持当前值",
-				"tip", "使用真正的 CaptchaRecognizer 实现，或省略本 Option 使用默认 OCR")
-			return
-		}
-		c.ocr = r
-	}
-}
+var WithCustomOCR = withNilGuard[CaptchaRecognizer]("WithCustomOCR", func(c *Client, r CaptchaRecognizer) { c.ocr = r })
 
 // WithOCRConcurrency 设置 OCR 实例池预分配数量。
 //
@@ -262,23 +242,12 @@ func WithCustomOCR(r CaptchaRecognizer) Option {
 // 仅设置 Header 会导致后续接口返回空数据。
 //
 // 行为约定：
-//   - token 是空字符串或纯空白：拒绝设置并 warn，保持当前 pendingToken
-//     （防止空 token 静默覆盖已有有效 token，后续 syncCookieToken 写入空
-//     cookie 导致业务鉴权失败）
+//   - token 空字符串或纯空白：拒绝设置并 warn（同 withURLGuard 约束）
 //   - 否则：存到 c.pendingToken，延迟到 New() 末尾统一 syncCookieToken
 //
 // 注意：实际 cookie 注入延迟到 New() 末尾执行，确保 WithSSOBase / WithBaseURL /
 // WithHTTPClient 在 WithToken 之后调用也能正确生效（避免 Option 顺序敏感性 bug）。
-func WithToken(token string) Option {
-	return func(c *Client) {
-		if strings.TrimSpace(token) == "" {
-			c.logger.Warn("WithToken: 空字符串或纯空白 token 被拒绝，保持当前值",
-				"current_empty", c.pendingToken == "")
-			return
-		}
-		c.pendingToken = strings.TrimSpace(token)
-	}
-}
+var WithToken = withURLGuard("WithToken", func(c *Client, v string) { c.pendingToken = v })
 
 // ─── 构造 ───
 
