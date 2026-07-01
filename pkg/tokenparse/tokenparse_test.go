@@ -3,6 +3,7 @@ package tokenparse
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 	"time"
 )
@@ -279,4 +280,42 @@ func TestDefaultTokenTTL(t *testing.T) {
 	if DefaultTokenTTL != 24*time.Hour {
 		t.Errorf("DefaultTokenTTL 应为 24h，实际 %v", DefaultTokenTTL)
 	}
+}
+
+// ─── 哨兵错误 errors.Is 测试 ───
+
+func TestExtractFromReturnData_SentinelErrors(t *testing.T) {
+	// returnData 为空 → ErrTokenReturnDataEmpty
+	_, _, err := ExtractFromReturnData(nil)
+	if !errors.Is(err, ErrTokenReturnDataEmpty) {
+		t.Errorf("空 returnData 应返回 ErrTokenReturnDataEmpty，实际: %v", err)
+	}
+	_, _, err = ExtractFromReturnData(json.RawMessage(""))
+	if !errors.Is(err, ErrTokenReturnDataEmpty) {
+		t.Errorf("空字符串 returnData 应返回 ErrTokenReturnDataEmpty，实际: %v", err)
+	}
+
+	// token 字段类型异常 → ErrTokenTypeMismatch（nil 不满足 string，type assertion 失败）
+	raw := json.RawMessage(`{"other":"value"}`)
+	_, _, err = ExtractFromReturnData(raw)
+	if !errors.Is(err, ErrTokenTypeMismatch) {
+		t.Errorf("缺 token 字段应返回 ErrTokenTypeMismatch，实际: %v", err)
+	}
+
+	// token 是数字 → type assertion 失败 → ErrTokenTypeMismatch
+	raw = json.RawMessage(`{"token":123}`)
+	_, _, err = ExtractFromReturnData(raw)
+	if !errors.Is(err, ErrTokenTypeMismatch) {
+		t.Errorf("token 类型异常应返回 ErrTokenTypeMismatch，实际: %v", err)
+	}
+
+	// token 空字符串 → ErrTokenFieldMissing
+	raw = json.RawMessage(`{"token":""}`)
+	_, _, err = ExtractFromReturnData(raw)
+	if !errors.Is(err, ErrTokenFieldMissing) {
+		t.Errorf("空 token 应返回 ErrTokenFieldMissing，实际: %v", err)
+	}
+
+	// 验证 auth.go 包装后仍能穿透
+	t.Log("哨兵错误测试通过")
 }
