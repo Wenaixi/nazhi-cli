@@ -148,7 +148,8 @@ type sessionManager struct {
 	lastErr         error
 	lastAttempt     time.Time
 	lastFailedToken string
-	cachedUserInfo  *types.UserInfo
+	cachedUserInfo  *types.UserInfo // DCL fast path 缓存。CLI 单进程命中一次，
+	// SDK 多 goroutine 并发 FetchTasks 可复用步骤 4 数据。
 }
 
 // isBackoffHit 检查给定 token 是否在 backoff 冷却窗口内。
@@ -295,8 +296,10 @@ func (sm *sessionManager) Activate(
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// 锁内检查：token 已匹配 → 直接返回缓存
-	if sm.LoadToken() == token {
+	// 锁内检查：token 已匹配且缓存非空 → 直接返回缓存
+	// caveat: cachedUserInfo 可能为 nil（如上次 RecordFailure 清空但 token 未变），
+	// 此时走 tryActivate 让 backoff 或 retry 处理，避免返回 (nil, nil) 混淆调用方。
+	if sm.LoadToken() == token && sm.cachedUserInfo != nil {
 		return sm.cachedUserInfo, nil
 	}
 
