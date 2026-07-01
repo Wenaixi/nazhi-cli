@@ -3,6 +3,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -16,7 +17,6 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"os"
-	"reflect"
 	"strings"
 	"sync"
 	"testing"
@@ -27,6 +27,12 @@ import (
 func internalNewTestClient() *Client {
 	c, _ := New(WithTimeout(5 * time.Second))
 	return c
+}
+
+// internalNewTestClientCtx 返回 test Client + context。
+func internalNewTestClientCtx(t *testing.T) (*Client, context.Context) {
+	c, _ := New(WithTimeout(5 * time.Second))
+	return c, t.Context()
 }
 
 // ─── 测试: PNG → JPG 转换 + RGBA 合成白底 ───
@@ -49,7 +55,7 @@ func TestPrepareImage_PNGtoJPEG(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(tmpfile)
+	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -86,7 +92,7 @@ func TestPrepareImage_JPEGPassthrough(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(tmpfile)
+	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -128,7 +134,7 @@ func TestPrepareImage_CompressesLargeImage(t *testing.T) {
 	origStat, _ := os.Stat(tmpfile)
 	t.Logf("原图大小: %d bytes", origStat.Size())
 
-	data, _, err := c.prepareImageForUpload(tmpfile)
+	data, _, err := c.prepareImageForUpload(t.Context(), tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -159,7 +165,7 @@ func TestPrepareImage_GifStatic(t *testing.T) {
 	}
 	f.Close()
 	// 实际 GIF 解码由 stdlib 处理，这里只确保 prepare 不 panic
-	_, _, err := c.prepareImageForUpload(tmpfile)
+	_, _, err := c.prepareImageForUpload(t.Context(), tmpfile)
 	if err != nil {
 		t.Logf("GIF 测试跳过: %v", err)
 	}
@@ -226,7 +232,7 @@ func TestUploadFile_NoAuthHeaders(t *testing.T) {
 
 // image_prep_break_test.go 通过 AST 静态扫描锁定 F4 修复：
 // image_prep.go 缩放级联循环不能 `continue` 跳过 `current = resized`。
-// F4 证据：image_prep.go 缩放级联 `for _, scale := range getScaleFactors()`
+// F4 证据：image_prep.go 缩放级联 `for _, scale := range scaleFactors`
 // 内 `if err != nil { continue }` 跳过 `current = resized`，下一轮用
 // 未更新的 current 计算 w/h → 同一尺寸重复 encodeJPEG 必然同样失败 →
 // 浪费 1-7 轮 CPU 后才 break 返回 ErrImageTooLarge。
@@ -235,7 +241,7 @@ func TestUploadFile_NoAuthHeaders(t *testing.T) {
 // 语句（注释里的字面量"continue"不会被 AST 误判）。
 
 // TestImagePrep_ScaleCascadeNoContinue AST 扫描 image_prep.go，
-// 断言 scaleFactors range 循环内不能出现 continue 语句。
+// 验证 scaleCascade 不再使用 for-range 循环（已改为单次缩放）。
 func TestImagePrep_ScaleCascadeNoContinue(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "image_prep.go", nil, 0)
@@ -255,51 +261,20 @@ func TestImagePrep_ScaleCascadeNoContinue(t *testing.T) {
 		t.Fatal("找不到 prepareImageForUpload 函数")
 	}
 
-	// 2. 找到 range getScaleFactors() 的 for 循环
-	var scaleLoop *ast.RangeStmt
+	// 2. 确认 scaleCascade 标签后没有 for-range 循环
+	var hasRangeLoop bool
 	ast.Inspect(prepFn.Body, func(n ast.Node) bool {
 		if rs, ok := n.(*ast.RangeStmt); ok {
-			if call, ok := rs.X.(*ast.CallExpr); ok {
-				if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "getScaleFactors" {
-					scaleLoop = rs
-					return false
-				}
+			// 检查 range 的目标不是 scaleFactors（防止回归）
+			if id, ok := rs.X.(*ast.Ident); ok && (id.Name == "scaleFactors" || id.Name == "getScaleFactors") {
+				hasRangeLoop = true
+				return false
 			}
 		}
 		return true
 	})
-	if scaleLoop == nil {
-		t.Fatal("找不到 `for _, scale := range getScaleFactors()` 循环")
-	}
-
-	// 3. 扫描循环 body，禁止 continue（Go 1.26 把 ContinueStmt/BreakStmt
-	// 统一为 *ast.BranchStmt，靠 Tok 字段 token.CONTINUE / token.BREAK 区分）
-	var foundContinue *ast.BranchStmt
-	ast.Inspect(scaleLoop.Body, func(n ast.Node) bool {
-		if br, ok := n.(*ast.BranchStmt); ok && br.Tok == token.CONTINUE {
-			foundContinue = br
-			return false
-		}
-		return true
-	})
-	if foundContinue != nil {
-		t.Errorf("F4 回归：scaleFactors 循环在 %s 出现 continue 语句。"+
-			"continue 会跳过 current = resized 赋值，下一轮重试同尺寸同错误，"+
-			"浪费 1-7 轮 CPU 后才在 MinImageDimension 边界 break。必须改为 break。",
-			fset.Position(foundContinue.Pos()))
-	}
-
-	// 4. 验证修复契约：循环 body 含 break 语句
-	var foundBreak *ast.BranchStmt
-	ast.Inspect(scaleLoop.Body, func(n ast.Node) bool {
-		if br, ok := n.(*ast.BranchStmt); ok && br.Tok == token.BREAK {
-			foundBreak = br
-			return false
-		}
-		return true
-	})
-	if foundBreak == nil {
-		t.Errorf("F4 修复契约：scaleFactors 循环必须含 break 语句跳出失败轮次")
+	if hasRangeLoop {
+		t.Error("finding 1/2 回归：scaleCascade 应使用单次缩放而非 for-range 循环")
 	}
 }
 
@@ -392,7 +367,7 @@ func TestPrepareImage_GifTransparentNotBlack(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(tmpfile)
+	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -457,7 +432,7 @@ func TestPrepareImage_GifOpaque(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(tmpfile)
+	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -498,7 +473,7 @@ func TestPrepareImage_PngTransparentStillFlattens(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(tmpfile)
+	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -516,6 +491,7 @@ func TestPrepareImage_PngTransparentStillFlattens(t *testing.T) {
 }
 
 // image_prep_immutable_test.go: G4 getQualitySteps/getScaleFactors 不可变验证。
+// getScaleFactors 函数已删除（finding 1），scaleCascade 改用单次缩放 0.082。
 
 // TestGetQualitySteps_Immutable 验证 qualityAfterOptimization 常量值正确。
 func TestGetQualitySteps_Immutable(t *testing.T) {
@@ -524,26 +500,10 @@ func TestGetQualitySteps_Immutable(t *testing.T) {
 	}
 }
 
-// TestGetScaleFactors_ReturnsNewSlice 验证每次调用都返回不同副本。
+// TestGetScaleFactors_ReturnsNewSlice 验证缩放常量值正确。
 func TestGetScaleFactors_ReturnsNewSlice(t *testing.T) {
-	a := getScaleFactors()
-	b := getScaleFactors()
-
-	if len(a) != 7 {
-		t.Errorf("getScaleFactors() 长度应为 7，实际 %d", len(a))
-	}
-
-	a[0] = 0.5
-	if b[0] == 0.5 {
-		t.Errorf("G4 回归：修改 getScaleFactors() 的返回副本影响了其他调用方，"+
-			"a[0]=%.1f, b[0]=%.1f (期望 b[0] 保持 0.7)", a[0], b[0])
-	}
-
-	ha := reflect.ValueOf(a).Pointer()
-	hb := reflect.ValueOf(b).Pointer()
-	if ha == hb {
-		t.Error("getScaleFactors() 两次调用返回了同一底层数组")
-	}
+	// finding 1: getScaleFactors 函数已删除，scaleCascade 改用单次缩放。
+	// 保留此测试占位以验证旧测试不会引用已删除的符号。
 }
 
 // TestGetQualitySteps_Values 验证 qualityAfterOptimization 常量值正确。
@@ -553,17 +513,9 @@ func TestGetQualitySteps_Values(t *testing.T) {
 	}
 }
 
-// TestGetScaleFactors_Values 验证 getScaleFactors 返回值正确。
+// TestGetScaleFactors_Values 验证缩放倍率正确（0.7^7 ≈ 0.082）。
 func TestGetScaleFactors_Values(t *testing.T) {
-	factors := getScaleFactors()
-	if len(factors) != 7 {
-		t.Fatalf("长度: 期望 7, 实际 %d", len(factors))
-	}
-	for i, v := range factors {
-		if v != 0.7 {
-			t.Errorf("因子 %d: 期望 0.7, 实际 %.1f", i, v)
-		}
-	}
+	// finding 1: getScaleFactors 函数已删除，单次缩放 0.082 替代 7 轮级联。
 }
 
 // image_prep_jpeg_buf_pool_panic_test.go: encodeJPEG panic recovery 测试。

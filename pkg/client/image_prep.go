@@ -2,22 +2,21 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
 	"image/color"
 	"image/draw"
-	"image/gif"
+	_ "image/gif"
 	"image/jpeg"
-	"image/png"
+	_ "image/png"
 	"io"
 	"os"
-	"path/filepath"
-	"strings"
 	"sync"
 
 	"github.com/disintegration/imaging"
-	// 注册 WEBP 解码器（golang.org/x/image 是 disintegration/imaging 的间接依赖）
+	// WEBP 解码器通过 image.RegisterFormat 注册，image.Decode 自动派发
 	_ "golang.org/x/image/webp"
 )
 
@@ -28,12 +27,8 @@ const MaxImageSize = 5 * 1024 * 1024
 const MinImageDimension = 10
 
 // qualityAfterOptimization 图片质量预设，经 F8.1 优化后的取值。
-// 80% 的场景 quality=80 足够压到 ≤5MB，不够的走缩放级联更高效。
+// 80% 的场景 quality=80 足够压到 ≤5MB，不够的走缩放更高效。
 const qualityAfterOptimization = 80
-
-// getScaleFactors 返回缩放级联切片（每次返回新副本，保证不可变）。
-// 从包级可变 var 改为函数返回，防止测试修改污染全局。
-func getScaleFactors() []float64 { return []float64{0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7} }
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
 var ErrImageTooLarge = errors.New("image exceeds maximum size after compression")
@@ -44,13 +39,13 @@ var ErrUnsupportedFormat = errors.New("unsupported image format")
 // prepareImageForUpload 读取本地图片，预处理为符合平台要求的 JPG 字节流。
 //
 // 流程：
-//  1. sniff 文件格式（magic bytes 优先，扩展名兜底）
+//  1. 魔术字节 sniff 文件格式，使用 image.Decode 自动派发
 //  2. 解码 + 透明合成 + 动画取首帧
 //  3. 编码为 JPG（quality=92 起步）
-//  4. 质量级联 → 缩放级联 → 输出
+//  4. 质量级联 → 缩放 → 输出
 //
 // 全部在内存中完成，不写盘、不修改原文件。
-func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
+func (c *Client) prepareImageForUpload(ctx context.Context, path string) ([]byte, string, error) {
 	// decodeImage 原来返回 format，自 GIF 特例删除后无消费者。
 	// 无消费者。format 曾用于 `if format == "gif"` 分支，现已统一走
 	// flattenOnWhite（hasTransparency 自动处理 Paletted 透明检测），
@@ -104,16 +99,13 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 	// F8.1 优化：添加 scaleCascade 标签，质量级联跳过时直接跳入
 scaleCascade:
-	// 缩放级联（先只 resize 不 encode，累乘缩小后统一编码一次）
+	// 单次缩放取代 7 轮累乘：0.7^7 ≈ 0.082，避免 4K 图 ~200MB 临时内存。
+	b := img.Bounds()
+	finalW := int(float64(b.Dx()) * 0.082)
+	finalH := int(float64(b.Dy()) * 0.082)
 	current := img
-	for _, scale := range getScaleFactors() {
-		b := current.Bounds()
-		w := int(float64(b.Dx()) * scale)
-		h := int(float64(b.Dy()) * scale)
-		if w < MinImageDimension || h < MinImageDimension {
-			break
-		}
-		current = imaging.Resize(current, w, h, imaging.Lanczos)
+	if finalW >= MinImageDimension && finalH >= MinImageDimension {
+		current = imaging.Resize(img, finalW, finalH, imaging.Lanczos)
 	}
 
 	// 统一编码为 JPG（quality=40），只 encode 一次
@@ -129,10 +121,11 @@ scaleCascade:
 	return nil, "", ErrImageTooLarge
 }
 
-// decodeImage sniff 文件 magic bytes 解码任意格式。
-// 优先用 magic bytes 检测，避免依赖扩展名（用户可能给 .dat 文件）。
+// decodeImage 使用 stdlib image.Decode 解码，自动通过魔术字节派发到
+// 已注册的格式（jpeg/png/gif/webp）。
 //
-// 删除 format 返回值，无消费者。
+// 不再需要手动 switch — image.Decode 通过各包的 init() 注册的魔术字节
+// 自动匹配。BMP 在解码失败后检测魔术字节单独报错。
 func decodeImage(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -140,72 +133,16 @@ func decodeImage(path string) (image.Image, error) {
 	}
 	defer f.Close()
 
-	// 通过魔数探测判断文件类型
-	var head [12]byte
-	n, err := io.ReadFull(f, head[:])
-	if n == 0 {
-		return nil, errors.New("file is empty")
-	}
+	img, _, err := image.Decode(f)
 	if err != nil {
-		return nil, fmt.Errorf("读取图片文件头失败: %w", err)
-	}
-
-	format := sniffFormat(head[:n])
-	if format == "" {
-		// 用扩展名兜底
-		format = strings.ToLower(strings.TrimPrefix(filepath.Ext(path), "."))
-	}
-
-	// 重置 reader
-	if _, err := f.Seek(0, io.SeekStart); err != nil {
-		return nil, fmt.Errorf("读取图片失败: %w", err)
-	}
-
-	switch format {
-	case "jpeg", "jpg":
-		img, err := jpeg.Decode(f)
-		return img, err
-	case "png":
-		img, err := png.Decode(f)
-		return img, err
-	case "gif":
-		img, err := gif.Decode(f)
-		return img, err
-	case "webp":
-		img, err := decodeWebP(f)
-		return img, err
-	case "bmp":
-		// stdlib 无 BMP 解码，提示用户转换
-		return nil, fmt.Errorf("%w: BMP（请先用图片工具转为 PNG/JPG）", ErrUnsupportedFormat)
-	}
-	return nil, fmt.Errorf("%w: %s", ErrUnsupportedFormat, format)
-}
-
-// sniffFormat 通过文件头 magic bytes 识别格式。
-func sniffFormat(head []byte) string {
-	if len(head) >= 3 && head[0] == 0xFF && head[1] == 0xD8 && head[2] == 0xFF {
-		return "jpeg"
-	}
-	if len(head) >= 8 && head[0] == 0x89 && head[1] == 'P' && head[2] == 'N' && head[3] == 'G' {
-		return "png"
-	}
-	// 用 bytes.Equal 避免 string(head[:6]) 堆分配（字面量已在 .rodata 分配好，
-	// 但 []byte→string 转换在 go 编译时无法逃逸分析，实际触发堆分配）。
-	if len(head) >= 6 && (bytes.Equal(head[:6], []byte("GIF87a")) || bytes.Equal(head[:6], []byte("GIF89a"))) {
-		return "gif"
-	}
-	// WEBP: "RIFF" + 4 bytes + "WEBP"
-	if len(head) >= 12 && bytes.Equal(head[:4], []byte("RIFF")) && bytes.Equal(head[8:12], []byte("WEBP")) {
-		return "webp"
-	}
-	return ""
-}
-
-// decodeWebP 包装 webp.Decode 并提供友好错误。
-func decodeWebP(r io.Reader) (image.Image, error) {
-	img, err := imaging.Decode(r)
-	if err != nil {
-		return nil, fmt.Errorf("WEBP 解码失败: %w", err)
+		// 检测是否是 BMP（stdlib 不支持），给出友好提示
+		if _, seekErr := f.Seek(0, io.SeekStart); seekErr == nil {
+			var magic [2]byte
+			if _, readErr := io.ReadFull(f, magic[:]); readErr == nil && magic[0] == 'B' && magic[1] == 'M' {
+				return nil, fmt.Errorf("%w: BMP（请先用图片工具转为 PNG/JPG）", ErrUnsupportedFormat)
+			}
+		}
+		return nil, fmt.Errorf("图片解码失败: %w", err)
 	}
 	return img, nil
 }
