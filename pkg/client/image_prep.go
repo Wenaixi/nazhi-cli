@@ -28,12 +28,8 @@ const MaxImageSize = 5 * 1024 * 1024
 const MinImageDimension = 10
 
 // qualityAfterOptimization 图片质量预设，经 F8.1 优化后的取值。
-// 80% 的场景 quality=80 足够压到 ≤5MB，不够的走缩放级联更高效。
+// 80% 的场景 quality=80 足够压到 ≤5MB，不够的走缩放更高效。
 const qualityAfterOptimization = 80
-
-// getScaleFactors 返回缩放级联切片（每次返回新副本，保证不可变）。
-// 从包级可变 var 改为函数返回，防止测试修改污染全局。
-func getScaleFactors() []float64 { return []float64{0.7, 0.7, 0.7, 0.7, 0.7, 0.7, 0.7} }
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
 var ErrImageTooLarge = errors.New("image exceeds maximum size after compression")
@@ -104,16 +100,13 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 	// F8.1 优化：添加 scaleCascade 标签，质量级联跳过时直接跳入
 scaleCascade:
-	// 缩放级联（先只 resize 不 encode，累乘缩小后统一编码一次）
+	// 单次缩放取代 7 轮累乘：0.7^7 ≈ 0.082，避免 4K 图 ~200MB 临时内存。
+	b := img.Bounds()
+	finalW := int(float64(b.Dx()) * 0.082)
+	finalH := int(float64(b.Dy()) * 0.082)
 	current := img
-	for _, scale := range getScaleFactors() {
-		b := current.Bounds()
-		w := int(float64(b.Dx()) * scale)
-		h := int(float64(b.Dy()) * scale)
-		if w < MinImageDimension || h < MinImageDimension {
-			break
-		}
-		current = imaging.Resize(current, w, h, imaging.Lanczos)
+	if finalW >= MinImageDimension && finalH >= MinImageDimension {
+		current = imaging.Resize(img, finalW, finalH, imaging.Lanczos)
 	}
 
 	// 统一编码为 JPG（quality=40），只 encode 一次
