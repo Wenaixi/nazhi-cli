@@ -423,7 +423,11 @@ func (o *OCR) initOnce() (retErr error) {
 			// 让后续 Recognize 重试 initOnce 并把根因上报，
 			// 避免 *OCR 实例被「initialized=true + initErr=nil + ocr=nil」永久卡死。
 			o.initialized = false
-			o.initErr = fmt.Errorf("initOnce panic: %v", r)
+			if err, ok := r.(error); ok {
+				o.initErr = fmt.Errorf("initOnce panic: %w", err)
+			} else {
+				o.initErr = fmt.Errorf("initOnce panic: %v", r)
+			}
 			retErr = o.initErr
 		}
 	}()
