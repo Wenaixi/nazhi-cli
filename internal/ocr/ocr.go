@@ -141,7 +141,7 @@ func sweepStaleTempDirs(currentDir string) error {
 		// 跳过本次刚建的目录——可能仍有 goroutine 后续用到（虽然路径已绑定到 o.tempDir，
 		// 但显式跳过更清晰，也避免一种边界：currentDir 由 MkdirTemp 返回、绝对路径
 		// 与 ReadDir 拼接结果在大小写不敏感文件系统上不一致）。
-		if currentDir != "" && fullPath == currentDir {
+		if currentDir != "" && strings.EqualFold(filepath.Clean(fullPath), filepath.Clean(currentDir)) {
 			continue
 		}
 		// best-effort：删除失败（如 DLL 占用）静默跳过。
