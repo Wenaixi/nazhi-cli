@@ -140,17 +140,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 避免大 HTTP 错误响应的 body 全部读入内存（服务端 502/503 有时带完整 HTML 堆栈）。
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-		// A2 修复：复用 request.go 的 sentinel 分类（429→ErrRateLimited, 5xx→ErrServiceUnavailable）。
-		// 让 SDK 用户能通过 errors.Is 精确识别上传失败原因。
-		var sentinel error
-		switch {
-		case resp.StatusCode == http.StatusTooManyRequests:
-			sentinel = ErrRateLimited
-		case resp.StatusCode >= 500 && resp.StatusCode < 600:
-			sentinel = ErrServiceUnavailable
-		default:
-			sentinel = ErrUploadRejected
-		}
+		// A2 修复：复用 request.go 的 classifyHTTPStatus 统一 sentinel 分类。
+		sentinel := classifyHTTPStatus(resp.StatusCode, ErrUploadRejected)
 		return 0, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
 	}
 
