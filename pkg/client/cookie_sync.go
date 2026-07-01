@@ -37,6 +37,9 @@ func (c *Client) syncCookieToken(token string) error {
 	// Load / CompareAndSwap 全原子，热路径无锁；懒解析路径用 CAS 防重复解析。
 	u := c.baseURLParsed.Load()
 	if u == nil {
+		if c.baseURL == "" {
+			return fmt.Errorf("syncCookieToken 失败: base URL 为空，无法同步 token 到 cookie")
+		}
 		parsed, err := url.Parse(c.baseURL)
 		if err != nil {
 			return fmt.Errorf("syncCookieToken 失败: 解析 base URL %q 出错: %w", c.baseURL, err)

@@ -77,7 +77,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		buf.Grow(len(fileData) + 1024)
 	}
 	defer func() {
-		buf.Reset()
+		// pool 缩容：上次上传超大文件后 buf cap 可能 >8MB，
+		// 重建小 buf 避免常驻大内存泄漏（PLAUSIBLE: 只有上传极大文件时触发）。
+		if buf.Cap() > 8*1024*1024 {
+			buf = &bytes.Buffer{}
+		} else {
+			buf.Reset()
+		}
 		multipartBufPool.Put(buf)
 	}()
 	writer := multipart.NewWriter(buf)
@@ -204,22 +210,29 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	}
 	// decode returnData 采用 UseNumber 一致地解析 json.Number，
 	// 但 float64 断言也要兼容——json.Number 需通过 Float64() 转换。
-	var idFloat float64
+	var idInt int64
 	switch v := rawID.(type) {
 	case nil:
 		return 0, fmt.Errorf("%w: returnData.id 字段为 null", ErrUploadRejected)
 	case float64:
-		idFloat = v
+		idInt = int64(v)
 	case json.Number:
-		idFloat, err = v.Float64()
+		// priority: Int64() for integer IDs (>2^53 仍精确), Float64 fallback for decimals.
+		// PLAUSIBLE: 仅当 ID >2^53 时 float64 精度损失触发 (json.Number.Float64 → +Inf)。
+		idInt, err = v.Int64()
 		if err != nil {
-			return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %w", ErrUploadRejected, err)
+			var f float64
+			f, err = v.Float64()
+			if err != nil {
+				return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %w", ErrUploadRejected, err)
+			}
+			idInt = int64(f)
 		}
 	default:
 		return 0, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 或 json.Number 实际 %T", ErrUploadRejected, rawID)
 	}
 
-	return int64(idFloat), nil
+	return idInt, nil
 }
 
 // newCleanClient 构造"无 cookie"的安全 http.Client 供 UploadFile 使用。
