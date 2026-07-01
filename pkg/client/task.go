@@ -8,9 +8,7 @@ import (
 	"strconv"
 	"sync"
 
-	"os"
-	"runtime/debug"
-
+	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"golang.org/x/sync/errgroup"
 )
@@ -294,10 +292,9 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 // mock 误实现 panic(errors.New("xxx")) → 调试时能直接定位根 error）。
 func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
 	defer func() {
-		if r := recover(); r != nil {
-			os.Stderr.Write(debug.Stack())
+		if err2 := recoverx.RecoverPanic(recover(), nil, fmt.Sprintf("维度 %d(%s)", dim.ID, dim.Name)); err2 != nil {
 			tasks = nil
-			err = wrapPanicAsErr(dim, r)
+			err = err2
 		}
 	}()
 	return c.fetchTasksForDimension(ctx, dim, headers)
