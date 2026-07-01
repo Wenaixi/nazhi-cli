@@ -22,7 +22,7 @@ import (
 // InitSession 访问登录页建立 JSESSIONID Cookie。
 // 内部流程中自动调用，一般不需要外部显式调用。
 func (c *Client) InitSession(ctx context.Context) error {
-	u := c.ssoBaseURL + "/uiStudentLogin/login"
+	u := c.ssoURL("/uiStudentLogin/login", nil)
 	if _, err := c.doBizGet(ctx, u, c.ssoHeaders()); err != nil {
 		return fmt.Errorf("InitSession 失败: %w", err)
 	}
@@ -33,10 +33,10 @@ func (c *Client) InitSession(ctx context.Context) error {
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
 func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID string, schoolName string, err error) {
-	u := c.ssoBaseURL + "/teacher/auth/studentLogin/getSchoolIdByStudentNumber?" + url.Values{"userName": {username}}.Encode()
+	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber", url.Values{"userName": {username}})
 
 	headers := c.ssoHeaders()
-	headers["Referer"] = c.ssoBaseURL + "/uiStudentLogin/login?" + url.Values{"userName": {username}}.Encode()
+	headers["Referer"] = c.ssoURL("/uiStudentLogin/login", url.Values{"userName": {username}})
 
 	bodyBytes, err := c.httpDo(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
@@ -83,9 +83,8 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 // ─── Login ───
 
 const (
-	// maxOCRAttemptsPerImage 是单张验证码图片的识别次数。
-	// ddddocr 对同图识别是确定性的，重试无意义，固定为 1。
-	maxOCRAttemptsPerImage   = 1
+	// maxOCRImagesTotal 是总 OCR 尝试次数上限。
+	// ddddocr 对同图识别是确定性的，重试同图无意义，每次尝试都换新图。
 	maxOCRImagesTotal        = 99
 	expiresFallbackThreshold = 1 * time.Hour
 )
@@ -97,9 +96,13 @@ var ocrTimeout = 30 * time.Second
 // Login 完成 SSO 登录并返回 Token。
 //
 // F5 优化：GetSchoolID 和 OCR 验证码识别无数据依赖，通过 errgroup 并发执行。
+// InitSession 必须在 OCR 之前完成（需要先建立 JSESSIONID Cookie）。
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
 	if c.ocr == nil {
 		return nil, ErrOCRNotConfigured
+	}
+	if c.http == nil {
+		return nil, fmt.Errorf("Login 失败: HTTP 客户端为 nil，无法发送请求")
 	}
 
 	// 步骤 1: InitSession（串行前置，必须最先建立 JSESSIONID）
@@ -150,7 +153,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 
 	httpResp, err := c.rawDoWithResp(ctx, http.MethodPost,
-		c.ssoBaseURL+"/teacher/auth/studentLogin/validate",
+		c.ssoURL("/teacher/auth/studentLogin/validate", nil),
 		loginBody, c.ssoHeaders(), "",
 	)
 	if err != nil {
@@ -223,6 +226,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 // （200/302）共用，避免重复。
 //
 // 检测两类异常:
+//
 //  1. fallback 触发：剩余寿命 > defaultTokenTTL-threshold（典型 24h 兜底），
 //     意味着 server 没带 expires_in/exp。
 //  2. 已过期/即将过期：剩余寿命 < expiresFallbackThreshold，server 给的 exp
@@ -251,7 +255,7 @@ func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 
 func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 	bodyBytes, err := c.httpDo(ctx, http.MethodPost,
-		c.ssoBaseURL+"/uiStudentLogin/validateCaptcha",
+		c.ssoURL("/uiStudentLogin/validateCaptcha", nil),
 		map[string]string{"captcha": captcha},
 		c.ssoHeaders(), "",
 	)
@@ -305,9 +309,8 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 			return text, nil
 		}
 	}
-	return "", fmt.Errorf("OCR 识别 %d 张图 × %d 次（共 %d 次）均失败，最后错误: %w",
-		maxOCRImagesTotal, maxOCRAttemptsPerImage,
-		maxOCRImagesTotal*maxOCRAttemptsPerImage, lastErr)
+	return "", fmt.Errorf("OCR 识别 %d 张图均失败（共 %d 次尝试），最后错误: %w",
+		maxOCRImagesTotal, maxOCRImagesTotal, lastErr)
 }
 
 var captchaSeq atomic.Int64
@@ -318,7 +321,7 @@ var captchaSeq atomic.Int64
 // 改用 url.Values 编码替代 fmt.Sprintf+strconv.FormatInt 混合拼接风格。
 func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	seq := captchaSeq.Add(1)
-	u := c.ssoBaseURL + "/kaptcha/kaptcha.jpg?" + url.Values{"seq": {strconv.FormatInt(seq, 10)}}.Encode()
+	u := c.ssoURL("/kaptcha/kaptcha.jpg", url.Values{"seq": {strconv.FormatInt(seq, 10)}})
 	imgBytes, err := c.doBizGet(ctx, u, c.ssoHeaders())
 	if err != nil {
 		return nil, fmt.Errorf("获取验证码图片失败: %w", err)
@@ -328,4 +331,13 @@ func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 		return nil, fmt.Errorf("获取验证码图片响应为空 status=200")
 	}
 	return imgBytes, nil
+}
+
+// ssoURL 拼接 SSO 域名的完整 URL。
+// 与 bizURL helper 对称，统一管理 SSO URL 拼接。
+func (c *Client) ssoURL(path string, q url.Values) string {
+	if len(q) > 0 {
+		return c.ssoBaseURL + path + "?" + q.Encode()
+	}
+	return c.ssoBaseURL + path
 }
