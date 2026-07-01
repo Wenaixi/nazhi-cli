@@ -35,6 +35,22 @@ func drainAndClose(body io.ReadCloser) {
 }
 
 // defaultSSOBase 是 SSO 域名默认值。
+
+// classifyHTTPStatus 按 StatusCode 切换 sentinel 包装，消除 doBizGet 与 UploadFile
+// HTTP 状态码分类的重复。
+//
+// defaultErr 用于非 429/5xx 的兜底（request.go: ErrInvalidResponse, file.go: ErrUploadRejected）。
+func classifyHTTPStatus(code int, defaultErr error) error {
+	switch {
+	case code == http.StatusTooManyRequests:
+		return ErrRateLimited
+	case code >= 500 && code < 600:
+		return ErrServiceUnavailable
+	default:
+		return defaultErr
+	}
+}
+
 const defaultSSOBase = "https://www.nazhisoft.com"
 
 // defaultBaseURL 是业务 API 域名默认值。
@@ -327,34 +343,6 @@ func (c *Client) rawDoWithResp(ctx context.Context, method, url string, body any
 //
 // 注意: 这是"一次性消费" helper, 调用方拿到 []byte 后 body 已关闭。
 // 如需保留 body 在函数返回后继续使用, 请直接用 rawDoWithResp。
-// tryDecodeFallback 按顺序尝试多个解码器，返回第一个成功解码的结果。
-// 全部失败时返回 nil。
-// 日志行为：
-//   - 解码器返回 err → 通过 c.logDebug 输出（定位响应结构变化）
-//   - 解码器返回 (nil, nil) → 字段为空，静默尝试下一个（不含日志噪音）
-//
-// 用法示例：
-//
-//	v := tryDecodeFallback(c, "QuerySelfEvaluation",
-//	    func() (*T, error) { return types.DecodeReturnData[T](resp) },
-//	    func() (*T, error) { return types.DecodeDataMap[T](resp) },
-//	)
-func tryDecodeFallback[T any](c *Client, opName string, decoders ...func() (*T, error)) *T {
-	for _, decode := range decoders {
-		v, err := decode()
-		if err == nil {
-			if v != nil {
-				return v
-			}
-			// 字段为空（nil result），静默尝试下一个
-			continue
-		}
-		// 解析失败，记录日志但不中断
-		c.logDebug("%s fallback 失败: %v", opName, err)
-	}
-	return nil
-}
-
 func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]string) ([]byte, error) {
 	resp, err := c.rawDoWithResp(ctx, http.MethodGet, url, nil, headers, "")
 	if err != nil {

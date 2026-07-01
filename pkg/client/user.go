@@ -74,12 +74,18 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	//   1. 所有 decoder 返回 nil（字段确实为空）
 	//   2. 所有 decoder 都解析失败（错误已通过 logDebug 记录）
 	// 两者统一按"空数据"处理，返回 ErrEmptyUserInfo 哨兵而非 (nil, nil)。
-	v := tryDecodeFallback(c, "GetMyInfo",
+	// 内联 fallback 链（getMyInfoRaw 因自定义 Referer=/modify 不能直接用 doBizGetDecode）
+	for _, dec := range []func() (*types.UserInfo, error){
 		func() (*types.UserInfo, error) { return types.DecodeReturnData[types.UserInfo](resp) },
 		func() (*types.UserInfo, error) { return types.DecodeDataMap[types.UserInfo](resp) },
-	)
-	if v != nil {
-		return v, nil
+	} {
+		v, dErr := dec()
+		if dErr == nil && v != nil {
+			return v, nil
+		}
+		if dErr != nil {
+			c.logDebug("GetMyInfo fallback: %v", dErr)
+		}
 	}
 	//
 	// 设计动机：

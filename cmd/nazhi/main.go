@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime/debug"
 
+	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/Wenaixi/nazhi-cli/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -53,8 +53,8 @@ func main() {
 			// 同时 debug.Stack() 写到 stderr 辅助生产问题定位。
 			markError()
 			printError(fmt.Errorf("内部错误: %v", r))
-			_, _ = fmt.Fprintln(os.Stderr, "panic stack trace:")
-			_, _ = os.Stderr.Write(debug.Stack())
+			// 借用 recoverx.RecoverPanic 统一输出 debug.Stack()，不关心返回的 error（printError 已覆盖）
+			_ = recoverx.RecoverPanic(r, nil, "main")
 		}
 	}()
 
