@@ -8,10 +8,8 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
-	"net"
 	"net/http"
 	"net/http/cookiejar"
-	"net/url"
 	"strings"
 	"time"
 
@@ -393,25 +391,4 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 			sentinel, url, resp.StatusCode, logSafeBody(bodyBytes))
 	}
 	return bodyBytes, nil
-}
-
-// isTimeoutError 检测错误是否为超时相关。
-// 检查 ctx.DeadlineExceeded、*url.Error 超时、以及 net.OpErr 超时。
-func isTimeoutError(err error) bool {
-	if errors.Is(err, context.DeadlineExceeded) {
-		return true
-	}
-	var urlErr *url.Error
-	if errors.As(err, &urlErr) {
-		if urlErr.Timeout() {
-			return true
-		}
-	}
-	var netErr *net.OpError
-	if errors.As(err, &netErr) {
-		if netErr.Timeout() {
-			return true
-		}
-	}
-	return false
 }
