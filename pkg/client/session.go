@@ -66,6 +66,9 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 func (c *Client) activateSessionLocked(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
 
+	// ponytail: 4-step HAR activation 硬编码，可 data-driven（[]activationStep{label, path, referer}），
+	// payoff marginal，当前无重复步骤组，保持显式简单。
+
 	// 步骤1：GET /（首页，建立业务域 session）
 	if _, err := c.doBizGet(ctx, c.bizURL("/"), headers); err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤1（首页）失败: %w", err)
@@ -193,8 +196,8 @@ func (sm *sessionManager) StoreToken(token string) {
 	sm.clearBackoff()
 }
 
-// RecordFailure 持锁记录激活失败，按 token 匹配决定是否清缓存。
-// 调用方须持 sm.mu。
+// RecordFailure 记录激活失败，按 token 匹配决定是否清缓存。
+// 本方法仅在 tryActivate 的 mu 持锁路径内调用，不额外取锁。
 func (sm *sessionManager) RecordFailure(token string, err error) {
 	sm.lastErr = err
 	sm.lastAttempt = time.Now()
@@ -206,8 +209,8 @@ func (sm *sessionManager) RecordFailure(token string, err error) {
 	}
 }
 
-// RecordSuccess 持锁记录激活成功，更新 token + backoff 清空 + 缓存 UserInfo。
-// 调用方须持 sm.mu。
+// RecordSuccess 记录激活成功，更新 token + backoff 清空 + 缓存 UserInfo。
+// 本方法仅在 tryActivate 的 mu 持锁路径内调用，不额外取锁。
 func (sm *sessionManager) RecordSuccess(token string, info *types.UserInfo) {
 	sm.token.Store(token)
 	sm.clearBackoff()
