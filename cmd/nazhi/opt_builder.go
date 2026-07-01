@@ -66,11 +66,14 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	if !flagChanged(cmd, "timeout") {
 		timeoutSec = envInt(timeoutEnv, timeoutSec)
 	}
-	// cleanup-timeout: timeout <= 0 时使用默认值 30 秒。
-	// GetInt("timeout") 在 flag 未注册或值为 0 时返回 0，导致无超时（阻塞）。
-	// fileUploadCmd 默认 timeout=30，但 buildClientOpts 通用路径不感知默认。
+	// --timeout 0 显式传递时 warn 并使用默认值
+	// 语义：用户传 --timeout 0 被视为"使用默认值"而非"无超时"。
+	// CLI 命令默认不应无超时（请求永久挂起风险），回退到 30s 默认。
 	const defaultTimeout = 30
 	if timeoutSec <= 0 {
+		if flagChanged(cmd, "timeout") {
+			fmt.Fprintf(os.Stderr, "warn: --timeout 0 无效，使用默认 %d 秒超时\n", defaultTimeout)
+		}
 		timeoutSec = defaultTimeout
 	}
 
