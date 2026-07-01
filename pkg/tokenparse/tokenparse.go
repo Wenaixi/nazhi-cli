@@ -10,6 +10,17 @@ import (
 	"time"
 )
 
+// ─── 哨兵错误 ───
+
+// ErrTokenReturnDataEmpty 表示 returnData 为空。
+var ErrTokenReturnDataEmpty = errors.New("returnData 为空")
+
+// ErrTokenTypeMismatch 表示 returnData 中 token 字段类型异常（期望 string）。
+var ErrTokenTypeMismatch = errors.New("returnData 中 token 字段类型异常（期望 string）")
+
+// ErrTokenFieldMissing 表示 returnData 中无 token 字段或 token 为空。
+var ErrTokenFieldMissing = errors.New("returnData 中无 token 字段")
+
 // DefaultTokenTTL 是 server 不带 expires 信息时的兜底 TTL。
 const DefaultTokenTTL = 24 * time.Hour
 
@@ -44,7 +55,7 @@ func ExtractFromLocation(location string) (token string, exp time.Time, err erro
 // ExtractFromReturnData 从 ReturnData 字节中提取 token 和过期时间。
 func ExtractFromReturnData(raw json.RawMessage) (string, time.Time, error) {
 	if len(raw) == 0 {
-		return "", time.Time{}, errors.New("returnData 为空")
+		return "", time.Time{}, ErrTokenReturnDataEmpty
 	}
 	var data map[string]any
 	dec := json.NewDecoder(strings.NewReader(string(raw)))
@@ -54,10 +65,10 @@ func ExtractFromReturnData(raw json.RawMessage) (string, time.Time, error) {
 	}
 	token, ok := data["token"].(string)
 	if !ok {
-		return "", time.Time{}, errors.New("returnData 中 token 字段类型异常（期望 string）")
+		return "", time.Time{}, ErrTokenTypeMismatch
 	}
 	if token == "" {
-		return "", time.Time{}, errors.New("returnData 中无 token 字段")
+		return "", time.Time{}, ErrTokenFieldMissing
 	}
 	return token, parseExpiresMap(data), nil
 }
