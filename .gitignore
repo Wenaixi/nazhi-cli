@@ -73,6 +73,9 @@ $RECYCLE.BIN/
 .env.local
 .env.*.local
 
+# review-tdd 违规记录（本地只读）
+.review-tdd-violations.md
+
 # ─── 文档构建产物 ─────────────────────
 # docsify / hugo / mdbook 缓存
 .docsify/

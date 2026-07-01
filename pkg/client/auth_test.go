@@ -1130,7 +1130,7 @@ func TestWarnSyncCookieToken_BadJar_LogsWarn(t *testing.T) {
 		ssoBaseURL: "https://sso.example.com",
 		baseURL:    "https://biz.example.com",
 		uploadURL:  "https://up.example.com",
-		http:       &http.Client{Timeout: 5 * time.Second}, // Jar = nil → syncCookieToken 返回 error
+		http:       &http.Client{Timeout: 5 * time.Second}, // Jar 为 nil → syncCookieToken 返错
 		logger:     logger,
 	}
 
@@ -1171,7 +1171,7 @@ func TestWarnSyncCookieToken_BadJar_DoesNotLeakToken(t *testing.T) {
 		ssoBaseURL: "https://sso.example.com",
 		baseURL:    "https://biz.example.com",
 		uploadURL:  "https://up.example.com",
-		http:       &http.Client{Timeout: 5 * time.Second}, // Jar = nil
+		http:       &http.Client{Timeout: 5 * time.Second}, // Jar 为 nil
 		logger:     logger,
 	}
 
