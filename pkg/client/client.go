@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
@@ -390,6 +389,7 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 // Close 释放 Client 持有的资源：
 //   - 底层 OCR 识别器 (ONNX session + %TEMP%/nazhi-cli-ocr-XXXX/ 临时目录)
 //   - HTTP Transport 的空闲 keep-alive 连接 (避免进程退出前留有 half-closed 连接)
+//   - sessionManager backoff 状态 (避免下次复用同一 Client 时误触发冷却)
 //
 // 用法: CLI 入口处 defer c.Close(), 让每次执行不留垃圾。
 //
@@ -407,6 +407,9 @@ func (c *Client) Close() error {
 			t.CloseIdleConnections()
 		}
 	}
+	c.sm.mu.Lock()
+	c.sm.clearBackoff()
+	c.sm.mu.Unlock()
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}
