@@ -618,11 +618,11 @@ func (o *OCR) extractModels() (string, error) {
 }
 
 // writeModelFile 写入模型文件并设置 0644 权限。
-// 写入失败时自动清理临时目录。
-// 提取为 helper，消除三次 writeFile + os.RemoveAll + fmt.Errorf 的重复模式。
+// 写入失败时走 cleanupTempDir 清理临时目录（复用 Windows DLL 占用降级逻辑）。
+// 提取为 helper，消除三次 writeFile + cleanupTempDir + fmt.Errorf 的重复模式。
 func writeModelFile(dir, name string, data []byte) error {
 	if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
-		os.RemoveAll(dir)
+		_ = cleanupTempDir(dir)
 		return fmt.Errorf("写入 %s 失败: %w", name, err)
 	}
 	return nil
