@@ -63,6 +63,8 @@ nazhi-cli/
 │   ├── client_ocr_disabled.go             //go:build !ddddocr  — defaultOCR() → nil
 │   ├── request.go                         HTTP 基础设施（newHTTPClient / do / httpDo / rawDoWithResp / doBizGet / drainAndClose）
 │   ├── errors.go                          15 个哨兵错误
+│   ├── error_category.go                  ClassifyError 错误分类枚举（ContextCancel/NetworkTimeout/BusinessError）
+│   ├── parallel.go                        ParallelDims[T] 泛型并发维度查询 helper
 │   ├── auth.go                            InitSession / GetSchoolID / Login
 │   ├── session.go                         ActivateSession + sessionManager 状态机
 │   ├── task.go                            FetchTasks / SubmitTask / GetDimensions
@@ -110,8 +112,8 @@ nazhi-cli/
     └── .env.example
 ```
 
-> ⚠️ `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **不存在**——架构深化候选 #6/#7/#8 未实施。
-> `FetchTasks` 仍用内联 `errgroup` + `appendLocked[T]` 泛型 helper，未抽 `ParallelDims`。
+> ✅ `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**（review-tdd 第 22 轮）。
+> `FetchTasks` 仍用内联 `errgroup`（业务复杂性待后续迁移），但 `ParallelDims[T]` 泛型 helper 与 `ClassifyError` 分类枚举已可复用。
 
 ## 关键架构决策
 

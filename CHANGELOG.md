@@ -7,10 +7,18 @@
 
 ## [Unreleased]
 
-合入 review-tdd 第 18/20/21 轮修复（约 50 个 commit，10+ 工作树并行）。语义版本未升（0.4.0 仍稳定），但用户能感知的行为改进很多。
+暂无。
+
+## [0.4.1] - 2026-07-02
+
+合入 review-tdd 第 18~22 轮修复（约 80+ 个 commit，多轮并行工作树）。
 
 ### 新增
 
+- **`parallel.go`** — CLAUDE.md 候选 #6：`ParallelDims[T any]` 泛型并发维度查询 helper，含 `ParallelDimsResult` + 错误聚合。81 行（vendor 化），`FetchTasks` 后续可迁移
+- **`error_category.go`** — CLAUDE.md 候选 #7：`ClassifyError(err) ErrorCategory` 枚举（`ContextCancel` / `ContextTimeout` / `NetworkTimeout` / `BusinessError` / `Unknown`）。80 行，`task.go` `isContextError` 已使用
+- **`internal/recoverx` 包** — 统一 panic recover 策略，`RecoverPanic(recovered, sentinel, name)` 输出 `debug.Stack()` 到 stderr。auth.go / session.go / main.go 3 处调用点全部收敛
+- **`tokenparse` 3 个哨兵错误** — `ErrTokenReturnDataEmpty` / `ErrTokenTypeMismatch` / `ErrTokenFieldMissing`。`ExtractFromReturnData` 调用方可精确区分 3 种解析失败
 - **5 个 HTTP 状态码哨兵错误**：`ErrRateLimited`（429）/ `ErrServiceUnavailable`（5xx）/ `ErrTimeout`（超时）/ `ErrInvalidResponse`（4xx-其他）/ `ErrRetryable`（ctx cancel 可重试）。SDK 用户通过 `errors.Is` 精确识别 HTTP 层 / 业务层错误
 - **`doBizGet` 按 StatusCode 自动包装 sentinel**：429 → `ErrRateLimited`，5xx → `ErrServiceUnavailable`，4xx → `ErrInvalidResponse`，不再笼统 "ErrNetwork"
 - **`isTimeoutError` helper**：`c.do` 内部识别 `context.DeadlineExceeded` / `*url.Error.Timeout()` / `net.OpError.Timeout()`，用 `ErrTimeout` 包装
@@ -19,8 +27,8 @@
 
 review-tdd 第 18 轮：
 - **顶层 panic recover exit code 1 回归** — 之前 `pendingExitCode=0` 走 exit 0，与正常 error 不一致。修复 `printError` 递归 fallback 设 `pendingExitCode=1`
-- **OCR Pool 加 `sweepStaleTempDirs` 启动时清扫** — `nazhi login` 顺手 best-effort 扫 `%TEMP%` 历史残留，能删的删（详见 [跨平台 OCR 文档](docs/cross-platform-ocr.md)）
-- **`fetchTasksForDimension` panic recover 错误链保留** — `defer recover` 用 `%w` 包装原始 error，`errors.Is` 可穿透命中根因
+- **OCR Pool 加 `sweepStaleTempDirs` 启动时清扫** — `nazhi login` 顺手 best-effort 扫 `%TEMP%` 历史残留，能删的删
+- **`fetchTasksForDimension` panic recover 错误链保留** — `defer recover` 用 `%w` 包装原始 error
 - **`SetLimit(0)` 死代码修复** — `errgroup.SetLimit(0)` 在 `len(dimensions)==0` 时死路径，调最小为 1
 - **PII 守卫 AST 自检盲区修复** — 字符串拼接绕过的扫描覆盖
 - **`task list` cancelledCount 虚高修复** — 占位 error 不计入 `failedCount`
@@ -29,8 +37,8 @@ review-tdd 第 18 轮：
 - **`Login` body 摘要** — 非预期状态码错误消息附 `logSafeBody(bodyBytes)` 100 字节截断
 
 review-tdd 第 20 轮：
-- **注释中文化** — magic bytes sniff、`multipartBufPool` Grow、`ErrTimeout` 预留言兵、`ErrEmptyUserInfo` 语义边界等
-- **`getQualitySteps` 内联为 `qualityAfterOptimization` 常量** — 抽常量直接引用
+- **注释中文化** — magic bytes sniff、`multipartBufPool` Grow 等
+- **`getQualitySteps` 内联为 `qualityAfterOptimization` 常量**
 - **结构化日志** — `warnIfExpiresAtFallback` 改为结构化 slog 字段
 - **`logSafeBody` 提取变量消除重复**
 - **`isContextError` helper 消除 3 处重复**
@@ -38,14 +46,41 @@ review-tdd 第 20 轮：
 
 review-tdd 第 21 轮（F 系列）：
 - **`ErrTimeout` 包装** — `isTimeoutError` 出口处用 `ErrTimeout` 包装而非裸 fmt.Errorf
-- **`doBizGet` 包装 body 摘要 + ErrInvalidResponse fallback** — 全部错误返回附 body 摘要
-- **`atomic.Pointer[url.URL]` race 修复** — `c.baseURLParsed` 全部访问原子化（之前 `*url.URL + sync.Mutex` 仍有 race）
+- **`doBizGet` 包装 body 摘要 + ErrInvalidResponse fallback**
+- **`atomic.Pointer[url.URL]` race 修复** — `c.baseURLParsed` 全部访问原子化
+
+review-tdd 第 22 轮：
+- **`image_prep` 缩放级联简化** — 7 轮 resize 改为单次缩放（0.7^7 ≈ 0.082 常量计算），`getScaleFactors` 删除
+- **`decodeImage` 改用 `image.Decode`** — 删除手写 magic bytes switch，stdlib 自动识别格式
+- **`prepareImageForUpload` 加 `ctx` 参数** — 支持超时取消
+- **`defaultOCR` 惰性预热** — 从同步 `NewPool(min(NumCPU,4))` 改为 `sync.Once` + `atomic.Pointer` 懒加载
+- **`Close()` 清理 sessionManager backoff 状态** — 避免复用 Client 时误触发冷却
+- **`New()` `url.Parse` 静默吞错改为 warn 日志**
+- **`withURLGuard`/`withNilGuard` Option 工厂** — 消除 6 处 Option 重复守卫逻辑
+- **`--timeout 0` warn 回退** — 之前静默覆盖为正数超时，现在 warn 并保留默认值
+- **`valueToString` float64 精度保留** — 改用 `FormatFloat` 替代 `FormatInt` 截断
+- **`writeModelFile` 失败走 `cleanupTempDir`** — 复用 DLL 占用降级逻辑
+- **`sweepStaleTempDirs` case-insensitive FS 下 `EqualFold`** — 避免 Windows 大小写误判
+- **`initOnce` panic `%v` → `%w`** — 保留 error chain
+- **`tryDecodeFallback` 删除** — 被 `doBizGetDecode` 吸收，不再需泛型 fallback helper
+- **`maxOCRAttemptsPerImage` 常量删除** — 设计意图代之以代码注释（架构深化后单图 OCR 1 次策略已稳定）
+- **`getScaleFactors` 删除**
+- **`countTasksByType` `int` → `float64`** — 泛型 `sumValues[T int | float64]` 改为 `T int64` + `json.Number` 兼容
+- **`Close()` 末尾清 `sm.clearBackoff()` **
+- **`maps.Clone` 删除** — `doGetMenu` 直接修改 map 而非 Clone，减少一次分配
+- **DCL fast path `cachedUserInfo` nil guard**
 
 ### 改进
 
 - **`c.logger.Warn` 资源警告统一走用户注入 slog** — 不依赖 cmd 通道，SDK 纯净
 - **`go.mod` 模块单一** — 仓库只有一个 `module github.com/Wenaixi/nazhi-cli`
-- **CLAUDE.md、docs/sdk/README.md、docs/cli/README.md、docs/architecture.md、docs/login-flow.md、docs/cross-platform-ocr.md、docs/har-testing.md、docs/env-vars.md、docs/README.md 全面升级到 v0.4.0+**
+- **文档全面升级到 v0.4.1** — CLI / SDK / 架构 / 登录流程 / OCR / HAR / 环境变量全部同步
+
+### 构建
+
+- **版本号**：`0.4.1`
+- **make build 仍缺 `-tags=ddddocr`**（已知坑不变）
+- **新增 `internal/recoverx` 包** — 零依赖，无测试文件（由 3 个客户端隐式覆盖）
 
 ## [0.4.0] - 2026-06-30
 
