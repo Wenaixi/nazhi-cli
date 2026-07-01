@@ -8,10 +8,11 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"runtime/debug"
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 )
 
 // CaptchaRecognizer 由 build tag 决定：
@@ -371,9 +372,8 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 		return "", ErrOCRNotConfigured
 	}
 	defer func() {
-		if r := recover(); r != nil {
-			os.Stderr.Write(debug.Stack())
-			err = fmt.Errorf("%w: %v", ErrOCRPanic, r)
+		if err2 := recoverx.RecoverPanic(recover(), ErrOCRPanic, "safeOCRRecognize"); err2 != nil {
+			err = err2
 		}
 	}()
 	return c.ocr.Recognize(imgBytes)
