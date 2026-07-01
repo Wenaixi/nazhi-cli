@@ -508,8 +508,7 @@ func TestGetQualitySteps_Values(t *testing.T) {
 
 // TestGetScaleFactors_Values 验证缩放倍率正确（0.7^7 ≈ 0.082）。
 func TestGetScaleFactors_Values(t *testing.T) {
-	const expectedScale = 0.082
-	_ = expectedScale // getScaleFactors 函数已验证删除，单次缩放替代 7 轮级联。
+	// finding 1: getScaleFactors 函数已删除，单次缩放 0.082 替代 7 轮级联。
 }
 
 // image_prep_jpeg_buf_pool_panic_test.go: encodeJPEG panic recovery 测试。
