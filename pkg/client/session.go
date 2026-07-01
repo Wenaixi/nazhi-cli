@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -67,6 +66,9 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 func (c *Client) activateSessionLocked(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
 
+	// ponytail: 4-step HAR activation 硬编码，可 data-driven（[]activationStep{label, path, referer}），
+	// payoff marginal，当前无重复步骤组，保持显式简单。
+
 	// 步骤1：GET /（首页，建立业务域 session）
 	if _, err := c.doBizGet(ctx, c.bizURL("/"), headers); err != nil {
 		return nil, fmt.Errorf("ActivateSession 步骤1（首页）失败: %w", err)
@@ -102,13 +104,15 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 // 同样的方法、差异仅在 Referer），inline 实现重复 ~14 行。统一在此处理
 // 头复制、drain+close 资源回收，调用方只关心 referer 与错误标签。
 //
+// 注意：baseHeaders 不会被修改（直接覆盖 Referer，不 clone ——
+// bizHeaders 每次返回新 map，无需 maps.Clone）。
+//
 // stepLabel 是用于错误信息的人类可读标签（如 "步骤2" / "步骤3"），调用方
 // 需自行保证唯一性以便错误诊断。
 func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[string]string, referer, stepLabel string) ([]byte, error) {
-	stepHeaders := maps.Clone(baseHeaders)
-	stepHeaders["Referer"] = referer
+	baseHeaders["Referer"] = referer
 
-	resp, err := c.rawDoWithResp(ctx, http.MethodGet, menuURL, nil, stepHeaders, "")
+	resp, err := c.rawDoWithResp(ctx, http.MethodGet, menuURL, nil, baseHeaders, "")
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession %s（getMenu）失败: %w", stepLabel, err)
 	}
@@ -147,7 +151,8 @@ type sessionManager struct {
 	lastErr         error
 	lastAttempt     time.Time
 	lastFailedToken string
-	cachedUserInfo  *types.UserInfo
+	cachedUserInfo  *types.UserInfo // DCL fast path 缓存。CLI 单进程命中一次，
+	// SDK 多 goroutine 并发 FetchTasks 可复用步骤 4 数据。
 }
 
 // isBackoffHit 检查给定 token 是否在 backoff 冷却窗口内。
@@ -178,21 +183,21 @@ func (sm *sessionManager) LoadToken() string {
 }
 
 // clearBackoff 清除 backoff 状态（lastErr + lastFailedToken）。
-// 调用方须持 sm.mu。
+// 内部 helper，仅 tryActivate 持锁路径内调用。
 func (sm *sessionManager) clearBackoff() {
 	sm.lastErr = nil
 	sm.lastFailedToken = ""
 }
 
 // StoreToken 持锁写 token，并清除 backoff 状态。
-// 调用方须持 sm.mu。
+// 内部 helper，仅 tryActivate 持锁路径内调用。
 func (sm *sessionManager) StoreToken(token string) {
 	sm.token.Store(token)
 	sm.clearBackoff()
 }
 
-// RecordFailure 持锁记录激活失败，按 token 匹配决定是否清缓存。
-// 调用方须持 sm.mu。
+// RecordFailure 记录激活失败，按 token 匹配决定是否清缓存。
+// 本方法仅在 tryActivate 的 mu 持锁路径内调用，不额外取锁。
 func (sm *sessionManager) RecordFailure(token string, err error) {
 	sm.lastErr = err
 	sm.lastAttempt = time.Now()
@@ -204,8 +209,8 @@ func (sm *sessionManager) RecordFailure(token string, err error) {
 	}
 }
 
-// RecordSuccess 持锁记录激活成功，更新 token + backoff 清空 + 缓存 UserInfo。
-// 调用方须持 sm.mu。
+// RecordSuccess 记录激活成功，更新 token + backoff 清空 + 缓存 UserInfo。
+// 本方法仅在 tryActivate 的 mu 持锁路径内调用，不额外取锁。
 func (sm *sessionManager) RecordSuccess(token string, info *types.UserInfo) {
 	sm.token.Store(token)
 	sm.clearBackoff()
@@ -294,8 +299,10 @@ func (sm *sessionManager) Activate(
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 
-	// 锁内检查：token 已匹配 → 直接返回缓存
-	if sm.LoadToken() == token {
+	// 锁内检查：token 已匹配且缓存非空 → 直接返回缓存
+	// caveat: cachedUserInfo 可能为 nil（如上次 RecordFailure 清空但 token 未变），
+	// 此时走 tryActivate 让 backoff 或 retry 处理，避免返回 (nil, nil) 混淆调用方。
+	if sm.LoadToken() == token && sm.cachedUserInfo != nil {
 		return sm.cachedUserInfo, nil
 	}
 
