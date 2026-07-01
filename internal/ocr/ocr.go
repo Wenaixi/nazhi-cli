@@ -244,6 +244,7 @@ type Pool struct {
 	closeMu   sync.Mutex
 	closeOnce sync.Once
 	closed    bool
+	panicked  atomic.Int32 // Recognize 内部 panic 被 recover 的实例计数，Close 时报告
 }
 
 // NewPool 创建 OCR 实例池。
@@ -332,6 +333,7 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 	panicked := true
 	defer func() {
 		if panicked {
+			p.panicked.Add(1)
 			_ = recover() // 吞掉，不 Put 回去
 		} else {
 			p.pool.Put(o)
@@ -385,6 +387,9 @@ func (p *Pool) Close() error {
 
 		if len(errs) > 0 {
 			firstErr = errors.Join(errs...)
+		}
+		if n := p.panicked.Load(); n > 0 {
+			firstErr = errors.Join(firstErr, fmt.Errorf("Close: %d 个 OCR 实例曾 panic 后被 recover（状态异常，忽略错误计数）", n))
 		}
 	})
 	return firstErr
