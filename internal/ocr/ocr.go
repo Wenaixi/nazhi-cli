@@ -8,6 +8,7 @@
 package ocr
 
 import (
+	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -141,7 +142,7 @@ func sweepStaleTempDirs(currentDir string) error {
 		// 跳过本次刚建的目录——可能仍有 goroutine 后续用到（虽然路径已绑定到 o.tempDir，
 		// 但显式跳过更清晰，也避免一种边界：currentDir 由 MkdirTemp 返回、绝对路径
 		// 与 ReadDir 拼接结果在大小写不敏感文件系统上不一致）。
-		if currentDir != "" && fullPath == currentDir {
+		if currentDir != "" && strings.EqualFold(filepath.Clean(fullPath), filepath.Clean(currentDir)) {
 			continue
 		}
 		// best-effort：删除失败（如 DLL 占用）静默跳过。
@@ -215,7 +216,8 @@ func New() *OCR {
 // ONNX Runtime session 不是线程安全的（一个 session 同一时刻只能一个线程调用），
 // 所以单实例下并发请求会被 sync.Mutex 串行化，N 并发 Login 的 wall time = N x 单次延迟。
 //
-// 启用并发：NewPool(n) 预热 n 个独立 session 实例，允许 n 路真并发。
+// 启用并发：NewPool(n) 暗示期望 n 个独立 session 实例，具体预热由首次
+// Recognize 的惰性初始化完成。如需提前预热，调 WarmUp。
 // 内存代价：每个实例约 50MB（ONNX 模型 + 原生库解压到独立 tempDir），n=4 ≈ 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单 Login 调一次用 1 实例足够。
 //
@@ -242,25 +244,40 @@ type Pool struct {
 	closeMu   sync.Mutex
 	closeOnce sync.Once
 	closed    bool
+	panicked  atomic.Int32 // Recognize 内部 panic 被 recover 的实例计数，Close 时报告
 }
 
-// NewPool 创建 OCR 实例池。preload=0 或 1 表示懒加载单实例（默认行为）。
-// preload>1 表示预分配 n 个 OCR 结构体（ONNX session 仍惰性初始化，首次 Recognize 时触发）。
-// 注意：sync.Pool 在 GC 后可能回收对象，到时惰性初始化兜底。
+// NewPool 创建 OCR 实例池。
+// preload 参数保留以保持 API 向后兼容，不再同步预热 ONNX session。
+// 惰性初始化在首次 Recognize 时触发。调用方可后续通过 WarmUp 异步预热。
 func NewPool(preload int) *Pool {
-	p := &Pool{
+	return &Pool{
 		pool: sync.Pool{New: func() any { return &OCR{} }},
 	}
-	for i := 0; i < preload; i++ {
-		// 预热：先 Get 触发 New，初始化 session，再 Put 回 pool
-		o, ok := p.pool.Get().(*OCR)
-		if !ok {
-			o = &OCR{}
+}
+
+// WarmUp 提前预热 n 个 OCR 惰性初始化（模型解压 + ONNX session 创建）。
+// 首次 Recognize 也会自动惰性初始化，但程序启动后首次调用耗时 1-3s。
+// 在后台 goroutine 提前调 WarmUp 可避免首次 Login 阻塞。
+// ctx 用于取消长时间的解压操作；n <= 0 时 no-op。
+// 预热成功的实例会被自动放回池中供 Recognize 复用。
+func (p *Pool) WarmUp(ctx context.Context, n int) error {
+	if n <= 0 {
+		return nil
+	}
+	for i := 0; i < n; i++ {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		o := &OCR{}
+		// 直接触发生效模型解压 + ddddocr.New
+		if err := o.initOnce(); err != nil {
+			return err
 		}
 		p.trackInit(o)
 		p.pool.Put(o)
 	}
-	return p
+	return nil
 }
 
 // trackInit 记录首次完成惰性初始化的 OCR 实例。
@@ -316,6 +333,7 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 	panicked := true
 	defer func() {
 		if panicked {
+			p.panicked.Add(1)
 			_ = recover() // 吞掉，不 Put 回去
 		} else {
 			p.pool.Put(o)
@@ -370,6 +388,9 @@ func (p *Pool) Close() error {
 		if len(errs) > 0 {
 			firstErr = errors.Join(errs...)
 		}
+		if n := p.panicked.Load(); n > 0 {
+			firstErr = errors.Join(firstErr, fmt.Errorf("Close: %d 个 OCR 实例曾 panic 后被 recover（状态异常，忽略错误计数）", n))
+		}
 	})
 	return firstErr
 }
@@ -423,7 +444,11 @@ func (o *OCR) initOnce() (retErr error) {
 			// 让后续 Recognize 重试 initOnce 并把根因上报，
 			// 避免 *OCR 实例被「initialized=true + initErr=nil + ocr=nil」永久卡死。
 			o.initialized = false
-			o.initErr = fmt.Errorf("initOnce panic: %v", r)
+			if err, ok := r.(error); ok {
+				o.initErr = fmt.Errorf("initOnce panic: %w", err)
+			} else {
+				o.initErr = fmt.Errorf("initOnce panic: %v", r)
+			}
 			retErr = o.initErr
 		}
 	}()
@@ -598,11 +623,11 @@ func (o *OCR) extractModels() (string, error) {
 }
 
 // writeModelFile 写入模型文件并设置 0644 权限。
-// 写入失败时自动清理临时目录。
-// 提取为 helper，消除三次 writeFile + os.RemoveAll + fmt.Errorf 的重复模式。
+// 写入失败时走 cleanupTempDir 清理临时目录（复用 Windows DLL 占用降级逻辑）。
+// 提取为 helper，消除三次 writeFile + cleanupTempDir + fmt.Errorf 的重复模式。
 func writeModelFile(dir, name string, data []byte) error {
 	if err := os.WriteFile(filepath.Join(dir, name), data, 0644); err != nil {
-		os.RemoveAll(dir)
+		_ = cleanupTempDir(dir)
 		return fmt.Errorf("写入 %s 失败: %w", name, err)
 	}
 	return nil
