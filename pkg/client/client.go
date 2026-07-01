@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync/atomic"
@@ -313,6 +314,8 @@ func New(opts ...Option) (*Client, error) {
 	// 预解析必须在 syncCookieToken 之前，以免 syncCookieToken 懒解析报错
 	if parsed, err := url.Parse(c.baseURL); err == nil {
 		c.baseURLParsed.Store(parsed)
+	} else {
+		c.logger.Warn("New: 预解析 baseURL 失败", "baseURL", c.baseURL, "error", err)
 	}
 	if c.pendingToken != "" {
 		if err := c.syncCookieToken(c.pendingToken); err != nil {
