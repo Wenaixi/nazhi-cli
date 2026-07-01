@@ -15,6 +15,18 @@
 - 交叉编译无需额外依赖（ONNX Runtime DLL 已内嵌）
 - 首次贡献推荐本地跑通 `make build` 与 `make test`
 
+## 当前版本
+
+仓库 `internal/version/version.go` 是版本号唯一真源。当前活跃版本：
+
+| 版本 | 状态 | 备注 |
+|---|---|---|
+| `0.4.0` | 当前活跃维护 | review-tdd 第 18/20/21 轮修复持续合入，未升 minor |
+| `0.3.5` | 仅安全修复 | review-tdd 第 15/16 轮基础 |
+| `< 0.3` | 不再支持 | 强制升级 |
+
+新功能开发默认向 `main` 提 PR（非 `release/v0.4.x`），因为 review-tdd 修复横跨多个 commit，main 上的版本号由发版时统一切。
+
 ## 本地开发
 
 ```bash

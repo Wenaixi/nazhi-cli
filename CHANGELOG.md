@@ -7,6 +7,46 @@
 
 ## [Unreleased]
 
+合入 review-tdd 第 18/20/21 轮修复（约 50 个 commit，10+ 工作树并行）。语义版本未升（0.4.0 仍稳定），但用户能感知的行为改进很多。
+
+### 新增
+
+- **5 个 HTTP 状态码哨兵错误**：`ErrRateLimited`（429）/ `ErrServiceUnavailable`（5xx）/ `ErrTimeout`（超时）/ `ErrInvalidResponse`（4xx-其他）/ `ErrRetryable`（ctx cancel 可重试）。SDK 用户通过 `errors.Is` 精确识别 HTTP 层 / 业务层错误
+- **`doBizGet` 按 StatusCode 自动包装 sentinel**：429 → `ErrRateLimited`，5xx → `ErrServiceUnavailable`，4xx → `ErrInvalidResponse`，不再笼统 "ErrNetwork"
+- **`isTimeoutError` helper**：`c.do` 内部识别 `context.DeadlineExceeded` / `*url.Error.Timeout()` / `net.OpError.Timeout()`，用 `ErrTimeout` 包装
+
+### 修复
+
+review-tdd 第 18 轮：
+- **顶层 panic recover exit code 1 回归** — 之前 `pendingExitCode=0` 走 exit 0，与正常 error 不一致。修复 `printError` 递归 fallback 设 `pendingExitCode=1`
+- **OCR Pool 加 `sweepStaleTempDirs` 启动时清扫** — `nazhi login` 顺手 best-effort 扫 `%TEMP%` 历史残留，能删的删（详见 [跨平台 OCR 文档](docs/cross-platform-ocr.md)）
+- **`fetchTasksForDimension` panic recover 错误链保留** — `defer recover` 用 `%w` 包装原始 error，`errors.Is` 可穿透命中根因
+- **`SetLimit(0)` 死代码修复** — `errgroup.SetLimit(0)` 在 `len(dimensions)==0` 时死路径，调最小为 1
+- **PII 守卫 AST 自检盲区修复** — 字符串拼接绕过的扫描覆盖
+- **`task list` cancelledCount 虚高修复** — 占位 error 不计入 `failedCount`
+- **`cookie_sync` partial decode 防御** — `dec.More()` 检查 reader 残留，partial 时 RawData 置 nil
+- **`ErrFileTooLarge` 错误链修复** — `errors.Join(ErrFileTooLarge, ErrImageTooLarge)`，errors.Is 单一识别所有"文件过大"路径
+- **`Login` body 摘要** — 非预期状态码错误消息附 `logSafeBody(bodyBytes)` 100 字节截断
+
+review-tdd 第 20 轮：
+- **注释中文化** — magic bytes sniff、`multipartBufPool` Grow、`ErrTimeout` 预留言兵、`ErrEmptyUserInfo` 语义边界等
+- **`getQualitySteps` 内联为 `qualityAfterOptimization` 常量** — 抽常量直接引用
+- **结构化日志** — `warnIfExpiresAtFallback` 改为结构化 slog 字段
+- **`logSafeBody` 提取变量消除重复**
+- **`isContextError` helper 消除 3 处重复**
+- **self_eval 空值兜底 guard 删除**（无消费者）
+
+review-tdd 第 21 轮（F 系列）：
+- **`ErrTimeout` 包装** — `isTimeoutError` 出口处用 `ErrTimeout` 包装而非裸 fmt.Errorf
+- **`doBizGet` 包装 body 摘要 + ErrInvalidResponse fallback** — 全部错误返回附 body 摘要
+- **`atomic.Pointer[url.URL]` race 修复** — `c.baseURLParsed` 全部访问原子化（之前 `*url.URL + sync.Mutex` 仍有 race）
+
+### 改进
+
+- **`c.logger.Warn` 资源警告统一走用户注入 slog** — 不依赖 cmd 通道，SDK 纯净
+- **`go.mod` 模块单一** — 仓库只有一个 `module github.com/Wenaixi/nazhi-cli`
+- **CLAUDE.md、docs/sdk/README.md、docs/cli/README.md、docs/architecture.md、docs/login-flow.md、docs/cross-platform-ocr.md、docs/har-testing.md、docs/env-vars.md、docs/README.md 全面升级到 v0.4.0+**
+
 ## [0.4.0] - 2026-06-30
 
 v0.3.5 → v0.4.0 之间合入 305 个 commit，172 个文件改动。
