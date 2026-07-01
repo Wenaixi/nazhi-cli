@@ -2,6 +2,7 @@ package client
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"image"
@@ -44,7 +45,7 @@ var ErrUnsupportedFormat = errors.New("unsupported image format")
 //  4. 质量级联 → 缩放 → 输出
 //
 // 全部在内存中完成，不写盘、不修改原文件。
-func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
+func (c *Client) prepareImageForUpload(ctx context.Context, path string) ([]byte, string, error) {
 	// decodeImage 原来返回 format，自 GIF 特例删除后无消费者。
 	// 无消费者。format 曾用于 `if format == "gif"` 分支，现已统一走
 	// flattenOnWhite（hasTransparency 自动处理 Paletted 透明检测），
