@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"net/http"
 	"net/url"
 	"sync"
@@ -102,13 +101,15 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 // 同样的方法、差异仅在 Referer），inline 实现重复 ~14 行。统一在此处理
 // 头复制、drain+close 资源回收，调用方只关心 referer 与错误标签。
 //
+// 注意：baseHeaders 不会被修改（直接覆盖 Referer，不 clone ——
+// bizHeaders 每次返回新 map，无需 maps.Clone）。
+//
 // stepLabel 是用于错误信息的人类可读标签（如 "步骤2" / "步骤3"），调用方
 // 需自行保证唯一性以便错误诊断。
 func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[string]string, referer, stepLabel string) ([]byte, error) {
-	stepHeaders := maps.Clone(baseHeaders)
-	stepHeaders["Referer"] = referer
+	baseHeaders["Referer"] = referer
 
-	resp, err := c.rawDoWithResp(ctx, http.MethodGet, menuURL, nil, stepHeaders, "")
+	resp, err := c.rawDoWithResp(ctx, http.MethodGet, menuURL, nil, baseHeaders, "")
 	if err != nil {
 		return nil, fmt.Errorf("ActivateSession %s（getMenu）失败: %w", stepLabel, err)
 	}

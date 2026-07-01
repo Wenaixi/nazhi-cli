@@ -181,6 +181,44 @@ func TestActivateSessionIfNeeded_BackoffHitsForSameToken(t *testing.T) {
 
 // ─── session_cache_guard_test.go: 失败 token 不清其他 token 缓存 ───
 
+// TestDoGetMenu_DoesNotNeedClone 验证 doGetMenu 不需要 maps.Clone：
+// bizHeaders 每次返回新 map，直接覆盖 Referer 不会影响其他调用方。
+func TestDoGetMenu_DoesNotNeedClone(t *testing.T) {
+	var menuCalled bool
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/":
+			w.WriteHeader(http.StatusOK)
+		case "/api/studentInfo/getMenu":
+			menuCalled = true
+			ref := r.Header.Get("Referer")
+			if ref == "" {
+				t.Error("getMenu 请求缺少 Referer 头")
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三"}}`))
+		}
+	}))
+	defer srv.Close()
+
+	c, _ := New(
+		WithBaseURL(srv.URL),
+		WithTimeout(5*time.Second),
+	)
+
+	_, err := c.ActivateSession(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("激活应成功: %v", err)
+	}
+	if !menuCalled {
+		t.Fatal("getMenu 未被调用")
+	}
+}
+
 // TestActivateFailedToken_DoesNotClearOtherTokenCache_SameClient 验证在同一 Client
 // 上先激活 token-A 成功、再激活 token-B 失败时，token-A 的缓存不被清除。
 func TestActivateFailedToken_DoesNotClearOtherTokenCache_SameClient(t *testing.T) {
