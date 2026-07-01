@@ -183,14 +183,14 @@ func (sm *sessionManager) LoadToken() string {
 }
 
 // clearBackoff 清除 backoff 状态（lastErr + lastFailedToken）。
-// 调用方须持 sm.mu。
+// 内部 helper，仅 tryActivate 持锁路径内调用。
 func (sm *sessionManager) clearBackoff() {
 	sm.lastErr = nil
 	sm.lastFailedToken = ""
 }
 
 // StoreToken 持锁写 token，并清除 backoff 状态。
-// 调用方须持 sm.mu。
+// 内部 helper，仅 tryActivate 持锁路径内调用。
 func (sm *sessionManager) StoreToken(token string) {
 	sm.token.Store(token)
 	sm.clearBackoff()
