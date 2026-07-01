@@ -186,9 +186,9 @@ func TestOCRRetry_AllImagesFail(t *testing.T) {
 	if got := atomic.LoadInt32(&imageFetches); got != int32(maxOCRImagesTotal) {
 		t.Errorf("expected %d image fetches, got %d", maxOCRImagesTotal, got)
 	}
-	if got := atomic.LoadInt32(&mock.recognizeCalls); got != int32(maxOCRImagesTotal*maxOCRAttemptsPerImage) {
-		t.Errorf("expected %d OCR calls (11×9=99), got %d",
-			maxOCRImagesTotal*maxOCRAttemptsPerImage, got)
+	if got := atomic.LoadInt32(&mock.recognizeCalls); got != int32(maxOCRImagesTotal) {
+		t.Errorf("expected %d OCR calls (each image = 1 attempt), got %d",
+			maxOCRImagesTotal, got)
 	}
 }
 
@@ -274,17 +274,9 @@ func TestOCRRetry_ImageFetchFails(t *testing.T) {
 // TestOCRRetry_Constants 兜底测试：常量值符合预期（1 × 99 = 99）。
 // ddddocr 确定性下同图重试无意义，把所有重试预算分配给换图。
 func TestOCRRetry_Constants(t *testing.T) {
-	if maxOCRAttemptsPerImage != 1 {
-		t.Errorf("maxOCRAttemptsPerImage = %d, want 1", maxOCRAttemptsPerImage)
-	}
 	if maxOCRImagesTotal != 99 {
 		t.Errorf("maxOCRImagesTotal = %d, want 99", maxOCRImagesTotal)
 	}
-	if maxOCRAttemptsPerImage*maxOCRImagesTotal != 99 {
-		t.Errorf("1 × 99 should equal 99, got %d",
-			maxOCRAttemptsPerImage*maxOCRImagesTotal)
-	}
-	t.Logf("nazhi %s — OCR 重试策略: %d 张图 × %d 次 = %d 次总尝试上限（ddddocr 确定性下把预算全放换图）",
-		version.Version, maxOCRImagesTotal, maxOCRAttemptsPerImage,
-		maxOCRImagesTotal*maxOCRAttemptsPerImage)
+	t.Logf("nazhi %s — OCR 重试策略: %d 张图，每图 1 次（共 %d 次尝试）",
+		version.Version, maxOCRImagesTotal, maxOCRImagesTotal)
 }
