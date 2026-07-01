@@ -4,12 +4,21 @@
 
 | 版本 | 支持状态 |
 |------|---------|
-| `0.4.0` | 当前活跃维护 |
+| `0.4.x` | 当前活跃维护（review-tdd 第 18/20/21 轮修复持续合入，未升 minor） |
 | `0.3.x` | 仅安全修复 |
 | `< 0.3` | 不再支持，请升级 |
 
-> 0.4.0 是 review-tdd 第 15/16 轮全面修复 + 架构深化版，带入 session 并发安全、
-> OCR Windows DLL 占用降级、token 提取拆 `pkg/tokenparse` 等多项安全相关改进。
+> 0.4.x 是 review-tdd 第 15/16/18/20/21 轮全面修复 + 架构深化版：
+> OCR Windows 三轮修复（DLL 占用降级 + GOOS 守卫 + 启动清扫 %TEMP%）、token 提取拆 pkg/tokenparse 等多项安全相关改进。
+>
+> 额外增强（review-tdd 第 18/20/21 轮）：
+>
+> - sessionManager 4 入口收口 + DCL fast-path
+> - 5 个新 HTTP 状态码 sentinel：ErrRateLimited / ErrServiceUnavailable / ErrTimeout / ErrInvalidResponse / ErrRetryable
+> - 顶层 panic recover 统一 exit code 1（不再误归 exit 0 或 2）
+> - PII 守卫改 SHA-256 哈希反自反性陷阱
+>
+> 这些改进让 SDK 用户能 errors.Is 精确识别：登录错 / 业务错 / HTTP 层错 / 服务端限流 / ctx cancel 可重试 五种场景。
 
 ## 报告安全问题
 
