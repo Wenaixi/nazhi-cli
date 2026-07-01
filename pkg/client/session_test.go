@@ -769,6 +769,39 @@ func TestSessionManager_Activate_DCL(t *testing.T) {
 			t.Errorf("不同 token 应再次调用 activateFn，实际调了 %d 次", n)
 		}
 	})
+
+	t.Run("same token but cachedUserInfo nil goes through tryActivate", func(t *testing.T) {
+		sm := newTestSM()
+		var callCount int32
+		activateFn := func(ctx context.Context, token string) (*types.UserInfo, error) {
+			atomic.AddInt32(&callCount, 1)
+			return &types.UserInfo{Name: token}, nil
+		}
+
+		// 首次激活成功
+		info, err := sm.Activate(context.Background(), "tok", activateFn)
+		if err != nil || info == nil || info.Name != "tok" {
+			t.Fatalf("首次激活应成功，info=%+v err=%v", info, err)
+		}
+		if n := atomic.LoadInt32(&callCount); n != 1 {
+			t.Fatalf("activateFn 应调用 1 次，实际 %d", n)
+		}
+
+		// 手动清空 cachedUserInfo (模拟 RecordFailure 同 token 场景)
+		sm.cachedUserInfo = nil
+
+		// 再次激活同一 token：cachedUserInfo=nil 不应走 DCL fast path
+		info2, err := sm.Activate(context.Background(), "tok", activateFn)
+		if err != nil {
+			t.Fatalf("第二次激活应成功（走 tryActivate），err=%v", err)
+		}
+		if info2 == nil || info2.Name != "tok" {
+			t.Errorf("第二次激活应返回新 info，got info=%+v", info2)
+		}
+		if n := atomic.LoadInt32(&callCount); n != 2 {
+			t.Errorf("cachedUserInfo=nil 时应再次调用 activateFn，实际调了 %d 次", n)
+		}
+	})
 }
 
 func TestSessionManager_RecordFailure(t *testing.T) {
