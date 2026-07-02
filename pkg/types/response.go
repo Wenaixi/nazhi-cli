@@ -114,3 +114,14 @@ func DecodeDataMap[T any](resp UnifiedResponse) (*T, error) {
 func DecodePageBean(resp UnifiedResponse) (*PageBean, error) {
 	return decodeField[PageBean](resp.PageBean, "pageBean")
 }
+
+// DecodeReturnDataSlice 将 returnData 解析为切片（returnData 有时是数组）。
+func DecodeReturnDataSlice[T any](resp UnifiedResponse, v *[]T) error {
+	if resp.ReturnData == nil {
+		return nil
+	}
+	if err := json.Unmarshal(*resp.ReturnData, v); err != nil {
+		return fmt.Errorf("解析 returnData 切片失败: %w", err)
+	}
+	return nil
+}
