@@ -45,6 +45,51 @@ func TestClassifyError(t *testing.T) {
 	}
 }
 
+// ─── isTimeoutError 对 context 超时的识别测试 ───
+
+func TestIsTimeoutError_ContextDeadline(t *testing.T) {
+	t.Run("context.DeadlineExceeded 被识别为超时", func(t *testing.T) {
+		if !isTimeoutError(context.DeadlineExceeded) {
+			t.Error("isTimeoutError(context.DeadlineExceeded) = false, want true")
+		}
+	})
+	t.Run("context.Canceled 被识别为超时", func(t *testing.T) {
+		if !isTimeoutError(context.Canceled) {
+			t.Error("isTimeoutError(context.Canceled) = false, want true")
+		}
+	})
+	t.Run("context 超时 + url.Error 包装", func(t *testing.T) {
+		urlErr := &url.Error{
+			Op:  "Get",
+			URL: "http://example.com",
+			Err: fmt.Errorf("wrapped: %w", context.DeadlineExceeded),
+		}
+		if !isTimeoutError(urlErr) {
+			t.Error("isTimeoutError(url.Error wrapping DeadlineExceeded) = false, want true")
+		}
+	})
+}
+
+func TestIsTimeoutError_NetworkTimeout(t *testing.T) {
+	t.Run("url.Error with timeout", func(t *testing.T) {
+		urlErr := &url.Error{Op: "Get", URL: "http://example.com", Err: timeoutError{}}
+		if !isTimeoutError(urlErr) {
+			t.Error("isTimeoutError(url.Error with Timeout) = false, want true")
+		}
+	})
+	t.Run("net.OpError with timeout", func(t *testing.T) {
+		netErr := &net.OpError{Op: "dial", Net: "tcp", Err: timeoutError{}}
+		if !isTimeoutError(netErr) {
+			t.Error("isTimeoutError(net.OpError with Timeout) = false, want true")
+		}
+	})
+	t.Run("non-timeout error", func(t *testing.T) {
+		if isTimeoutError(errors.New("some error")) {
+			t.Error("isTimeoutError(random error) = true, want false")
+		}
+	})
+}
+
 // ─── 网络超时分类测试 ───
 
 func TestClassifyError_NetworkTimeout(t *testing.T) {
