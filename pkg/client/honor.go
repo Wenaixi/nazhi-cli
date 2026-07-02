@@ -1,11 +1,12 @@
 // honor.go 荣誉申报 SDK。
 // 端点映射：
-//   GET  /api/studentMoralEduNew/getHonorType          — 获取所有荣誉类型（dataList / returnData 双通道）
-//   GET  /api/studentMoralEduNew/getHonorTypeForSelect  — 获取级别下拉选项（returnData）
-//   GET  /api/studentMoralEduNew/getHonorLevel          — 获取荣誉级别（dataList，需 honorTypeId 参数）
-//   GET  /api/studentMoralEduNew/getHonorByStudentId    — 查询已有荣誉（分页，需 &key=）
-//   POST /api/studentMoralEduNew/addHonor               — 申报荣誉
-//	 POST /api/studentMoralEduNew/deleteHonorById        — 删除荣誉
+//
+//	  GET  /api/studentMoralEduNew/getHonorType          — 获取所有荣誉类型（dataList / returnData 双通道）
+//	  GET  /api/studentMoralEduNew/getHonorTypeForSelect  — 获取级别下拉选项（returnData）
+//	  GET  /api/studentMoralEduNew/getHonorLevel          — 获取荣誉级别（dataList，需 honorTypeId 参数）
+//	  GET  /api/studentMoralEduNew/getHonorByStudentId    — 查询已有荣誉（分页，需 &key=）
+//	  POST /api/studentMoralEduNew/addHonor               — 申报荣誉
+//		 POST /api/studentMoralEduNew/deleteHonorById        — 删除荣誉
 package client
 
 import (

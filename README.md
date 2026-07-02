@@ -111,10 +111,15 @@ nazhi
 ├── whoami                      获取当前用户信息
 ├── task
 │   ├── list                     列出全维度任务
-│   └── submit                   提交任务（支持 @payload.json）
+│   ├── submit                   提交任务（支持 @payload.json）
+│   └── submitted                获取已提交写实记录（自动翻页）
 ├── self-eval
 │   ├── submit                   提交自我评价
 │   └── status                   查询评价状态 + 教师评语
+├── honor
+│   ├── types                    获取荣誉类型列表
+│   ├── list                     获取已申报荣誉记录
+│   └── add                      申报荣誉（支持 @payload.json）
 ├── file
 │   └── upload                   上传图片（独立公共服务，不接受 --token）
 ├── version                     显示版本信息
@@ -170,9 +175,9 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 |---|---|---|---|
 | `NAZHI_USERNAME` | 学号 | `login`、`school` | — |
 | `NAZHI_PASSWORD` | 密码 | `login` | — |
-| `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval` | — |
+| `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — |
 | `NAZHI_SSO_BASE` | SSO 根地址 | `login`、`school` | `https://www.nazhisoft.com` |
-| `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval` | `http://139.159.205.146:8280` |
+| `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval`、`honor` | `http://139.159.205.146:8280` |
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` |
 | `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload` 是 `30`） |
 

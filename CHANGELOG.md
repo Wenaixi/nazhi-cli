@@ -7,7 +7,19 @@
 
 ## [Unreleased]
 
-暂无。
+### 新增
+
+- **荣誉申报 SDK（honor.go）** — 5 个方法：GetHonorTypes / GetHonorTypeForSelect / GetHonorLevel / GetHonorList / AddHonor。通过 TDD 驱动开发，11 个单元测试全部通过
+- **nazhi honor CLI 命令** — `nazhi honor types` / `nazhi honor list` / `nazhi honor add` 三个子命令，支持 `@file.json` 和 `-`（stdin）两种 payload 来源
+- **nazhi task submitted CLI 命令** — 调用 `GetSubmittedCircles` 获取已提交写实记录，自动翻页合并输出
+- **`--payload -`（stdin 读取）** — task submit 和 honor add 都支持从 stdin 读取请求体 JSON
+
+### 改进
+
+- **docs SDK 参考** — 新增 submitted.go 和 honor.go 完整章节正文（含代码示例、错误说明、分页策略）
+- **docs CLI 参考** — 新增 `nazhi task submitted` 和 `nazhi honor {types,list,add}` 完整文档章节
+- **文档同步** — README.md / docs/README.md / docs/architecture.md / docs/env-vars.md 同步 honor + submitted 相关内容
+- **`parsePayload` 抽取** — task_submit.go 将从文件/从 stdin 读取 payload 的逻辑抽取为独立 helper，honor add 复用相同模式
 
 ## [0.4.1] - 2026-07-02
 

@@ -45,7 +45,7 @@ func TestGetHonorTypes(t *testing.T) {
 		if r.URL.Path == "/api/studentMoralEduNew/getHonorType" {
 			w.Header().Set("Content-Type", "application/json")
 			resp := map[string]any{
-				"code":     1,
+				"code": 1,
 				"dataList": []map[string]any{
 					{"id": 1147, "name": "校学生优秀干部", "level_name": "校", "level": 5, "score": "分数：+5.0", "dimension_id": 9, "dimension_name": "思想品德", "sort_no": 1},
 					{"id": 1148, "name": "校三好学生", "level_name": "校", "level": 5, "score": "分数：+5.0", "dimension_id": 10, "dimension_name": "学业水平", "sort_no": 2},
@@ -98,7 +98,7 @@ func TestGetHonorTypeForSelect(t *testing.T) {
 		if r.URL.Path == "/api/studentMoralEduNew/getHonorTypeForSelect" {
 			w.Header().Set("Content-Type", "application/json")
 			resp := map[string]any{
-				"code":       1,
+				"code": 1,
 				"returnData": []map[string]any{
 					{"label": "校", "value": 5},
 				},
@@ -135,7 +135,7 @@ func TestGetHonorLevel(t *testing.T) {
 			}
 			w.Header().Set("Content-Type", "application/json")
 			resp := map[string]any{
-				"code":     1,
+				"code": 1,
 				"dataList": []map[string]any{
 					{"label": "校", "value": 5},
 				},

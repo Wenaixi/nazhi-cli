@@ -9,8 +9,8 @@
 | 文档 | 内容 |
 |---|---|
 | [README.md](../README.md) | 项目主页：快速开始 + 安装 + 命令概览 + 环境变量速查 |
-| [CLI 参考](./cli/README.md) | 10 个命令的 flag / 输出 / 错误码 / 完整工作流 |
-| [SDK 参考](./sdk/README.md) | Go SDK API：Client 构造 + 12 方法 + 10 Option + 15 sentinel + 错误处理骨架 |
+| [CLI 参考](./cli/README.md) | 13 个命令的 flag / 输出 / 错误码 / 完整工作流 |
+| [SDK 参考](./sdk/README.md) | Go SDK API：Client 构造 + 19 方法 + 11 Option + 15 sentinel + 错误处理骨架 |
 | [环境变量](./env-vars.md) | NAZHI_* 完整清单 + urlType 分流 + 与 SDK Option 对应表 |
 
 ## 架构文档（怎么实现的）

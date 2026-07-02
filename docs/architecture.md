@@ -18,6 +18,7 @@
 │  - 12 个公开方法（Login / ActivateSession / FetchTasks…）  │
 │  - HAR 对齐 Session 激活 + sessionManager 状态机          │
 │  - Pool 多实例 OCR 引擎 + ddddocr/!ddddocr build tag 分发  │
+│  - 19 个公开方法（含 GetSubmittedCircles / 5 个 honor 方法）│
 │  - 15 个哨兵错误（errors.Is 精确分支）                    │
 └─────────┬─────────────────────────┬──────────────────────┘
           │ 使用                    │ 使用
@@ -69,7 +70,9 @@ nazhi-cli/
 │   ├── session.go                         ActivateSession + sessionManager 状态机
 │   ├── task.go                            FetchTasks / SubmitTask / GetDimensions
 │   ├── self_eval.go                       SubmitSelfEvaluation / QuerySelfEvaluation / QuerySelfGradEvaluation
+│   ├── submitted.go                       GetSubmittedCircles（自动翻页合并）
 │   ├── user.go                            GetMyInfo
+│   ├── honor.go                           GetHonorTypes / GetHonorTypeForSelect / GetHonorLevel / GetHonorList / AddHonor
 │   ├── file.go                            UploadFile + newCleanClient
 │   ├── image_prep.go                      magic bytes sniff + flattenOnWhite + 缩放/质量级联
 │   └── cookie_sync.go                     syncCookieToken / buildLoginResponse
@@ -266,7 +269,7 @@ selfEval, err := types.DecodeDataMap[types.SelfEvalStatus](resp)
 - `DecodeDataMap[T]`（single object from `dataMap`）
 - `CheckCode` 检查 `code==1`；否则返 `*BusinessError{Code, Msg}` 供 `errors.As` 精细分支
 
-SDK 侧 fallback 解码统一走 `pkg/client/request.go` 的 `tryDecodeFallback[T]` 泛型 helper——按 decoder 顺序尝试，第一个成功非 nil 的返回。
+SDK 侧 fallback 解码统一走 `pkg/client/request.go` 的 `doBizGetDecode`——先试 `returnData` 再试 `dataList`，首个成功非 nil 的返回。
 
 ### 9. 文件上传安全隔离
 
@@ -428,7 +431,7 @@ internal/ocr/                    OCR 单元测试（35+ 测试，含 cross-platf
 - `go test -tags integration`：含真实环境集成，需 `NAZHI_USERNAME` / `NAZHI_PASSWORD`
 - `go test -tags verify`：含 `verify_gitignore/` 兜底测试（CLAUDE.md 不能被 track）
 
-## 架构深化候选（已实施 1~5，未实施 6~8）
+## 架构深化候选（已实施 1~7，未实施 8）
 
 | # | 候选 | 状态 | 落地位置 |
 |---|---|---|---|
@@ -437,9 +440,12 @@ internal/ocr/                    OCR 单元测试（35+ 测试，含 cross-platf
 | #3 | `DecodeUnified` 原语化 | ✅ 实施 | `pkg/types/response.go` 泛型辅助 |
 | #4 | tokenparse 包 + DerefOr[T] 升包 | ✅ 实施 | `pkg/tokenparse/tokenparse.go` + `pkg/types/deref.go` |
 | #5 | sessionManager 封装 + SetBackoff race fix | ✅ 实施 | `pkg/client/session.go` |
-| #6 | `ParallelDims` 泛型 helper | ❌ 未实施 | `FetchTasks` 仍用内联 `errgroup` + `appendLocked[T]` |
-| #7 | `error_category.go` 错误分类 | ❌ 未实施 | 错误分类在 `errors.go` + `request.go` 分散 |
+| #6 | `ParallelDims` 泛型 helper | ✅ 实施 | `pkg/client/parallel.go`（review-tdd 第 22 轮） |
+| #7 | `error_category.go` 错误分类 | ✅ 实施 | `pkg/client/error_category.go`（review-tdd 第 22 轮） |
 | #8 | `pkg/client/error.go` 错误码集中定义 | ❌ 未实施 | 哨兵错误集中在 `errors.go`（已 15 个） |
+
+> ✅ `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**（review-tdd 第 22 轮）。
+> `FetchTasks` 仍用内联 `errgroup`（业务复杂性待后续迁移），但 `ParallelDims[T]` 泛型 helper 与 `ClassifyError` 分类枚举已可复用。
 
 ## 依赖关系
 
