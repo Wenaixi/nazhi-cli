@@ -49,6 +49,11 @@ type Client struct {
 	ocr           CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
+	// submittedPageSize 是 GetSubmittedCircles 每页请求条数。
+	// 默认 100，服务端 pageSize 上限 500。
+	// 通过 WithSubmittedPageSize 可配置。
+	submittedPageSize int
+
 	// sm 管理业务 session 的激活状态机（4 步 HAR 激活、backoff 缓存、DCL fast path）。
 	sm *sessionManager
 }
@@ -250,6 +255,25 @@ var WithCustomOCR = withNilGuard[CaptchaRecognizer]("WithCustomOCR", func(c *Cli
 // WithHTTPClient 在 WithToken 之后调用也能正确生效（避免 Option 顺序敏感性 bug）。
 var WithToken = withURLGuard("WithToken", func(c *Client, v string) { c.pendingToken = v })
 
+// WithSubmittedPageSize 配置 GetSubmittedCircles 每页请求条数。
+//
+// 行为约定：
+//   - n <= 0：拒绝设置并 warn，保持当前值（防止清零或负数）
+//   - n > 0: 设置每页条数
+//
+// 服务端 pageSize 上限 500（实测 pageSize=10000 被截断为 500）。
+// 默认值 100 在绝大多数学期能单页覆盖所有记录，>100 条时自动翻页。
+func WithSubmittedPageSize(n int) Option {
+	return func(c *Client) {
+		if n <= 0 {
+			c.logger.Warn("WithSubmittedPageSize: 非正数被拒绝，保持当前值",
+				"current", c.submittedPageSize, "rejected", n)
+			return
+		}
+		c.submittedPageSize = n
+	}
+}
+
 // ─── 构造 ───
 
 // New 创建 Client。使用 Option 模式配置：
@@ -276,8 +300,9 @@ func New(opts ...Option) (*Client, error) {
 		uploadURL:  defaultUploadURL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:        defaultOCR(), // build tag 决定：!ddddocr → nil, ddddocr → ocr.NewPool(min(4, NumCPU))
+		ocr:        defaultOCR(),
 		sm:         &sessionManager{},
+		submittedPageSize: defaultSubmittedPageSize,
 	}
 	for _, opt := range opts {
 		opt(c)
