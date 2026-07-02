@@ -20,6 +20,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/yangbin1322/go-ddddocr/ddddocr"
 )
 
@@ -309,7 +310,7 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 	defer func() {
 		if panicked {
 			p.panicked.Add(1)
-			_ = recover() // 吞掉，不 Put 回去
+			_ = recoverx.RecoverPanic(recover(), nil, "Pool.Recognize")
 		} else {
 			p.pool.Put(o)
 		}
