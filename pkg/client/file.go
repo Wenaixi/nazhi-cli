@@ -76,16 +76,6 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		// fileData+1KB 空间以避免 multipart 构造时多次扩容
 		buf.Grow(len(fileData) + 1024)
 	}
-	defer func() {
-		// pool 缩容：上次上传超大文件后 buf cap 可能 >8MB，
-		// 重建小 buf 避免常驻大内存泄漏（PLAUSIBLE: 只有上传极大文件时触发）。
-		if buf.Cap() > 8*1024*1024 {
-			buf = &bytes.Buffer{}
-		} else {
-			buf.Reset()
-		}
-		multipartBufPool.Put(buf)
-	}()
 	writer := multipart.NewWriter(buf)
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
@@ -104,6 +94,20 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		return 0, fmt.Errorf("关闭 multipart writer 失败: %w", err)
 	}
 
+	// ⚠️ 关键顺序：先拷贝完整 body bytes，再回收 buf。HTTP transport 的
+	// writeLoop goroutine 异步读取请求体（io.Reader），若 buf 被复用归还 pool，
+	// writeLoop 可能读到已重置的缓冲区 → data race。
+	// 解法：拷贝到独立切片，立即回收 buf 到 pool。
+	bodyData := make([]byte, buf.Len())
+	copy(bodyData, buf.Bytes())
+	// 回收 buf：bodyData 已持有完整 payload，buf 不再被引用。
+	if buf.Cap() > 8*1024*1024 {
+		buf = &bytes.Buffer{}
+	} else {
+		buf.Reset()
+	}
+	multipartBufPool.Put(buf)
+
 	// 3. 构造请求
 	//
 	// 走共享 buildRequest helper，消除手工 NewRequestWithContext
@@ -111,9 +115,9 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 的演进（如 debug 日志脱敏、req body 校验等无需在此同步）。
 	//
 	// multipart 场景下 Content-Type 必填（含 boundary），由 writer.FormDataContentType()
-	// 提供；body 传入 *bytes.Buffer（满足 io.Reader 接口），buildRequest 透传。
+	// 提供；body 传入 bytes.NewReader(bodyData)（独立只读副本，无并发安全风险）。
 	uploadURL := c.uploadURL + "/common/upload/uploadImage?bussinessType=12&groupName=other"
-	req, err := c.buildRequest(ctx, http.MethodPost, uploadURL, buf, map[string]string{
+	req, err := c.buildRequest(ctx, http.MethodPost, uploadURL, bytes.NewReader(bodyData), map[string]string{
 		"Accept":     "application/json, text/plain, */*",
 		"User-Agent": defaultUserAgent,
 	}, writer.FormDataContentType())
