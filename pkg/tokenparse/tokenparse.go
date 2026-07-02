@@ -124,10 +124,6 @@ func extractExpFromJWT(token string) (time.Time, error) {
 			if n > 0 {
 				return time.Unix(int64(n), 0), nil
 			}
-		case json.Number:
-			if exp, err := n.Int64(); err == nil && exp > 0 {
-				return time.Unix(exp, 0), nil
-			}
 		}
 	}
 	return time.Time{}, errors.New("payload 中未找到 exp 声明")
