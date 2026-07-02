@@ -10,13 +10,8 @@ import (
 )
 
 // submittedPageSize 是 GetSubmittedCircles 每页请求条数。
-// HAR 实测 pageSize=3 安全，pageSize=100 服务端返回 400。
-// 保守用 20，绝大多数场景单页即可覆盖，>20 条时自动翻页。
-const submittedPageSize = 20
-
-// HAR 实测 pageSize=3 安全，pageSize=100 服务端返回 400。
-// 去掉 &key= 参数也会 400，页面实际请求会带 &key= 空值。
-// 保守用 20，绝大多数场景单页即可覆盖，>20 条时自动翻页。
+// curl 实测 pageSize=100 正常工作（之前 400 是 &key= 参数缺失导致）。
+const submittedPageSize = 100
 
 // GetSubmittedCircles 获取当前用户已提交的全部写实记录。
 //
