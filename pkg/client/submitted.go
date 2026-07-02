@@ -10,8 +10,13 @@ import (
 )
 
 // submittedPageSize 是 GetSubmittedCircles 每页请求条数。
-// 实测 pageSize=100 服务端可接受，一次性覆盖绝大多数场景减少翻页。
-const submittedPageSize = 100
+// HAR 实测 pageSize=3 安全，pageSize=100 服务端返回 400。
+// 保守用 20，绝大多数场景单页即可覆盖，>20 条时自动翻页。
+const submittedPageSize = 20
+
+// HAR 实测 pageSize=3 安全，pageSize=100 服务端返回 400。
+// 去掉 &key= 参数也会 400，页面实际请求会带 &key= 空值。
+// 保守用 20，绝大多数场景单页即可覆盖，>20 条时自动翻页。
 
 // GetSubmittedCircles 获取当前用户已提交的全部写实记录。
 //
@@ -54,7 +59,7 @@ func (c *Client) GetSubmittedCircles(ctx context.Context, token string) ([]types
 
 // fetchSubmittedPage 拉取一页已提交写实记录，同时返回分页信息。
 func (c *Client) fetchSubmittedPage(ctx context.Context, token string, pageNo int) ([]types.CircleRecord, *types.PageBean, error) {
-	path := "/api/studentCircleNew/getStudentCircle?type=1&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(submittedPageSize)
+	path := "/api/studentCircleNew/getStudentCircle?type=1&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(submittedPageSize) + "&key="
 
 	resp, err := c.doBizAndDecode(ctx, token, "GetSubmittedCircles", path, http.MethodGet, nil)
 	if err != nil {
