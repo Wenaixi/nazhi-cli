@@ -282,6 +282,56 @@ func TestDefaultTokenTTL(t *testing.T) {
 	}
 }
 
+// ─── JWT token payload 提取 exp 测试 ───
+//
+// extractExpFromJWT 是 parseExpiresMap 的最后一道防线：当 map 中既无 expires_in
+// 也无 exp 时，尝试从 JWT token 的 payload（第二部分）中解码 exp 声明。
+
+// 构造 JWT 测试 token：header={"alg":"none","typ":"JWT"},
+// payload={"sub":"test-user","exp":2000000000}, signature=test-signature
+const jwtTokenWithExp = "eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ0ZXN0LXVzZXIiLCJleHAiOjIwMDAwMDAwMDB9.dGVzdC1zaWduYXR1cmU"
+
+func TestParseExpiresMap_JWTExtractsExp(t *testing.T) {
+	// map 中无 expires_in 和 exp → parseExpiresMap 应通过 JWT payload 提取 exp。
+	raw := json.RawMessage(`{"token":"` + jwtTokenWithExp + `"}`)
+	_, expiresAt, err := ExtractFromReturnData(raw)
+	if err != nil {
+		t.Fatalf("期望无 err，实际: %v", err)
+	}
+	expected := time.Unix(2000000000, 0)
+	if !expiresAt.Equal(expected) {
+		t.Errorf("JWT exp 解析错误：期望 %v，实际 %v", expected, expiresAt)
+	}
+}
+
+func TestParseExpiresMap_JWTExpNotCalledWhenMapHasExp(t *testing.T) {
+	// map 中有有效 exp → JWT 提取路径不应被调用，应为 map 中的 exp 值。
+	// map 中的 exp 不同于 JWT payload 中的 exp，可区分优先级。
+	raw := json.RawMessage(`{"token":"` + jwtTokenWithExp + `","exp":1888888888}`)
+	_, expiresAt, err := ExtractFromReturnData(raw)
+	if err != nil {
+		t.Fatalf("期望无 err，实际: %v", err)
+	}
+	expected := time.Unix(1888888888, 0)
+	if !expiresAt.Equal(expected) {
+		t.Errorf("map exp 应优先于 JWT payload exp，期望 %v，实际 %v", expected, expiresAt)
+	}
+}
+
+func TestParseExpiresMap_NonJWTTokenFallsBackToDefaultTTL(t *testing.T) {
+	// 不含 '.' 分隔符的 token → extractExpFromJWT 返回错误 → fallback 24h。
+	raw := json.RawMessage(`{"token":"plain-token-no-dots"}`)
+	_, expiresAt, err := ExtractFromReturnData(raw)
+	if err != nil {
+		t.Fatalf("期望无 err，实际: %v", err)
+	}
+	expected := time.Now().Add(DefaultTokenTTL)
+	delta := expiresAt.Sub(expected)
+	if delta < -5*time.Second || delta > 5*time.Second {
+		t.Errorf("非 JWT token 应 fallback now+24h，实际 delta=%v", delta)
+	}
+}
+
 // ─── 哨兵错误 errors.Is 测试 ───
 
 func TestExtractFromReturnData_SentinelErrors(t *testing.T) {
