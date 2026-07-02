@@ -26,7 +26,7 @@ const unifiedUserInfo = `{"code":1,"msg":"成功","returnData":{"name":"张三",
 // makeWhoamiTestCmd 创建 whoami 命令的测试用 cobra.Command + mock server。
 // getMyInfoBody 是 /api/studentInfo/getMyInfo 的响应体 JSON，空字符串时默认 unifiedOKEmpty。
 // bizOK 控制 session 预热路径（首页+/getMenu）是否返回 200 OK（false 则返回 500 模拟激活失败）。
-func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK ...bool) (*cobra.Command, *client.Client) {
+func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK ...bool) *cobra.Command {
 	t.Helper()
 	if getMyInfoBody == "" {
 		getMyInfoBody = unifiedOKEmpty
@@ -81,7 +81,7 @@ func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK .
 		t.Fatalf("set base-url flag: %v", err)
 	}
 	cmd.Flags().Int("timeout", 5, "")
-	return cmd, c
+	return cmd
 }
 
 // captureStdio 替换 os.Stdout/os.Stderr 并返回还原函数 + 同步等待机制。
@@ -140,7 +140,7 @@ func captureStdio(t *testing.T) (stdout *bytes.Buffer, stderr *bytes.Buffer, res
 // TestWhoami_OkEmpty_StatusEnvelope 回归测试 F5
 // GetMyInfo 返回 (nil, nil) 时输出 {"status":"empty","reason":"get_my_info_empty"}。
 func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
-	cmd, _ := makeWhoamiTestCmd(t, "test-token", "")
+	cmd := makeWhoamiTestCmd(t, "test-token", "")
 
 	quiet = false
 	_ = os.Unsetenv("NAZHI_USERNAME")
@@ -180,7 +180,7 @@ func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
 
 // TestWhoami_Normal_OutputsUserInfo 验证正常 whoami 响应直接输出 UserInfo。
 func TestWhoami_Normal_OutputsUserInfo(t *testing.T) {
-	cmd, _ := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo)
+	cmd := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo)
 
 	quiet = false
 	_ = os.Unsetenv("NAZHI_USERNAME")
@@ -204,7 +204,7 @@ func TestWhoami_Normal_OutputsUserInfo(t *testing.T) {
 // TestWhoami_BizFail_PrintsError 验证业务失败时 whoami 走 printError 路径。
 func TestWhoami_BizFail_PrintsError(t *testing.T) {
 	// bizOK=false 让 session 预热（首页+/getMenu）都失败
-	cmd, _ := makeWhoamiTestCmd(t, "invalid-token", "", false)
+	cmd := makeWhoamiTestCmd(t, "invalid-token", "", false)
 
 	quiet = false
 	_ = os.Unsetenv("NAZHI_USERNAME")

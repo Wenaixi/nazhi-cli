@@ -13,7 +13,7 @@ import (
 
 // makeTaskSubmitTestCmd 创建 task submit 命令的测试用 cobra.Command + mock biz server。
 // payloadRaw 是 --payload flag 的值（空字符串时不设 flag，用于测试缺省场景）。
-func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) (*cobra.Command, *httptest.Server) {
+func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) *cobra.Command {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -45,13 +45,13 @@ func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) (*cobra.Command, *ht
 	cmd.Flags().String("base-url", "", "")
 	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
-	return cmd, srv
+	return cmd
 }
 
 // TestTaskSubmitCmd_WithPayload 验证 --payload flag 正确传递并输出提交结果 JSON。
 func TestTaskSubmitCmd_WithPayload(t *testing.T) {
 	payload := `{"circleTaskId":1001,"circleTypeId":9256,"name":"测试任务","hours":1}`
-	cmd, _ := makeTaskSubmitTestCmd(t, payload)
+	cmd := makeTaskSubmitTestCmd(t, payload)
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -75,7 +75,7 @@ func TestTaskSubmitCmd_WithPayload(t *testing.T) {
 
 // TestTaskSubmitCmd_MissingPayload_PrintsError 验证 --payload 缺省时输出 error。
 func TestTaskSubmitCmd_MissingPayload_PrintsError(t *testing.T) {
-	cmd, _ := makeTaskSubmitTestCmd(t, "") // 不设 payload flag
+	cmd := makeTaskSubmitTestCmd(t, "") // 不设 payload flag
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -106,7 +106,7 @@ func TestTaskSubmitCmd_FilePayload(t *testing.T) {
 		t.Fatalf("写入 payload 文件失败: %v", err)
 	}
 
-	cmd, _ := makeTaskSubmitTestCmd(t, "@"+payloadPath)
+	cmd := makeTaskSubmitTestCmd(t, "@"+payloadPath)
 
 	quiet = false
 	pendingExitCode.Store(0)

@@ -20,7 +20,7 @@ import (
 // getMyInfoBody: /api/studentInfo/getMyInfo 的响应体 JSON
 //   - 空字符串: 默认 returnData/dataMap 都为 nil（触发空响应路径）
 //   - 正常 JSON: returnData 含 name/studentNumber 等字段
-func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string) (*cobra.Command, *client.Client) {
+func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string) *cobra.Command {
 	t.Helper()
 	if getMyInfoBody == "" {
 		getMyInfoBody = `{"code":1,"msg":"成功"}`
@@ -62,7 +62,7 @@ func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string
 		t.Fatalf("set base-url flag: %v", err)
 	}
 	cmd.Flags().Int("timeout", 5, "")
-	return cmd, c
+	return cmd
 }
 
 // TestSessionActivate_EmptyUserInfo_StatusEnvelope 回归测试 F10
@@ -72,7 +72,7 @@ func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string
 // 与 whoami 的 {status: empty, reason: ...} 不一致。
 // 修复后：cmd 层用 errors.Is(err, ErrEmptyUserInfo) 分支输出 status envelope。
 func TestSessionActivate_EmptyUserInfo_StatusEnvelope(t *testing.T) {
-	cmd, _ := makeSessionActivateTestCmd(t, "test-token", "")
+	cmd := makeSessionActivateTestCmd(t, "test-token", "")
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -127,7 +127,7 @@ func TestSessionActivate_EmptyUserInfo_StatusEnvelope(t *testing.T) {
 // session activate 直接输出 UserInfo（向后兼容 happy path）。
 func TestSessionActivate_ValidUserInfo_OutputsUserInfo(t *testing.T) {
 	validBody := `{"code":1,"returnData":{"name":"张三","studentNumber":"TEST2025001"}}`
-	cmd, _ := makeSessionActivateTestCmd(t, "test-token", validBody)
+	cmd := makeSessionActivateTestCmd(t, "test-token", validBody)
 
 	quiet = false
 	pendingExitCode.Store(0)
