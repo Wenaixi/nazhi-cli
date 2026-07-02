@@ -1,22 +1,23 @@
 // Package types 公共类型契约测试 — UnifiedResponse 孤儿字段删除守卫。
 //
-// pkg/types/response.go UnifiedResponse 历史带 7 个全仓 0 引用字段：
+// pkg/types/response.go UnifiedResponse 历史带 6 个全仓 0 引用字段：
 //   - DataString   *string          `json:"dataString"`
-//   - PageBean     *json.RawMessage `json:"pageBean"`
 //   - Note         *string          `json:"note"`
 //   - InsertID     int64            `json:"insertID"`
 //   - UpdateCount  int              `json:"updateCount"`
 //   - IsAttendance int              `json:"isAttendance"`
 //   - DataInt      int              `json:"dataInt"`
 //
+// PageBean 原为孤儿字段，v0.4.1 起 DecodePageBean 活跃使用，不再列入孤儿名单。
+//
 // 这些字段仅在 json.Unmarshal 时被动填充，序列化为零值/空对象，
 // 增加结构体大小且对调用方零价值。修复后删除。
 //
-// 保留活跃字段：Code / Msg / ReturnData / DataList / DataMap
-// （这些字段都有活跃的解码方法 DecodeReturnData/DecodeDataList/DecodeDataMap）。
+// 保留活跃字段：Code / Msg / ReturnData / DataList / DataMap / PageBean
+// （这些字段都有活跃的解码方法 DecodeReturnData/DecodeDataList/DecodeDataMap/DecodePageBean）。
 //
 // 验证策略：
-//  1. JSON 序列化不再含 7 个孤儿字段键
+//  1. JSON 序列化不再含 6 个孤儿字段键
 //  2. 活跃字段仍然保留
 package types
 
@@ -26,9 +27,11 @@ import (
 	"testing"
 )
 
-// TestUnifiedResponse_NoOrphanFields 守护：序列化不再含 7 个孤儿字段。
+// TestUnifiedResponse_NoOrphanFields 守护：序列化不再含 6 个孤儿字段。
 //
-// 7 个孤儿字段：dataString / pageBean / note / insertID / updateCount / isAttendance / dataInt
+// 6 个孤儿字段：dataString / note / insertID / updateCount / isAttendance / dataInt
+//
+// PageBean 已从孤儿名单移除（v0.4.1 起 DecodePageBean 活跃使用）。
 func TestUnifiedResponse_NoOrphanFields(t *testing.T) {
 	resp := UnifiedResponse{
 		Code: 1,
@@ -39,9 +42,9 @@ func TestUnifiedResponse_NoOrphanFields(t *testing.T) {
 		t.Fatalf("json.Marshal 失败: %v", err)
 	}
 
-	// 7 个孤儿字段键都不应出现
+	// 6 个孤儿字段键都不应出现
 	orphanKeys := []string{
-		"dataString", "pageBean", "note",
+		"dataString", "note",
 		"insertID", "updateCount", "isAttendance", "dataInt",
 	}
 	for _, key := range orphanKeys {
