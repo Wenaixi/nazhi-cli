@@ -13,6 +13,7 @@ package client
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -30,7 +31,7 @@ func TestF21_ErrRetryable_SentinelIdentity(t *testing.T) {
 // TestF21_ErrRetryable_Message 验证错误消息含 retryable/cancelled 关键词。
 func TestF21_ErrRetryable_Message(t *testing.T) {
 	msg := ErrRetryable.Error()
-	if !contains(msg, "retryable") && !contains(msg, "cancelled") {
+	if !strings.Contains(msg, "retryable") && !strings.Contains(msg, "cancelled") {
 		t.Errorf("ErrRetryable 消息应含 'retryable' 或 'cancelled'，实际: %s", msg)
 	}
 }
@@ -49,10 +50,10 @@ func TestF21_CancelPlaceholder_HitsErrRetryable(t *testing.T) {
 	}
 	// 字符串仍保留中文语义信息（向后兼容）
 	msg := placeholder.Error()
-	if !contains(msg, "3") {
+	if !strings.Contains(msg, "3") {
 		t.Errorf("cancelPlaceholder 应保留 cancelledCount=3，实际: %s", msg)
 	}
-	if !contains(msg, "context 取消") {
+	if !strings.Contains(msg, "context 取消") {
 		t.Errorf("cancelPlaceholder 应保留中文语义 'context 取消'，实际: %s", msg)
 	}
 }
