@@ -407,11 +407,11 @@ func platformLibNameFor(goos string) string {
 func (o *OCR) initOnce() (retErr error) {
 	// deferred recover 捕获 initMu 临界区内 panic，
 	// 清理 tempDir + 保留根因到 initErr
-	var cleanupTempDir bool
+	var needCleanup bool
 	defer func() {
 		if r := recover(); r != nil {
-			if cleanupTempDir && o.tempDir != "" {
-				_ = os.RemoveAll(o.tempDir)
+			if needCleanup && o.tempDir != "" {
+				_ = cleanupTempDir(o.tempDir)
 				o.tempDir = ""
 			}
 			// 输出 stack trace 到 stderr，避免 CGO 层 panic 的堆栈永久丢失
@@ -434,7 +434,7 @@ func (o *OCR) initOnce() (retErr error) {
 		o.initialized = true
 		return fmt.Errorf("OCR initialization failed: %w", o.initErr)
 	}
-	cleanupTempDir = true
+	needCleanup = true
 
 	// SetOnnxRuntimePath + ddddocr.New 用 initMuGlobal 保护，
 	// 确保多实例并发初始化时 SetOnnxRuntimePath 和 New 不被交叉覆盖。
@@ -457,7 +457,7 @@ func (o *OCR) initOnce() (retErr error) {
 	opts.ModelDir = o.tempDir
 	ocr, err := ddddocr.New(opts)
 	if err != nil {
-		_ = os.RemoveAll(o.tempDir)
+		_ = cleanupTempDir(o.tempDir)
 		o.tempDir = ""
 		o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
 		o.initialized = true
@@ -469,7 +469,7 @@ func (o *OCR) initOnce() (retErr error) {
 
 	o.ocr = ocr
 	o.initialized = true
-	cleanupTempDir = false // 初始化成功，不再需要清理
+	needCleanup = false // 初始化成功，不再需要清理
 	return nil
 }
 
