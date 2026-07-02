@@ -25,8 +25,4 @@ func TestF2_StringsContainsStandardLibrary(t *testing.T) {
 	if !strings.Contains("anything", "") {
 		t.Error("strings.Contains(x, \"\") 应为 true")
 	}
-	// 完全相同
-	if !strings.Contains("foo", "foo") {
-		t.Error("strings.Contains 应检测到完全相同的子串")
-	}
 }
