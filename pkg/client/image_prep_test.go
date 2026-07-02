@@ -500,14 +500,12 @@ func TestGetQualitySteps_Immutable(t *testing.T) {
 	}
 }
 
-
 // TestGetQualitySteps_Values 验证 qualityAfterOptimization 常量值正确。
 func TestGetQualitySteps_Values(t *testing.T) {
 	if qualityAfterOptimization != 80 {
 		t.Errorf("qualityAfterOptimization = %d, 期望 80", qualityAfterOptimization)
 	}
 }
-
 
 // image_prep_jpeg_buf_pool_panic_test.go: encodeJPEG panic recovery 测试。
 
