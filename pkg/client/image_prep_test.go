@@ -55,7 +55,7 @@ func TestPrepareImage_PNGtoJPEG(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
+	data, mime, err := c.prepareImageForUpload(tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestPrepareImage_JPEGPassthrough(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
+	data, mime, err := c.prepareImageForUpload(tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestPrepareImage_CompressesLargeImage(t *testing.T) {
 	origStat, _ := os.Stat(tmpfile)
 	t.Logf("原图大小: %d bytes", origStat.Size())
 
-	data, _, err := c.prepareImageForUpload(t.Context(), tmpfile)
+	data, _, err := c.prepareImageForUpload(tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -165,7 +165,7 @@ func TestPrepareImage_GifStatic(t *testing.T) {
 	}
 	f.Close()
 	// 实际 GIF 解码由 stdlib 处理，这里只确保 prepare 不 panic
-	_, _, err := c.prepareImageForUpload(t.Context(), tmpfile)
+	_, _, err := c.prepareImageForUpload(tmpfile)
 	if err != nil {
 		t.Logf("GIF 测试跳过: %v", err)
 	}
@@ -367,7 +367,7 @@ func TestPrepareImage_GifTransparentNotBlack(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
+	data, mime, err := c.prepareImageForUpload(tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -432,7 +432,7 @@ func TestPrepareImage_GifOpaque(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
+	data, mime, err := c.prepareImageForUpload(tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
@@ -473,7 +473,7 @@ func TestPrepareImage_PngTransparentStillFlattens(t *testing.T) {
 	}
 	f.Close()
 
-	data, mime, err := c.prepareImageForUpload(t.Context(), tmpfile)
+	data, mime, err := c.prepareImageForUpload(tmpfile)
 	if err != nil {
 		t.Fatalf("prepareImageForUpload 失败: %v", err)
 	}
