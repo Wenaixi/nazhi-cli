@@ -1,0 +1,329 @@
+// submitted_test.go 聚合 GetSubmittedCircles 测试（内部白盒 + 外部黑盒）。
+package client_test
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"testing"
+
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
+)
+
+// ─── pageSize 常量 ───
+
+// 与 task.go 中实际使用的 pageSize 一致。
+const submittedPageSize = 100
+
+// ─── 辅助 ───
+
+// submittedPageBean 生成分页信息 JSON。
+func submittedPageBean(pageNo, pageSize, totalNum, totalPage int) string {
+	b, _ := json.Marshal(map[string]any{
+		"pageNo":    pageNo,
+		"pageSize":  pageSize,
+		"totalNum":  totalNum,
+		"totalPage": totalPage,
+	})
+	return string(b)
+}
+
+// submittedRecord 生成一条写实记录。
+func submittedRecord(id int64, name string, status int) map[string]any {
+	return map[string]any{
+		"id":            id,
+		"name":          name,
+		"content":       "写实内容",
+		"circle_task_id": id + 10000,
+		"circle_type_id": 9255,
+		"dimension_id":  9,
+		"type_name":     "爱党爱国教育",
+		"status":        status,
+		"circle_date":   "2026-02-06",
+		"hours":         0.5,
+		"studentId":     387020,
+		"class_name":    "八班",
+		"ifMySelf":      1,
+		"imgList":       []map[string]any{},
+		"remark":        name,
+	}
+}
+
+// ─── 外部黑盒测试 ───
+
+// TestGetSubmittedCircles_SinglePage 验证单页全部返回。
+func TestGetSubmittedCircles_SinglePage(t *testing.T) {
+	records := []map[string]any{
+		submittedRecord(1, "国旗下讲话", 0),
+		submittedRecord(2, "班会", 1),
+		submittedRecord(3, "劳动实践", 0),
+	}
+
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":       1,
+				"pageBean":   json.RawMessage(submittedPageBean(1, submittedPageSize, 3, 1)),
+				"dataList":   records,
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("GetSubmittedCircles 失败: %v", err)
+	}
+	if len(circles) != 3 {
+		t.Fatalf("期望 3 条记录，实际 %d", len(circles))
+	}
+	if circles[0].ID != 1 {
+		t.Errorf("期望 ID=1，实际 %d", circles[0].ID)
+	}
+}
+
+// TestGetSubmittedCircles_MultiPage 验证多页自动分页。
+func TestGetSubmittedCircles_MultiPage(t *testing.T) {
+	const totalRecords = 250
+	const totalPages = 3
+
+	var callCount int
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			callCount++
+			pageNo := callCount
+			totalPage := totalPages
+
+			// 最后一条总记录数
+			var totalNum = totalRecords
+
+			// 本页条数
+			start := (pageNo-1)*submittedPageSize + 1
+			end := start + submittedPageSize - 1
+			if end > totalNum {
+				end = totalNum
+			}
+			count := end - start + 1
+
+			records := make([]map[string]any, 0, count)
+			for i := start; i <= end; i++ {
+				records = append(records, submittedRecord(int64(i), "任务", 0))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(pageNo, submittedPageSize, totalNum, totalPage)),
+				"dataList": records,
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("GetSubmittedCircles 失败: %v", err)
+	}
+	if len(circles) != totalRecords {
+		t.Fatalf("期望 %d 条记录（分页合并），实际 %d", totalRecords, len(circles))
+	}
+	if callCount != totalPages {
+		t.Errorf("期望 %d 次 API 调用，实际 %d", totalPages, callCount)
+	}
+}
+
+// TestGetSubmittedCircles_Empty 验证没有记录时返回空切片。
+func TestGetSubmittedCircles_Empty(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, submittedPageSize, 0, 0)),
+				"dataList": []map[string]any{},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("GetSubmittedCircles 失败: %v", err)
+	}
+	if circles == nil {
+		t.Fatal("期望空切片，实际 nil")
+	}
+	if len(circles) != 0 {
+		t.Fatalf("期望 0 条记录，实际 %d", len(circles))
+	}
+}
+
+// TestGetSubmittedCircles_BizError 验证业务错误被正确包装。
+func TestGetSubmittedCircles_BizError(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":500,"msg":"服务器错误"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	_, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	if err == nil {
+		t.Fatal("期望业务错误，实际 nil")
+	}
+	if !strings.Contains(err.Error(), "服务器错误") {
+		t.Errorf("错误消息应含业务错误描述: %v", err)
+	}
+}
+
+// TestGetSubmittedCircles_TotalPageGTR1ButNoData 验证总页数多但第二页没数据（容错场景）。
+func TestGetSubmittedCircles_TotalPageGTR1ButNoData(t *testing.T) {
+	var callCount int
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			callCount++
+			w.Header().Set("Content-Type", "application/json")
+			if callCount == 1 {
+				records := []map[string]any{
+					submittedRecord(1, "任务1", 0),
+				}
+				resp := map[string]any{
+					"code":     1,
+					"pageBean": json.RawMessage(submittedPageBean(1, submittedPageSize, 1, 2)),
+					"dataList": records,
+				}
+				_ = json.NewEncoder(w).Encode(resp)
+				return
+			}
+			// 第二页应该无数据但返回空
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(2, submittedPageSize, 1, 2)),
+				"dataList": []map[string]any{},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("GetSubmittedCircles 失败: %v", err)
+	}
+	if len(circles) != 1 {
+		t.Fatalf("期望 1 条记录（仅第一页），实际 %d", len(circles))
+	}
+}
+
+// TestGetSubmittedCircles_TotalPage0 验证 totalPage=0（无记录）时不发起第二页请求。
+func TestGetSubmittedCircles_TotalPage0(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, submittedPageSize, 0, 0)),
+				"dataList": []map[string]any{},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("GetSubmittedCircles 失败: %v", err)
+	}
+	if len(circles) != 0 {
+		t.Fatalf("期望 0 条记录，实际 %d", len(circles))
+	}
+}
+
+// ─── 内部白盒测试（package client） ───
+
+// TestSubmittedDecodePageBean 验证 DecodePageBean 正常解析分页信息。
+func TestSubmittedDecodePageBean(t *testing.T) {
+	jsonData := []byte(`{"code":1,"pageBean":{"pageNo":1,"pageSize":20,"totalNum":23,"totalPage":2}}`)
+	resp, err := types.DecodeResponse(jsonData)
+	if err != nil {
+		t.Fatalf("DecodeResponse 失败: %v", err)
+	}
+
+	pb, err := types.DecodePageBean(resp)
+	if err != nil {
+		t.Fatalf("DecodePageBean 失败: %v", err)
+	}
+	if pb.PageNo != 1 {
+		t.Errorf("期望 pageNo=1，实际 %d", pb.PageNo)
+	}
+	if pb.TotalNum != 23 {
+		t.Errorf("期望 totalNum=23，实际 %d", pb.TotalNum)
+	}
+	if pb.TotalPage != 2 {
+		t.Errorf("期望 totalPage=2，实际 %d", pb.TotalPage)
+	}
+}
+
+// TestSubmittedDecodePageBean_Nil 验证 pageBean 为 nil 时安全返回。
+func TestSubmittedDecodePageBean_Nil(t *testing.T) {
+	jsonData := []byte(`{"code":1}`)
+	resp, _ := types.DecodeResponse(jsonData)
+	pb, err := types.DecodePageBean(resp)
+	if err != nil {
+		t.Fatalf("DecodePageBean nil 时不应报错: %v", err)
+	}
+	if pb != nil {
+		t.Fatal("期望 nil")
+	}
+}
+
+// TestSubmittedDecodeCircleRecord 验证 CircleRecord 解码。
+func TestSubmittedDecodeCircleRecord(t *testing.T) {
+	jsonData := `{"id":1,"name":"国旗下讲话","content":"写实内容","status":0,"circle_task_id":16494,"circle_type_id":9255,"dimension_id":9,"type_name":"爱党爱国教育","hours":0.5,"ifMySelf":1,"class_name":"八班","remark":"国旗下讲话"}`
+	var rec types.CircleRecord
+	if err := json.Unmarshal([]byte(jsonData), &rec); err != nil {
+		t.Fatalf("Unmarshal CircleRecord 失败: %v", err)
+	}
+	if rec.ID != 1 || rec.Name != "国旗下讲话" || rec.Status != 0 {
+		t.Errorf("字段匹配失败: %+v", rec)
+	}
+	if rec.Hours != 0.5 {
+		t.Errorf("期望 hours=0.5，实际 %f", rec.Hours)
+	}
+}
+
+// TestSubmittedDecodeCircleImg 验证 CircleImage 解码。
+func TestSubmittedDecodeCircleImg(t *testing.T) {
+	jsonData := `{"id":4245126,"circle_id":4649107,"attachment_id":4383237,"task_id":16494,"class_id":150668}`
+	var img types.CircleImage
+	if err := json.Unmarshal([]byte(jsonData), &img); err != nil {
+		t.Fatalf("Unmarshal CircleImage 失败: %v", err)
+	}
+	if img.ID != 4245126 || img.AttachmentID != 4383237 {
+		t.Errorf("字段匹配失败: %+v", img)
+	}
+}

@@ -17,6 +17,7 @@ type UnifiedResponse struct {
 	ReturnData *json.RawMessage `json:"returnData"`
 	DataList   *json.RawMessage `json:"dataList"`
 	DataMap    *json.RawMessage `json:"dataMap"`
+	PageBean   *json.RawMessage `json:"pageBean"`
 }
 
 // DecodeResponse 解码目标平台统一响应体。
@@ -107,4 +108,9 @@ func DecodeDataList[T any](resp UnifiedResponse) ([]T, error) {
 // DecodeDataMap 将 dataMap 解析为目标类型。
 func DecodeDataMap[T any](resp UnifiedResponse) (*T, error) {
 	return decodeField[T](resp.DataMap, "dataMap")
+}
+
+// DecodePageBean 将 pageBean 解析为分页信息。
+func DecodePageBean(resp UnifiedResponse) (*PageBean, error) {
+	return decodeField[PageBean](resp.PageBean, "pageBean")
 }
