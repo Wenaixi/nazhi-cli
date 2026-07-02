@@ -6,9 +6,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
@@ -260,6 +263,45 @@ func TestGetSubmittedCircles_TotalPage0(t *testing.T) {
 	}
 	if len(circles) != 0 {
 		t.Fatalf("期望 0 条记录，实际 %d", len(circles))
+	}
+}
+
+// TestGetSubmittedCircles_CustomPageSize 验证 WithSubmittedPageSize 自配置生效。
+func TestGetSubmittedCircles_CustomPageSize(t *testing.T) {
+	const customSize = 50
+
+	var gotPageSize int
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			gotPageSize, _ = strconv.Atoi(r.URL.Query().Get("pageSize"))
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, customSize, 0, 0)),
+				"dataList": []map[string]any{},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithTimeout(time.Second),
+		client.WithSubmittedPageSize(customSize),
+	)
+	if err != nil {
+		t.Fatalf("New 失败: %v", err)
+	}
+
+	_, err = c.GetSubmittedCircles(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("GetSubmittedCircles 失败: %v", err)
+	}
+	if gotPageSize != customSize {
+		t.Errorf("期望 pageSize=%d，实际 %d", customSize, gotPageSize)
 	}
 }
 
