@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"net/url"
 	"sync"
@@ -82,12 +81,12 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 	// token 走 url.Values 编码，避免 & / = / 空格等字符破坏
 	// Referer URL 结构（Referer 头会被浏览器/代理/服务端日志记录）。
 	step2Referer := c.bizURL("/homepage") + "?" + url.Values{"token": {token}}.Encode()
-	if _, err := c.doGetMenu(ctx, menuURL, headers, step2Referer, "步骤2"); err != nil {
+	if err := c.doGetMenu(ctx, menuURL, headers, step2Referer, "步骤2"); err != nil {
 		return nil, err
 	}
 
 	// 步骤3：GET /api/studentInfo/getMenu（Referer: /home）
-	if _, err := c.doGetMenu(ctx, menuURL, headers, c.bizURL("/home"), "步骤3"); err != nil {
+	if err := c.doGetMenu(ctx, menuURL, headers, c.bizURL("/home"), "步骤3"); err != nil {
 		return nil, err
 	}
 
@@ -98,7 +97,7 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 	return c.getMyInfoRaw(ctx, token)
 }
 
-// doGetMenu 执行一次 getMenu 请求并返回响应体字节。
+// doGetMenu 执行一次 getMenu 请求并 drain 响应体。
 //
 // helper 抽取动机：ActivateSession 步骤 2/3 几乎完全相同（同样的 URL、
 // 同样的方法、差异仅在 Referer），inline 实现重复 ~14 行。统一在此处理
@@ -109,20 +108,15 @@ func (c *Client) activateSessionLocked(ctx context.Context, token string) (*type
 //
 // stepLabel 是用于错误信息的人类可读标签（如 "步骤2" / "步骤3"），调用方
 // 需自行保证唯一性以便错误诊断。
-func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[string]string, referer, stepLabel string) ([]byte, error) {
+func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[string]string, referer, stepLabel string) error {
 	baseHeaders["Referer"] = referer
 
 	resp, err := c.rawDoWithResp(ctx, http.MethodGet, menuURL, nil, baseHeaders, "")
 	if err != nil {
-		return nil, fmt.Errorf("ActivateSession %s（getMenu）失败: %w", stepLabel, err)
+		return fmt.Errorf("ActivateSession %s（getMenu）失败: %w", stepLabel, err)
 	}
-	defer drainAndClose(resp.Body)
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("ActivateSession %s 读取 getMenu 响应失败: %w", stepLabel, err)
-	}
-	return body, nil
+	drainAndClose(resp.Body)
+	return nil
 }
 
 // ─── sessionManager: 业务 API session 激活状态机 ───
