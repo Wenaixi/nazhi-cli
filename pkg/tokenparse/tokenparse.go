@@ -135,9 +135,7 @@ func valueToString(v any) (string, error) {
 		return x, nil
 	case json.Number:
 		return x.String(), nil
-	case float64:
-		return strconv.FormatFloat(x, 'f', 0, 64), nil
-	default:
+default:
 		return "", errors.New("valueToString: 不支持的类型")
 	}
 }
