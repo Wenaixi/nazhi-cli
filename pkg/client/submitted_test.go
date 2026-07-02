@@ -36,21 +36,21 @@ func submittedPageBean(pageNo, pageSize, totalNum, totalPage int) string {
 // submittedRecord 生成一条写实记录。
 func submittedRecord(id int64, name string, status int) map[string]any {
 	return map[string]any{
-		"id":            id,
-		"name":          name,
-		"content":       "写实内容",
+		"id":             id,
+		"name":           name,
+		"content":        "写实内容",
 		"circle_task_id": id + 10000,
 		"circle_type_id": 9255,
-		"dimension_id":  9,
-		"type_name":     "爱党爱国教育",
-		"status":        status,
-		"circle_date":   "2026-02-06",
-		"hours":         0.5,
-		"studentId":     387020,
-		"class_name":    "八班",
-		"ifMySelf":      1,
-		"imgList":       []map[string]any{},
-		"remark":        name,
+		"dimension_id":   9,
+		"type_name":      "爱党爱国教育",
+		"status":         status,
+		"circle_date":    "2026-02-06",
+		"hours":          0.5,
+		"studentId":      387020,
+		"class_name":     "八班",
+		"ifMySelf":       1,
+		"imgList":        []map[string]any{},
+		"remark":         name,
 	}
 }
 
@@ -68,9 +68,9 @@ func TestGetSubmittedCircles_SinglePage(t *testing.T) {
 		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
 			w.Header().Set("Content-Type", "application/json")
 			resp := map[string]any{
-				"code":       1,
-				"pageBean":   json.RawMessage(submittedPageBean(1, submittedPageSize, 3, 1)),
-				"dataList":   records,
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, submittedPageSize, 3, 1)),
+				"dataList": records,
 			}
 			_ = json.NewEncoder(w).Encode(resp)
 			return

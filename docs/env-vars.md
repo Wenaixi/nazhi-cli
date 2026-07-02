@@ -8,9 +8,9 @@
 |---|---|---|---|---|
 | `NAZHI_USERNAME` | 学号 | `login`、`school` | — | 拒绝并 warn |
 | `NAZHI_PASSWORD` | 密码 | `login` | — | 拒绝并 warn |
-| `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval` | — | 拒绝并 warn |
+| `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — | 拒绝并 warn |
 | `NAZHI_SSO_BASE` | SSO 根地址 | `login`、`school` | `https://www.nazhisoft.com` | 保留默认 |
-| `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval` | `http://139.159.205.146:8280` | 保留默认 |
+| `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval`、`honor` | `http://139.159.205.146:8280` | 保留默认 |
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` | 保留默认 |
 | `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload` 是 `30`） | `<=0` 拒绝 |
 
@@ -34,7 +34,7 @@ CLI 在 `cmd/nazhi/opt_builder.go` 的 `buildClientOpts` 按 `urlType` 分流，
 | urlType | 命令 | URL 来源 | Token 来源 |
 |---|---|---|---|
 | `sso` | `login`、`school` | `--sso-base` / `NAZHI_SSO_BASE` | **不读 token**（Login 自带） |
-| `base` | `session`、`whoami`、`task`、`self-eval` | `--base-url` / `NAZHI_BASE_URL` | `--token` / `NAZHI_TOKEN`（必填） |
+| `base` | `session`、`whoami`、`task`、`self-eval`、`honor` | `--base-url` / `NAZHI_BASE_URL` | `--token` / `NAZHI_TOKEN`（必填） |
 | `upload` | `file upload` | `--upload-url` / `NAZHI_UPLOAD_URL` | **不读 token**（文件服务器独立） |
 
 > **设计要点**：`file upload` 命令根本不注册 `--token` flag——`NAZHI_TOKEN` 即使设了值也会被 `urlType=="upload"` 分支短路（F16 修复 + 回归测试 `TestBuildClientOpts_UploadIgnoresNAZHI_TOKEN`）。

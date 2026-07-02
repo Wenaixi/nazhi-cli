@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -29,7 +30,7 @@ var honorTypesCmd = &cobra.Command{
 	Short: "获取所有荣誉类型",
 	Long:  `获取当前平台可申报的所有荣誉类型列表及级别信息。`,
 	Example: `  nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx
-	  nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+		  nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -56,7 +57,7 @@ var honorListCmd = &cobra.Command{
 	Short: "获取已申报荣誉记录",
 	Long:  `获取当前用户已申报的全部荣誉记录（分页）。`,
 	Example: `  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx
-	  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
+		  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -90,9 +91,10 @@ var honorListCmd = &cobra.Command{
 var honorAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "申报荣誉",
-	Long:  `申报一条荣誉。payload 是 addHonor 请求体 JSON，可用 @file.json 从文件读取。`,
+	Long:  `申报一条荣誉。payload 是 addHonor 请求体 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
 	Example: `  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"name":"校学生优秀干部","typeId":1147,"typeName":"校学生优秀干部","level":5,"evaluationAgency":"福清一中","getDate":"2026-06-30"}'
-	  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor.json`,
+		  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor.json
+		  echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 
@@ -126,7 +128,7 @@ var honorAddCmd = &cobra.Command{
 }
 
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
-// 支持 @file.json 语法从文件读取。
+// 支持 @file.json 从文件读取，或 - 从 stdin 读取。
 func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
 	var payloadBytes []byte
 	if strings.HasPrefix(raw, "@") {
@@ -135,6 +137,12 @@ func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
 		payloadBytes, err = os.ReadFile(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("读取 payload 文件失败: %w", err)
+		}
+	} else if raw == "-" {
+		var err error
+		payloadBytes, err = io.ReadAll(io.LimitReader(os.Stdin, 16<<20))
+		if err != nil {
+			return nil, fmt.Errorf("读取 stdin payload 失败: %w", err)
 		}
 	} else {
 		payloadBytes = []byte(raw)
@@ -163,6 +171,6 @@ func init() {
 
 	// honor add
 	honorCmd.AddCommand(honorAddCmd)
-	honorAddCmd.Flags().String("payload", "", "荣誉 JSON（必填，可用 @file.json 从文件读取）")
+	honorAddCmd.Flags().String("payload", "", "荣誉 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 	registerBizFlags(honorAddCmd)
 }

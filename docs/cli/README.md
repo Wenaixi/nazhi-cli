@@ -24,10 +24,15 @@ nazhi
 ├── whoami                          获取当前用户信息
 ├── task
 │   ├── list                        列出全维度任务（8 路并发）
-│   └── submit                      提交任务（@payload.json 文件读取）
+│   ├── submit                      提交任务（@payload.json 文件读取）
+│   └── submitted                   获取已提交写实记录（自动翻页）
 ├── self-eval
 │   ├── submit                      提交自我评价（支持 stdin）
 │   └── status                      查询评价 + 教师评语
+├── honor
+│   ├── types                       获取荣誉类型列表
+│   ├── list                        获取已申报荣誉记录（分页）
+│   └── add                         申报荣誉（@payload.json 文件读取）
 ├── file
 │   └── upload                      上传图片（不接受 --token）
 ├── version                         显示版本信息
@@ -309,6 +314,54 @@ echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --tok
 
 ---
 
+## nazhi task submitted
+
+获取当前用户已提交的全部写实记录（含正文、图片、审核状态）。自动翻页合并，输出全量数据。
+
+```bash
+nazhi task submitted --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+
+**输出**：
+
+```json
+{
+  "total": 5,
+  "records": [
+    {
+      "id": 1024,
+      "name": "校园劳动",
+      "type_name": "劳动",
+      "status": 1,
+      "hours": 2.0,
+      "circle_date": "2026-06-15",
+      "content": "参与了校园绿化...",
+      "class_name": "高一(1)班",
+      "imgList": [
+        {
+          "id": 123,
+          "attachment_id": 456,
+          "circle_id": 1024,
+          "task_id": 789
+        }
+      ]
+    }
+  ]
+}
+```
+
+**输出 envelope**：`total` + `records` 两层包裹，`total` 是总记录数，`records` 是完整的 `CircleRecord[]` 数组（含正文、图片附件、审核状态等 14 字段）。
+
+**自动翻页**：单页就能覆盖绝大多数场景（默认每页 100 条，服务端上限约 500），只有记录超出一页时才自动翻页合并。翻页途中遇到错误时返回已有数据 + 错误信号。
+
+---
+
 ## nazhi self-eval submit
 
 提交自我评价文本。
@@ -420,7 +473,143 @@ SDK 内部使用独立 `newCleanClient`（无 cookie jar + 禁用重定向）杜
 
 ---
 
-## 退出码
+## nazhi honor types
+
+获取所有可申报的荣誉类型列表及级别信息。
+
+```bash
+nazhi honor types --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+
+**输出**：`HonorType[]` 数组（含 id / name / level_name / level / score / dimension_name / sort_no）。
+
+```json
+[
+  {
+    "id": 1147,
+    "name": "校学生优秀干部",
+    "level_name": "校",
+    "level": 5,
+    "score": "分数：+5.0",
+    "dimension_id": 9,
+    "dimension_name": "思想品德",
+    "sort_no": 1
+  }
+]
+```
+
+---
+
+## nazhi honor list
+
+获取当前用户已申报的荣誉记录（分页）。
+
+```bash
+nazhi honor list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+nazhi honor list --token "xxx" --page 1 --page-size 50
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--page` | — | — | 页码（从 1 开始），默认 `1` |
+| `--page-size` | — | — | 每页条数，默认 `20` |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+
+**输出**：
+
+```json
+{
+  "total": 2,
+  "page": 1,
+  "pageSize": 20,
+  "totalPage": 1,
+  "records": [
+    {
+      "id": 56241,
+      "type_name": "阅读之星",
+      "type_id": 1147,
+      "level": 5,
+      "level_name": "校",
+      "dimension_id": 9,
+      "dimension_name": "思想品德",
+      "score": 5.0,
+      "status": 1,
+      "statusName": "审核通过",
+      "student_name": "高博文",
+      "class_name": "高一八班",
+      "get_date": "2026-06-30",
+      "evaluation_agency": "福清一中",
+      "ifshow": "是",
+      "auditor_name": "许风华",
+      "show_report_flag": 1
+    }
+  ]
+}
+```
+
+---
+
+## nazhi honor add
+
+申报一条荣誉。payload 是 addHonor 请求体 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。
+
+```bash
+# 方式 1：--payload 字符串
+nazhi honor add --token "xxx" --payload '{"name":"校学生优秀干部","typeId":1147,"typeName":"校学生优秀干部","level":5,"evaluationAgency":"福清一中","getDate":"2026-06-30"}'
+
+# 方式 2：--payload @file.json 从文件读取
+nazhi honor add --token "xxx" --payload @honor.json
+
+# 方式 3：从 stdin 读取
+echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--payload` | ✅ | — | 荣誉 JSON 字符串，或 `@file.json` 从文件读取，或 `-` 从 stdin 读取 |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+
+**payload 字段**：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `name` | string | ✅ | 荣誉名称（如"校学生优秀干部"） |
+| `typeId` | int | ✅ | 荣誉类型 ID（从 honor types 获取） |
+| `typeName` | string | ✅ | 荣誉类型名 |
+| `level` | int | ✅ | 级别代码（5=校, 4=区县, 3=市, 2=省, 1=国家） |
+| `evaluationAgency` | string | ✅ | 颁发机构 |
+| `getDate` | string | ✅ | 获得日期（YYYY-MM-DD） |
+| `certImgAttachmentId` | string | — | 证书图片附件 ID（先 file upload 上传） |
+
+**输出**：
+
+```json
+{
+  "status": "success",
+  "msg": "荣誉申报成功"
+}
+```
+
+**典型错误**：
+
+| 错误 | 原因 |
+|---|---|
+| `业务错误 (code=-1): 荣誉名称不能为空` | payload 缺字段或参数错 |
+| `业务错误 (code=-1): 荣誉级别不能为空` | level 未传或传错 |
+
+---
+
+## 退出码（见原文档）
 
 | 退出码 | 含义 | stderr 内容 |
 |---|---|---|

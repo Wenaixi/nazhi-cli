@@ -4,7 +4,7 @@ nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 
 
 | 包 | 作用 | 文档入口 |
 |---|---|---|
-| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 12 个公开方法 + 10 个 Option + 15 个哨兵错误 | 本文 |
+| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 19 个公开方法 + 11 个 Option + 15 个哨兵错误 | 本文 |
 | [`pkg/types`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/types) | 领域类型（请求/响应/任务/用户等）+ 统一响应泛型解码 | [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) |
 | [`pkg/tokenparse`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/tokenparse) | SSO token 从 302 Location 头 / ReturnData JSON 字节提取 | [tokenparse.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/tokenparse/tokenparse.go) |
 
@@ -25,6 +25,8 @@ nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 
 - [任务域（task.go）](#任务域taskgo)
 - [自我评价域（self_eval.go）](#自我评价域self_evalgo)
 - [文件域（file.go）](#文件域filego)
+- [已提交写实记录域（submitted.go）](#已提交写实记录域submittedgo)
+- [荣誉申报域（honor.go）](#荣誉申报域honorgo)
 - [资源释放（Close）](#资源释放close)
 - [错误处理](#错误处理)
 - [高级用法](#高级用法)
@@ -138,6 +140,7 @@ if err != nil {
 | `WithCustomOCR(r)` | `CaptchaRecognizer` | `ocr.NewPool(0)`（含 `-tags ddddocr` 构建）/ `nil`（`!ddddocr`） | `nil` 拒绝；mock 必须实现 `Recognize([]byte) (string, error)` + `Close() error` |
 | `WithOCRConcurrency(n)` | `int` | `min(4, NumCPU)`（`-tags ddddocr`）/ `0` + warn（`!ddddocr`） | `n<=0` 拒绝；预热 n 个 ONNX session，每个约 50MB，单 Login 用默认即可 |
 | `WithSessionBackoff(d)` | `time.Duration` | `5s` | `d<=0` 拒绝；调整 Session 激活失败后抑制重试的冷却窗口 |
+| `WithSubmittedPageSize(n)` | `int` | `100` | `n<=0` 拒绝；调整 GetSubmittedCircles 分页大小（服务端上限约 500） |
 
 > 所有 Option 的统一约定：**非法值（`nil`/`""`/`<=0`）拒绝并 `c.logger.Warn`，保留当前值**，从不会静默覆盖。生产代码可以放心不检查 `error`。
 
@@ -188,10 +191,16 @@ wg.Wait()
 | `SubmitSelfEvaluation(ctx, token, comment)` | self_eval.go | 提交评价文本 | `ErrBusinessRejected` |
 | `QuerySelfEvaluation(ctx, token)` | self_eval.go | 查评价状态 + 教师评语 | `ErrBusinessRejected`、`ErrEmptyUserInfo` |
 | `QuerySelfGradEvaluation(ctx, token)` | self_eval.go | 查学期评价（SDK 高级接口） | `ErrBusinessRejected` |
+| `GetSubmittedCircles(ctx, token)` | submitted.go | 查已提交写实记录，自动翻页合并 | `ErrBusinessRejected`、`ErrNetwork` |
+| `GetHonorTypes(ctx, token)` | honor.go | 查荣誉类型列表（dataList 优先，returnData fallback） | `ErrBusinessRejected` |
+| `GetHonorTypeForSelect(ctx, token)` | honor.go | 查荣誉级别下拉选项 | `ErrBusinessRejected` |
+| `GetHonorLevel(ctx, token, honorTypeID)` | honor.go | 查指定荣誉类型的可用级别 | `ErrBusinessRejected` |
+| `GetHonorList(ctx, token, pageNo, pageSize)` | honor.go | 查已申报荣誉记录（分页，服务器要求 &key= 参数） | `ErrBusinessRejected` |
+| `AddHonor(ctx, token, payload)` | honor.go | 申报一条荣誉 | `ErrBusinessRejected` |
 | `UploadFile(ctx, filePath)` | file.go | 图片上传，自动预处理（→JPG + 压缩 ≤5MB）；**不发任何鉴权头** | `ErrNetwork`、`ErrFileTooLarge`、`ErrImageTooLarge`、`ErrUploadRejected`、`ErrRateLimited`、`ErrServiceUnavailable` |
 | `Close()` | client.go | 释放 OCR session、HTTP keep-alive、临时目录；聚合 error 返回 | 多个清理错误 join 一起 |
 
-> **没有的方法**：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask` 等拆 API——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
+> **没有的方法**：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor`、`DeleteHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
 
 ---
 
@@ -608,6 +617,117 @@ log.Printf("上传成功，图片 ID：%d", id)
 
 ---
 
+## 已提交写实记录域（submitted.go）
+
+### `GetSubmittedCircles(ctx context.Context, token string) ([]types.CircleRecord, error)`
+
+获取当前用户已提交的全部写实记录。内部自动管理分页——先拉第一页获取总页数，超出一页时自动翻页合并。
+
+```go
+records, err := c.GetSubmittedCircles(ctx, token)
+if err != nil {
+    var pb *types.PageBean
+    //  ...
+}
+for _, r := range records {
+    fmt.Printf("记录：%s（%s，%.1f 学时）\n", r.Name, r.TypeName, r.Hours)
+}
+```
+
+**分页策略**：
+- 第一页同时获取 `PageBean`（TotalNum / TotalPage），判断是否需要翻页
+- 只有记录超过每页条数时才翻页，单页场景零开销
+- 翻页途中遇到 error 时返回已有数据 + 错误（不吞成功记录）
+- 翻页途中 context 取消时静默返回已有数据（可重试不丢数据）
+
+**每页条数**：默认 `100`（服务端上限约 `500`），调用方可通 `WithSubmittedPageSize(n)` Option 配置。
+
+**服务端特例**：`getStudentCircle` 接口要求 URL 带 `&key=` 参数（可空值），否则返回 HTTP 400。SDK 内部已自动处理，调用方无需关心。
+
+**错误**：`ErrBusinessRejected` / `ErrNetwork`。
+
+### `GetSubmittedCirclesRaw(ctx context.Context, token string) ([]types.CircleRecord, *types.PageBean, error)`
+
+`GetSubmittedCircles` 的低级版本，返回原始 `PageBean` 不加翻页合并。用于调用方需要自行拼接分页逻辑的场景（如分批导出、增量拉取）。
+
+---
+
+## 荣誉申报域（honor.go）
+
+荣誉申报域提供 5 个方法完成荣誉类型查询、级别查询、已申报记录拉取和荣誉申报全流程。
+
+### `GetHonorTypes(ctx context.Context, token string) ([]types.HonorType, error)`
+
+获取所有可申报的荣誉类型列表。
+
+```go
+types, err := c.GetHonorTypes(ctx, token)
+if err != nil { /* ... */ }
+for _, t := range types {
+    fmt.Printf("荣誉：%s（%s，%s）\n", t.Name, t.LevelName, t.DimensionName)
+}
+```
+
+**双通道 fallback**：服务端同时支持 `dataList`（丰富字段）和 `returnData`（简化字段）两条路径，SDK 优先解析 `dataList`，`returnData` 兜底。
+
+### `GetHonorTypeForSelect(ctx context.Context, token string) ([]types.HonorSelectOption, error)`
+
+获取荣誉类型下拉选项（标签/值对），适合前端下拉框绑定。
+
+```go
+opts, err := c.GetHonorTypeForSelect(ctx, token)
+// opts = [{Label:"校", Value:5}, {Label:"区县", Value:4}, ...]
+```
+
+### `GetHonorLevel(ctx context.Context, token string, honorTypeID int64) ([]types.HonorSelectOption, error)`
+
+获取指定荣誉类型的可用级别。`honorTypeID` 来自 `GetHonorTypes` 返回的 `ID` 字段。
+
+```go
+levels, err := c.GetHonorLevel(ctx, token, 1147)
+// levels = [{Label:"校", Value:5}, ...]
+```
+
+### `GetHonorList(ctx context.Context, token string, pageNo, pageSize int) ([]types.HonorRecord, *types.PageBean, error)`
+
+查询当前学生已申报的荣誉记录（分页）。同时返回记录列表和 `PageBean` 分页信息。
+
+```go
+records, pb, err := c.GetHonorList(ctx, token, 1, 20)
+if err != nil { /* ... */ }
+fmt.Printf("共 %d 条（第 %d/%d 页）\n", pb.TotalNum, pb.PageNo, pb.TotalPage)
+```
+
+**`&key=` 参数**：服务端要求 URL 带 `&key=` 参数（可空值），否则返回 HTTP 400。SDK 内部已自动拼接。
+
+错误：`ErrBusinessRejected` / `ErrNetwork`。
+
+### `AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error`
+
+申报一条荣誉。请求体由 `types.AddHonorPayload` 定义。
+
+```go
+err := c.AddHonor(ctx, token, types.AddHonorPayload{
+    Name:             "校学生优秀干部",
+    TypeID:           1147,
+    TypeName:         "校学生优秀干部",
+    Level:            5,
+    EvaluationAgency: "福清一中",
+    GetDate:          "2026-06-30",
+})
+if err != nil { /* 字段缺失或业务拒绝 */ }
+```
+
+**必填字段**：Name / TypeID / TypeName / Level / EvaluationAgency / GetDate（6 个）。
+
+**选填字段**：CertImgAttachmentID（先通过 `UploadFile` 上传证书图片，用返回的 ID 关联）。
+
+**响应**：`AddHonor` 成功返回 nil，只确认 code=1。如需服务端 msg 文本，可配合 `errors.As(err, &types.BusinessError{})` 从 `ErrBusinessRejected` 中提取。
+
+错误：`ErrBusinessRejected`。
+
+---
+
 ## 资源释放（Close）
 
 ```go
@@ -894,9 +1014,13 @@ if err != nil { /* 空 body / token 类型异常 */ }
 | `BirthdayDate` | Year / Month / Day；支持字符串 + 数组双形态 UnmarshalJSON |
 | `Task` | 任务条目（ID、Name、Hours、Status、DimensionName 等 16 字段） |
 | `TaskSubmitPayload` | 29 字段 addCircle 请求体透传 |
-| `TaskResult` | Code / Msg |
-| `Dimension` | ID / Name |
-| `SelfEvalStatus` | 学生评语 / 教师评语 / 班级名 / 学校 ID 等 |
+| `HonorType` | 荣誉类型（_id, Name, LevelName, Level, Score, DimensionName, SortNo_） |
+| `HonorRecord` | 已申报荣誉记录（_TypeName, TypeID, Level, Score, Status, StatusName, GetDate, EvaluationAgency, 等 15 字段_） |
+| `AddHonorPayload` | 荣誉申报请求（_Name, TypeID, TypeName, Level, EvaluationAgency, GetDate, CertImgAttachmentID_） |
+| `HonorSelectOption` | 下拉选择（_Label / Value_ 对） |
+| `CircleRecord` | 已提交写实记录（_Name, Content, Status, Hours, ImgList_） |
+| `CircleImage` | 写实记录关联图片（_AttachmentID_） |
+| `TaskResult` | 任务提交结果（_Code, Msg_） |
 
 ### pkg/types/response.go 泛型辅助
 

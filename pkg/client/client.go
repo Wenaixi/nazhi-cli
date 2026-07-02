@@ -295,13 +295,13 @@ func WithSubmittedPageSize(n int) Option {
 // 静默 Warn，跨多步调用难关联）。
 func New(opts ...Option) (*Client, error) {
 	c := &Client{
-		ssoBaseURL: defaultSSOBase,
-		baseURL:    defaultBaseURL,
-		uploadURL:  defaultUploadURL,
-		http:       newHTTPClient(),
-		logger:     slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:        defaultOCR(),
-		sm:         &sessionManager{},
+		ssoBaseURL:        defaultSSOBase,
+		baseURL:           defaultBaseURL,
+		uploadURL:         defaultUploadURL,
+		http:              newHTTPClient(),
+		logger:            slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
+		ocr:               defaultOCR(),
+		sm:                &sessionManager{},
 		submittedPageSize: defaultSubmittedPageSize,
 	}
 	for _, opt := range opts {

@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -10,15 +11,33 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// readPayloadStdin 从 stdin 读取 payload（支持非 TTY 环境），最大 16MB。
+func readPayloadStdin() ([]byte, error) {
+	return io.ReadAll(io.LimitReader(os.Stdin, 16<<20))
+}
+
+// parsePayload 解析 --payload 参数，支持 @file.json 和 -（stdin）语法。
+func parsePayload(raw string) ([]byte, error) {
+	if strings.HasPrefix(raw, "@") {
+		filePath := raw[1:]
+		return os.ReadFile(filePath)
+	}
+	if raw == "-" {
+		return readPayloadStdin()
+	}
+	return []byte(raw), nil
+}
+
 // taskSubmitCmd 表示 nazhi task submit 命令
 //
 //	nazhi task submit --token <token> --payload '<json>' [--base-url <url>] [--timeout <秒>]
 var taskSubmitCmd = &cobra.Command{
 	Use:   "submit",
 	Short: "提交任务",
-	Long:  `提交一次任务。payload 是完整的 addCircle 请求体（29 字段 JSON），可用 @file.json 从文件读取。`,
+	Long:  `提交一次任务。payload 是完整的 addCircle 请求体（29 字段 JSON），可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
 	Example: `  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"circleTaskId":1001,"circleTypeId":9256,"name":"班会","hours":1}'
-	  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json`,
+		  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json
+		  echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 
@@ -32,18 +51,10 @@ var taskSubmitCmd = &cobra.Command{
 			return
 		}
 
-		// 支持从文件读取 @file.json
-		var payloadBytes []byte
-		if strings.HasPrefix(payloadRaw, "@") {
-			filePath := payloadRaw[1:]
-			var err error
-			payloadBytes, err = os.ReadFile(filePath)
-			if err != nil {
-				printError(fmt.Errorf("读取 payload 文件失败: %w", err))
-				return
-			}
-		} else {
-			payloadBytes = []byte(payloadRaw)
+		payloadBytes, err := parsePayload(payloadRaw)
+		if err != nil {
+			printError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
 		}
 
 		var payload types.TaskSubmitPayload
@@ -65,5 +76,5 @@ var taskSubmitCmd = &cobra.Command{
 
 func init() {
 	registerBizFlags(taskSubmitCmd)
-	taskSubmitCmd.Flags().String("payload", "", "任务 JSON（必填，可用 @file.json 从文件读取）")
+	taskSubmitCmd.Flags().String("payload", "", "任务 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 }
