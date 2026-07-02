@@ -8,7 +8,6 @@
 package ocr
 
 import (
-	"context"
 	_ "embed"
 	"errors"
 	"fmt"
@@ -21,6 +20,7 @@ import (
 	"sync/atomic"
 	"syscall"
 
+	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/yangbin1322/go-ddddocr/ddddocr"
 )
 
@@ -217,7 +217,7 @@ func New() *OCR {
 // 所以单实例下并发请求会被 sync.Mutex 串行化，N 并发 Login 的 wall time = N x 单次延迟。
 //
 // 启用并发：NewPool(n) 暗示期望 n 个独立 session 实例，具体预热由首次
-// Recognize 的惰性初始化完成。如需提前预热，调 WarmUp。
+// Recognize 的惰性初始化完成。
 // 内存代价：每个实例约 50MB（ONNX 模型 + 原生库解压到独立 tempDir），n=4 ≈ 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单 Login 调一次用 1 实例足够。
 //
@@ -248,36 +248,12 @@ type Pool struct {
 }
 
 // NewPool 创建 OCR 实例池。
-// preload 参数保留以保持 API 向后兼容，不再同步预热 ONNX session。
-// 惰性初始化在首次 Recognize 时触发。调用方可后续通过 WarmUp 异步预热。
+// preload 参数已废弃，保留以保持 API 向后兼容。不再同步预热 ONNX session。
+// 惰性初始化在首次 Recognize 时触发。
 func NewPool(preload int) *Pool {
 	return &Pool{
 		pool: sync.Pool{New: func() any { return &OCR{} }},
 	}
-}
-
-// WarmUp 提前预热 n 个 OCR 惰性初始化（模型解压 + ONNX session 创建）。
-// 首次 Recognize 也会自动惰性初始化，但程序启动后首次调用耗时 1-3s。
-// 在后台 goroutine 提前调 WarmUp 可避免首次 Login 阻塞。
-// ctx 用于取消长时间的解压操作；n <= 0 时 no-op。
-// 预热成功的实例会被自动放回池中供 Recognize 复用。
-func (p *Pool) WarmUp(ctx context.Context, n int) error {
-	if n <= 0 {
-		return nil
-	}
-	for i := 0; i < n; i++ {
-		if err := ctx.Err(); err != nil {
-			return err
-		}
-		o := &OCR{}
-		// 直接触发生效模型解压 + ddddocr.New
-		if err := o.initOnce(); err != nil {
-			return err
-		}
-		p.trackInit(o)
-		p.pool.Put(o)
-	}
-	return nil
 }
 
 // trackInit 记录首次完成惰性初始化的 OCR 实例。
@@ -334,7 +310,7 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 	defer func() {
 		if panicked {
 			p.panicked.Add(1)
-			_ = recover() // 吞掉，不 Put 回去
+			_ = recoverx.RecoverPanic(recover(), nil, "Pool.Recognize")
 		} else {
 			p.pool.Put(o)
 		}
@@ -431,11 +407,11 @@ func platformLibNameFor(goos string) string {
 func (o *OCR) initOnce() (retErr error) {
 	// deferred recover 捕获 initMu 临界区内 panic，
 	// 清理 tempDir + 保留根因到 initErr
-	var cleanupTempDir bool
+	var needCleanup bool
 	defer func() {
 		if r := recover(); r != nil {
-			if cleanupTempDir && o.tempDir != "" {
-				_ = os.RemoveAll(o.tempDir)
+			if needCleanup && o.tempDir != "" {
+				_ = cleanupTempDir(o.tempDir)
 				o.tempDir = ""
 			}
 			// 输出 stack trace 到 stderr，避免 CGO 层 panic 的堆栈永久丢失
@@ -458,7 +434,7 @@ func (o *OCR) initOnce() (retErr error) {
 		o.initialized = true
 		return fmt.Errorf("OCR initialization failed: %w", o.initErr)
 	}
-	cleanupTempDir = true
+	needCleanup = true
 
 	// SetOnnxRuntimePath + ddddocr.New 用 initMuGlobal 保护，
 	// 确保多实例并发初始化时 SetOnnxRuntimePath 和 New 不被交叉覆盖。
@@ -481,7 +457,7 @@ func (o *OCR) initOnce() (retErr error) {
 	opts.ModelDir = o.tempDir
 	ocr, err := ddddocr.New(opts)
 	if err != nil {
-		_ = os.RemoveAll(o.tempDir)
+		_ = cleanupTempDir(o.tempDir)
 		o.tempDir = ""
 		o.initErr = fmt.Errorf("创建 ddddocr 失败: %w", err)
 		o.initialized = true
@@ -493,7 +469,7 @@ func (o *OCR) initOnce() (retErr error) {
 
 	o.ocr = ocr
 	o.initialized = true
-	cleanupTempDir = false // 初始化成功，不再需要清理
+	needCleanup = false // 初始化成功，不再需要清理
 	return nil
 }
 
