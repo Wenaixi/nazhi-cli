@@ -875,8 +875,9 @@ if err != nil { /* 空 body / token 类型异常 */ }
 | 字段 | 单位 | 来源 |
 |---|---|---|
 | `expires_in`（优先） | 秒，相对当前时间 | SSO query |
-| `exp` | Unix 秒，绝对时间 | SSO query / JWT |
-| **兜底 `DefaultTokenTTL = 24h`** | 当两个字段都不存在 | `tokenparse.DefaultTokenTTL` |
+| `exp` | Unix 秒，绝对时间 | SSO query |
+| **JWT payload exp（中间兜底）** | Unix 秒，绝对时间 | JWT token |
+| **兜底 `DefaultTokenTTL = 24h`** | 当三个字段都不存在 | `tokenparse.DefaultTokenTTL` |
 
 畸形 URL 直接返回 `url.Parse` 底层错误（已是可读 parse error）。**注意**：`ErrLocationParseFailed` sentinel **已删除**——历史上曾定义但 `auth.go` 未用 `%w` 链入，导致 `errors.Is` 永不命中，纯死代码。
 

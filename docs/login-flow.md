@@ -162,8 +162,9 @@ token, expiresAt, err := tokenparse.ExtractFromLocation(location)
 | 字段 | 来源 | 单位 |
 |---|---|---|
 | `expires_in`（**优先**） | SSO query | 秒，相对当前时间 |
-| `exp` | SSO query 或 JWT | Unix 秒，绝对时间 |
-| **兜底 `DefaultTokenTTL = 24h`** | `tokenparse.DefaultTokenTTL` | 当两个字段都不存在 |
+| `exp` | SSO query | Unix 秒，绝对时间 |
+| **JWT payload exp（中间兜底）** | JWT token | Unix 秒，绝对时间 |
+| **兜底 `DefaultTokenTTL = 24h`** | `tokenparse.DefaultTokenTTL` | 当三个字段都不存在 |
 
 ```go
 const DefaultTokenTTL = 24 * time.Hour
@@ -172,13 +173,15 @@ const DefaultTokenTTL = 24 * time.Hour
 `parseExpiresMap` 内部 helper（不被导出）：
 
 ```go
-func parseExpiresMap(q map[string]any) time.Time {
+func parseExpiresMap(q map[string]any, token string) time.Time {
     now := time.Now()
     // 优先 expires_in（相对秒数）
     if v, ok := q["expires_in"]; ok { /* strconv.Atoi + now+duration */ }
     // 次之 exp（绝对 Unix 秒）
     if v, ok := q["exp"]; ok { /* time.Unix */ }
-    // 兜底 24h
+    // 中间兜底：JWT payload 中的 exp 声明（比 24h 准确）
+    if jwtExp, err := extractExpFromJWT(token); err == nil { return jwtExp }
+    // 最终兜底 24h
     return now.Add(DefaultTokenTTL)
 }
 ```

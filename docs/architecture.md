@@ -335,8 +335,8 @@ defer func() {
 
 `pkg/client.lifeCycle.go` 中：
 
-- `pendingClients` 是 `*sync.Map` —— 多个 goroutine 用 `LoadOrStore` 注册（lock-free 跳过重复）
-- `closeAllClients()` 是 LIFO 顺序释放，与构造顺序相反（依赖 A 关闭前需要被 B 引用 → B 先关）
+- `pendingClients` 是 `[]*client.Client`，用 `sync.Mutex` 保护 —— 多个 goroutine 通过 `trackClient` 追加注册
+- `closeAllClients()` 是正向遍历顺序（FIFO），与构造顺序一致。Close 本身幂等，无需反向遍历
 - `Close` 是幂等的（多次调用安全）
 
 这是为什么 `printError` 不直接 `os.Exit`：必须让 `defer closeAllClients()` 跑完。
