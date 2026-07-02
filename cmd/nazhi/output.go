@@ -30,8 +30,11 @@ func markError() {
 func printJSON(v any) {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
-	if err := enc.Encode(v); err != nil && !quiet {
-		printError(fmt.Errorf("序列化输出失败: %w", err))
+	if err := enc.Encode(v); err != nil {
+		markError()
+		if !quiet {
+			printError(fmt.Errorf("序列化输出失败: %w", err))
+		}
 	}
 }
 
