@@ -31,7 +31,7 @@ func makeTempJPEG(t *testing.T) string {
 
 // makeFileUploadTestCmd 创建 file upload 命令的测试用 cobra.Command + mock upload server。
 // filePath 是 --file flag 的值（空字符串时不设 flag）。
-func makeFileUploadTestCmd(t *testing.T, filePath string) (*cobra.Command, *httptest.Server) {
+func makeFileUploadTestCmd(t *testing.T, filePath string) *cobra.Command {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// file upload 路径 /common/upload/uploadImage
@@ -50,12 +50,12 @@ func makeFileUploadTestCmd(t *testing.T, filePath string) (*cobra.Command, *http
 	cmd.Flags().String("upload-url", "", "")
 	_ = cmd.Flags().Set("upload-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
-	return cmd, srv
+	return cmd
 }
 
 // TestFileUploadCmd_MissingFile_PrintsError 验证 --file 缺省时输出 error JSON 到 stderr。
 func TestFileUploadCmd_MissingFile_PrintsError(t *testing.T) {
-	cmd, _ := makeFileUploadTestCmd(t, "") // 不设 file flag
+	cmd := makeFileUploadTestCmd(t, "") // 不设 file flag
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -81,7 +81,7 @@ func TestFileUploadCmd_MissingFile_PrintsError(t *testing.T) {
 // TestFileUploadCmd_HappyPath 验证完整上传流程：JPEG 文件上传成功，输出 id + path。
 func TestFileUploadCmd_HappyPath(t *testing.T) {
 	jpegPath := makeTempJPEG(t)
-	cmd, _ := makeFileUploadTestCmd(t, jpegPath)
+	cmd := makeFileUploadTestCmd(t, jpegPath)
 
 	quiet = false
 	pendingExitCode.Store(0)

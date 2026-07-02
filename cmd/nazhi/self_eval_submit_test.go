@@ -13,7 +13,7 @@ import (
 
 // makeSelfEvalSubmitTestCmd 创建 self-eval submit 命令的测试用 cobra.Command + mock server。
 // comment 是 --comment flag 的值（空字符串时不设，用于测试 stdin 读入场景）。
-func makeSelfEvalSubmitTestCmd(t *testing.T, comment string) (*cobra.Command, *httptest.Server) {
+func makeSelfEvalSubmitTestCmd(t *testing.T, comment string) *cobra.Command {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -45,12 +45,12 @@ func makeSelfEvalSubmitTestCmd(t *testing.T, comment string) (*cobra.Command, *h
 	cmd.Flags().String("base-url", "", "")
 	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
-	return cmd, srv
+	return cmd
 }
 
 // TestSelfEvalSubmitCmd_WithComment 验证 --comment flag 正常提交并输出成功 JSON。
 func TestSelfEvalSubmitCmd_WithComment(t *testing.T) {
-	cmd, _ := makeSelfEvalSubmitTestCmd(t, "很好的学期")
+	cmd := makeSelfEvalSubmitTestCmd(t, "很好的学期")
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -75,7 +75,7 @@ func TestSelfEvalSubmitCmd_WithComment(t *testing.T) {
 // TestSelfEvalSubmitCmd_StdinPipe 验证 --comment "" 时从 stdin 读取评价内容。
 // 测试环境下 stdin 是管道，ReadString(0) 读到 EOF 返回写入的内容。
 func TestSelfEvalSubmitCmd_StdinPipe(t *testing.T) {
-	cmd, _ := makeSelfEvalSubmitTestCmd(t, "") // comment 不设，触发 stdin 读入
+	cmd := makeSelfEvalSubmitTestCmd(t, "") // comment 不设，触发 stdin 读入
 
 	// 创建 pipe 并写入评价内容
 	r, w, err := os.Pipe()
@@ -110,7 +110,7 @@ func TestSelfEvalSubmitCmd_StdinPipe(t *testing.T) {
 
 // TestSelfEvalSubmitCmd_EmptyStdin_PrintsError 验证 stdin 为空（无输入）时输出错误。
 func TestSelfEvalSubmitCmd_EmptyStdin_PrintsError(t *testing.T) {
-	cmd, _ := makeSelfEvalSubmitTestCmd(t, "") // comment 不设
+	cmd := makeSelfEvalSubmitTestCmd(t, "") // comment 不设
 
 	// 创建空 stdin pipe
 	r, w, err := os.Pipe()

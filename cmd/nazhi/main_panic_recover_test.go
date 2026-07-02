@@ -246,7 +246,7 @@ func TestMain_PanicRecover_EndToEnd(t *testing.T) {
 
 	_ = w.Close()
 	var buf bytes.Buffer
-	if _, err := readAndCopy(&buf, r); err != nil {
+	if _, err := io.Copy(&buf, r); err != nil {
 		t.Fatalf("read stderr: %v", err)
 	}
 	stderrStr := buf.String()
@@ -268,9 +268,4 @@ func TestMain_PanicRecover_EndToEnd(t *testing.T) {
 	if strings.Contains(stderrStr, "goroutine ") && strings.Contains(stderrStr, "[running]") {
 		t.Errorf("F9 修复：panic 后 stderr 不应含 Go runtime stack trace\nstderr: %s", stderrStr)
 	}
-}
-
-// readAndCopy 包装 io.Copy 避免在测试文件中再次出现 io 导入
-func readAndCopy(dst io.Writer, src io.Reader) (int64, error) {
-	return io.Copy(dst, src)
 }
