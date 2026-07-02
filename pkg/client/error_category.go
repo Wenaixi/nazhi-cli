@@ -66,15 +66,16 @@ func ClassifyError(err error) ErrorCategory {
 
 // isContextError 判断是否为上下文取消或超时错误。
 //
-// 已废弃：请使用 ClassifyError 替代，本函数仅为向后兼容保留。
+// isContextError 是 ClassifyError 的便捷封装，用于上下文取消/超时错误判定。
 func isContextError(err error) bool {
 	cat := ClassifyError(err)
 	return cat == CategoryContextCancel || cat == CategoryContextTimeout
 }
 
-// isTimeoutError 检测错误是否为网络超时。
+// isTimeoutError 检测错误是否为超时相关错误（含网络超时与上下文超时）。
 //
-// 已废弃：请使用 ClassifyError 替代，本函数仅为向后兼容保留。
+// isTimeoutError 是 ClassifyError 的便捷封装，用于超时错误判定。
 func isTimeoutError(err error) bool {
-	return ClassifyError(err) == CategoryNetworkTimeout
+	cat := ClassifyError(err)
+	return cat == CategoryNetworkTimeout || cat == CategoryContextTimeout || cat == CategoryContextCancel
 }
