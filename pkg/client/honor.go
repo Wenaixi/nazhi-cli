@@ -108,10 +108,9 @@ func (c *Client) GetHonorList(ctx context.Context, token string, pageNo, pageSiz
 
 // AddHonor 申报一条荣誉。
 func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error {
-	resp, err := c.doBizAndDecode(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
+	_, err := c.doBizAndDecode(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
 	if err != nil {
 		return fmt.Errorf("AddHonor 失败: %w", err)
 	}
-	_ = resp // 仅确认 code=1（doBizAndDecode 已检查）
 	return nil
 }
