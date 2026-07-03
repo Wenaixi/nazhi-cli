@@ -240,6 +240,9 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 // F4 修复前：只检测 (1)，过去时间 time.Until 为负数不大于 23h → 静默吞下。
 // F4 修复后：合并 (1) + (2)，两条都覆盖。
 func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
+	if c.logger == nil {
+		return
+	}
 	remaining := time.Until(expiresAt)
 	// 精确检测 24h 兜底：remaining 恰好 ≈24h（±4h 窗口）。
 	// v0.4.1：新增 JWT payload exp 提取后，JWT 自身的 exp（如 14 天）不是 fallback，

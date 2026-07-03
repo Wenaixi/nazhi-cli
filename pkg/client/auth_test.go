@@ -1566,6 +1566,26 @@ func TestLogin_ExpiresAtInPast(t *testing.T) {
 	}
 }
 
+// ─── nil logger nil 守卫 ───
+
+// TestWarnIfExpiresAtFallback_NilLogger 验证 c.logger==nil 时
+// warnIfExpiresAtFallback 不会 panic。
+// 修复前：两处 c.logger.Warn 缺少 nil 守卫，当 c.logger==nil 时触发 nil pointer panic。
+func TestWarnIfExpiresAtFallback_NilLogger(t *testing.T) {
+	c := &Client{
+		http: newHTTPClient(),
+		// logger 默认 nil
+	}
+
+	now := time.Now()
+	// 触发 24h 兜底分支：remaining ≈24h 落入 (22h, 26h) 窗口
+	c.warnIfExpiresAtFallback(now.Add(24*time.Hour), "test-fallback-24h")
+	// 触发已过期分支：remaining < 1h（负值）
+	c.warnIfExpiresAtFallback(now.Add(-1*time.Hour), "test-expired")
+
+	// 走到这里说明没有 panic，测试通过
+}
+
 // ─── group-B F4: Login 非预期状态码错误附 body 摘要 ───
 
 // TestLogin_UnexpectedStatus_BodyInError 验证 Login 在非 200/302 状态码 +
