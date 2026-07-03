@@ -76,6 +76,11 @@ $RECYCLE.BIN/
 # review-tdd 违规记录（本地只读）
 .review-tdd-violations.md
 
+# filter-repo 临时产物 / review-tdd 工作文件
+.git-rewrite/
+.review-tdd-base
+angle5-findings.json
+
 # ─── 文档构建产物 ─────────────────────
 # docsify / hugo / mdbook 缓存
 .docsify/
