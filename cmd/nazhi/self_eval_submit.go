@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 
@@ -34,7 +35,11 @@ var selfEvalSubmitCmd = &cobra.Command{
 			// 统一交互提示通道（仅 isTerminalStdin 时输出，受 quiet 守卫）。
 			printPrompt("请输入自我评价内容（Ctrl+D 结束）: ")
 			reader := bufio.NewReader(os.Stdin)
-			input, _ := reader.ReadString(0) // 0 = null terminator，读到 EOF 为止
+			input, err := reader.ReadString(0) // 0 = null terminator，读到 EOF 为止
+			if err != nil && err != io.EOF {
+				printError(fmt.Errorf("读取 stdin 评价内容失败: %w", err))
+				return
+			}
 			comment = strings.TrimSpace(input)
 			if comment == "" {
 				printError(fmt.Errorf("评价内容不能为空"))
