@@ -255,7 +255,7 @@ type LoginResponse struct {
 1. InitSession（串行前置，必须最先建 JSESSIONID）
 2. errgroup.WithContext 并发：
    ├─ GetSchoolID（仅当 req.SchoolID 为空）
-   └─ ocrRecognizeWithRetry（最多 99 张图 × 1 次/图）
+   └─ ocrRecognizeWithRetry（最多 9 张图 × 1 次/图）
 3. validateCaptcha（依赖 OCR 结果，串行）
 4. POST /validate
    ├─ 200 路径 → tokenparse.ExtractFromReturnData
@@ -265,7 +265,7 @@ type LoginResponse struct {
 
 **并发优化**：步骤 2 的 `GetSchoolID` 和 `ocrRecognizeWithRetry` **无数据依赖**，通过 `errgroup.WithContext` 并发跑。`InitSession` 仍串行前置（必须最先建立 JSESSIONID），`validateCaptcha` 依赖 OCR 结果故串行。
 
-**OCR 策略**：单图 OCR 1 次（ddddocr 对同图确定性，重试无意义），失败换新图，最多 99 张图。常量 `maxOCRAttemptsPerImage=1` + `maxOCRImagesTotal=99`。
+**OCR 策略**：单图 OCR 1 次（ddddocr 对同图确定性，重试无意义），失败换新图，最多 9 张图。常量 `maxOCRImagesTotal=9`。
 
 **Token 解析**：200 与 302 两条路径都走 `pkg/tokenparse` 包，详情见 [tokenparse](#pkgtokenparse-单独使用)。
 
@@ -276,7 +276,7 @@ type LoginResponse struct {
 | 场景 | 错误 |
 |---|---|
 | `c.ocr == nil`（`!ddddocr` 构建且未注入） | `errors.Is(err, ErrOCRNotConfigured)` |
-| 验证码 OCR 99 张全失败 | `errors.Is(err, ErrOCRNotConfigured)` 包装 + 原始错误 |
+| 验证码 OCR 9 张全失败 | `errors.Is(err, ErrOCRNotConfigured)` 包装 + 原始错误 |
 | 验证码/凭据错误（code≠1 / 非预期状态码） | `errors.Is(err, ErrLoginRejected)` |
 | HTTP 超时 | `errors.Is(err, ErrTimeout)` |
 | 网络层失败 | `errors.Is(err, ErrNetwork)` |

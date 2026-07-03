@@ -131,7 +131,7 @@ nazhi login -u 学号 -p 密码
 |---|---|
 | `errors.ocr_not_configured: OCR 识别器未配置` | 当前构建未启用 `-tags ddddocr`，且没用 `WithCustomOCR` 注入（CLI 路径下用预编译 release 即可） |
 | `login rejected: code=-1 学号或密码错误` | 凭据错 |
-| `login rejected: 验证码校验失败` | 99 张图都识别不出来（极少见，可能是服务端 captcha 服务挂） |
+| `login rejected: 验证码校验失败` | 9 张图都识别不出来（极少见，可能是服务端 captcha 服务挂） |
 | `timeout: 请求 https://... 失败` | 网络慢，调大 `NAZHI_TIMEOUT=30` |
 
 ---

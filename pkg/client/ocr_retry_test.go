@@ -271,11 +271,11 @@ func TestOCRRetry_ImageFetchFails(t *testing.T) {
 	}
 }
 
-// TestOCRRetry_Constants 兜底测试：常量值符合预期（1 × 99 = 99）。
+// TestOCRRetry_Constants 兜底测试：常量值符合预期（1 × 9 = 9）。
 // ddddocr 确定性下同图重试无意义，把所有重试预算分配给换图。
 func TestOCRRetry_Constants(t *testing.T) {
-	if maxOCRImagesTotal != 99 {
-		t.Errorf("maxOCRImagesTotal = %d, want 99", maxOCRImagesTotal)
+	if maxOCRImagesTotal != 9 {
+		t.Errorf("maxOCRImagesTotal = %d, want 9", maxOCRImagesTotal)
 	}
 	t.Logf("nazhi %s — OCR 重试策略: %d 张图，每图 1 次（共 %d 次尝试）",
 		version.Version, maxOCRImagesTotal, maxOCRImagesTotal)

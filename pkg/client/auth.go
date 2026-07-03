@@ -85,7 +85,8 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 const (
 	// maxOCRImagesTotal 是总 OCR 尝试次数上限。
 	// ddddocr 对同图识别是确定性的，重试同图无意义，每次尝试都换新图。
-	maxOCRImagesTotal        = 99
+	// v0.5.0 从 99 下调到 9，多数场景 1-3 张即可成功。
+	maxOCRImagesTotal        = 9
 	expiresFallbackThreshold = 1 * time.Hour
 )
 

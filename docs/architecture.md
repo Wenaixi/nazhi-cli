@@ -206,7 +206,7 @@ Cookie 同步失败（如自定义 `Jar` 不是 `*cookiejar.Jar`）会让 `New()
 5. buildLoginResponse → syncCookieToken (X-Auth-Token)
 ```
 
-**OCR 重试策略**：单图 OCR 1 次（ddddocr 对同图确定性，重试无意义），失败换新图，最多 99 张图。常量 `maxOCRAttemptsPerImage=1` + `maxOCRImagesTotal=99`。
+**OCR 重试策略**：单图 OCR 1 次（ddddocr 对同图确定性，重试无意义），失败换新图，最多 9 张图。常量 `maxOCRImagesTotal=9`。
 
 **并发安全**：v0.4.0 之前 CallStep 严格排序，v0.4.0 之后改用 mutex 保护的状态变量，**支持 Login 并发**（不影响正确性，但 OCR 引擎一次只能识别一张图，所以真并发看 Pool concurrency）。
 
