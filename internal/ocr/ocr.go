@@ -248,8 +248,9 @@ type Pool struct {
 }
 
 // NewPool 创建 OCR 实例池。
-// preload 参数已废弃，保留以保持 API 向后兼容。不再同步预热 ONNX session。
-// 惰性初始化在首次 Recognize 时触发。
+//
+// Deprecated: preload 参数已废弃，不再生效。保留以保持 API 向后兼容，
+// 不再同步预热 ONNX session。惰性初始化在首次 Recognize 时触发。
 func NewPool(preload int) *Pool {
 	return &Pool{
 		pool: sync.Pool{New: func() any { return &OCR{} }},
