@@ -9,6 +9,14 @@
 
 暂无。
 
+## [0.5.1] - 2026-07-03
+
+### 修复
+
+- **commit 消息 @ 前缀违规** — `feat(task):` 的 commit 消息以 `@` 开头，违反 Conventional Commits 约束，changelog 生成器解析异常。rebase 修复。
+- **honor.go 注释缩进** — `deleteHonorById` 行多一个制表符缩进，已对齐。
+- **CLAUDE.md 版本/OCR 参数同步** — 仍引用 v0.4.1 版本号和 `maxOCRImagesTotal=99`，更新为 v0.5.0 和 9。
+
 ## [0.5.0] - 2026-07-03
 
 40 个 commit，自 v0.4.1 以来的完整变更。
