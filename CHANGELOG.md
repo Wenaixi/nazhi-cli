@@ -7,6 +7,12 @@
 
 ## [Unreleased]
 
+暂无。
+
+## [0.5.0] - 2026-07-03
+
+40 个 commit，自 v0.4.1 以来的完整变更。
+
 ### 新增
 
 - **荣誉申报 SDK（honor.go）** — 5 个方法：GetHonorTypes / GetHonorTypeForSelect / GetHonorLevel / GetHonorList / AddHonor。通过 TDD 驱动开发，11 个单元测试全部通过

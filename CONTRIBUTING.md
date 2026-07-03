@@ -21,7 +21,7 @@
 
 | 版本 | 状态 | 备注 |
 |---|---|---|
-| `0.4.1` | 当前活跃维护 | review-tdd 第 22 轮修复合入（parallel.go + error_category.go + recoverx） |
+| `0.5.0` | 当前活跃维护 | honor 荣誉申报全功能 + GetSubmittedCircles + review-tdd 第 23 轮全面清理 + 文档全面同步 |
 | `0.4.0` | 仅安全修复 | review-tdd 第 15/16 轮架构深化 + OCR 三轮修复 |
 | `< 0.3` | 不再支持 | 强制升级 |
 
