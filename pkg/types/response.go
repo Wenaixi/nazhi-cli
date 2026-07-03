@@ -52,16 +52,6 @@ func CheckCode(resp UnifiedResponse) error {
 }
 
 // BusinessError 业务错误，保留数值 code 供 errors.As 精细判别。
-//
-// 使用方法：
-//
-//	var bizErr *types.BusinessError
-//	if errors.As(err, &bizErr) {
-//	    switch bizErr.Code {
-//	    case 2: // 重试
-//	    case 500: // 致命
-//	    }
-//	}
 type BusinessError struct {
 	Code int    // 业务 code（非 1）
 	Msg  string // 错误描述
