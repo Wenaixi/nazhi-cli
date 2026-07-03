@@ -51,7 +51,7 @@ func (c *Client) GetSubmittedCircles(ctx context.Context, token string) ([]types
 		all = append(all, records...)
 	}
 
-	return all, err
+	return all, nil
 }
 
 // fetchSubmittedPage 拉取一页已提交写实记录，同时返回分页信息。
