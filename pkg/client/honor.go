@@ -6,7 +6,7 @@
 //	  GET  /api/studentMoralEduNew/getHonorLevel          — 获取荣誉级别（dataList，需 honorTypeId 参数）
 //	  GET  /api/studentMoralEduNew/getHonorByStudentId    — 查询已有荣誉（分页，需 &key=）
 //	  POST /api/studentMoralEduNew/addHonor               — 申报荣誉
-//		 POST /api/studentMoralEduNew/deleteHonorById        — 删除荣誉
+//	  POST /api/studentMoralEduNew/deleteHonorById        — 删除荣誉
 package client
 
 import (
