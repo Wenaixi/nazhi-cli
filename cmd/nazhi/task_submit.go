@@ -3,29 +3,14 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
-// readPayloadStdin 从 stdin 读取 payload（支持非 TTY 环境），最大 16MB。
-func readPayloadStdin() ([]byte, error) {
-	return io.ReadAll(io.LimitReader(os.Stdin, 16<<20))
-}
-
-// parsePayload 解析 --payload 参数，支持 @file.json 和 -（stdin）语法。
+// parsePayload 解析 --payload 参数，委托公共 helper 处理 @file.json / - / 原始字符串。
 func parsePayload(raw string) ([]byte, error) {
-	if strings.HasPrefix(raw, "@") {
-		filePath := raw[1:]
-		return os.ReadFile(filePath)
-	}
-	if raw == "-" {
-		return readPayloadStdin()
-	}
-	return []byte(raw), nil
+	return parsePayloadFromArg(raw)
 }
 
 // taskSubmitCmd 表示 nazhi task submit 命令

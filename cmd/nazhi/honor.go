@@ -3,9 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"os"
-	"strings"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
@@ -128,26 +125,12 @@ var honorAddCmd = &cobra.Command{
 }
 
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
-// 支持 @file.json 从文件读取，或 - 从 stdin 读取。
+// 委托 parsePayloadFromArg 处理 @file.json / - / 原始字符串。
 func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
-	var payloadBytes []byte
-	if strings.HasPrefix(raw, "@") {
-		filePath := raw[1:]
-		var err error
-		payloadBytes, err = os.ReadFile(filePath)
-		if err != nil {
-			return nil, fmt.Errorf("读取 payload 文件失败: %w", err)
-		}
-	} else if raw == "-" {
-		var err error
-		payloadBytes, err = io.ReadAll(io.LimitReader(os.Stdin, 16<<20))
-		if err != nil {
-			return nil, fmt.Errorf("读取 stdin payload 失败: %w", err)
-		}
-	} else {
-		payloadBytes = []byte(raw)
+	payloadBytes, err := parsePayloadFromArg(raw)
+	if err != nil {
+		return nil, fmt.Errorf("读取 payload 失败: %w", err)
 	}
-
 	var payload types.AddHonorPayload
 	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 		return nil, fmt.Errorf("解析 payload JSON 失败: %w", err)
