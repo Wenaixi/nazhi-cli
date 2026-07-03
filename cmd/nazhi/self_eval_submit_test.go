@@ -143,6 +143,48 @@ func TestSelfEvalSubmitCmd_EmptyStdin_PrintsError(t *testing.T) {
 	_ = stdout
 }
 
+// TestSelfEvalSubmitCmd_StdinReadError_Propagates 验证 stdin 读取发生 I/O 错误时
+// （如 fd 关闭、管道断开），真实错误被传播到 stderr，而非被掩盖。
+// 回归测试：ReadString 的 error 曾被 _ 丢弃。
+func TestSelfEvalSubmitCmd_StdinReadError_Propagates(t *testing.T) {
+	cmd := makeSelfEvalSubmitTestCmd(t, "") // comment 不设，触发 stdin 读入
+
+	// 创建一个已关闭的文件替换 stdin，ReadString 将返回非 io.EOF 的 I/O 错误
+	f, err := os.CreateTemp("", "stdin-closed-*")
+	if err != nil {
+		t.Fatalf("CreateTemp 失败: %v", err)
+	}
+	_ = f.Close()
+	_ = os.Remove(f.Name())
+
+	origStdin := os.Stdin
+	os.Stdin = f // 用已关闭的文件替换 stdin
+	defer func() { os.Stdin = origStdin }()
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+	selfEvalSubmitCmd.Run(cmd, nil)
+	restore()
+	stderr := stderrBuf.String()
+
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("stdin 读错误应触发 pendingExitCode=1，实际 %d", got)
+	}
+	if !strings.Contains(stderr, `"error": true`) {
+		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	}
+	// 核心断言：真实 I/O 错误不应被掩盖为"评价内容不能为空"
+	if strings.Contains(stderr, "评价内容不能为空") {
+		t.Errorf("真实 I/O 错误被掩盖为评价内容不能为空: %q", stderr)
+	}
+	if !strings.Contains(stderr, "读取 stdin 评价内容失败") {
+		t.Errorf("stderr 应包含 stdin 读取失败的真实错误，实际: %q", stderr)
+	}
+	_ = stdoutBuf
+}
+
 // TestSelfEvalSubmitCmd_ServerError 验证服务端业务错误传播。
 func TestSelfEvalSubmitCmd_ServerError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
