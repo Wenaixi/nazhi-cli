@@ -72,7 +72,7 @@
 
 | 文档版本 | 对应 code 版本 | 文档冻结 |
 |---|---|---|
-| v0.4.1+ | v0.4.1 | 随 [Unreleased] 持续更新 |
+| v0.5.0+ | v0.5.0 | 随 [Unreleased] 持续更新 |
 | v0.4.0 | v0.4.0 | [v0.4.0 tag](https://github.com/Wenaixi/nazhi-cli/tree/v0.4.0/docs) |
 
 ## 外部参考
