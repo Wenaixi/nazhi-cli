@@ -30,4 +30,4 @@ package version
 //	0.5.0 — honor 荣誉申报全功能（SDK 5 方法 + CLI 3 子命令）+ GetSubmittedCircles 已提交写实记录 +
 //	        --payload - stdin 读取 + review-tdd 第 23 轮全面清理（40 commits）+
 //	        全部文档全面同步
-var Version = "0.5.1"
+var Version = "0.5.2"

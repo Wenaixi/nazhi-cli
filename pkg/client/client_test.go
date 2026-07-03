@@ -187,7 +187,6 @@ func TestLogin(t *testing.T) {
 	var (
 		mu               sync.Mutex
 		initDone         bool
-		gotSchoolID      bool
 		gotCaptcha       bool
 		captchaValidated bool
 	)
@@ -204,7 +203,6 @@ func TestLogin(t *testing.T) {
 			if !initDone {
 				t.Errorf("getSchoolId 应在 login 之后")
 			}
-			gotSchoolID = true
 			mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -223,8 +221,8 @@ func TestLogin(t *testing.T) {
 			w.Write([]byte{0xFF, 0xD8, 0xFF})
 		case "/uiStudentLogin/validateCaptcha":
 			mu.Lock()
-			if !gotSchoolID || !gotCaptcha {
-				t.Errorf("validateCaptcha 应在 getSchoolId 和 kaptcha 之后")
+			if !gotCaptcha {
+				t.Errorf("validateCaptcha 应在 kaptcha 之后")
 			}
 			captchaValidated = true
 			mu.Unlock()

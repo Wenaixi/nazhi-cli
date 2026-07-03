@@ -9,6 +9,35 @@
 
 暂无。
 
+## [0.5.2] - 2026-07-04
+
+### 修复
+
+- **validateCaptcha 重试修复** — 之前 OCR 识别成功后只调一次 `validateCaptcha`，校验失败直接退出 Login，浪费剩下 8 次重试预算。修复后将 `validateCaptcha` 移入 `ocrRecognizeWithRetry` 循环内部，校验失败时 `continue` 换图重试，用完 9 张图预算为止。错误链保持 `errors.Is(err, ErrLoginRejected)` 兼容性。`Login()` 不再单独调 `validateCaptcha`，外层流程精简。
+- **warnIfExpiresAtFallback nil 守卫** — 两处 `c.logger.Warn` 未检查 `c.logger` 是否为 nil，可能导致 nil 指针 panic（review-tdd 第 24 轮 A 组）。
+- **GetSubmittedCircles ctx 取消返回 error** — 翻页过程中 context 取消时，之前返回 `(all, nil)` 掩盖错误，改为 `(all, err)` 让调用方感知截断（review-tdd 第 24 轮 B 组）。
+- **self-eval ReadString 错误传播** — `ReadString(0)` 的 error 被 `_` 丢弃，真实 I/O 错误被掩盖（review-tdd 第 24 轮 C 组）。
+- **honor 死代码删除** — `AddHonor` 中 `_ = resp` 无意义，改为 `_, err :=`（review-tdd 第 24 轮 D 组）。
+- **GetSubmittedCircles merge 误改修复** — 正常路径应返回 nil error，merge 冲突错误地改成了 `return all, err`。
+
+### 重构
+
+- **cmd payload 抽取公共 `parsePayloadFromArg`** — task_submit/honor 重复的 `@file.json`/stdin 读取逻辑归一到同一 helper（review-tdd 第 24 轮 E 组）。
+- **opt_builder switch case 替换为 map 查找** — 3 处相同的 switch 结构简化为一次 map 构建 + O(1) 查找（review-tdd 第 24 轮 E 组）。
+
+### 清理
+
+- **OCR/types 注释与参数清理** — NewPool preload 废弃标记、BusinessError 注释代码示例清理、LoginResponse 死字段历史注释清理（review-tdd 第 24 轮 F 组）。
+
+### 测试
+
+- **TestGetSubmittedCircles_CancelDuringPaging 竞态修复** — 同步点从 page 1 handler 响应后移到 page 2 handler 被调用时，消除 goroutine 调度不确定性。
+
+### 构建
+
+- **版本号**: `0.5.2`
+- **.gitignore**: 补充 `.git-rewrite/`、`.review-tdd-base`、`angle5-findings.json` 忽略规则。
+
 ## [0.5.1] - 2026-07-03
 
 ### 修复

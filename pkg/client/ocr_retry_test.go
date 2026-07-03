@@ -65,6 +65,11 @@ func TestOCRRetry_SucceedsOnFirstImage(t *testing.T) {
 			_, _ = w.Write([]byte("fake-jpeg-bytes"))
 			return
 		}
+		if r.URL.Path == "/uiStudentLogin/validateCaptcha" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+			return
+		}
 		http.NotFound(w, r)
 	}))
 	defer sso.Close()
@@ -97,6 +102,11 @@ func TestOCRRetry_FailsAcrossImages(t *testing.T) {
 		if r.URL.Path == "/kaptcha/kaptcha.jpg" {
 			atomic.AddInt32(&imageFetches, 1)
 			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+			return
+		}
+		if r.URL.Path == "/uiStudentLogin/validateCaptcha" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
 			return
 		}
 		http.NotFound(w, r)
@@ -134,6 +144,11 @@ func TestOCRRetry_Fails2ThenSucceedsAfter2Images(t *testing.T) {
 			_, _ = w.Write([]byte("fake-jpeg-bytes"))
 			return
 		}
+		if r.URL.Path == "/uiStudentLogin/validateCaptcha" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+			return
+		}
 		http.NotFound(w, r)
 	}))
 	defer sso.Close()
@@ -165,6 +180,11 @@ func TestOCRRetry_AllImagesFail(t *testing.T) {
 		if r.URL.Path == "/kaptcha/kaptcha.jpg" {
 			atomic.AddInt32(&imageFetches, 1)
 			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+			return
+		}
+		if r.URL.Path == "/uiStudentLogin/validateCaptcha" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
 			return
 		}
 		http.NotFound(w, r)
@@ -200,6 +220,11 @@ func TestOCRRetry_BlankResultRetried(t *testing.T) {
 		if r.URL.Path == "/kaptcha/kaptcha.jpg" {
 			atomic.AddInt32(&imageFetches, 1)
 			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+			return
+		}
+		if r.URL.Path == "/uiStudentLogin/validateCaptcha" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
 			return
 		}
 		http.NotFound(w, r)
@@ -249,6 +274,11 @@ func TestOCRRetry_ImageFetchFails(t *testing.T) {
 		if r.URL.Path == "/kaptcha/kaptcha.jpg" {
 			atomic.AddInt32(&imageFetches, 1)
 			http.Error(w, "captcha service down", http.StatusInternalServerError)
+			return
+		}
+		if r.URL.Path == "/uiStudentLogin/validateCaptcha" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
 			return
 		}
 		http.NotFound(w, r)

@@ -64,6 +64,10 @@ func TestOCRRecognize_PanicRecoverInRetry(t *testing.T) {
 		w.Header().Set("Content-Type", "image/jpeg")
 		_, _ = w.Write([]byte("fake-jpeg"))
 	})
+	mux.HandleFunc("/uiStudentLogin/validateCaptcha", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+	})
 	sso := httptest.NewServer(mux)
 	defer sso.Close()
 

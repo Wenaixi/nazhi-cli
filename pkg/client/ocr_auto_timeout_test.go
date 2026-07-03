@@ -53,6 +53,11 @@ func TestOCRRetry_AutoTimeoutWithoutCtxDeadline(t *testing.T) {
 			_, _ = w.Write([]byte("fake-jpeg-bytes"))
 			return
 		}
+		if r.URL.Path == "/uiStudentLogin/validateCaptcha" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+			return
+		}
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()

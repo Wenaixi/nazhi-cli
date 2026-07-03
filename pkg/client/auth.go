@@ -142,11 +142,6 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return nil, err
 	}
 
-	// 步骤 4: 验证码预校验（依赖 OCR 结果，串行执行）
-	if err := c.validateCaptcha(ctx, captcha); err != nil {
-		return nil, fmt.Errorf("Login 验证码预校验未通过: %w", err)
-	}
-
 	loginBody := map[string]string{
 		"schoolId": schoolID,
 		"username": req.Username,
@@ -318,6 +313,14 @@ func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 			c.logDebug("OCR 第 %d 张图结果为空白", imgIdx+1)
 		} else {
 			c.logDebug("OCR 识别成功: img=%d result_len=%d", imgIdx+1, len(text))
+			// 验证码预校验：服务端确认该验证码有效后再返回。
+			// 校验失败（code≠1）不是 OCR 读错了，而是服务端不认这张图的验证码，
+			// 需要换图重试（v0.5.3 修复）。
+			if err := c.validateCaptcha(ctx, text); err != nil {
+				lastErr = err
+				c.logDebug("验证码校验失败(img=%d): %v", imgIdx+1, err)
+				continue
+			}
 			return text, nil
 		}
 	}
