@@ -370,7 +370,9 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 	)
 
 	var callCount int
-	page1HandlerDone := make(chan struct{})
+	// page2Started 在 page 2 handler 被 server 端调用时关闭——此时 page 1
+	// 必定已被 client 端完全消费（httpDo 已返回响应体）。
+	page2Started := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
@@ -394,11 +396,13 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 				"dataList": records,
 			}
 			_ = json.NewEncoder(w).Encode(resp)
-			close(page1HandlerDone) // 通知主 goroutine：page 1 已响应
 			return
 		}
 
-		// 第二页（及后续）：等待 context 取消（由主 goroutine 在 page1HandlerDone 后触发）
+		// 第二页（及后续）处理到此已确保 page 1 被 client 端完全消费：
+		// client 端收到 page 1 响应 → 解码 → 循环到 page 2 → 发请求 → server 收到此请求。
+		close(page2Started)
+		// 等待 context 取消（由主 goroutine 收到 page2Started 后触发）
 		<-ctx.Done()
 		resp := map[string]any{
 			"code":     1,
@@ -422,8 +426,8 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 		resultCh <- getResult{circles, err}
 	}()
 
-	// 等 page 1 处理完成，然后取消 context
-	<-page1HandlerDone
+	// 等 page 2 被 server 端处理（此时 page 1 已被 client 端完全消费）
+	<-page2Started
 	cancel()
 
 	r := <-resultCh
