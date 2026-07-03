@@ -22,8 +22,23 @@ import (
 //   NAZHI_UPLOAD_URL   — 文件上传 API 根地址（file upload）
 // 推荐在 CI/集成测试中通过 `.env` 文件或 secret 注入。
 
+// urlOptDef 描述一种 URL 类型对应的 flag 名、环境变量名和 Option 构造函数。
+type urlOptDef struct {
+	flagName string
+	envKey   string
+	optFn    func(string) client.Option
+}
+
+// urlOptMap 将 urlType 映射到对应的 flag/env/Option 元组，消除 buildClientOpts
+// 中 switch 三个相同结构 case 的重复。
+var urlOptMap = map[string]urlOptDef{
+	"sso":    {"sso-base", "NAZHI_SSO_BASE", client.WithSSOBase},
+	"base":   {"base-url", "NAZHI_BASE_URL", client.WithBaseURL},
+	"upload": {"upload-url", "NAZHI_UPLOAD_URL", client.WithUploadURL},
+}
+
 // buildClientOpts 构造 client.Option 列表，是 buildClient 与 buildBizClient
-// 共享的核心实现（组 E 提取）。
+// 共享的核心实现。
 // 参数
 //   - cmd: cobra 命令（含已注册的 flag）
 //   - urlType: "sso" / "base" / "upload" — 决定读哪个 URL flag + env
@@ -84,21 +99,12 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		opts = append(opts, client.WithToken(token))
 	}
 
-	// url 相关 option 合并 switch
-	switch urlType {
-	case "sso":
-		if v := applyURLFlag(cmd, "sso-base", "NAZHI_SSO_BASE"); v != "" {
-			opts = append(opts, client.WithSSOBase(v))
+	// url 相关 option 用 map 查找替换 switch，消除三个相同结构 case 的重复。
+	if def, ok := urlOptMap[urlType]; ok {
+		if v := applyURLFlag(cmd, def.flagName, def.envKey); v != "" {
+			opts = append(opts, def.optFn(v))
 		}
-	case "base":
-		if v := applyURLFlag(cmd, "base-url", "NAZHI_BASE_URL"); v != "" {
-			opts = append(opts, client.WithBaseURL(v))
-		}
-	case "upload":
-		if v := applyURLFlag(cmd, "upload-url", "NAZHI_UPLOAD_URL"); v != "" {
-			opts = append(opts, client.WithUploadURL(v))
-		}
-	default:
+	} else {
 		return nil, "", fmt.Errorf("buildClientOpts: 未知 urlType %q（期望 sso/base/upload）", urlType)
 	}
 
