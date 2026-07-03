@@ -358,6 +358,89 @@ func TestSubmittedDecodeCircleRecord(t *testing.T) {
 	}
 }
 
+// TestGetSubmittedCircles_CancelDuringPaging 验证翻页过程中 context 取消时返回已有数据 + error。
+//
+// 设计：page 1 handler 用 page1Done 信道通知主 goroutine，主 goroutine 收到后取消 context，
+// 然后 page 2 handler 通过 <-ctx.Done() 感知取消。这样确保 cancel 发生在两次翻页之间，
+// 精确命中循环顶部的 ctx.Err() 检查点（submitted.go:42）。
+func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
+	const (
+		page1Records = 2
+		totalPages   = 3
+	)
+
+	var callCount int
+	page1HandlerDone := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+
+		callCount++
+		w.Header().Set("Content-Type", "application/json")
+
+		if callCount == 1 {
+			// 第一页：正常返回，诱导继续翻页
+			records := make([]map[string]any, page1Records)
+			for i := range records {
+				records[i] = submittedRecord(int64(i+1), "任务", 0)
+			}
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, submittedPageSize, totalPages*submittedPageSize, totalPages)),
+				"dataList": records,
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			close(page1HandlerDone) // 通知主 goroutine：page 1 已响应
+			return
+		}
+
+		// 第二页（及后续）：等待 context 取消（由主 goroutine 在 page1HandlerDone 后触发）
+		<-ctx.Done()
+		resp := map[string]any{
+			"code":     1,
+			"pageBean": json.RawMessage(submittedPageBean(callCount, submittedPageSize, totalPages*submittedPageSize, totalPages)),
+			"dataList": []map[string]any{},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+
+	// 在后台 goroutine 中执行 GetSubmittedCircles
+	type getResult struct {
+		circles []types.CircleRecord
+		err     error
+	}
+	resultCh := make(chan getResult, 1)
+	go func() {
+		circles, err := c.GetSubmittedCircles(ctx, "test-token")
+		resultCh <- getResult{circles, err}
+	}()
+
+	// 等 page 1 处理完成，然后取消 context
+	<-page1HandlerDone
+	cancel()
+
+	r := <-resultCh
+
+	// 应该返回 error（context 取消）
+	if r.err == nil {
+		t.Fatal("context 取消时应返回 error（调用方需感知截断），实际 nil")
+	}
+	if !strings.Contains(r.err.Error(), "context canceled") {
+		t.Errorf("error 应包含 context canceled 描述: %v", r.err)
+	}
+	// 应返回 page 1 已有的数据
+	if len(r.circles) != page1Records {
+		t.Fatalf("期望 %d 条记录（第一页数据），实际 %d", page1Records, len(r.circles))
+	}
+}
+
 // TestSubmittedDecodeCircleImg 验证 CircleImage 解码。
 func TestSubmittedDecodeCircleImg(t *testing.T) {
 	jsonData := `{"id":4245126,"circle_id":4649107,"attachment_id":4383237,"task_id":16494,"class_id":150668}`

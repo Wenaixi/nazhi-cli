@@ -38,9 +38,9 @@ func (c *Client) GetSubmittedCircles(ctx context.Context, token string) ([]types
 	copy(all, page1)
 
 	for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
-		// context 取消时提前返回已有数据
+		// context 取消时返回已有数据 + error，让调用方感知截断
 		if err := ctx.Err(); err != nil {
-			return all, nil
+			return all, err
 		}
 
 		records, _, err := c.fetchSubmittedPage(ctx, token, pageNo, pageSize)
@@ -51,7 +51,7 @@ func (c *Client) GetSubmittedCircles(ctx context.Context, token string) ([]types
 		all = append(all, records...)
 	}
 
-	return all, nil
+	return all, err
 }
 
 // fetchSubmittedPage 拉取一页已提交写实记录，同时返回分页信息。
