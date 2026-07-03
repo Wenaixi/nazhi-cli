@@ -191,6 +191,6 @@ var piiHexMap = map[string]string{
 | Cookie jar 独立性 | `pkg/client/concurrency_test.go` | 多 Client 并发调用互不污染 |
 | 错误分支 | `pkg/client/*_test.go` | 网络错、业务拒绝、超时、5xx 等用 httptest.Server 模拟 |
 | Sentinel 触发 | `pkg/client/errors_test.go` | 验证每个 `ErrXxx` 被正确包装 |
-| OCR mock | `pkg/client/ocr_*_test.go` | `WithCustomOCR(mock)` 注入 mock，验证 Login 的 99 张图重试、退避、ctx cancel |
+| OCR mock | `pkg/client/ocr_*_test.go` | `WithCustomOCR(mock)` 注入 mock，验证 Login 的多图重试、退避、ctx cancel |
 
 HAR 驱动测试只是「业务逻辑 + fixture 校验」，不做 HTTP 协议级校验。所以两套测试互补，不重复。

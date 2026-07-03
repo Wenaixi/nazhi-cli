@@ -285,7 +285,7 @@ $ NAZHI_TIMEOUT=60 nazhi -v login -u x -p y
 如果 OCR 阶段慢，多半是：
 1. 单图识别本身慢（`Pool` 内部 `Recognize` 阻塞）—— 检查 CPU 占用、杀软扫描 DLL
 2. 服务端 captcha 服务慢（kaptcha.jpg 图片下载）—— 加大 `NAZHI_TIMEOUT`
-3. 99 张图都识别失败（ddddocr 模型错位）—— 升级 `internal/ocr/models/` 的模型文件
+3. 9 张图都识别失败（ddddocr 模型错位）—— 升级 `internal/ocr/models/` 的模型文件
 
 ### 临时目录堆积问题（v0.4.0 修复前）
 

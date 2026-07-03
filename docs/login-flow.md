@@ -1,25 +1,25 @@
 # 登录流程详解
 
-## SSO 完整流程（v0.4.0 并发版）
+## SSO 完整流程（v0.5.2）
 
 ```
 InitSession ─┐
              ├─ errgroup.WithContext ─┐
 GetSchoolID ─┘                        │
-                                      ├─ ValidateCaptcha ─ Login POST
-ocrRecognizeWithRetry ────────────────┘                          ↓
-                                                              200 JSON / 302 fallback
-                                                                   ↓
-                                                            syncCookieToken
-                                                              (X-Auth-Token)
+                                      ├─ Login POST
+ocrRecognizeWithRetry ────────────────┘    ↓
+  (内部: fetchCaptchaImage → OCR →        200 JSON / 302 fallback
+   validateCaptcha，失败换图重试)              ↓
+                                          syncCookieToken
+                                            (X-Auth-Token)
 ```
 
 `GetSchoolID` 和 `ocrRecognizeWithRetry` **无数据依赖**，通过 `errgroup.WithContext` 并发执行；
 `InitSession` 仍串行前置（必须最先建立 JSESSIONID），
-`validateCaptcha` 依赖 OCR 结果故串行。
+`validateCaptcha` 嵌入 OCR 循环内部，通过才继续。
 
 **并发优化收益**：串行版耗时 ≈ InitSession(150ms) + GetSchoolID(200ms) + OCR(2-5s) + ValidateCaptcha(150ms) + Login(300ms) ≈ 3~6s；
-并发版（v0.4.0+）耗时 ≈ InitSession(150ms) + max(GetSchoolID, OCR) + ValidateCaptcha(150ms) + Login(300ms) ≈ 2.3~5.5s。
+并发版（v0.5.2+）耗时 ≈ InitSession(150ms) + max(GetSchoolID, OCR) + Login(300ms) ≈ 2.1~5.3s。
 
 ## 步骤详解
 
@@ -56,31 +56,30 @@ Content-Type: application/json
 - **多学校场景**：理论上 `dataList.length > 1` 时需要用户选择，SDK 当前取 `dataList[0]`，未来若需要手动选学校会扩展 `LoginRequest` 字段
 - **防御性校验**：`school_id` 内部 `strconv.ParseInt` 校验，非数字返 `ErrInvalidPayload`，避免脏数据传给 validate
 
-### Step 3: OCR 识别（最多 99 张图 × 1 次/图 = 99 次总尝试）
+### Step 3: OCR 识别 + 预校验（最多 9 张图 × 1 次/图 = 9 次总尝试）
 
 ```go
 // 多图多试策略（v0.2.1+）：
 //   - 单张图片 OCR 1 次（ddddocr 对同一张图是确定性的，重试无意义）
-//   - 失败则换新图，最多换 99 张
-//   - 总尝试次数上限 = 1 × 99 = 99 次
+//   - 失败则换新图，最多换 9 张
+//   - 总尝试次数上限 = 1 × 9 = 9 次
 //
 // 内部流程：每轮先调 c.fetchCaptchaImage(ctx) 拉一张新图（atomic 计数器 seq 防缓存碰撞），
-// 再走 c.safeOCRRecognize(imgBytes) OCR 识别。SDK 外部无需关心图床调用。
+// 再走 c.safeOCRRecognize(imgBytes) OCR 识别。OCR 成功后调用 validateCaptcha 预校验，
+// 只有服务端确认验证码有效才返回；校验失败换图重试（v0.5.2）。
+// SDK 外部无需关心图床调用。
 //
 // v0.3.5+ OCR 可选构建：
 //   不加 -tags ddddocr 时 c.ocr == nil，Login() 立即返回 ErrOCRNotConfigured，
 //   调用方需用 WithCustomOCR 注入识别器。
 //
 // 此步骤与 Step 2 GetSchoolID 通过 errgroup 并发执行；
-// ctx cancel 在循环顶部检测（提前 break），避免 99 张图全失败才退出。
+// ctx cancel 在循环顶部检测（提前 break），避免 9 张图全失败才退出。
 //
 // ocrRecognizeWithRetry 入口自动加 30s timeout（var ocrTimeout）
-// 防止 99 张图 OCR 卡死整个 Login 调用，测试可注入更短值加速。
+// 防止 9 张图 OCR 卡死整个 Login 调用，测试可注入更短值加速。
 
-const (
-    maxOCRAttemptsPerImage = 1  // 单图 OCR 次数（ddddocr 确定性）
-    maxOCRImagesTotal      = 99 // 总尝试张数
-)
+const maxOCRImagesTotal = 9 // 总尝试张数
 
 for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
     if ctxErr := ctx.Err(); ctxErr != nil { break }  // 循环顶部 ctx 守卫
@@ -88,6 +87,10 @@ for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
     if err != nil { continue }
     text, err := c.safeOCRRecognize(imgBytes)  // defer recover 兜底 panic
     if err == nil && text != "" {
+        // 预校验：服务端确认验证码有效，校验失败换图重试（v0.5.2）
+        if err := c.validateCaptcha(ctx, text); err != nil {
+            continue
+        }
         return text, nil
     }
 }
@@ -98,19 +101,7 @@ for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
 - `"OCR pool is closed"` — `Pool.Close()` 后调 `Recognize`
 - `"OCR is closed"` — 单个 OCR 实例已 `Close()`
 
-### Step 4: ValidateCaptcha
-
-```http
-POST https://www.nazhisoft.com/uiStudentLogin/validateCaptcha
-Content-Type: application/json
-
-{"captcha": "AB12"}
-```
-
-- **响应**：`{"code": 1, "msg": "验证码校验成功"}`
-- **关键**：服务端在 Session 中标记 `coreCheck = true`（**不是**给 captcha 校验过的"通行证"），后续 `validate` 请求 body 不带 captcha（HAR 对齐）
-
-### Step 5: Login（200 JSON 优先 / 302 Location fallback）
+### Step 4: Login（200 JSON 优先 / 302 Location fallback）
 
 ```http
 POST https://www.nazhisoft.com/teacher/auth/studentLogin/validate
@@ -205,7 +196,7 @@ func parseExpiresMap(q map[string]any, token string) time.Time {
 }
 ```
 
-### Step 6: Token 持久化
+### Step 5: Token 持久化
 
 ```go
 // 内部：写 Cookie 到 SSO + 业务两个域名
@@ -304,7 +295,7 @@ mu.Unlock()
 | 响应 code | 含义 | 客户端处理 |
 |---|---|---|
 | `1` | 登录成功 | 提取 token |
-| `0` | 验证码错误 | 刷新验证码重试（SDK 内部已经自动重试 99 次） |
+| `0` | 验证码错误 | 刷新验证码重试（SDK 内部已经自动重试 9 次） |
 | `-1` | 账号或密码错误 | 终止登录（`ErrLoginRejected`） |
 | `-2` | 其他错误 | 终止登录 |
 
@@ -351,18 +342,13 @@ SDK/CLI                       SSO (nazhisoft.com)              业务系统 (139
     │  {"code":1,"dataList":[{...}]}   │                                  │
     │<──────────────────────────────────│                                  │
     │                                  │                                  │
-    │ 3. GET /kaptcha/kaptcha.jpg?seq=X│                                  │
+    │ 3. GET /kaptcha/kaptcha.jpg?seq=X  │                                  │
+    │    (内部 validateCaptcha)            │                                  │
     │──────────────────────────────────>│                                  │
     │  [JPEG 图片]                      │                                  │
     │<──────────────────────────────────│                                  │
     │                                  │                                  │
-    │ 4. POST /validateCaptcha         │                                  │
-    │    {"captcha":"AB12"}             │                                  │
-    │──────────────────────────────────>│                                  │
-    │  {"code":1}                       │                                  │
-    │<──────────────────────────────────│                                  │
-    │                                  │                                  │
-    │ 5. POST /validate                  │                                  │
+    │ 4. POST /validate                  │                                  │
     │    {"schoolId":"173","username": │                                  │
     │     "x","password":"plain"}       │                                  │
     │──────────────────────────────────>│                                  │
@@ -371,7 +357,7 @@ SDK/CLI                       SSO (nazhisoft.com)              业务系统 (139
     │   1209600}}                       │                                  │
     │<──────────────────────────────────│                                  │
     │                                  │                                  │
-    │ 6. GET /                            │                                  │
+    │ 5. GET /                            │                                  │
     │──────────────────────────────────────────────────────────────────────>│
     │  Set-Cookie: 业务 session                              │
     │<──────────────────────────────────────────────────────────────────────│
@@ -403,7 +389,7 @@ SDK/CLI                       SSO (nazhisoft.com)              业务系统 (139
 如对传输安全有要求，建议自行在外层套一层代理加密（业务网络层）。
 
 ⚠️ **登录无频率限制**：HAR 显示服务端可在短时间内接受多次登录尝试，但会因 OCR 多图多试触发本地资源开销。
-SDK 单 Login 上限 ≈ 99 张图 × 30s OCR 超时 ≈ 总耗时上限约 30s（不会无限重试）。
+SDK 单 Login 上限 ≈ 9 张图 × 30s OCR 超时 ≈ 总耗时上限约 30s（不会无限重试）。
 
 ✅ **JWT HS512 签名**：服务端持有密钥才能验证，**无法**伪造 token。
 
@@ -418,6 +404,6 @@ SDK 单 Login 上限 ≈ 99 张图 × 30s OCR 超时 ≈ 总耗时上限约 30s�
 - **`safeOCRRecognize` defer recover**：mock 或 CGO ddddocr 边界条件下可能 panic
 - **Cookie 同步在 `New()` 末尾**：避免 WithToken 顺序敏感性
 - **OCR 池并发**：`Pool.Recognize` 非线程安全，`sync.Mutex` 串行化；预热 `WithOCRConcurrency(n)` 可开 n 路真并发（每实例约 50MB 内存）
-- **ctx cancel 在循环顶部检查**：避免 99 张图都跑完才退出导致大量无谓 HTTP
+- **ctx cancel 在循环顶部检查**：避免 9 张图都跑完才退出导致大量无谓 HTTP
 - **`SessionBackoff` 缓存含 token**：A token 失败不影响 B token 第一次调用
 - **`tryActivate` 先 ctx 后 backoff**：避免 ctx cancel 被误判为 backoff（这是 v0.4.0 关键修复之一）

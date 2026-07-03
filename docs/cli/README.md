@@ -60,10 +60,10 @@ nazhi
 
 ```bash
 $ nazhi version
-0.5.0
+0.5.2
 
 $ nazhi --version
-nazhi version 0.5.0
+nazhi version 0.5.2
 ```
 
 ## nazhi completion

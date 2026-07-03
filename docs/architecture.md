@@ -192,15 +192,14 @@ Cookie 同步失败（如自定义 `Jar` 不是 `*cookiejar.Jar`）会让 `New()
 
 ### 5. Login 多图多试 OCR
 
-`InitSession → [GetSchoolID ‖ ocrRecognizeWithRetry] (errgroup) → validateCaptcha → validate → 200/302 fallback`
+`InitSession → [GetSchoolID ‖ ocrRecognizeWithRetry] (errgroup) → validate → 200/302 fallback`
 
 ```
 1. InitSession (串行前置，必须最先建立 JSESSIONID)
 2. errgroup.WithContext 并发：
    ├─ GetSchoolID (仅当 req.SchoolID 为空)
    └─ ocrRecognizeWithRetry (GET kaptcha.jpg + 安全调用 Recognize)
-3. validateCaptcha (依赖 OCR 结果，串行)
-4. POST /validate
+3. POST /validate（validateCaptcha 已在 OCR 循环内部完成）
    ├─ 200 路径 → tokenparse.ExtractFromReturnData
    └─ 302 fallback → tokenparse.ExtractFromLocation
 5. buildLoginResponse → syncCookieToken (X-Auth-Token)
@@ -355,8 +354,7 @@ defer func() {
      → errgroup.WithContext:                           ← 无数据依赖，并发
          ├─ GetSchoolID (POST getSchoolIdByStudentNumber)
          └─ ocrRecognizeWithRetry (GET kaptcha.jpg + 1×99)
-     → validateCaptcha (POST /validateCaptcha)         ← 依赖 OCR 结果，串行
-     → Login POST (validate)
+     → Login POST (validate)  ← validateCaptcha 已在 OCR 循环内部完成
          ├─ 200 JSON 优先 → tokenparse.ExtractFromReturnData
          └─ 302 Location fallback → tokenparse.ExtractFromLocation
      → buildLoginResponse → syncCookieToken

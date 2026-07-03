@@ -256,14 +256,14 @@ type LoginResponse struct {
 2. errgroup.WithContext 并发：
    ├─ GetSchoolID（仅当 req.SchoolID 为空）
    └─ ocrRecognizeWithRetry（最多 9 张图 × 1 次/图）
-3. validateCaptcha（依赖 OCR 结果，串行）
+3. 验证码预校验已在 OCR 循环内部完成（v0.5.2）
 4. POST /validate
    ├─ 200 路径 → tokenparse.ExtractFromReturnData
    └─ 302 fallback → tokenparse.ExtractFromLocation
 5. buildLoginResponse → syncCookieToken（X-Auth-Token）
 ```
 
-**并发优化**：步骤 2 的 `GetSchoolID` 和 `ocrRecognizeWithRetry` **无数据依赖**，通过 `errgroup.WithContext` 并发跑。`InitSession` 仍串行前置（必须最先建立 JSESSIONID），`validateCaptcha` 依赖 OCR 结果故串行。
+**并发优化**：步骤 2 的 `GetSchoolID` 和 `ocrRecognizeWithRetry` **无数据依赖**，通过 `errgroup.WithContext` 并发跑。`InitSession` 仍串行前置（必须最先建立 JSESSIONID）。`validateCaptcha` 嵌入 OCR 循环内部，通过才返回文本，失败换图重试。
 
 **OCR 策略**：单图 OCR 1 次（ddddocr 对同图确定性，重试无意义），失败换新图，最多 9 张图。常量 `maxOCRImagesTotal=9`。
 
