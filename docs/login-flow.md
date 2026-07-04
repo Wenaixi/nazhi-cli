@@ -1,6 +1,6 @@
 # 登录流程详解
 
-## SSO 完整流程（v0.5.2）
+## SSO 完整流程（v0.6.0）
 
 ```
 InitSession ─┐
@@ -19,7 +19,7 @@ ocrRecognizeWithRetry ────────────────┘    ↓
 `validateCaptcha` 嵌入 OCR 循环内部，通过才继续。
 
 **并发优化收益**：串行版耗时 ≈ InitSession(150ms) + GetSchoolID(200ms) + OCR(2-5s) + ValidateCaptcha(150ms) + Login(300ms) ≈ 3~6s；
-并发版（v0.5.2+）耗时 ≈ InitSession(150ms) + max(GetSchoolID, OCR) + Login(300ms) ≈ 2.1~5.3s。
+并发版（v0.6.0+）耗时 ≈ InitSession(150ms) + max(GetSchoolID, OCR) + Login(300ms) ≈ 2.1~5.3s。
 
 ## 步骤详解
 
@@ -66,7 +66,7 @@ Content-Type: application/json
 //
 // 内部流程：每轮先调 c.fetchCaptchaImage(ctx) 拉一张新图（atomic 计数器 seq 防缓存碰撞），
 // 再走 c.safeOCRRecognize(imgBytes) OCR 识别。OCR 成功后调用 validateCaptcha 预校验，
-// 只有服务端确认验证码有效才返回；校验失败换图重试（v0.5.2）。
+// 只有服务端确认验证码有效才返回；校验失败换图重试（v0.6.0）。
 // SDK 外部无需关心图床调用。
 //
 // v0.3.5+ OCR 可选构建：
@@ -87,7 +87,7 @@ for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
     if err != nil { continue }
     text, err := c.safeOCRRecognize(imgBytes)  // defer recover 兜底 panic
     if err == nil && text != "" {
-        // 预校验：服务端确认验证码有效，校验失败换图重试（v0.5.2）
+        // 预校验：服务端确认验证码有效，校验失败换图重试（v0.6.0）
         if err := c.validateCaptcha(ctx, text); err != nil {
             continue
         }

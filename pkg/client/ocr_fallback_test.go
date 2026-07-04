@@ -57,13 +57,13 @@ func TestOCRFallback_PrimarySucceeds_NoFallback(t *testing.T) {
 	_ = fallback // 确认不会被调用
 
 	c := &Client{
-		ssoBaseURL:    sso.URL,
-		baseURL:       sso.URL,
-		uploadURL:     sso.URL,
-		http:          newHTTPClient(),
-		logger:        slog.New(slog.DiscardHandler),
-		ocr:           primary,
-		fallbackOCR:   fallback,
+		ssoBaseURL:  sso.URL,
+		baseURL:     sso.URL,
+		uploadURL:   sso.URL,
+		http:        newHTTPClient(),
+		logger:      slog.New(slog.DiscardHandler),
+		ocr:         primary,
+		fallbackOCR: fallback,
 	}
 
 	got, fbUsed, err := c.ocrRecognizeWithRetry(context.Background())
@@ -108,13 +108,13 @@ func TestOCRFallback_PrimaryFails_FallbackSucceeds(t *testing.T) {
 	fallback := &countMockOCR{failBeforeSuccess: 0, returnText: "fb99"}
 
 	c := &Client{
-		ssoBaseURL:    sso.URL,
-		baseURL:       sso.URL,
-		uploadURL:     sso.URL,
-		http:          newHTTPClient(),
-		logger:        slog.New(slog.DiscardHandler),
-		ocr:           primary,
-		fallbackOCR:   fallback,
+		ssoBaseURL:  sso.URL,
+		baseURL:     sso.URL,
+		uploadURL:   sso.URL,
+		http:        newHTTPClient(),
+		logger:      slog.New(slog.DiscardHandler),
+		ocr:         primary,
+		fallbackOCR: fallback,
 	}
 
 	// 缩短超时，加速测试
@@ -166,13 +166,13 @@ func TestOCRFallback_BothFail(t *testing.T) {
 	fallback := &countMockOCR{failBeforeSuccess: 9999, returnText: "never"}
 
 	c := &Client{
-		ssoBaseURL:    sso.URL,
-		baseURL:       sso.URL,
-		uploadURL:     sso.URL,
-		http:          newHTTPClient(),
-		logger:        slog.New(slog.DiscardHandler),
-		ocr:           primary,
-		fallbackOCR:   fallback,
+		ssoBaseURL:  sso.URL,
+		baseURL:     sso.URL,
+		uploadURL:   sso.URL,
+		http:        newHTTPClient(),
+		logger:      slog.New(slog.DiscardHandler),
+		ocr:         primary,
+		fallbackOCR: fallback,
 	}
 
 	origTimeout := ocrTimeout
@@ -264,13 +264,13 @@ func TestOCRFallback_PrimaryFails3_FallbackSucceeds(t *testing.T) {
 	fallback := &countMockOCR{failBeforeSuccess: 0, returnText: "fbOK"}
 
 	c := &Client{
-		ssoBaseURL:    sso.URL,
-		baseURL:       sso.URL,
-		uploadURL:     sso.URL,
-		http:          newHTTPClient(),
-		logger:        slog.New(slog.DiscardHandler),
-		ocr:           primary,
-		fallbackOCR:   fallback,
+		ssoBaseURL:  sso.URL,
+		baseURL:     sso.URL,
+		uploadURL:   sso.URL,
+		http:        newHTTPClient(),
+		logger:      slog.New(slog.DiscardHandler),
+		ocr:         primary,
+		fallbackOCR: fallback,
 	}
 
 	origTimeout := ocrTimeout

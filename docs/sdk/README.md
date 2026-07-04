@@ -256,7 +256,7 @@ type LoginResponse struct {
 2. errgroup.WithContext 并发：
    ├─ GetSchoolID（仅当 req.SchoolID 为空）
    └─ ocrRecognizeWithRetry（最多 9 张图 × 1 次/图）
-3. 验证码预校验已在 OCR 循环内部完成（v0.5.2）
+3. 验证码预校验已在 OCR 循环内部完成（v0.6.0）
 4. POST /validate
    ├─ 200 路径 → tokenparse.ExtractFromReturnData
    └─ 302 fallback → tokenparse.ExtractFromLocation
