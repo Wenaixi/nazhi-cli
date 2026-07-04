@@ -120,7 +120,7 @@ func TestBuildLoginResponse_InvalidJsonBody_RawDataNotEmpty(t *testing.T) {
 		http:       newHTTPClient(),
 	}
 	// 非法 JSON（截断/乱码等场景）
-	resp := c.buildLoginResponse("test-token", time.Now(), []byte("{invalid}"), "200")
+	resp := c.buildLoginResponse("test-token", time.Now(), []byte("{invalid}"), "200", false)
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}
@@ -137,7 +137,7 @@ func TestBuildLoginResponse_NoPanicOnEmptyBody(t *testing.T) {
 		uploadURL:  "https://up.example.com",
 		http:       newHTTPClient(),
 	}
-	resp := c.buildLoginResponse("test-token", time.Now(), nil, "200")
+	resp := c.buildLoginResponse("test-token", time.Now(), nil, "200", false)
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}
@@ -157,7 +157,7 @@ func TestBuildLoginResponse_EmptyBody_RawDataIsNil(t *testing.T) {
 		http:       newHTTPClient(),
 	}
 	now := time.Now()
-	resp := c.buildLoginResponse("jwt", now, nil, "200")
+	resp := c.buildLoginResponse("jwt", now, nil, "200", false)
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}
@@ -195,7 +195,7 @@ func TestBuildLoginResponse_PartialDecode_LogsAndClearsRawData(t *testing.T) {
 	partial := []byte(`{"token":"abc","user":"u1"}extra-garbage-data`)
 	_ = partial
 
-	resp := c.buildLoginResponse("jwt-token", time.Now(), partial, "partial-test")
+	resp := c.buildLoginResponse("jwt-token", time.Now(), partial, "partial-test", false)
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}

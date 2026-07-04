@@ -22,11 +22,12 @@ type LoginRequest struct {
 // **不再** 提供用户基本信息字段。用户基本信息请通过 Client.GetMyInfo()
 // 单独获取（GetMyInfo 返回 *UserInfo，含完整 51 字段）。
 //
-// 实际被填充的字段仅为 Token / ExpiresAt / RawData 三件套。
+// 实际被填充的字段仅为 Token / ExpiresAt / RawData / FallbackUsed 四件套。
 type LoginResponse struct {
-	Token     string         `json:"token"`      // X-Auth-Token
-	ExpiresAt time.Time      `json:"expires_at"` // 过期时间
-	RawData   map[string]any `json:"-"`          // 登录响应完整原始数据
+	Token        string         `json:"token"`         // X-Auth-Token
+	ExpiresAt    time.Time      `json:"expires_at"`    // 过期时间
+	RawData      map[string]any `json:"-"`             // 登录响应完整原始数据
+	FallbackUsed bool           `json:"fallback_used"` // 本次登录是否使用了 fallback OCR（primary 失败后降级到 ddddocr）
 }
 
 // ─── 用户 ───

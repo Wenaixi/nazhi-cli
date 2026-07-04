@@ -80,7 +80,7 @@ func TestOCRRecognize_PanicRecoverInRetry(t *testing.T) {
 	}
 	c.ocr = &panicMockOCR{}
 
-	text, err := c.ocrRecognizeWithRetry(context.Background())
+	text, _, err := c.ocrRecognizeWithRetry(context.Background())
 	if err == nil {
 		t.Error("ocrRecognizeWithRetry 在 mock panic 时应返回 error，实际 nil")
 	}

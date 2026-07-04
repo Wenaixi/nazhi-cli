@@ -81,7 +81,7 @@ func TestOCRRetry_AutoTimeoutWithoutCtxDeadline(t *testing.T) {
 	defer func() { ocrTimeout = origTimeout }()
 
 	start := time.Now()
-	_, err := c.ocrRecognizeWithRetry(context.Background())
+	_, _, err := c.ocrRecognizeWithRetry(context.Background())
 	elapsed := time.Since(start)
 
 	ocrCalls := atomic.LoadInt32(&mock.calls)

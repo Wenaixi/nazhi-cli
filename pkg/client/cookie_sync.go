@@ -71,7 +71,7 @@ func (c *Client) warnSyncCookieToken(token, label string) {
 }
 
 // buildLoginResponse 构建 LoginResponse，内部调用 warnSyncCookieToken。
-func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
+func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string, fallbackUsed bool) *types.LoginResponse {
 	c.warnSyncCookieToken(token, label)
 
 	// 用 json.Unmarshal 解析原始 body 为泛型 map，供 RawData 字段使用。
@@ -103,8 +103,9 @@ func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes
 		}
 	}
 	return &types.LoginResponse{
-		Token:     token,
-		ExpiresAt: expiresAt,
-		RawData:   rawData,
+		Token:        token,
+		ExpiresAt:    expiresAt,
+		RawData:      rawData,
+		FallbackUsed: fallbackUsed,
 	}
 }

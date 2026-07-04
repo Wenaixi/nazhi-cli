@@ -24,7 +24,7 @@ var (
 // defaultOCR 在指定 -tags ddddocr 时返回 ddddocr Pool 单例。
 // 懒加载：首次调用时创建，后续复用同一实例。
 //
-// F8.2 优化：默认预加载 min(4, runtime.NumCPU()) 个实例实现 OCR 并发，
+// F8.2 优化：默认 preload min(4, runtime.NumCPU()) 个实例实现 OCR 并发，
 // 避免 99 张验证码串行识别 ≈60s。每实例约 50MB，N=4 约 200MB。
 // 与 client_ocr_disabled.go 中的 nil 默认行为对称：
 //   - 启用 ddddocr → 客户端开箱即用，无需注入自定义 OCR
@@ -38,6 +38,25 @@ func defaultOCR() CaptchaRecognizer {
 		defaultOCRInstance.Store(ocr.NewPool(n))
 	})
 	return defaultOCRInstance.Load()
+}
+
+// defaultFallbackOCR 返回指定并发度的 ddddocr Pool，用作 fallback。
+//
+// 与 defaultOCR 不同——defaultFallbackOCR 不缓存单例，每次调用创建新 Pool。
+// 这样做的原因：
+//   - fallback 识别器只在降级时使用，不竞争 primary 的 Pool 容量
+//   - 并发度由调用方指定（WithFallbackConcurrency），每次重建反应最新配置
+//
+// 内存代价：每实例约 50MB（ONNX session + 原生库），N=4 约 200MB。
+// Pool 的 ONNX session 惰性初始化——首次 Recognize 时加载模型，
+// 若从不触发降级则零额外内存。
+//
+// 注意：ddddocr 未构建（!ddddocr）时本函数返回 nil（见 client_ocr_disabled.go）。
+func defaultFallbackOCR(poolSize int) CaptchaRecognizer {
+	if poolSize < 1 {
+		poolSize = 1
+	}
+	return ocr.NewPool(poolSize)
 }
 
 // WithOCRConcurrency 设置 OCR 实例池预分配数量（ddddocr 构建）。

@@ -14,6 +14,12 @@ func defaultOCR() CaptchaRecognizer {
 	return nil
 }
 
+// defaultFallbackOCR 在 !ddddocr 构建下返回 nil，降级不可用。
+// 与 defaultOCR 对称，保持纯 Go 构建无 ddddocr 依赖。
+func defaultFallbackOCR(poolSize int) CaptchaRecognizer {
+	return nil
+}
+
 // WithOCRConcurrency 占位实现（!ddddocr 构建）。
 //
 // ddddocr 未启用时无内置识别器，本 Option 对 n 值做区分处理：

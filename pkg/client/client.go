@@ -1,3 +1,4 @@
+// Package client is the root of the nazhi-cli SDK.
 package client
 
 import (
@@ -51,6 +52,8 @@ type Client struct {
 	http          *http.Client // 独立 cookie jar
 	logger        *slog.Logger
 	ocr           CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
+	fallbackOCR   CaptchaRecognizer // 降级验证码识别器（ddddocr），primary 失败时自动 fallback
+	fallbackConc  int               // fallback ddddocr 池大小，默认 1，由 WithFallbackConcurrency 配置
 	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// submittedPageSize 是 GetSubmittedCircles 每页请求条数。
@@ -278,6 +281,72 @@ func WithSubmittedPageSize(n int) Option {
 	}
 }
 
+// WithFallbackOCR 启用/禁用降级 OCR（ddddocr 兜底）。
+//
+// 启用时：primary OCR（通过 WithCustomOCR 注入）全部失败后，自动降级到
+// 内置 ddddocr 重新识别新图片。降级策略：
+//  1. primary 尝试最多 9 张图片
+//  2. 全部失败且启用了 fallback → 重新拉 9 张新图给 ddddocr 识别
+//  3. ddddocr 也失败 → 返回最终错误
+//
+// 禁用时：保持原行为，primary 失败直接返回错误，无额外内存开销。
+//
+// 行为约定：
+//   - enabled == true: 将 c.fallbackOCR 设为 defaultOCR()（懒加载 ddddocr Pool）
+//   - enabled == false: 清空 c.fallbackOCR（如有 ddddocr Pool 则延迟 GC 回收）
+//
+// 注意：当构建时未启用 -tags ddddocr，defaultOCR() 返回 nil，
+// WithFallbackOCR(true) 仍可用但不产生降级效果（c.fallbackOCR 保持 nil）。
+//
+// 并发度见 WithFallbackConcurrency。
+func WithFallbackOCR(enabled bool) Option {
+	return func(c *Client) {
+		if enabled {
+			poolSize := c.fallbackConc
+			if poolSize < 1 {
+				poolSize = 1
+			}
+			// defaultOCR 返回带并发度的 Pool
+			c.fallbackOCR = defaultFallbackOCR(poolSize)
+		} else {
+			c.fallbackOCR = nil
+		}
+	}
+}
+
+// WithFallbackConcurrency 设置 fallback ddddocr 并发池大小。
+//
+// 默认值 1（单实例，串行识别）。增大到 N 时预分配 N 个 OCR 结构体，
+// ONNX session 惰性初始化，首次调用 Recognize 时触发完整模型加载。
+//
+// 内存代价：每个 ONNX session 约 50MB，N=4 约 200MB。
+//
+// 行为约定：
+//   - n < 1：warn + 保持当前值（与 WithOCRConcurrency 守卫一致）
+//   - n >= 1：设置 c.fallbackConc；若 c.fallbackOCR 已是 ddddocr Pool 则重建
+//
+// 调用顺序：WithFallbackConcurrency 可在 WithFallbackOCR 之前或之后调用。
+// 若在之后调用，将重建 fallback ddddocr Pool（保持降级启用状态）。
+func WithFallbackConcurrency(n int) Option {
+	return func(c *Client) {
+		if n < 1 {
+			c.logger.Warn("WithFallbackConcurrency: 非正数被拒绝，保持当前值",
+				"n", n)
+			return
+		}
+		prev := c.fallbackConc
+		c.fallbackConc = n
+
+		// 若 fallback 已启用（c.fallbackOCR 非 nil）则重建 Pool
+		if c.fallbackOCR != nil {
+			c.fallbackOCR = defaultFallbackOCR(n)
+			if c.fallbackOCR == nil && prev < 1 && c.logger != nil {
+				c.logger.Warn("WithFallbackConcurrency: 当前构建无 ddddocr（-tags ddddocr 缺失），重建 fallback 后仍是 nil")
+			}
+		}
+	}
+}
+
 // ─── 构造 ───
 
 // New 创建 Client。使用 Option 模式配置：
@@ -307,6 +376,7 @@ func New(opts ...Option) (*Client, error) {
 		ocr:               defaultOCR(),
 		sm:                &sessionManager{},
 		submittedPageSize: defaultSubmittedPageSize,
+		fallbackConc:      1,
 	}
 	for _, opt := range opts {
 		opt(c)
@@ -382,22 +452,37 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 	return c.ocr.Recognize(imgBytes)
 }
 
+// safeFallbackRecognize 调用 c.fallbackOCR.Recognize 并 recover panic。
+// 与 safeOCRRecognize 对称，只是操作 fallback 识别器。
+func (c *Client) safeFallbackRecognize(imgBytes []byte) (text string, err error) {
+	if c.fallbackOCR == nil {
+		return "", ErrOCRNotConfigured
+	}
+	defer func() {
+		if err2 := recoverx.RecoverPanic(recover(), ErrOCRPanic, "safeFallbackRecognize"); err2 != nil {
+			err = err2
+		}
+	}()
+	return c.fallbackOCR.Recognize(imgBytes)
+}
+
 // ─── 资源释放 ───
 
 // Close 释放 Client 持有的资源：
-//   - 底层 OCR 识别器 (ONNX session + %TEMP%/nazhi-cli-ocr-XXXX/ 临时目录)
-//   - HTTP Transport 的空闲 keep-alive 连接 (避免进程退出前留有 half-closed 连接)
-//   - sessionManager backoff 状态 (避免下次复用同一 Client 时误触发冷却)
-//
-// 用法: CLI 入口处 defer c.Close(), 让每次执行不留垃圾。
-//
-// 错误: 聚合所有清理错误返回。常见原因: Windows AV 持锁 / Linux 权限拒绝
-// 临时目录; 业务上可以 log 出来警告, 但不应阻塞退出。
+//   - 底层 OCR 识别器（ONNX session + 临时目录）
+//   - 降级 OCR 识别器（如果有）
+//   - HTTP Transport 的空闲 keep-alive 连接
+//   - sessionManager backoff 状态
 func (c *Client) Close() error {
 	var errs []error
 	if c.ocr != nil {
 		if err := c.ocr.Close(); err != nil {
 			errs = append(errs, fmt.Errorf("关闭 OCR 识别器: %w", err))
+		}
+	}
+	if c.fallbackOCR != nil {
+		if err := c.fallbackOCR.Close(); err != nil {
+			errs = append(errs, fmt.Errorf("关闭 fallback OCR 识别器: %w", err))
 		}
 	}
 	if c.http != nil {
