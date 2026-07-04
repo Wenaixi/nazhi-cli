@@ -35,9 +35,12 @@ type LoginResponse struct {
 // UserInfo 是用户个人资料。
 //
 // 字段命名策略：
-//   - 平台返回的所有字段都已暴露（30+ 字段），便于脚本直接访问
+//   - 仅保留业务 API 实际会返回的字段
+//   - 常为 null/"" 的字段加了 omitempty，JSON 输出不再显示空值
 //   - 生日使用 birthdayStr（字符串版），避开 birthday 数组的类型不匹配问题
 //   - 时间戳同时暴露数组（如 creationTime [y,m,d,h,m,s]）和字符串（*TimeStr）两种形式
+//   - 入学时间 admissionDateStr 在平台中永远为 null，已移除（admissionDate 数组足够）
+//   - studentUuid、photoAttachmentId 平台永远返回 null，已移除
 //   - nullable 字段（null）解析为零值（int=0, string=""），调用方用 if 判断即可
 type UserInfo struct {
 	// 基础身份
@@ -61,12 +64,12 @@ type UserInfo struct {
 	// 两条 API 路径（getMyInfo vs getSchoolIdByStudentNumber）的 JSON 命名风格
 	// 不同，但数据类型最终都会归一为 int64 或 string。
 	SchoolID   int64  `json:"schoolId"`
-	SchoolName string `json:"schoolName"` // 平台返回 null 时为空字符串
+	SchoolName string `json:"schoolName,omitempty"` // 平台返回 null 时省略
 	GradeID    int64  `json:"gradeId"`
 	GradeName  string `json:"gradeName"`
 	ClassID    int64  `json:"classId"`
 	ClassName  string `json:"className"`
-	Level      int    `json:"level"` // 年级代码
+	Level      int    `json:"level,omitempty"` // 年级代码，0 时省略
 
 	// 座号
 	Seat     int `json:"seat"`
@@ -88,28 +91,27 @@ type UserInfo struct {
 	Birthday     string        `json:"birthdayStr"`
 	BirthdayDate *BirthdayDate `json:"birthday,omitempty"`
 
-	// 联系方式
-	Telephone      string `json:"telephone"`      // 电话
-	Email          string `json:"email"`          // 邮箱
-	CurrentAddress string `json:"currentAddress"` // 现地址
-	ContactAddress string `json:"contactAddress"` // 联系地址
-	FamilyAddress  string `json:"familyAddress"`  // 家庭地址
-	NativePlace    string `json:"nativePlace"`    // 籍贯
+	// 联系方式（平台可能为空，omitempty 避免输出空串）
+	Telephone      string `json:"telephone,omitempty"`      // 电话
+	Email          string `json:"email,omitempty"`          // 邮箱
+	CurrentAddress string `json:"currentAddress,omitempty"` // 现地址
+	ContactAddress string `json:"contactAddress,omitempty"` // 联系地址
+	FamilyAddress  string `json:"familyAddress,omitempty"`  // 家庭地址
+	NativePlace    string `json:"nativePlace,omitempty"`    // 籍贯
 
 	// 学籍状态
-	Status             int    `json:"status"`             // 学籍状态码
-	StatusName         string `json:"statusName"`         // 学籍状态名（如 "在籍"）
-	PositionID         int    `json:"positionId"`         // 职位 ID
-	PositionName       string `json:"positionName"`       // 职位名（常为 null）
-	YouthLeagueFlag    int    `json:"youthLeagueFlag"`    // 团员标志（1=团员）
-	CriminalRecordFlag int    `json:"criminalRecordFlag"` // 犯罪记录标志
+	Status             int    `json:"status"`                       // 学籍状态码
+	StatusName         string `json:"statusName"`                   // 学籍状态名（如 "在籍"）
+	PositionID         int    `json:"positionId,omitempty"`         // 职位 ID，0 时省略
+	PositionName       string `json:"positionName,omitempty"`       // 职位名，空时省略
+	YouthLeagueFlag    int    `json:"youthLeagueFlag"`              // 团员标志（1=团员）
+	CriminalRecordFlag int    `json:"criminalRecordFlag,omitempty"` // 犯罪记录标志，0 时省略
 
 	// 爱好
-	Hobbies string `json:"hobbies"`
+	Hobbies string `json:"hobbies,omitempty"`
 
-	// 入学时间（数组 + 字符串两种形式）
-	AdmissionDate    []int  `json:"admissionDate"`    // [2025,9,1]
-	AdmissionDateStr string `json:"admissionDateStr"` // 常为 null
+	// 入学时间
+	AdmissionDate []int `json:"admissionDate"` // [2025,9,1]
 
 	// 创建时间（数组 + 字符串）
 	CreationTime    []int  `json:"creationTime"`    // [2025,10,9,10,32,6]
@@ -123,15 +125,9 @@ type UserInfo struct {
 	Creator  int `json:"creator"`
 	Modifier int `json:"modifier"`
 
-	// 照片附件
-	PhotoAttachmentID int64 `json:"photoAttachmentId"` // 平台返回 null → 0
-
-	// 积分
-	TotalPoints int `json:"totalPoints"`
-	UsedPoints  int `json:"usedPoints"`
-
-	// 其他
-	StudentUUID string `json:"studentUuid"` // 平台返回 null → ""
+	// 积分（未使用过时平台返回 0）
+	TotalPoints int `json:"totalPoints,omitempty"`
+	UsedPoints  int `json:"usedPoints,omitempty"`
 }
 
 // ─── 任务 ───

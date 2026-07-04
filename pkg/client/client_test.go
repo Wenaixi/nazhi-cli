@@ -469,8 +469,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		"modifyTime":            []int{2026, 2, 6, 10, 16, 15},
 		"modifyTimeStr":         "2026-02-06 10:16:15",
 		"admissionDate":         []int{2025, 9, 1},
-		"admissionDateStr":      nil,
-		"currentAddress":        "",
+				"currentAddress":        "",
 		"contactAddress":        "",
 		"familyAddress":         "",
 		"youthLeagueFlag":       1,
@@ -479,15 +478,13 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		"nationalStudentNumber": "TEST2025001",
 		"registrationNumber":    "",
 		"studyNumber":           "TEST000000",
-		"photoAttachmentId":     nil,
-		"telephone":             "",
+				"telephone":             "",
 		"level":                 0,
 		"gradeId":               27900,
 		"gradeName":             "高一",
 		"classId":               162647,
 		"className":             "高一八班",
-		"studentUuid":           nil,
-		"schoolName":            nil,
+				"schoolName":            nil,
 	}
 
 	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -577,17 +574,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	if info.ModifyTimeStr != "2026-02-06 10:16:15" {
 		t.Errorf("modifyTimeStr 错误: %s", info.ModifyTimeStr)
 	}
-	if info.AdmissionDateStr != "" {
-		t.Errorf("admissionDateStr 应为空（平台返回 null）, 得到 %q", info.AdmissionDateStr)
-	}
 
-	// nullable 字段
-	if info.PhotoAttachmentID != 0 {
-		t.Errorf("photoAttachmentId 应为 0（平台返回 null）, 得到 %d", info.PhotoAttachmentID)
-	}
-	if info.StudentUUID != "" {
-		t.Errorf("studentUuid 应为空（平台返回 null）, 得到 %q", info.StudentUUID)
-	}
 	if info.PositionID != 0 || info.PositionName != "" {
 		t.Errorf("职位应为零值, 得到 positionId=%d positionName=%q", info.PositionID, info.PositionName)
 	}

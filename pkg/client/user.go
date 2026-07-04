@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
@@ -81,6 +82,20 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 	} {
 		v, dErr := dec()
 		if dErr == nil && v != nil {
+			// 学校信息降级：业务 API 可能返回空的 schoolId/schoolName，
+			// 尝试通过 SSO 接口补全。
+			if v.SchoolID == 0 && v.StudentNumber != "" {
+				if sid, sname, sErr := c.GetSchoolID(ctx, v.StudentNumber); sErr == nil {
+					if parsed, pErr := strconv.ParseInt(sid, 10, 64); pErr == nil && parsed > 0 {
+						v.SchoolID = parsed
+					}
+					if sname != "" {
+						v.SchoolName = sname
+					}
+				} else {
+					c.logDebug("GetMyInfo school fallback 失败: %v", sErr)
+				}
+			}
 			return v, nil
 		}
 		if dErr != nil {

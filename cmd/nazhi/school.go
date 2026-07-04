@@ -11,8 +11,10 @@ import (
 //	nazhi school -u <username> [--sso-base <url>] [--timeout <秒>]
 var schoolCmd = &cobra.Command{
 	Use:   "school",
-	Short: "查询学校 ID（不登录）",
-	Long:  `根据学号查询对应的学校 ID 和学校名称。不需要登录，只需建立 SSO Session。`,
+	Short: "查询学校 ID（不登录，已登录请用 whoami）",
+	Long:  `根据学号查询对应的学校 ID 和学校名称。不需要登录，只需建立 SSO Session。
+
+注意：已登录状态下请直接使用 nazhi whoami，输出已包含 schoolId。`,
 	Example: `  nazhi school -u 学号
   nazhi school -u 学号 --sso-base https://www.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {
