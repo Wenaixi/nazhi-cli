@@ -284,6 +284,7 @@ jobs:
         continue-on-error: true
         with:
           name: nazhi ${{ github.ref_name }}
+          draft: false
           body: |
             ## nazhi-cli ${{ github.ref_name }}
 
