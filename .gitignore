@@ -68,6 +68,8 @@ $RECYCLE.BIN/
 %userprofile%/
 
 # ─── 凭据与运行时配置 ─────────
+# token 输出文件（nazhi login 测试产生）
+token_output.json
 # .env 含真实学号密码，绝不提交
 .env
 .env.local
