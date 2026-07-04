@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
@@ -95,6 +96,11 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 				} else {
 					c.logDebug("GetMyInfo school fallback 失败: %v", sErr)
 				}
+			}
+			// 清理班级名：API 返回的 className 含年级前缀（如"高一八班"），
+			// 去重为纯班级名（"八班"）。GradeName 已有年级信息，无需重复。
+			if v.ClassName != "" && v.GradeName != "" && strings.HasPrefix(v.ClassName, v.GradeName) {
+				v.ClassName = strings.TrimPrefix(v.ClassName, v.GradeName)
 			}
 			return v, nil
 		}
