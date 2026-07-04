@@ -251,6 +251,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 // 注意：每个 newCleanClient 调用现场 Clone 一次（O(1) struct copy +
 // 重置 idle conn pool），确保运行时 c.http.Transport 变更（如测试中
 // mock RoundTripper）能被即时感知，不被任何缓存字段粘住。
+//
+// 自定义 RoundTripper 共享风险：当 c.http.Transport 是自定义 RoundTripper
+// （非 *http.Transport 且非 nil）时，本函数直接共享该 Transport 引用而不做 Clone。
+// 若有状态的自定义 RT（如认证拦截器），UploadFile 的 clean client 意外附带
+// 业务鉴权头到文件上传公共服务。当前代码库内不存在有状态自定义 RT，
+// 但 WithHTTPClient 的消费者应确保自定义 RT 不会在 upload 路径泄漏鉴权头。
 func newCleanClient(c *Client) *http.Client {
 	var transport http.RoundTripper
 	switch t := c.http.Transport.(type) {
@@ -261,8 +267,8 @@ func newCleanClient(c *Client) *http.Client {
 		transport = t.Clone()
 	default:
 		// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不 Clone
-		//  - http.DefaultTransport 是进程单例，Clone 会创建额外 idle 池
-		//  - 自定义 RT 无法 Clone
+		//  - nil：用 http.DefaultTransport（进程单例，Clone 会创建额外 idle 池）
+		//  - 自定义 RT：无法 Clone，直接共享引用（见上方注释的共享风险）
 		if c.http.Transport == nil {
 			transport = http.DefaultTransport
 		} else {

@@ -16,12 +16,12 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:     "nazhi",
-	Short:   "nazhi — 纳智综合评价自动化 CLI",
+	Short:   "nazhi -- 纳智综合评价自动化 CLI",
 	Version: version.Version,
 	Long: `nazhi 是纳智综合评价自动化系统的命令行工具。
 
-提供登录、任务管理、自我评价、文件上传等完整功能。
-所有命令输出 JSON 格式，便于脚本解析。`,
+	提供登录、任务管理、自我评价、文件上传等完整功能。
+	所有命令输出 JSON 格式，便于脚本解析。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		_ = cmd.Help()
 	},
@@ -79,9 +79,12 @@ func main() {
 		// 原代码仅靠 defer closeAllClients()，但 Go 规范明确：os.Exit 不运行
 		// deferred functions。意味着任何 CLI 错误退出（pendingExitCode=1）的路径
 		// 都泄漏 ONNX session + tempDir + keep-alive 连接。
-		// 修复：os.Exit 前显式 closeAllClients()。幂等安全：closeAllClients 内
-		// 部把全局 pendingClients 置 nil，二次调用是 no-op，defer 再跑也不会出错。
-		_ = closeAllClients()
+		// printError（而非 _ =）确保关闭失败时用户能看到错误提示，
+		// 与正常退出路径的 defer handler 行为一致。os.Exit 会跳过后续 defer，
+		// 所以打印必须在 os.Exit 之前。
+		if err := closeAllClients(); err != nil {
+			printError(fmt.Errorf("关闭 Client 资源失败: %w", err))
+		}
 		os.Exit(1)
 	}
 }

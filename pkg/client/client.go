@@ -22,10 +22,14 @@ import (
 
 // CaptchaRecognizer 是验证码识别器接口。
 // *ocr.Pool 实现了该接口，测试时可注入 mock。
+//
+// 注意：实现必须同时实现 Close() error，因为 Client.Close() 会
+// 无条件调用 c.ocr.Close()（见 c.ocr != nil 检查后的路径）。
+// 即使实现不做资源清理，Close() 也必须存在且返回 nil。
 type CaptchaRecognizer interface {
 	Recognize([]byte) (string, error)
 	// Close 释放识别器占用的资源 (ONNX session + 临时目录)。
-	// 默认 *ocr.Pool 已实现; mock 必须实现。
+	// 默认 *ocr.Pool 已实现; 所有实现（含 mock）必须提供 Close 方法。
 	Close() error
 }
 
@@ -401,9 +405,11 @@ func (c *Client) Close() error {
 			t.CloseIdleConnections()
 		}
 	}
-	c.sm.mu.Lock()
-	c.sm.clearBackoff()
-	c.sm.mu.Unlock()
+	if c.sm != nil {
+		c.sm.mu.Lock()
+		c.sm.clearBackoff()
+		c.sm.mu.Unlock()
+	}
 	if len(errs) > 0 {
 		return errors.Join(errs...)
 	}

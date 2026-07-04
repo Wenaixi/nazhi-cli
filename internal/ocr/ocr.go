@@ -311,6 +311,7 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 	defer func() {
 		if panicked {
 			p.panicked.Add(1)
+			p.inits.Delete(o) // 从跟踪 map 删除，避免残留实例被 Close 遍历
 			_ = recoverx.RecoverPanic(recover(), nil, "Pool.Recognize")
 		} else {
 			p.pool.Put(o)
@@ -338,6 +339,20 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 //	  1) 在 Close 临界区之前完成 trackInit -> 被 Range 清理
 //	  2) 在 Close 临界区之后拿 closeMu -> 看到 closed=true -> 直接返回错误
 //	不会有"漏网"的 trackInit 留下幽灵实例。
+//
+// 锁顺序不变量（必须保持，否则死锁）：
+//
+//	Pool 层：closeMu → 释放 closeMu →（在 Recognize 内）initMu（属于 OCR 实例）
+//	OCR 层：initMu → 释放 initMu →（在 Recognize 内）o.mu（实例保护 Classification）
+//	全局初始化：initMuGlobal（先于 ddddocr.New）
+//
+//	解释：Recognize 路径的顺序是 closeMu（Pool 池检查）→ initMu（OCR 惰性初始化）→ o.mu（Classification），
+//	每个锁在获取下一个之前已释放上一个（closeMu 在 initOnce 调用前已释放）。
+//	Close 路径是 closeMu（排空 inits）→ Range 内的 o.Close() 内部获取 initMu → o.mu，
+//	同样先持 closeMu 再依次 initMu/o.mu，方向一致、不会循环等待。
+//	不会死锁是因为 Recognize 在获取 initMu 前已释放 closeMu。
+//	若未来在 o.Close() 内（initMu 临界区）需要反方向获取 closeMu，则形成循环等待。
+//	任何需要在 initMu 或 o.mu 临界区内获取 closeMu 的修改，必须重新审核此不变量。
 //
 // Pool.inits 是 sync.Map（无独立 initsMu），Close 路径用 Range
 // 原子快照迭代——sync.Map.Range 在迭代期间对后续 Load/Store 安全，

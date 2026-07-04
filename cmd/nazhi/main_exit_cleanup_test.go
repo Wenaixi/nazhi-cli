@@ -91,7 +91,22 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 					}
 				}
 			case *ast.IfStmt:
-				visitStmts(s.Body.List)
+				// IfStmt 的 Init 分支（如 `if err := closeAllClients(); err != nil {`）
+				// 也可能包含 closeAllClients 调用，不能漏检。
+				if s.Init != nil {
+					if assign, ok := s.Init.(*ast.AssignStmt); ok {
+						for _, rhs := range assign.Rhs {
+							if c, ok := rhs.(*ast.CallExpr); ok {
+								call = c
+							}
+						}
+					}
+				}
+				// 如果 Init 中没有 closeAllClients，再递归进 Body 检查是否
+				// 其他函数调用引用了 closeAllClients（非核心场景）。
+				if call == nil {
+					visitStmts(s.Body.List)
+				}
 			case *ast.BlockStmt:
 				visitStmts(s.List)
 			}
