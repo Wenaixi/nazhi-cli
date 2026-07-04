@@ -36,7 +36,6 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 		return nil, fmt.Errorf("GetMyInfo 预热 session 失败: %w", err)
 	}
 	if info != nil {
-		// 激活步骤 4 已拿到数据，直接返回，无需额外 HTTP 请求
 		return info, nil
 	}
 	return c.getMyInfoRaw(ctx, token)
@@ -44,14 +43,11 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 
 // getMyInfoRaw 是 GetMyInfo 的内部版本（不预热 session），供 ActivateSession
 // 步骤 4 调用——避免外层 sm.mu（sync.Mutex） 持锁时再次进入 sm.mu（sync.Mutex） 死锁。
-// 公开 SDK 用户请使用 GetMyInfo。
 //
 // 注意：本方法不迁移到 doBizGetDecode，因为它需要自定义 Referer header (/modify)，
 // 而 doBizGetDecode/doBizAndDecode 内部固定使用 bizHeaders()（Referer=/homepage）。
 func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
-	// Referer 走 c.bizURL() helper，与其他业务接口对称
-	// （避免 baseURL 拼接分散在多处，未来 baseURL 变更只需改 helper 一处）
 	headers["Referer"] = c.bizURL("/modify")
 
 	bodyBytes, err := c.httpDo(ctx, http.MethodGet,
@@ -71,51 +67,44 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 		return nil, fmt.Errorf("获取用户信息业务错误: %w", errors.Join(ErrBusinessRejected, err))
 	}
 
-	// 两段 fallback（returnData → dataMap）
-	// note: tryDecodeFallback 返回 nil 存在两种可能：
-	//   1. 所有 decoder 返回 nil（字段确实为空）
-	//   2. 所有 decoder 都解析失败（错误已通过 logDebug 记录）
-	// 两者统一按"空数据"处理，返回 ErrEmptyUserInfo 哨兵而非 (nil, nil)。
-	// 内联 fallback 链（getMyInfoRaw 因自定义 Referer=/modify 不能直接用 doBizGetDecode）
 	for _, dec := range []func() (*types.UserInfo, error){
 		func() (*types.UserInfo, error) { return types.DecodeReturnData[types.UserInfo](resp) },
 		func() (*types.UserInfo, error) { return types.DecodeDataMap[types.UserInfo](resp) },
 	} {
 		v, dErr := dec()
 		if dErr == nil && v != nil {
-			// 学校信息降级：业务 API 可能返回空的 schoolId/schoolName，
-			// 尝试通过 SSO 接口补全。
-			if v.SchoolID == 0 && v.StudentNumber != "" {
-				if sid, sname, sErr := c.GetSchoolID(ctx, v.StudentNumber); sErr == nil {
-					if parsed, pErr := strconv.ParseInt(sid, 10, 64); pErr == nil && parsed > 0 {
-						v.SchoolID = parsed
-					}
-					if sname != "" {
-						v.SchoolName = sname
-					}
-				} else {
-					c.logDebug("GetMyInfo school fallback 失败: %v", sErr)
-				}
-			}
-			// 清理班级名：API 返回的 className 含年级前缀（如"高一八班"），
-			// 去重为纯班级名（"八班"）。GradeName 已有年级信息，无需重复。
-			if v.ClassName != "" && v.GradeName != "" && strings.HasPrefix(v.ClassName, v.GradeName) {
-				v.ClassName = strings.TrimPrefix(v.ClassName, v.GradeName)
-			}
+			c.postProcessUserInfo(ctx, v)
 			return v, nil
 		}
 		if dErr != nil {
 			c.logDebug("GetMyInfo fallback: %v", dErr)
 		}
 	}
-	//
-	// 设计动机：
-	//   - (nil, nil) 让 cmd 层只能裸输出 null，与 whoami 的 status envelope 不一致
-	//   - 返回 ErrEmptyUserInfo 让 cmd 层用 errors.Is 分支统一走 status envelope
-	//   - SDK 最佳努力契约保留（GetMyInfo 调用方通常吞错，但 err 提供语义信号）
-	//
-	// 与 ErrBusinessRejected 的语义边界：
-	//   - ErrEmptyUserInfo: 服务端成功（code=1）但确实无数据，不是错误
-	//   - ErrBusinessRejected: 服务端主动拒绝（code=0）
 	return nil, fmt.Errorf("%w: returnData 和 dataMap 都为空", ErrEmptyUserInfo)
+}
+
+// postProcessUserInfo 对解析后的 UserInfo 做后处理。
+// 包含：学校信息 SSO 降级、班级名年级前缀清理。
+func (c *Client) postProcessUserInfo(ctx context.Context, v *types.UserInfo) {
+	// 学校信息降级：业务 API 可能返回空的 schoolId/schoolName，尝试通过 SSO 接口补全。
+	if v.SchoolID == 0 && v.StudentNumber != "" {
+		if sid, sname, sErr := c.GetSchoolID(ctx, v.StudentNumber); sErr == nil {
+			if parsed, pErr := strconv.ParseInt(sid, 10, 64); pErr == nil && parsed > 0 {
+				v.SchoolID = parsed
+			}
+			if sname != "" {
+				v.SchoolName = sname
+			}
+		} else {
+			c.logDebug("GetMyInfo school fallback 失败: %v", sErr)
+		}
+	}
+
+	// 清理班级名：API 返回的 className 含年级前缀（如"高一八班"→"八班"）。
+	// GradeName 已有年级信息，无需重复。去掉前缀后为空则保留原值。
+	if v.ClassName != "" && v.GradeName != "" && strings.HasPrefix(v.ClassName, v.GradeName) {
+		if trimmed := strings.TrimPrefix(v.ClassName, v.GradeName); trimmed != "" {
+			v.ClassName = trimmed
+		}
+	}
 }

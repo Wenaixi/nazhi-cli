@@ -521,7 +521,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	if info.SchoolID != 173 || info.GradeID != 27900 || info.GradeName != "高一" {
 		t.Errorf("学校年级错误: schoolId=%d gradeId=%d gradeName=%s", info.SchoolID, info.GradeID, info.GradeName)
 	}
-	if info.ClassID != 162647 || info.ClassName != "高一八班" {
+	if info.ClassID != 162647 || info.ClassName != "八班" {
 		t.Errorf("班级错误: classId=%d className=%s", info.ClassID, info.ClassName)
 	}
 	if info.SchoolName != "" {
