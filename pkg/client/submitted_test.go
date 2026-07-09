@@ -345,16 +345,19 @@ func TestSubmittedDecodePageBean_Nil(t *testing.T) {
 
 // TestSubmittedDecodeCircleRecord 验证 CircleRecord 解码。
 func TestSubmittedDecodeCircleRecord(t *testing.T) {
-	jsonData := `{"id":1,"name":"国旗下讲话","content":"写实内容","status":0,"circle_task_id":16494,"circle_type_id":9255,"dimension_id":9,"type_name":"爱党爱国教育","hours":0.5,"ifMySelf":1,"class_name":"八班","remark":"国旗下讲话"}`
+	jsonData := `{"id":1,"name":"国旗下讲话","content":"写实内容","typeName":"爱党爱国教育","approved":false,"circleDate":"2026-02-06T00:00:00Z","hours":0.5,"imgList":[],"remark":"国旗下讲话"}`
 	var rec types.CircleRecord
 	if err := json.Unmarshal([]byte(jsonData), &rec); err != nil {
 		t.Fatalf("Unmarshal CircleRecord 失败: %v", err)
 	}
-	if rec.ID != 1 || rec.Name != "国旗下讲话" || rec.Status != 0 {
+	if rec.ID != 1 || rec.Name != "国旗下讲话" || rec.Approved {
 		t.Errorf("字段匹配失败: %+v", rec)
 	}
 	if rec.Hours != 0.5 {
 		t.Errorf("期望 hours=0.5，实际 %f", rec.Hours)
+	}
+	if rec.TypeName != "爱党爱国教育" {
+		t.Errorf("期望 typeName=爱党爱国教育，实际 %s", rec.TypeName)
 	}
 }
 
@@ -447,12 +450,12 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 
 // TestSubmittedDecodeCircleImg 验证 CircleImage 解码。
 func TestSubmittedDecodeCircleImg(t *testing.T) {
-	jsonData := `{"id":4245126,"circle_id":4649107,"attachment_id":4383237,"task_id":16494,"class_id":150668}`
+	jsonData := `{"attachmentId":4383237}`
 	var img types.CircleImage
 	if err := json.Unmarshal([]byte(jsonData), &img); err != nil {
 		t.Fatalf("Unmarshal CircleImage 失败: %v", err)
 	}
-	if img.ID != 4245126 || img.AttachmentID != 4383237 {
+	if img.AttachmentID != 4383237 {
 		t.Errorf("字段匹配失败: %+v", img)
 	}
 }
