@@ -10,7 +10,7 @@ func TestMapTaskStatus(t *testing.T) {
 		"上传期 已提交": true,
 		"未开始 未提交": false,
 		"上传期 未提交": false,
-		"":            false,
+		"":        false,
 	}
 	for in, want := range cases {
 		if got := MapTaskStatus(in); got != want {

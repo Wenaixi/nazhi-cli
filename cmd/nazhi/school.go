@@ -12,7 +12,7 @@ import (
 var schoolCmd = &cobra.Command{
 	Use:   "school",
 	Short: "查询学校 ID（不登录，已登录请用 whoami）",
-	Long:  `根据学号查询对应的学校 ID 和学校名称。不需要登录，只需建立 SSO Session。
+	Long: `根据学号查询对应的学校 ID 和学校名称。不需要登录，只需建立 SSO Session。
 
 注意：已登录状态下请直接使用 nazhi whoami，输出已包含 schoolId。`,
 	Example: `  nazhi school -u 学号
