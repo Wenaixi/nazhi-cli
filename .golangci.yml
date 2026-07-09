@@ -6,6 +6,32 @@ linters:
     - errcheck
     - govet
     - unused
+    # ─── Phase 5 工程化加固新增 ───
+    - revive
+    - godot
+    - godox
+    - exhaustive
+    - prealloc
+    - whitespace
+    - misspell
+
+linters-settings:
+  godot:
+    # 仅检查声明（导出符号）上方注释是否以句号结尾，避免误伤行内注释
+    scope: declarations
+  revive:
+    rules:
+      - name: exported
+      - name: package-comments
+      - name: dot-imports
+      - name: error-strings
+      - name: error-naming
+      - name: error-return
+      - name: if-return
+      - name: increment-decrement
+      - name: var-declaration
+      - name: var-naming
+      - name: indent-error-flow
 
 issues:
   # 测试文件豁免 errcheck 和 unused
