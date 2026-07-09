@@ -5,28 +5,7 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
-
-### 新增
-- SDK `DownloadFile(ctx, attachmentID, dst)` — 按附件 ID 下载图片到本地。
-  入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；
-  CheckRedirect 同域白名单（nazhisoft.com）+ 5 次上限；不发任何鉴权头。
-- CLI `nazhi file download` — 按附件 ID 下载图片。
-  ```
-  nazhi file download --id 5006375 --output ./photo.jpg
-  ```
-  不接受 `--token`（公开服务）；urlType=`sso` 走 SSO 域名。
-
-### 修复
-- Windows flaky timing 测试：3 个 `TestFetchTasks_*` 在 Windows 慢机器偶发失败
-  - `TestFetchTasks_MixedBizAndCancel_FailedCountAccurate`: ctx 500ms → 1.5s
-  - `TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected`: ctx 1s → 1.5s
-  - `TestFetchTasks_Parallel`: bounds 重写为 `warmupOverhead+perDimDelay+slack`
-    （warmupOverhead=800ms，反映 Windows session warmup 真实耗时）
-  - handler sleep 300ms → 2s（确保 dim 必被 ctx cancel 而非正常完成）
-  30 次连跑零失败。
-
-## [1.0.0] - 2026-07-09
+## [1.0.0] - 2026-07-10
 
 重大破坏性更新：types 全面精简 + JSON tag 统一 camelCase + CLI 输出 envelope 化。
 升级前请阅读 [MIGRATION.md](MIGRATION.md)。
@@ -50,6 +29,14 @@
 - pkg/envelope/envelope.go (统一 envelope 包装)
 - pkg/client/internal/convert.go (helper: MapTaskStatus/MapSchoolID/ParseServerDate/MapCircleApproved)
 - ScopeClass/ScopeGrade/ScopeStage 常量
+- SDK `DownloadFile(ctx, attachmentID, dst)` — 按附件 ID 下载图片到本地。
+  入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；
+  CheckRedirect 同域白名单（nazhisoft.com）+ 5 次上限；不发任何鉴权头。
+- CLI `nazhi file download` — 按附件 ID 下载图片。
+  ```
+  nazhi file download --id 5006375 --output ./photo.jpg
+  ```
+  不接受 `--token`（公开服务）；urlType=`sso` 走 SSO 域名。
 
 ### Removed
 
@@ -64,6 +51,27 @@
 - UserInfo/Task/CircleRecord/HonorRecord/SelfEvalStatus 字段重命名 (status→submitted/approved)
 - circleTaskStatus 字符串 → submitted bool (简化版)
 - circleDate/getDate 字符串 → time.Time (自动序列化 ISO 8601)
+- `GetMyInfo` 学校信息 SSO 降级条件放宽 — 原来仅 `schoolId==0` 时触发，现放宽到 `schoolId==0 || schoolName==""` 任一缺失时通过 `GetSchoolID` 公开 API 补全。学校名缺省但 ID 存在时也能自动补上学校名称。
+
+### 文档
+
+- 全量脱敏示例刷新 — `docs/cli/README.md` 与 `docs/sdk/README.md` 全部 CLI 命令和 SDK 方法的输出示例替换为真实测试验证后的脱敏响应（含 login / session activate / whoami / task list / task submit / task submitted / self-eval / honor / file 全系列）。
+
+### 修复
+
+- Windows flaky timing 测试：3 个 `TestFetchTasks_*` 在 Windows 慢机器偶发失败
+  - `TestFetchTasks_MixedBizAndCancel_FailedCountAccurate`: ctx 500ms → 1.5s
+  - `TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected`: ctx 1s → 1.5s
+  - `TestFetchTasks_Parallel`: bounds 重写为 `warmupOverhead+perDimDelay+slack`
+    （warmupOverhead=800ms，反映 Windows session warmup 真实耗时）
+  - handler sleep 300ms → 2s（确保 dim 必被 ctx cancel 而非正常完成）
+  30 次连跑零失败。
+
+### 清理
+
+- `.golangci.yml` 精简 — 移除 godot/godox linter（减少 lint 噪音），清理注释冗余。
+- `errors.As` 替换裸类型断言 — `switch e := err.(type)` 改为 `errors.As`，兼容 wrapped error。
+- switch exhaustive 补全 — `image_prep` 中 `format` switch 补 `default` 分支防漏。
 
 ## [0.6.0] - 2026-07-04
 
