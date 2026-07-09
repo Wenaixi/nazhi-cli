@@ -91,7 +91,7 @@ func TestOCR_F2_InitOnce_PanicRecover(t *testing.T) {
 	}()
 }
 
-// TestOCR_F2_InitOnce_CleanupFlag 验证 cleanupTempDir 标记行为：
+// TestOCR_F2_InitOnce_CleanupFlag 验证 cleanupTempDir 标记行为。
 // extractModels 成功前 panic → 不清理（目录不存在）
 // extractModels 成功后 panic → 清理
 func TestOCR_F2_InitOnce_CleanupFlag(t *testing.T) {

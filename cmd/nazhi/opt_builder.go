@@ -60,11 +60,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	// requireToken 参数对 upload/sso 仍兼容——它们不传 true，所以
 	// 即使短路也不会因 requireToken 报错。
 	var token string
-	switch urlType {
-	case "base":
-		// 改走 applyURLFlag helper
-		// 消除 6 处重复的 flagChanged+GetString+envString 模板。
-		// 语义不变：flag 显式传递 → 用 flag 值；未传 → env fallback。
+	if urlType == "base" {
 		token = applyURLFlag(cmd, "token", "NAZHI_TOKEN")
 	}
 	if requireToken && token == "" {

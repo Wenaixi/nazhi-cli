@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// versionCmd 表示 nazhi version 命令
+// versionCmd 表示 nazhi version 命令。
 var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "显示版本信息",

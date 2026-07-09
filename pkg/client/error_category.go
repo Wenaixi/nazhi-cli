@@ -22,6 +22,8 @@ const (
 // String 实现 fmt.Stringer。
 func (c ErrorCategory) String() string {
 	switch c {
+	case CategoryUnknown:
+		return "Unknown"
 	case CategoryContextCancel:
 		return "ContextCancel"
 	case CategoryContextTimeout:

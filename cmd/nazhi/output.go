@@ -29,20 +29,6 @@ func markError() {
 	pendingExitCode.Store(1)
 }
 
-// printJSON 输出 JSON 到 stdout（底层 helper）。
-// 新代码优先用 printEnvelope(envelope.Success(data))。
-// 保留供测试和特殊场景（如 session_nil_guard 静态扫描锚点）。
-func printJSON(v any) {
-	enc := json.NewEncoder(os.Stdout)
-	enc.SetIndent("", "  ")
-	if err := enc.Encode(v); err != nil {
-		markError()
-		if !quiet {
-			printError(fmt.Errorf("序列化输出失败: %w", err))
-		}
-	}
-}
-
 // printEnvelope 序列化 envelope 到 stdout 并按 ExitCode 标记退出码。
 // 这是 CLI 所有 Run 回调的统一出口。
 func printEnvelope(e *envelope.Envelope) {

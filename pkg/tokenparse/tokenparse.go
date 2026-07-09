@@ -1,4 +1,4 @@
-// Package tokenparse 封装 SSO 登录 token 解析逻辑。
+﻿// Package tokenparse 封装 SSO 登录 token 解析逻辑。
 package tokenparse
 
 import (
@@ -119,11 +119,8 @@ func extractExpFromJWT(token string) (time.Time, error) {
 		return time.Time{}, fmt.Errorf("payload JSON 解析失败: %w", err)
 	}
 	if v, ok := claims["exp"]; ok {
-		switch n := v.(type) {
-		case float64:
-			if n > 0 {
-				return time.Unix(int64(n), 0), nil
-			}
+		if n, ok := v.(float64); ok && n > 0 {
+			return time.Unix(int64(n), 0), nil
 		}
 	}
 	return time.Time{}, errors.New("payload 中未找到 exp 声明")

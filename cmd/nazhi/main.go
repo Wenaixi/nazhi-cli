@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"fmt"
@@ -91,7 +91,8 @@ func main() {
 		// 三分退出码（1.0.0+）：
 		//   pendingExitCode 由 printEnvelope/printError 按 envelope.ExitCode() 设置：
 		//   0 成功 / 1 partial / 业务 / 2 服务端 / 3 参数。
-		// 直接把 atomic 值传给 os.Exit，避免 switch 二元判断。
+		//nolint:gocritic
+		// defers 在正常退出路径（pendingExitCode=0）由 defer handler 处理。
 		os.Exit(int(pendingExitCode.Load()))
 	}
 }

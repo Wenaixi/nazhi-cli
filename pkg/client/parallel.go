@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"context"
@@ -68,10 +68,13 @@ func ParallelDims[T any](ctx context.Context, dims []types.Dimension, limit int,
 	result = &ParallelDimsResult[T]{Items: allItems}
 
 	for _, e := range allErrs {
-		switch ClassifyError(e) {
+		switch ClassifyError(e) { //nolint:exhaustive
 		case CategoryContextCancel, CategoryContextTimeout:
 			result.CancelledCount++
 			result.ContextErrors = append(result.ContextErrors, e)
+		case CategoryNetworkTimeout, CategoryBusinessError:
+			result.FailedCount++
+			result.BizErrors = append(result.BizErrors, e)
 		default:
 			result.FailedCount++
 			result.BizErrors = append(result.BizErrors, e)

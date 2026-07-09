@@ -342,13 +342,14 @@ func (c *Client) ocrRetryLoop(ctx context.Context, recognizeFn func([]byte) (str
 			continue
 		}
 		text, err := recognizeFn(imgBytes)
-		if err != nil {
+		switch {
+		case err != nil:
 			lastErr = err
 			c.logDebug("OCR 第 %d 张图失败: %v", imgIdx+1, err)
-		} else if text == "" {
+		case text == "":
 			lastErr = fmt.Errorf("空白结果")
 			c.logDebug("OCR 第 %d 张图结果为空白", imgIdx+1)
-		} else {
+		default:
 			c.logDebug("OCR 识别成功: img=%d result_len=%d", imgIdx+1, len(text))
 			// 验证码预校验：服务端确认该验证码有效后再返回。
 			// 校验失败（code≠1）不是 OCR 读错了，而是服务端不认这张图的验证码，

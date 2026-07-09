@@ -1,4 +1,4 @@
-// Package client 是 nazhi-cli SDK 的根包。
+﻿// Package client 是 nazhi-cli SDK 的根包。
 package client
 
 import (
@@ -114,11 +114,12 @@ func isNil(v any) bool {
 		return true
 	}
 	rv := reflect.ValueOf(v)
-	switch rv.Kind() {
+	switch rv.Kind() { //nolint:exhaustive
 	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return rv.IsNil()
+	default:
+		return false
 	}
-	return false
 }
 
 // WithSSOBase 设置 SSO 根地址。

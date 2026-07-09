@@ -414,7 +414,7 @@ var (
 	osCreate = func(dst string) (writeCloser, error) {
 		return os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
 	}
-	osRemove = func(dst string) error { return os.Remove(dst) }
+	osRemove = os.Remove
 )
 
 // writeCloser 是 *os.File 的最小接口（Write + Close），便于测试。

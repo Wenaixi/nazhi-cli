@@ -289,7 +289,6 @@ func (sm *sessionManager) Activate(
 	token string,
 	activateFn func(context.Context, string) (*types.UserInfo, error),
 ) (*types.UserInfo, error) {
-
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
 

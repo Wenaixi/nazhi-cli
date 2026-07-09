@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// completionCmd 表示 nazhi completion 命令
+// completionCmd 表示 nazhi completion 命令。
 // cobra 原生支持 shell 自动补全，只需注册即可
 var completionCmd = &cobra.Command{
 	Use:   "completion [bash|zsh|fish|powershell]",

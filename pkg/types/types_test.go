@@ -70,7 +70,8 @@ func TestCheckCode_ErrorContainsMsg(t *testing.T) {
 		t.Fatal("code=400 应返回 error")
 	}
 	errMsg := err.Error()
-	if bizErr, ok := err.(*BusinessError); ok {
+	var bizErr *BusinessError
+	if errors.As(err, &bizErr) {
 		if bizErr.Msg != "参数错误" {
 			t.Errorf("Msg 期望 '参数错误'，实际 %q", bizErr.Msg)
 		}
