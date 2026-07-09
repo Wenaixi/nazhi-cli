@@ -399,8 +399,10 @@ echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --tok
 | `checkResult` | `""` | `"1"` | `""` | `""` |
 | `address` | 学校名 | 学校名 | 班级名 | `""` |
 | `orgName` | 学校名 | 学校名 | `""` | `""` |
-| `playRole` | `""` | `""` | `"3"` | `"3"` |
+| `playRole` | `""` | `""` | `"3"`（参与者） | `"3"`（参与者） |
 | `hours` | `2.0` | `32.0` | `1.0` | `0.5` |
+
+> `playRole` 数字编码：`"1"`=主持策划者 `"2"`=主要参与者 `"3"`=参与者。SDK 使用时可通过 `types.PlayRoleHost` / `types.PlayRoleMainParticipant` / `types.PlayRoleParticipant` 常量赋值。
 
 完整 29 字段定义见 `pkg/types/task.go` `TaskSubmitPayload` 注释。
 

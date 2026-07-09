@@ -199,7 +199,7 @@ addCircle 接口的完整请求体 (29 字段透传)。完整定义 `pkg/types/t
 | ResultsName | `string` | `resultsName` | 否 | 成果名 |
 | ObtainTime | `string` | `obtainTime` | 否 | 获得时间 |
 | SpecialtyTechnology | `string` | `specialtyTechnology` | 否 | 特长技术 |
-| PlayRole | `string` | `playRole` | 否 | 扮演角色 |
+| PlayRole | `string` | `playRole` | 否 | 承担角色（`"1"`=主持策划者 `"2"`=主要参与者 `"3"`=参与者，见 `PlayRole*` 常量） |
 | LikeSpecialty1/2/3 | `string` | `likeSpecialtyN` | 否 | 兴趣特长 1/2/3 |
 
 JSON 示例:

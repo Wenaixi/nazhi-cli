@@ -7,6 +7,13 @@ const (
 	ScopeStage = 3 // 学段任务
 )
 
+// 承担角色常量（对应服务端 playRole 数字编码）。
+const (
+	PlayRoleHost            = "1" // 主持策划者
+	PlayRoleMainParticipant = "2" // 主要参与者
+	PlayRoleParticipant     = "3" // 参与者
+)
+
 // Task 是面向调用方的精简任务条目。
 //
 // 字段命名约定：原样的字段保持与服务端 JSON 字段名一致；需要后处理的字段使用更清晰的
@@ -53,6 +60,7 @@ type TaskSubmitPayload struct {
 	ResultsName         string  `json:"resultsName"`
 	ObtainTime          string  `json:"obtainTime"`
 	SpecialtyTechnology string  `json:"specialtyTechnology"`
+	// PlayRole 承担角色（数字编码，见 PlayRoleHost / PlayRoleMainParticipant / PlayRoleParticipant 常量）。
 	PlayRole            string  `json:"playRole"`
 	LikeSpecialty1      string  `json:"likeSpecialty1"`
 	LikeSpecialty2      string  `json:"likeSpecialty2"`

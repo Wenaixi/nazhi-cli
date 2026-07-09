@@ -507,7 +507,7 @@ func TestHAR_SubmitTask(t *testing.T) {
 		ResultsName:         "",
 		ObtainTime:          "",
 		SpecialtyTechnology: "",
-		PlayRole:            "3",
+		PlayRole:            types.PlayRoleParticipant,
 		LikeSpecialty1:      "",
 		LikeSpecialty2:      "",
 		LikeSpecialty3:      "",
@@ -685,7 +685,7 @@ func TestHAR_SubmitTask_ClassMeeting(t *testing.T) {
 		ResultsName:         "",
 		ObtainTime:          "",
 		SpecialtyTechnology: "",
-		PlayRole:            "3", // 班会 playRole=3
+		PlayRole:            types.PlayRoleParticipant, // 班会 playRole=3
 		LikeSpecialty1:      "",
 		LikeSpecialty2:      "",
 		LikeSpecialty3:      "",

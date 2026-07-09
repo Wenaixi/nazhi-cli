@@ -579,7 +579,7 @@ func TestSubmitTask(t *testing.T) {
 		Hours:        1.0,
 		Name:         "班会",
 		Address:      "高一(8)班",
-		PlayRole:     "3",
+		PlayRole:     types.PlayRoleParticipant,
 	})
 	if err != nil {
 		t.Fatalf("SubmitTask 失败: %v", err)
