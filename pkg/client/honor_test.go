@@ -14,26 +14,18 @@ import (
 
 // ─── 辅助 ───
 
-// honorRecordJSON 生成一条荣誉记录。
+// honorRecordJSON 生成一条荣誉记录（v1.0.0 精简版 camelCase 字段）。
 func honorRecordJSON(id int64, name, statusName string) map[string]any {
 	return map[string]any{
-		"id":                id,
-		"type_name":         name,
-		"type_id":           1147,
-		"level":             5,
-		"level_name":        "校",
-		"dimension_id":      9,
-		"dimension_name":    "思想品德",
-		"score":             5.0,
-		"status":            1,
-		"statusName":        statusName,
-		"student_name":      "高博文",
-		"class_name":        "高一八班",
-		"get_date":          "2026-06-30",
-		"evaluation_agency": "福清一中",
-		"ifshow":            "是",
-		"auditor_name":      "许风华",
-		"show_report_flag":  1,
+		"id":               id,
+		"typeName":         name,
+		"levelName":        "校",
+		"level":            5,
+		"dimensionName":    "思想品德",
+		"approved":         true,
+		"approvedName":     statusName,
+		"getDate":          "2026-06-30T00:00:00+08:00",
+		"evaluationAgency": "福清一中",
 	}
 }
 
@@ -47,8 +39,8 @@ func TestGetHonorTypes(t *testing.T) {
 			resp := map[string]any{
 				"code": 1,
 				"dataList": []map[string]any{
-					{"id": 1147, "name": "校学生优秀干部", "level_name": "校", "level": 5, "score": "分数：+5.0", "dimension_id": 9, "dimension_name": "思想品德", "sort_no": 1},
-					{"id": 1148, "name": "校三好学生", "level_name": "校", "level": 5, "score": "分数：+5.0", "dimension_id": 10, "dimension_name": "学业水平", "sort_no": 2},
+					{"id": 1147, "name": "校学生优秀干部", "levelName": "校", "level": 5, "dimensionName": "思想品德"},
+					{"id": 1148, "name": "校三好学生", "levelName": "校", "level": 5, "dimensionName": "学业水平"},
 				},
 			}
 			_ = json.NewEncoder(w).Encode(resp)
@@ -192,7 +184,7 @@ func TestGetHonorList(t *testing.T) {
 	if len(records) != 1 {
 		t.Fatalf("期望 1 条记录，实际 %d", len(records))
 	}
-	if records[0].TypeName != "阅读之星" || records[0].StatusName != "审核通过" {
+	if records[0].TypeName != "阅读之星" || records[0].ApprovedName != "审核通过" {
 		t.Errorf("字段解析错误: %+v", records[0])
 	}
 	if pb == nil || pb.TotalNum != 1 {

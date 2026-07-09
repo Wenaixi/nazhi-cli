@@ -126,8 +126,8 @@ func TestC10_QuerySelfEvaluation_Success(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
-			"student_comment": "表现很好",
-			"teacher_comment": "继续努力",
+			"studentComment": "表现很好",
+			"teacherComment": "继续努力",
 		}, nil)))
 	})))
 	defer biz.Close()
