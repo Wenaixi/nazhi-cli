@@ -429,62 +429,24 @@ func TestGetMyInfo(t *testing.T) {
 	if info.ClassName != "八班" {
 		t.Errorf("期望 ClassName=八班, 得到 %s", info.ClassName)
 	}
-	if info.Seat != 45 {
-		t.Errorf("期望 Seat=45, 得到 %d", info.Seat)
-	}
 }
 
 // ─── 测试: GetMyInfo 完整字段（HAR 实测响应）───
 
-// TestGetMyInfo_FullFields 用真实 HAR 抓包的完整响应验证 30+ 字段全部正确解析。
+// TestGetMyInfo_FullFields 验证精简版 UserInfo (10 字段) 解析正确。
+//
+// ponytail: v1.0.0 精简后只测保留字段；删除字段由编译期保障（字段不存在）。
 func TestGetMyInfo_FullFields(t *testing.T) {
-	// 完整 mock 响应模拟 mock 账号的 getMyInfo 返回（占位值，与仓库 PII 守卫一致）
 	mockResponse := map[string]any{
-		"id":                    100001,
-		"name":                  "张三",
-		"initials":              "zs",
-		"pinyin":                "zhangsan",
-		"studentNumber":         "TEST2025001",
-		"studentId":             100002,
-		"schoolId":              173,
-		"positionId":            0,
-		"positionName":          nil,
-		"email":                 "",
-		"status":                1,
-		"statusName":            "在籍",
-		"nativePlace":           "",
-		"idType":                1,
-		"idCard":                "TEST000000000000",
-		"birthday":              []int{2009, 12, 11},
-		"birthdayStr":           "2009-12-11 00:00:00",
-		"nation":                1,
-		"seat":                  29,
-		"seatSort":              -1,
-		"gender":                1,
-		"genderName":            "男",
-		"creator":               28,
-		"creationTime":          []int{2025, 10, 9, 10, 32, 6},
-		"creationTimeStr":       "2025-10-09 10:32:06",
-		"modifier":              28,
-		"modifyTime":            []int{2026, 2, 6, 10, 16, 15},
-		"modifyTimeStr":         "2026-02-06 10:16:15",
-		"admissionDate":         []int{2025, 9, 1},
-				"currentAddress":        "",
-		"contactAddress":        "",
-		"familyAddress":         "",
-		"youthLeagueFlag":       1,
-		"hobbies":               "",
-		"criminalRecordFlag":    0,
-		"nationalStudentNumber": "TEST2025001",
-		"registrationNumber":    "",
-		"studyNumber":           "TEST000000",
-				"telephone":             "",
-		"level":                 0,
-		"gradeId":               27900,
-		"gradeName":             "高一",
-		"classId":               162647,
-		"className":             "高一八班",
-				"schoolName":            nil,
+		"id":            100001,
+		"name":          "张三",
+		"studentNumber": "TEST2025001",
+		"studentId":     100002,
+		"schoolId":      173,
+		"gradeId":       27900,
+		"gradeName":     "高一",
+		"classId":       162647,
+		"className":     "高一八班",
 	}
 
 	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -503,80 +465,27 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		t.Fatal("期望非 nil UserInfo")
 	}
 
-	// 基础身份
-	if info.ID != 100001 || info.Name != "张三" || info.StudentNumber != "TEST2025001" {
-		t.Errorf("基础身份字段错误: id=%d name=%s studentNumber=%s", info.ID, info.Name, info.StudentNumber)
+	// 精简版 10 字段断言
+	if info.ID != 100001 {
+		t.Errorf("ID 错: %d", info.ID)
 	}
-	if info.Initials != "zs" || info.Pinyin != "zhangsan" {
-		t.Errorf("姓名辅助字段错误: initials=%s pinyin=%s", info.Initials, info.Pinyin)
+	if info.Name != "张三" {
+		t.Errorf("Name 错: %s", info.Name)
 	}
-	if info.StudentID != 100002 || info.StudyNumber != "TEST000000" {
-		t.Errorf("学生 ID 错误: studentId=%d studyNumber=%s", info.StudentID, info.StudyNumber)
+	if info.StudentNumber != "TEST2025001" {
+		t.Errorf("StudentNumber 错: %s", info.StudentNumber)
 	}
-	if info.NationalStudentNumber != "TEST2025001" {
-		t.Errorf("全国学号错误: %s", info.NationalStudentNumber)
+	if info.StudentID != 100002 {
+		t.Errorf("StudentID 错: %d", info.StudentID)
 	}
-
-	// 学校 / 班级
-	if info.SchoolID != 173 || info.GradeID != 27900 || info.GradeName != "高一" {
-		t.Errorf("学校年级错误: schoolId=%d gradeId=%d gradeName=%s", info.SchoolID, info.GradeID, info.GradeName)
+	if info.SchoolID != 173 {
+		t.Errorf("SchoolID 错: %d", info.SchoolID)
+	}
+	if info.GradeID != 27900 || info.GradeName != "高一" {
+		t.Errorf("Grade 错: id=%d name=%s", info.GradeID, info.GradeName)
 	}
 	if info.ClassID != 162647 || info.ClassName != "八班" {
-		t.Errorf("班级错误: classId=%d className=%s", info.ClassID, info.ClassName)
-	}
-	if info.SchoolName != "" {
-		t.Errorf("schoolName 应该是空字符串（平台返回 null）, 得到 %q", info.SchoolName)
-	}
-
-	// 座号
-	if info.Seat != 29 || info.SeatSort != -1 {
-		t.Errorf("座号错误: seat=%d seatSort=%d", info.Seat, info.SeatSort)
-	}
-
-	// 性别
-	if info.Gender != 1 || info.GenderName != "男" {
-		t.Errorf("性别错误: gender=%d genderName=%s", info.Gender, info.GenderName)
-	}
-
-	// 民族 / 证件
-	if info.Nation != 1 || info.IDCard != "TEST000000000000" || info.IDType != 1 {
-		t.Errorf("民族证件错误: nation=%d idCard=%s idType=%d", info.Nation, info.IDCard, info.IDType)
-	}
-
-	// 生日
-	if info.Birthday != "2009-12-11 00:00:00" {
-		t.Errorf("生日错误: %q", info.Birthday)
-	}
-
-	// 学籍状态
-	if info.Status != 1 || info.StatusName != "在籍" {
-		t.Errorf("学籍错误: status=%d statusName=%s", info.Status, info.StatusName)
-	}
-	if info.YouthLeagueFlag != 1 || info.CriminalRecordFlag != 0 {
-		t.Errorf("标志位错误: youthLeagueFlag=%d criminalRecordFlag=%d", info.YouthLeagueFlag, info.CriminalRecordFlag)
-	}
-
-	// 时间戳（数组）
-	if len(info.CreationTime) != 6 || info.CreationTime[0] != 2025 {
-		t.Errorf("creationTime 错误: %v", info.CreationTime)
-	}
-	if len(info.ModifyTime) != 6 || info.ModifyTime[5] != 15 {
-		t.Errorf("modifyTime 错误: %v", info.ModifyTime)
-	}
-	if len(info.AdmissionDate) != 3 || info.AdmissionDate[1] != 9 {
-		t.Errorf("admissionDate 错误: %v", info.AdmissionDate)
-	}
-
-	// 时间戳（字符串）
-	if info.CreationTimeStr != "2025-10-09 10:32:06" {
-		t.Errorf("creationTimeStr 错误: %s", info.CreationTimeStr)
-	}
-	if info.ModifyTimeStr != "2026-02-06 10:16:15" {
-		t.Errorf("modifyTimeStr 错误: %s", info.ModifyTimeStr)
-	}
-
-	if info.PositionID != 0 || info.PositionName != "" {
-		t.Errorf("职位应为零值, 得到 positionId=%d positionName=%q", info.PositionID, info.PositionName)
+		t.Errorf("Class 错: id=%d name=%s", info.ClassID, info.ClassName)
 	}
 }
 
@@ -713,10 +622,8 @@ func TestQuerySelfEvaluation(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
-			"student_comment": "我表现很好",
-			"teacher_comment": "继续努力",
-			"student_name":    "张三",
-			"class_name":      "高一八班",
+			"studentComment": "我表现很好",
+			"teacherComment": "继续努力",
 		}, nil)))
 	})))
 	defer biz.Close()
