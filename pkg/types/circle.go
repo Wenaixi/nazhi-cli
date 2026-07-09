@@ -1,5 +1,7 @@
 package types
 
+import "time"
+
 // PageBean 目标平台通用分页信息。
 type PageBean struct {
 	PageNo    int `json:"pageNo"`
@@ -10,28 +12,18 @@ type PageBean struct {
 
 // CircleRecord 一条已提交的写实记录（来自 getStudentCircle 接口）。
 type CircleRecord struct {
-	ID           int64         `json:"id"`
-	Name         string        `json:"name"`
-	Content      string        `json:"content"`
-	CircleTaskID int64         `json:"circle_task_id"`
-	CircleTypeID int64         `json:"circle_type_id"`
-	DimensionID  int64         `json:"dimension_id"`
-	TypeName     string        `json:"type_name"`
-	Status       int           `json:"status"` // 0=待审, 1=已通过
-	CircleDate   string        `json:"circle_date"`
-	Hours        float64       `json:"hours"`
-	StudentID    int64         `json:"studentId"`
-	ClassName    string        `json:"class_name"`
-	IfMySelf     int           `json:"ifMySelf"`
-	ImgList      []CircleImage `json:"imgList"`
-	Remark       string        `json:"remark"`
+	ID         int64         `json:"id"`         // 写实记录主键
+	Name       string        `json:"name"`       // 写实标题
+	Content    string        `json:"content"`    // 写实正文
+	TypeName   string        `json:"typeName"`   // 类型名（替代原 type_name）
+	Approved   bool          `json:"approved"`   // 是否已通过审核（true=已通过，替代原 int status）
+	CircleDate time.Time     `json:"circleDate"` // 写实发生日期（替代原 circle_date 字符串）
+	Hours      float64       `json:"hours"`      // 实践时长（小时）
+	ImgList    []CircleImage `json:"imgList"`    // 关联图片附件列表
+	Remark     string        `json:"remark"`     // 备注
 }
 
 // CircleImage 写实记录关联的图片附件。
 type CircleImage struct {
-	ID           int64 `json:"id"`
-	CircleID     int64 `json:"circle_id"`
-	AttachmentID int64 `json:"attachment_id"`
-	TaskID       int64 `json:"task_id"`
-	ClassID      int64 `json:"class_id"`
+	AttachmentID int64 `json:"attachmentId"` // 附件 ID（用于查询/下载图片）
 }

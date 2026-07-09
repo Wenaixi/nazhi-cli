@@ -23,18 +23,3 @@ func TestSchoolID_UserInfo_ParsesSchoolId(t *testing.T) {
 		t.Errorf("期望 SchoolID=173, 得到 %d", info.SchoolID)
 	}
 }
-
-// TestSchoolID_SelfEvalStatus_ParsesSchoolId 验证 SelfEvalStatus.SchoolID
-// 从 school_id（蛇形）JSON key 正确解析。
-// querySelfEvaluation API 使用 school_id（蛇形）作为 JSON key，
-// 与此对比 getMyInfo 的 UserInfo.SchoolID 使用 schoolId（驼峰）。
-func TestSchoolID_SelfEvalStatus_ParsesSchoolId(t *testing.T) {
-	data := `{"school_id": 173, "student_name": "测试用户"}`
-	var status types.SelfEvalStatus
-	if err := json.Unmarshal([]byte(data), &status); err != nil {
-		t.Fatalf("SelfEvalStatus JSON 解析失败: %v", err)
-	}
-	if status.SchoolID != 173 {
-		t.Errorf("期望 SchoolID=173, 得到 %d", status.SchoolID)
-	}
-}

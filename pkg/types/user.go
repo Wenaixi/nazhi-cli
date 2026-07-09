@@ -6,107 +6,33 @@ import (
 	"time"
 )
 
-// UserInfo 是用户个人资料。
+// UserInfo 是用户个人资料的精简核心视图。
 //
-// 字段命名策略：
-//   - 仅保留业务 API 实际会返回的字段
-//   - 常为 null/"" 的字段加了 omitempty，JSON 输出不再显示空值
-//   - 生日使用 birthdayStr（字符串版），避开 birthday 数组的类型不匹配问题
-//   - 时间戳同时暴露数组（如 creationTime [y,m,d,h,m,s]）和字符串（*TimeStr）两种形式
-//   - 入学时间 admissionDateStr 在平台中永远为 null，已移除（admissionDate 数组足够）
-//   - studentUuid、photoAttachmentId 平台永远返回 null，已移除
-//   - nullable 字段（null）解析为零值（int=0, string=""），调用方用 if 判断即可
+// 字段裁剪原则（v1.0.0 起）：
+//   - 只保留业务 API 实际消费的核心身份/学校/班级字段
+//   - 联系方式、证件号、积分等敏感或运营字段已移除，避免不必要的 PII 暴露面
+//   - 生日/爱好/状态码/座号等历史字段已移除，如有需要可后续按需补回
 type UserInfo struct {
 	// 基础身份
-	ID                    int64  `json:"id"`
-	Name                  string `json:"name"`
-	Initials              string `json:"initials"`              // 姓名首字母（如 "zs"）
-	Pinyin                string `json:"pinyin"`                // 姓名全拼
-	StudentNumber         string `json:"studentNumber"`         // 学号
-	StudentID             int64  `json:"studentId"`             // 学生 ID
-	StudyNumber           string `json:"studyNumber"`           // 校内短学号
-	NationalStudentNumber string `json:"nationalStudentNumber"` // 全国学号
+	ID            int64  `json:"id"`
+	Name          string `json:"name"`
+	StudentNumber string `json:"studentNumber"` // 学号
+	StudentID     int64  `json:"studentId"`     // 学生 ID
 
 	// 学校 / 班级 / 年级
-	//
-	// SchoolID 学校 ID。
-	// JSON tag 为 schoolId（驼峰）——getMyInfo API 使用此格式。
-	// 注意：
-	//   - getSchoolIdByStudentNumber 使用 school_id（蛇形）作为 JSON key，
-	//     由 GetSchoolID 以 string 形式返回，最终由调用方（Login 等）使用
-	//   - SelfEvalStatus.SchoolID 使用 school_id（蛇形）作为 JSON tag
-	// 两条 API 路径（getMyInfo vs getSchoolIdByStudentNumber）的 JSON 命名风格
-	// 不同，但数据类型最终都会归一为 int64 或 string。
 	SchoolID   int64  `json:"schoolId"`
 	SchoolName string `json:"schoolName,omitempty"` // 平台返回 null 时省略
 	GradeID    int64  `json:"gradeId"`
 	GradeName  string `json:"gradeName"`
 	ClassID    int64  `json:"classId"`
 	ClassName  string `json:"className"`
-	Level      int    `json:"level,omitempty"` // 年级代码，0 时省略
-
-	// 座号
-	Seat     int `json:"seat"`
-	SeatSort int `json:"seatSort"`
-
-	// 性别
-	Gender     int    `json:"gender"`
-	GenderName string `json:"genderName"`
-
-	// 民族 / 证件
-	Nation int    `json:"nation"` // 民族代码（1=汉族）
-	IDType int    `json:"idType"` // 证件类型
-	IDCard string `json:"idCard"`
-
-	// 生日
-	//   - Birthday (string) 兼容 server 返回的 birthdayStr 字符串
-	//   - BirthdayDate (struct) 兼容 server 返回的 [y,m,d] 数组（双形态容错）
-	// 业务方按需使用；缺失字段为类型零值
-	Birthday     string        `json:"birthdayStr"`
-	BirthdayDate *BirthdayDate `json:"birthday,omitempty"`
-
-	// 联系方式（平台可能为空，omitempty 避免输出空串）
-	Telephone      string `json:"telephone,omitempty"`      // 电话
-	Email          string `json:"email,omitempty"`          // 邮箱
-	CurrentAddress string `json:"currentAddress,omitempty"` // 现地址
-	ContactAddress string `json:"contactAddress,omitempty"` // 联系地址
-	FamilyAddress  string `json:"familyAddress,omitempty"`  // 家庭地址
-	NativePlace    string `json:"nativePlace,omitempty"`    // 籍贯
-
-	// 学籍状态
-	Status             int    `json:"status"`                       // 学籍状态码
-	StatusName         string `json:"statusName"`                   // 学籍状态名（如 "在籍"）
-	PositionID         int    `json:"positionId,omitempty"`         // 职位 ID，0 时省略
-	PositionName       string `json:"positionName,omitempty"`       // 职位名，空时省略
-	YouthLeagueFlag    int    `json:"youthLeagueFlag"`              // 团员标志（1=团员）
-	CriminalRecordFlag int    `json:"criminalRecordFlag,omitempty"` // 犯罪记录标志，0 时省略
-
-	// 爱好
-	Hobbies string `json:"hobbies,omitempty"`
-
-	// 入学时间
-	AdmissionDate []int `json:"admissionDate"` // [2025,9,1]
-
-	// 创建时间（数组 + 字符串）
-	CreationTime    []int  `json:"creationTime"`    // [2025,10,9,10,32,6]
-	CreationTimeStr string `json:"creationTimeStr"` // "2025-10-09 10:32:06"
-
-	// 修改时间（数组 + 字符串）
-	ModifyTime    []int  `json:"modifyTime"`    // [2026,2,6,10,16,15]
-	ModifyTimeStr string `json:"modifyTimeStr"` // "2026-02-06 10:16:15"
-
-	// 创建/修改人
-	Creator  int `json:"creator"`
-	Modifier int `json:"modifier"`
-
-	// 积分（未使用过时平台返回 0）
-	TotalPoints int `json:"totalPoints,omitempty"`
-	UsedPoints  int `json:"usedPoints,omitempty"`
 }
 
 // BirthdayDate 生日结构体（兼容 [2009,12,11] 数组和 "2009-12-11" 字符串）。
 // 解决 ef5c1ad 移除 ac9e084 自定义解析后丢失的"双形态容错"能力——
 // 若 server 升级只返回 birthday 数组（无 birthdayStr），BirthdayDate 仍可解析。
+//
+// 当前 UserInfo 未消费该类型，但保留供其他模块按需引用，避免删后回归。
 type BirthdayDate struct {
 	Year  int `json:"year"`
 	Month int `json:"month"`
