@@ -29,6 +29,11 @@ var selfEvalStatusCmd = &cobra.Command{
 			printError(fmt.Errorf("查询自我评价失败: %w", err))
 			return
 		}
+		// 未提交时服务端可能返回空数据，走 Empty(204) envelope 表达。
+		if status == nil {
+			printEnvelope(envelope.Empty("尚未提交自我评价"))
+			return
+		}
 
 		printEnvelope(envelope.Success(status))
 	},
