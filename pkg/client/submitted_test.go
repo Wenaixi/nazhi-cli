@@ -450,12 +450,12 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 
 // TestSubmittedDecodeCircleImg 验证 CircleImage 解码。
 func TestSubmittedDecodeCircleImg(t *testing.T) {
-	jsonData := `{"attachmentId":4383237}`
+	jsonData := `{"id":4987641,"circle_id":5389265,"class_id":162647,"task_id":18296,"attachment_id":5005765,"imgPath":".jpg"}`
 	var img types.CircleImage
 	if err := json.Unmarshal([]byte(jsonData), &img); err != nil {
 		t.Fatalf("Unmarshal CircleImage 失败: %v", err)
 	}
-	if img.AttachmentID != 4383237 {
+	if img.ID != 4987641 || img.CircleID != 5389265 || img.ClassID != 162647 || img.TaskID != 18296 || img.AttachmentID != 5005765 || img.ImgPath != ".jpg" {
 		t.Errorf("字段匹配失败: %+v", img)
 	}
 }
