@@ -19,6 +19,6 @@ var selfEvalCmd = &cobra.Command{
 // 父命令：file
 var fileCmd = &cobra.Command{
 	Use:   "file",
-	Short: "文件上传",
-	Long:  `上传图片文件到文件服务器。`,
+	Short: "文件管理",
+	Long:  `上传或下载文件到公开文件服务器。`,
 }

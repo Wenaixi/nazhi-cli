@@ -129,6 +129,7 @@ func init() {
 	// file
 	rootCmd.AddCommand(fileCmd) // file parent
 	fileCmd.AddCommand(fileUploadCmd)
+	fileCmd.AddCommand(fileDownloadCmd)
 
 	// whoami
 	rootCmd.AddCommand(whoamiCmd)

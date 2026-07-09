@@ -9,6 +9,9 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/url"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -230,7 +233,195 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	return idInt, nil
 }
 
-// newCleanClient 构造"无 cookie"的安全 http.Client 供 UploadFile 使用。
+// DownloadFile 按附件 ID 从公开文件服务器下载图片到本地 dst。
+//
+// 流程：
+//  1. GET {ssoBaseURL}/common/attachment/getImg?id={attachmentID}
+//  2. 服务端 302 重定向到 doc.nazhisoft.com/other/M00/...（FastDFS 真实存储）
+//  3. 跟随重定向（最多 maxDownloadRedirects 次）→ 取真实图片
+//  4. 写入本地 dst
+//
+// 安全约束（与 UploadFile 对称）：
+//   - 不发送任何 Token / Cookie / Authorization 头（公开服务）
+//   - 重定向仅跟随到 nazhisoft.com / doc.nazhisoft.com 同主机域，
+//     防止恶意 Location 跳转到第三方主机
+//   - 重定向次数上限 5，防止恶意循环
+//
+// 错误契约：
+//   - HTTP 非 2xx → fmt.Errorf("%w: status=%d", ErrNetwork, code)
+//   - 写入失败 → fmt.Errorf("写入文件失败: %w", err)
+//   - 重定向超过上限 → fmt.Errorf("重定向次数超过 %d 次", maxDownloadRedirects)
+//   - 跨域重定向 → fmt.Errorf("拒绝跨域重定向到 %s", host)
+func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst string) error {
+	// 1. 入口 URL 拼接：ssoBaseURL 域下 /common/attachment/getImg?id=X
+	//    用 strconv.FormatInt 而非 fmt.Sprintf("%d") 避免 % 字符注入风险
+	entryURL := c.ssoBaseURL + "/common/attachment/getImg?id=" + strconv.FormatInt(attachmentID, 10)
+
+	// 2. 构造独立请求（不共享 c.http cookie jar）
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, entryURL, nil)
+	if err != nil {
+		return fmt.Errorf("%w: 创建下载请求失败: %w", ErrNetwork, err)
+	}
+	req.Header.Set("Accept", "*/*")
+	req.Header.Set("User-Agent", defaultUserAgent)
+
+	// 3. 用 newCleanClient + CheckRedirect 校验同域 + 上限
+	//    复用 newCleanClient 的 Transport 共享 + 无 cookie jar 特性，
+	//    仅覆写 CheckRedirect 让 transport 自动跟随同域重定向。
+	client := newCleanClient(c)
+	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+		// 上限校验：via 长度 = 已跟随次数，下次跟随时 via 增长 1
+		if len(via) >= maxDownloadRedirects {
+			return fmt.Errorf("重定向次数超过 %d 次", maxDownloadRedirects)
+		}
+		// 同域校验：上一跳 host → 下一跳 host 都必须在 nazhisoft.com 域
+		if len(via) > 0 {
+			last := via[len(via)-1].URL
+			next := req.URL
+			if !isSameTrustedHost(hostOf(last), hostOf(next)) {
+				return fmt.Errorf("拒绝跨域重定向 %s → %s", hostOf(last), hostOf(next))
+			}
+		}
+		return nil
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return fmt.Errorf("%w: 下载请求失败: %w", ErrNetwork, err)
+	}
+	defer drainAndClose(resp.Body)
+
+	// 4. 状态码分类
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
+		sentinel := classifyHTTPStatus(resp.StatusCode, ErrNetwork)
+		return fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
+	}
+
+	// 5. 流式写入（ctx 感知：ctx 取消时立即中断，删除半成品）
+	if err := writeDownloadToFile(ctx, resp.Body, dst); err != nil {
+		return err
+	}
+	c.logDebug("DownloadFile 完成: id=%d → %s (host=%s)", attachmentID, dst, hostOf(resp.Request.URL))
+	return nil
+}
+
+// maxDownloadRedirects 限制 DownloadFile 重定向跟随次数，防止恶意 Location 循环。
+const maxDownloadRedirects = 5
+
+// trustedHostSuffixes 是 DownloadFile 允许重定向到的 host 后缀白名单。
+// 包级 var 让测试能临时覆盖（无需导出 API）。
+// 生产默认白名单：nazhisoft.com 域（含 www/doc 子域）。
+// 设计动机：恶意 Location 头跳转到 evil.com 会泄露 referer + 触发风控，
+// 白名单把风险面收紧到平台自身子域。
+var trustedHostSuffixes = []string{".nazhisoft.com", "nazhisoft.com"}
+
+// hostOf 安全提取 URL 的 hostname（不含端口，nil 时返回空字符串）。
+func hostOf(u *url.URL) string {
+	if u == nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
+// isSameTrustedHost 判断两个 host 是否都在受信任域名集合内。
+// 不接受 IP 字面量 host 匹配纯后缀规则——但 trustedHostSuffixes
+// 可被测试覆盖为 "127.0.0.1" 等用于单元测试。
+func isSameTrustedHost(a, b string) bool {
+	if a == "" || b == "" {
+		return false
+	}
+	for _, suffix := range trustedHostSuffixes {
+		if hasHostSuffix(a, suffix) && hasHostSuffix(b, suffix) {
+			return true
+		}
+	}
+	return false
+}
+
+// hasHostSuffix 判断 host 是否以 suffix 结尾（host 或 .host 形式）。
+func hasHostSuffix(host, suffix string) bool {
+	if host == suffix {
+		return true
+	}
+	if len(host) > len(suffix) && host[len(host)-len(suffix):] == suffix {
+		return true
+	}
+	return false
+}
+
+// writeDownloadToFile 把 src 流式写入 dst，ctx 取消可中断。
+// 写入 0 字节或失败时关闭文件句柄后删除半成品（不留垃圾）。
+// Windows 注意：必须先 f.Close() 再 os.Remove()——持有 open handle 时 Remove
+// 在 Windows 上静默失败，测试会看到半成品残留。
+func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
+	f, err := osCreate(dst)
+	if err != nil {
+		return fmt.Errorf("创建目标文件失败: %w", err)
+	}
+
+	written, copyErr := copyCtx(ctx, src, f)
+	// 显式 Close 在 osRemove 之前（Windows 文件句柄锁问题）
+	closeErr := f.Close()
+	if copyErr != nil {
+		_ = osRemove(dst)
+		return fmt.Errorf("写入文件失败: %w", copyErr)
+	}
+	if closeErr != nil {
+		_ = osRemove(dst)
+		return fmt.Errorf("关闭目标文件失败: %w", closeErr)
+	}
+	if written == 0 {
+		_ = osRemove(dst)
+		return fmt.Errorf("%w: 服务端返回 0 字节", ErrNetwork)
+	}
+	return nil
+}
+
+// copyCtx 是 io.Copy 的 ctx 感知版本：ctx 取消时立刻终止复制。
+func copyCtx(ctx context.Context, src io.Reader, dst io.Writer) (int64, error) {
+	// 8KB buffer，与 io.Copy 默认一致
+	buf := make([]byte, 32*1024)
+	var written int64
+	for {
+		select {
+		case <-ctx.Done():
+			return written, ctx.Err()
+		default:
+		}
+		n, rErr := src.Read(buf)
+		if n > 0 {
+			w, wErr := dst.Write(buf[:n])
+			if wErr != nil {
+				return written, wErr
+			}
+			written += int64(w)
+			if w < n {
+				return written, io.ErrShortWrite
+			}
+		}
+		if rErr == io.EOF {
+			return written, nil
+		}
+		if rErr != nil {
+			return written, rErr
+		}
+	}
+}
+
+// osCreate / osRemove 单独函数封装便于测试 mock。
+var (
+	osCreate = func(dst string) (writeCloser, error) {
+		return os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o644)
+	}
+	osRemove = func(dst string) error { return os.Remove(dst) }
+)
+
+// writeCloser 是 *os.File 的最小接口（Write + Close），便于测试。
+type writeCloser interface {
+	io.Writer
+	Close() error
+}
 //
 // 安全保证：独立 http.Client（不共享 c.http.Jar），不发送任何 Cookie /
 // Authorization 头，杜绝业务域鉴权信息泄露到文件上传公共服务。
