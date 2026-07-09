@@ -4,7 +4,7 @@ nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 
 
 | 包 | 作用 | 文档入口 |
 |---|---|---|
-| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 17 个公开方法 + 12 个 Option + 15 个哨兵错误 | 本文 |
+| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 18 个公开方法 + 12 个 Option + 15 个哨兵错误 | 本文 |
 | [`pkg/types`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/types) | 领域类型（请求/响应/任务/用户等）+ 统一响应泛型解码 | [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) |
 | [`pkg/tokenparse`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/tokenparse) | SSO token 从 302 Location 头 / ReturnData JSON 字节提取 | [tokenparse.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/tokenparse/tokenparse.go) |
 
@@ -197,10 +197,11 @@ wg.Wait()
 | `GetHonorLevel(ctx, token, honorTypeID)` | honor.go | 查指定荣誉类型的可用级别 | `ErrBusinessRejected` |
 | `GetHonorList(ctx, token, pageNo, pageSize)` | honor.go | 查已申报荣誉记录（分页，服务器要求 &key= 参数） | `ErrBusinessRejected` |
 | `AddHonor(ctx, token, payload)` | honor.go | 申报一条荣誉 | `ErrBusinessRejected` |
+| `DeleteHonor(ctx, token, honorID)` | honor.go | 删除一条荣誉记录（GET 传 id 查询参数） | `ErrBusinessRejected` |
 | `UploadFile(ctx, filePath)` | file.go | 图片上传，自动预处理（→JPG + 压缩 ≤5MB）；**不发任何鉴权头** | `ErrNetwork`、`ErrFileTooLarge`、`ErrImageTooLarge`、`ErrUploadRejected`、`ErrRateLimited`、`ErrServiceUnavailable` |
 | `Close()` | client.go | 释放 OCR session、HTTP keep-alive、临时目录；聚合 error 返回 | 多个清理错误 join 一起 |
 
-> **没有的方法**：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor`、`DeleteHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
+> **没有的方法**：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
 
 ---
 
@@ -655,7 +656,7 @@ for _, r := range records {
 
 ## 荣誉申报域（honor.go）
 
-荣誉申报域提供 5 个方法完成荣誉类型查询、级别查询、已申报记录拉取和荣誉申报全流程。
+荣誉申报域提供 6 个方法完成荣誉类型查询、级别查询、已申报记录拉取、荣誉申报和删除全流程。
 
 ### `GetHonorTypes(ctx context.Context, token string) ([]types.HonorType, error)`
 
@@ -724,6 +725,19 @@ if err != nil { /* 字段缺失或业务拒绝 */ }
 **选填字段**：CertImgAttachmentID（先通过 `UploadFile` 上传证书图片，用返回的 ID 关联）。
 
 **响应**：`AddHonor` 成功返回 nil，只确认 code=1。如需服务端 msg 文本，可配合 `errors.As(err, &types.BusinessError{})` 从 `ErrBusinessRejected` 中提取。
+
+错误：`ErrBusinessRejected`。
+
+### `DeleteHonor(ctx context.Context, token string, honorID int64) error`
+
+删除一条已申报的荣誉记录。
+
+```go
+err := c.DeleteHonor(ctx, token, 62204)
+if err != nil { /* 删除失败 */ }
+```
+
+**真实抓包验证**：接口为 `GET` 请求，ID 通过查询参数传递（`deleteHonorById?id=xxx`），非 `POST` 传 JSON body。
 
 错误：`ErrBusinessRejected`。
 

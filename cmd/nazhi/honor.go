@@ -125,6 +125,42 @@ var honorAddCmd = &cobra.Command{
 	},
 }
 
+// honorDeleteCmd 表示 nazhi honor delete 命令
+//
+//	nazhi honor delete --token <token> --id <id> [--base-url <url>] [--timeout <秒>]
+var honorDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "删除一条荣誉记录",
+	Long:  `按 ID 删除已申报但未审核的荣誉记录。`,
+	Example: `  nazhi honor delete --token eyJhbGciOiJIUzI1NiJ9.xxx --id 123
+			  nazhi honor delete --token eyJhbGciOiJIUzI1NiJ9.xxx --id 123 --base-url http://139.159.205.146:8280`,
+	Run: func(cmd *cobra.Command, args []string) {
+		honorID, _ := cmd.Flags().GetInt64("id")
+		if honorID == 0 {
+			printEnvelope(envelope.Error(400, "--id 为必填"))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printError(err)
+			return
+		}
+
+		printVerbose("正在删除荣誉记录...")
+		if err := c.DeleteHonor(cmd.Context(), token, honorID); err != nil {
+			printError(fmt.Errorf("删除荣誉记录失败: %w", err))
+			return
+		}
+
+		printEnvelope(envelope.Success(map[string]any{
+			"status": "success",
+			"msg":    "荣誉记录已删除",
+			"id":     honorID,
+		}))
+	},
+}
+
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
 // 委托 parsePayloadFromArg 处理 @file.json / - / 原始字符串。
 func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
@@ -157,4 +193,9 @@ func init() {
 	honorCmd.AddCommand(honorAddCmd)
 	honorAddCmd.Flags().String("payload", "", "荣誉 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 	registerBizFlags(honorAddCmd)
+
+	// honor delete
+	honorCmd.AddCommand(honorDeleteCmd)
+	honorDeleteCmd.Flags().Int64("id", 0, "荣誉记录 ID（必填）")
+	registerBizFlags(honorDeleteCmd)
 }

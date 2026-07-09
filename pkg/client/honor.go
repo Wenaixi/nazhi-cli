@@ -106,6 +106,18 @@ func (c *Client) GetHonorList(ctx context.Context, token string, pageNo, pageSiz
 	return records, pb, nil
 }
 
+// DeleteHonor 删除一条荣誉记录。
+//
+// 真实抓包确认：接口为 GET 请求，ID 通过查询参数传递。
+func (c *Client) DeleteHonor(ctx context.Context, token string, honorID int64) error {
+	path := "/api/studentMoralEduNew/deleteHonorById?id=" + strconv.FormatInt(honorID, 10)
+	_, err := c.doBizAndDecode(ctx, token, "DeleteHonor", path, http.MethodGet, nil)
+	if err != nil {
+		return fmt.Errorf("DeleteHonor 失败: %w", err)
+	}
+	return nil
+}
+
 // AddHonor 申报一条荣誉。
 func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error {
 	_, err := c.doBizAndDecode(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
