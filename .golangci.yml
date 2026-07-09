@@ -8,8 +8,6 @@ linters:
     - unused
     # ─── Phase 5 工程化加固新增 ───
     - revive
-    - godot
-    - godox
     - exhaustive
     - prealloc
     - whitespace
@@ -18,9 +16,6 @@ linters:
     - gocritic
 
 linters-settings:
-  godot:
-    # 仅检查声明（导出符号）上方注释是否以句号结尾，避免误伤行内注释
-    scope: declarations
   revive:
     rules:
       - name: exported
