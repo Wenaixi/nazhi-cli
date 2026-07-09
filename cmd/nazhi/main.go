@@ -113,6 +113,7 @@ func init() {
 	taskCmd.AddCommand(taskListCmd)
 	taskCmd.AddCommand(taskSubmitCmd)
 	taskCmd.AddCommand(taskSubmittedCmd)
+	taskCmd.AddCommand(taskDoneCmd) // submitted 别名
 
 	// self-eval
 	rootCmd.AddCommand(selfEvalCmd) // self-eval parent

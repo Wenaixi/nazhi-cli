@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -41,20 +42,14 @@ var taskListCmd = &cobra.Command{
 				errors.Is(err, context.Canceled) ||
 				errors.Is(err, context.DeadlineExceeded)
 			if isPartialErr && len(tasks) > 0 {
-				printJSON(map[string]any{
-					"status": "partial",
-					"reason": "fetch_tasks_partial_failure",
-					"tasks":  tasks,
-					"error":  err.Error(),
-				})
-				markError() // 与 F7 模式一致：标记退出码为 1 但不调用 os.Exit
+				printEnvelope(envelope.Partial(207, "fetch_tasks_partial_failure: "+err.Error(), map[string]any{"tasks": tasks}))
 				return
 			}
 			printError(fmt.Errorf("获取任务列表失败: %w", err))
 			return
 		}
 
-		printJSON(tasks)
+		printEnvelope(envelope.Success(tasks))
 	},
 }
 
