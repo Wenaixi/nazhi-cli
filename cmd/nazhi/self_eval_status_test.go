@@ -33,7 +33,7 @@ func makeSelfEvalStatusTestCmd(t *testing.T, bizOK bool) *cobra.Command {
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"测试学校","className":"高一八班","seat":45}}`))
 		case "/api/studentMoralEduNew/querySelfEvaluation":
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"student_comment":"很好的学期","teacher_comment":"优秀","student_name":"张三","student_number":"TEST2025001","id":100}}`))
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"studentComment":"很好的学期","teacherComment":"优秀","id":100}}`))
 		default:
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte(`{"code":500,"msg":"未知路径"}`))
@@ -65,19 +65,19 @@ func TestSelfEvalStatusCmd_HappyPath(t *testing.T) {
 	stderr := stderrBuf.String()
 
 	if got := pendingExitCode.Load(); got != 0 {
-		t.Errorf("正常路径不应触发 pendingExitCode=1，实际 %d", got)
+		t.Errorf("正常路径不应触发 pendingExitCode，实际 %d", got)
 	}
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
-	if !strings.Contains(stdout, `"student_comment": "很好的学期"`) {
-		t.Errorf("stdout 应包含 student_comment，实际: %q", stdout)
+	if !strings.Contains(stdout, `"studentComment": "很好的学期"`) {
+		t.Errorf("stdout 应包含 studentComment，实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"teacher_comment": "优秀"`) {
-		t.Errorf("stdout 应包含 teacher_comment，实际: %q", stdout)
+	if !strings.Contains(stdout, `"teacherComment": "优秀"`) {
+		t.Errorf("stdout 应包含 teacherComment，实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"student_name": "张三"`) {
-		t.Errorf("stdout 应包含 student_name，实际: %q", stdout)
+	if !strings.Contains(stdout, `"id": 100`) {
+		t.Errorf("stdout 应包含 id，实际: %q", stdout)
 	}
 }
 
@@ -94,11 +94,12 @@ func TestSelfEvalStatusCmd_SessionError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("session 激活失败应触发 pendingExitCode=1，实际 %d", got)
+	// 业务错误应触发 pendingExitCode=2（printError 走 envelope.Error 5xx）
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("session 激活失败应触发 pendingExitCode=2，实际 %d", got)
 	}
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应包含 error envelope，实际: %q", stderr)
 	}
 	if !strings.Contains(stderr, "QuerySelfEvaluation") {
 		t.Errorf("stderr 应包含 QuerySelfEvaluation 信息，实际: %q", stderr)

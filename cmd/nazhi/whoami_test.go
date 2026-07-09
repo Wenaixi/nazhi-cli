@@ -152,33 +152,33 @@ func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码应为 1（空用户信息是失败状态，CI 需要区分）
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("空响应 whoami 应触发 pendingExitCode=1，实际 %d", got)
+	// exit=0：envelope.Empty 是 success（204），ExitCode=0
+	if got := pendingExitCode.Load(); got != 0 {
+		t.Errorf("空响应 whoami 应触发 pendingExitCode=0（envelope.Empty 成功），实际 %d", got)
 	}
 
-	// stderr 不应有 error 标记
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	// stderr 不应输出错误 envelope（envelope.Empty 走 stdout）
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
 
 	// stdout 不应是裸 null
 	if strings.TrimSpace(stdout) == "null" {
-		t.Errorf("stdout 不应输出裸 null（空响应应输出 status envelope），实际: %q", stdout)
+		t.Errorf("stdout 不应输出裸 null（空响应应输出 envelope.Empty），实际: %q", stdout)
 	}
 
-	// stdout 应包含 status: empty
-	if !strings.Contains(stdout, `"status": "empty"`) {
-		t.Errorf("stdout 应包含 status: empty，实际: %q", stdout)
+	// stdout 应包含 status=success / code=204（envelope.Empty 表达空数据）
+	if !strings.Contains(stdout, `"status": "success"`) {
+		t.Errorf("stdout 应包含 status=success（envelope.Empty），实际: %q", stdout)
 	}
 
-	// stdout 应包含 reason
-	if !strings.Contains(stdout, `"reason": "get_my_info_empty"`) {
-		t.Errorf("stdout 应包含 reason: get_my_info_empty，实际: %q", stdout)
+	// stdout 应包含 code=204
+	if !strings.Contains(stdout, `"code": 204`) {
+		t.Errorf("stdout 应包含 code=204，实际: %q", stdout)
 	}
 }
 
-// TestWhoami_Normal_OutputsUserInfo 验证正常 whoami 响应直接输出 UserInfo。
+// TestWhoami_Normal_OutputsUserInfo 验证正常 whoami 响应直接输出 UserInfo envelope。
 func TestWhoami_Normal_OutputsUserInfo(t *testing.T) {
 	cmd := makeWhoamiTestCmd(t, "test-token", unifiedUserInfo)
 
@@ -192,7 +192,7 @@ func TestWhoami_Normal_OutputsUserInfo(t *testing.T) {
 	stdout := stdoutBuf.String()
 	_ = stderrBuf.String()
 
-	// 输出 UserInfo
+	// 输出 UserInfo（嵌套在 envelope data 字段里）
 	if !strings.Contains(stdout, `"name": "张三"`) {
 		t.Errorf("正常响应 stdout 应包含 name: 张三，实际: %q", stdout)
 	}
@@ -216,14 +216,14 @@ func TestWhoami_BizFail_PrintsError(t *testing.T) {
 	_ = stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码标记为 1
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("业务失败 whoami 应标记 pendingExitCode=1，实际 %d", got)
+	// 退出码标记为 2（业务错误 5xx 走 envelope.ExitCode=2）
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("业务失败 whoami 应标记 pendingExitCode=2（envelope.Error 5xx），实际 %d", got)
 	}
 
-	// stderr 含 error JSON
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("业务失败 whoami stderr 应含 error JSON，实际: %q", stderr)
+	// stderr 含 error envelope
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("业务失败 whoami stderr 应含 error envelope，实际: %q", stderr)
 	}
 }
 

@@ -64,8 +64,8 @@ func TestSelfEvalSubmitCmd_WithComment(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 0 {
 		t.Errorf("正常路径不应触发 pendingExitCode=1，实际 %d", got)
 	}
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
 	if !strings.Contains(stdout, `"status": "ok"`) {
 		t.Errorf("stdout 应包含 status: ok，实际: %q", stdout)
@@ -100,8 +100,8 @@ func TestSelfEvalSubmitCmd_StdinPipe(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 0 {
 		t.Errorf("stdin 读入不应触发 pendingExitCode=1，实际 %d", got)
 	}
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
 	if !strings.Contains(stdout, `"status": "ok"`) {
 		t.Errorf("stdout 应包含 status: ok，实际: %q", stdout)
@@ -131,16 +131,17 @@ func TestSelfEvalSubmitCmd_EmptyStdin_PrintsError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("空 stdin 应触发 pendingExitCode=1，实际 %d", got)
+	// 空 stdin → envelope.Error(400, ...) → pendingExitCode=3（参数错误）
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("空 stdin 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	if !strings.Contains(stdout, `"status": "error"`) {
+		t.Errorf("stdout 应包含 envelope.Error，实际: %q", stdout)
 	}
-	if !strings.Contains(stderr, "评价内容不能为空") {
-		t.Errorf("stderr 应包含空评价提示，实际: %q", stderr)
+	if !strings.Contains(stdout, "评价内容不能为空") {
+		t.Errorf("stdout 应包含空评价提示，实际: %q", stdout)
 	}
-	_ = stdout
+	_ = stderr
 }
 
 // TestSelfEvalSubmitCmd_StdinReadError_Propagates 验证 stdin 读取发生 I/O 错误时
@@ -169,11 +170,12 @@ func TestSelfEvalSubmitCmd_StdinReadError_Propagates(t *testing.T) {
 	restore()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("stdin 读错误应触发 pendingExitCode=1，实际 %d", got)
+	// stdin I/O 错误走 printError → envelope.ExitCode=2
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("stdin 读错误应触发 pendingExitCode=2（printError 走 500），实际 %d", got)
 	}
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应包含 error envelope，实际: %q", stderr)
 	}
 	// 核心断言：真实 I/O 错误不应被掩盖为"评价内容不能为空"
 	if strings.Contains(stderr, "评价内容不能为空") {
@@ -224,11 +226,12 @@ func TestSelfEvalSubmitCmd_ServerError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("业务错误应触发 pendingExitCode=1，实际 %d", got)
+	// 业务错误应触发 pendingExitCode=2（envelope.Error 5xx → exit code 2）
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("业务错误应触发 pendingExitCode=2，实际 %d", got)
 	}
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应包含 error envelope，实际: %q", stderr)
 	}
 	_ = stdout
 }

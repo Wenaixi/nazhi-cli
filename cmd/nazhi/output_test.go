@@ -54,8 +54,8 @@ func TestPrintError_DoesNotCallOsExit(t *testing.T) {
 	if !strings.Contains(stderrOutput, "synthetic error for F7 regression") {
 		t.Errorf("stderr 应包含错误信息，实际: %q", stderrOutput)
 	}
-	if !strings.Contains(stderrOutput, `"error": true`) {
-		t.Errorf("stderr 应包含 JSON error 标记，实际: %q", stderrOutput)
+	if !strings.Contains(stderrOutput, `"status": "error"`) {
+		t.Errorf("stderr 应包含 envelope status=error 标记，实际: %q", stderrOutput)
 	}
 }
 
@@ -161,8 +161,8 @@ func TestPrintError_NonMarshalablePayload_StillSetsExitCode(t *testing.T) {
 	// 写一个普通的 error —— 因为 stderr fd 已关，json.Encode 会失败 → 走兜底路径
 	printError(errors.New("trigger fallback path"))
 
-	if pendingExitCode.Load() != 1 {
-		t.Errorf("pendingExitCode 应为 1（兜底路径仍应 markError），实际 %d", pendingExitCode.Load())
+	if pendingExitCode.Load() != 2 {
+		t.Errorf("pendingExitCode 应为 2（printError 走 envelope.ExitCode，500 → 2），实际 %d", pendingExitCode.Load())
 	}
 }
 

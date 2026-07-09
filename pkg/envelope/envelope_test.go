@@ -61,9 +61,9 @@ func TestPartial(t *testing.T) {
 
 func TestError(t *testing.T) {
 	cases := []struct {
-		code    int
-		wantEC  int
-		desc    string
+		code   int
+		wantEC int
+		desc   string
 	}{
 		{400, 3, "参数错误 → 3"},
 		{401, 1, "鉴权失败 (4xx 非 400) → 1"},
@@ -92,12 +92,12 @@ func TestExitCodeBoundary(t *testing.T) {
 	}{
 		{StatusSuccess, 200, 0},
 		{StatusPartial, 207, 1},
-		{StatusError, 399, 1},  // 4xx 边界外（接近 400）→ 业务错误 1
-		{StatusError, 400, 3},  // 参数错误
-		{StatusError, 401, 1},  // 业务错误
-		{StatusError, 499, 1},  // 业务错误边界
-		{StatusError, 500, 2},  // 服务端
-		{StatusError, 599, 2},  // 服务端
+		{StatusError, 399, 1}, // 4xx 边界外（接近 400）→ 业务错误 1
+		{StatusError, 400, 3}, // 参数错误
+		{StatusError, 401, 1}, // 业务错误
+		{StatusError, 499, 1}, // 业务错误边界
+		{StatusError, 500, 2}, // 服务端
+		{StatusError, 599, 2}, // 服务端
 	}
 	for _, tc := range cases {
 		e := &Envelope{Status: tc.status, Code: tc.code}

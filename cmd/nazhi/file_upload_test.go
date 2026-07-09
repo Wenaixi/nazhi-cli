@@ -53,7 +53,7 @@ func makeFileUploadTestCmd(t *testing.T, filePath string) *cobra.Command {
 	return cmd
 }
 
-// TestFileUploadCmd_MissingFile_PrintsError 验证 --file 缺省时输出 error JSON 到 stderr。
+// TestFileUploadCmd_MissingFile_PrintsError 验证 --file 缺省时输出 error envelope。
 func TestFileUploadCmd_MissingFile_PrintsError(t *testing.T) {
 	cmd := makeFileUploadTestCmd(t, "") // 不设 file flag
 
@@ -66,16 +66,20 @@ func TestFileUploadCmd_MissingFile_PrintsError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("缺 file 应触发 pendingExitCode=1，实际 %d", got)
+	// 缺 file → envelope.Error(400, ...) → exit code 3
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("缺 file 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	// envelope.Error 走 printEnvelope（stdout），不再是 stderr JSON
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("envelope.Error 走 stdout，不应在 stderr，实际: %q", stderr)
 	}
-	if !strings.Contains(stderr, "file") {
-		t.Errorf("stderr 应包含 file 提示，实际: %q", stderr)
+	if !strings.Contains(stdout, `"status": "error"`) {
+		t.Errorf("stdout 应包含 envelope.Error，实际: %q", stdout)
 	}
-	_ = stdout
+	if !strings.Contains(stdout, "file") {
+		t.Errorf("stdout 应包含 file 提示，实际: %q", stdout)
+	}
 }
 
 // TestFileUploadCmd_HappyPath 验证完整上传流程：JPEG 文件上传成功，输出 id + path。
@@ -95,8 +99,8 @@ func TestFileUploadCmd_HappyPath(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 0 {
 		t.Errorf("正常上传不应触发 pendingExitCode=1，实际 %d", got)
 	}
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
 	if !strings.Contains(stdout, `"id": 42`) {
 		t.Errorf("stdout 应包含上传返回的 id: 42，实际: %q", stdout)
