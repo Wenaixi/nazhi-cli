@@ -1,4 +1,4 @@
-# 架构总览
+﻿# 架构总览
 
 ## 双层架构
 
@@ -80,7 +80,7 @@ nazhi-cli/
 │   ├── tokenparse.go                      ExtractFromLocation / ExtractFromReturnData
 │   └── tokenparse_test.go
 ├── pkg/types/
-│   ├── types.go                           领域类型 + BirthdayDate 双形态 UnmarshalJSON
+│   ├── types.go                           领域类型定义
 │   ├── response.go                        UnifiedResponse + 泛型 DecodeReturnData[T] / DecodeDataList[T] / DecodeDataMap[T] + CheckCode
 │   └── deref.go                           DerefOr[T] 安全解引用
 ├── internal/

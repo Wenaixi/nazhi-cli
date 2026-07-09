@@ -1025,8 +1025,7 @@ if err != nil { /* 空 body / token 类型异常 */ }
 | `LoginRequest` | SchoolID / Username / Password |
 | `LoginResponse` | Token / ExpiresAt / RawData（`json:"-"`） |
 | `BusinessError` | Code（数值）/ Msg（字符串）；`errors.As(err, &b)` 精细分支 |
-| `UserInfo` | 40+ 字段个人资料（详见 `pkg/types/types.go`） |
-| `BirthdayDate` | Year / Month / Day；支持字符串 + 数组双形态 UnmarshalJSON |
+| `UserInfo` | 10 字段用户身份/学校/班级资料（详见 `pkg/types/types.go`） |
 | `Task` | 任务条目（ID、Name、Hours、Status、DimensionName 等 16 字段） |
 | `TaskSubmitPayload` | 29 字段 addCircle 请求体透传 |
 | `HonorType` | 荣誉类型（_id, Name, LevelName, Level, Score, DimensionName, SortNo_） |

@@ -79,33 +79,3 @@ func TestCheckCode_ErrorContainsMsg(t *testing.T) {
 		t.Errorf("Error() 输出不符: %q", errMsg)
 	}
 }
-
-// ─── BirthdayDate 补充测试 ───
-
-// TestBirthdayDate_UnmarshalJSON_RFC3339 验证 "2009-12-11T00:00:00Z" 解析。
-func TestBirthdayDate_UnmarshalJSON_RFC3339(t *testing.T) {
-	var b BirthdayDate
-	if err := b.UnmarshalJSON([]byte(`"2009-12-11T00:00:00Z"`)); err != nil {
-		t.Fatalf("解析 RFC3339 失败: %v", err)
-	}
-	if b.Year != 2009 || b.Month != 12 || b.Day != 11 {
-		t.Errorf("生日错: %d-%d-%d", b.Year, b.Month, b.Day)
-	}
-}
-
-// TestBirthdayDate_UnmarshalJSON_InvalidString 验证无效字符串返回错误。
-func TestBirthdayDate_UnmarshalJSON_InvalidString(t *testing.T) {
-	var b BirthdayDate
-	if err := b.UnmarshalJSON([]byte(`"not-a-date"`)); err == nil {
-		t.Fatal("无效字符串应返回 error")
-	}
-}
-
-// TestBirthdayDate_UnmarshalJSON_InvalidArray 验证无效数组返回错误。
-func TestBirthdayDate_UnmarshalJSON_InvalidArray(t *testing.T) {
-	var b BirthdayDate
-	// 数组长度不足 3
-	if err := b.UnmarshalJSON([]byte(`[2009]`)); err == nil {
-		t.Fatal("长度不足的数组应返回 error")
-	}
-}
