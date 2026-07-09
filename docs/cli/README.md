@@ -85,16 +85,19 @@ $ nazhi whoami
   "code": 200,
   "message": "",
   "data": {
-    "id": 12345,
+    "id": 10086,
     "name": "张三",
     "studentNumber": "G123456789012345678",
-    "studentId": 67890,
-    "schoolId": 11000001,
-    "schoolName": "纳智高中",
-    "gradeId": 12,
+    "studentId": 20101,
+    "studyNumber": "2508010404",
+    "nationalStudentNumber": "G123456789012345678",
+    "schoolId": 10001,
+    "schoolName": "示例高中",
+    "gradeId": 100,
     "gradeName": "高一",
-    "classId": 88,
-    "className": "八班"
+    "classId": 1001,
+    "className": "八班",
+    "seat": 29
   }
 }
 ```
@@ -220,8 +223,8 @@ nazhi login -u 学号 -p 密码
   "code": 200,
   "message": "",
   "data": {
-    "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOi...",
-    "expiresAt": "2026-07-15T08:00:00+08:00",
+    "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I...",
+    "expiresAt": "2026-07-24T01:26:37+08:00",
     "fallbackUsed": false
   }
 }
@@ -297,16 +300,19 @@ nazhi whoami --token "eyJhbGciOiJIUzUxMiJ9.xxx"
   "code": 200,
   "message": "",
   "data": {
-    "id": 12345,
+    "id": 10086,
     "name": "张三",
     "studentNumber": "G123456789012345678",
-    "studentId": 67890,
-    "schoolId": 11000001,
-    "schoolName": "纳智高中",
-    "gradeId": 12,
+    "studentId": 20101,
+    "studyNumber": "2508010404",
+    "nationalStudentNumber": "G123456789012345678",
+    "schoolId": 10001,
+    "schoolName": "示例高中",
+    "gradeId": 100,
     "gradeName": "高一",
-    "classId": 88,
-    "className": "八班"
+    "classId": 1001,
+    "className": "八班",
+    "seat": 29
   }
 }
 ```
@@ -338,17 +344,50 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
   "message": "",
   "data": [
     {
-      "id": 16512,
-      "name": "校园劳动",
-      "typeName": "劳动",
-      "dimensionName": "劳动教育",
-      "hours": 2.0,
+      "id": 10001,
+      "name": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声",
+      "typeName": "参加的艺术活动项目",
+      "dimensionName": "艺术素养",
+      "hours": 4,
+      "score": 1,
+      "remark": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声4个小时",
       "submitted": false,
-      "needPic": true,
-      "startDateStr": "2026-01-12",
-      "endDateStr": "2026-02-10",
+      "needPic": false,
+      "startDateStr": "2026-06-30T00:00:00+08:00",
+      "endDateStr": "2026-07-30T00:00:00+08:00",
+      "auditStartDateStr": "2026-07-31T00:00:00+08:00",
+      "auditEndDateStr": "2026-09-30T00:00:00+08:00",
+      "creatorName": "林老师",
+      "roleName": "班主任",
+      "creationTime": [2026, 6, 30, 11, 39, 19],
+      "creationTimeStr": "2026-06-30T00:00:00+08:00",
+      "termId": 18,
+      "pushNum": 1,
       "scopeType": 2,
-      "scopeTypeName": "年级"
+      "scopeTypeName": "年段任务"
+    },
+    {
+      "id": 10002,
+      "name": "诚以立身，信以应考（诚信教育 励志教育）主题班会",
+      "typeName": "主题班会",
+      "dimensionName": "思想品德",
+      "hours": 0.5,
+      "score": 1,
+      "remark": "心得+照片",
+      "submitted": false,
+      "needPic": false,
+      "startDateStr": "2026-07-10T00:00:00+08:00",
+      "endDateStr": "2026-07-18T00:00:00+08:00",
+      "auditStartDateStr": "2026-07-19T00:00:00+08:00",
+      "auditEndDateStr": "2026-07-22T00:00:00+08:00",
+      "creatorName": "王老师",
+      "roleName": "班主任",
+      "creationTime": [2026, 7, 4, 9, 33, 53],
+      "creationTimeStr": "2026-07-04T00:00:00+08:00",
+      "termId": 18,
+      "pushNum": 0,
+      "scopeType": 1,
+      "scopeTypeName": "班级任务"
     }
   ]
 }
@@ -434,20 +473,30 @@ nazhi task done --token "eyJhbGciOiJIUzUxMiJ9.xxx"      # 同 submitted，别名
   "code": 200,
   "message": "",
   "data": {
-    "total": 5,
+    "total": 2,
     "records": [
       {
-        "id": 1024,
-        "name": "校园劳动",
-        "typeName": "劳动",
-        "content": "参与了校园绿化...",
+        "id": 20001,
+        "name": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声",
+        "content": "当最后一个音符落下，掌声如潮水般涌来，我才真正理解了"班班有歌声"的意义。",
+        "typeName": "",
         "approved": false,
-        "circleDate": "2026-06-15T00:00:00+08:00",
-        "hours": 2.0,
+        "circleDate": "0001-01-01T00:00:00Z",
+        "hours": 4,
         "imgList": [
-          { "attachmentId": 456 }
+          {
+            "id": 30001,
+            "circle_id": 20001,
+            "class_id": 1001,
+            "task_id": 10001,
+            "attachment_id": 6000001,
+            "imgPath": ".jpg"
+          }
         ],
-        "remark": ""
+        "imgPreViewList": [
+          "http://www.nazhisoft.com/common/attachment/getImg?id=6000001"
+        ],
+        "remark": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声4个小时"
       }
     ]
   }
@@ -517,9 +566,9 @@ nazhi self-eval status --token "xxx"
   "code": 200,
   "message": "",
   "data": {
-    "id": 12345,
-    "studentComment": "很好的学期，掌握了...",
-    "teacherComment": "本学期表现优秀"
+    "id": 50001,
+    "studentComment": "本学期学习认真，积极参与各项活动。",
+    "teacherComment": "表现良好，继续努力。"
   }
 }
 ```
@@ -555,8 +604,8 @@ nazhi file upload -f ./photo.jpg
 按附件 ID 下载图片到本地。独立公共服务，不需要业务 token。
 
 ```bash
-# 下载附件 ID 5006375 到当前目录
-nazhi file download --id 5006375 --output ./photo.jpg
+# 下载附件 ID 5000001 到当前目录
+nazhi file download --id 5000001 --output ./photo.jpg
 
 # 配合 task submitted 批量下载
 nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \

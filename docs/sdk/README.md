@@ -226,7 +226,7 @@ if err := c.InitSession(ctx); err != nil { /* 网络错 */ }
 
 ```go
 sid, name, err := c.GetSchoolID(ctx, "2025001")
-// sid="11000001", name="示例中学"
+// sid="10001", name="示例中学"
 ```
 
 返回错误分支：
@@ -251,6 +251,19 @@ type LoginResponse struct {
 	ExpiresAt    time.Time // 过期时间，绝对 time.Time
 	FallbackUsed bool      // 是否降级到备用 OCR（primary 失败后）
 }
+```
+
+请求例子：
+
+```go
+resp, err := c.Login(ctx, types.LoginRequest{
+	Username: os.Getenv("NAZHI_USERNAME"),
+	Password: os.Getenv("NAZHI_PASSWORD"),
+})
+// 成功响应（脱敏）：
+// resp.Token     = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I..."
+// resp.ExpiresAt = time.Date(2026, 7, 24, 1, 26, 37, 0, time.FixedZone("CST", 8*3600))
+// resp.FallbackUsed = false
 ```
 
 **内部流程**：
@@ -303,6 +316,21 @@ if err != nil {
     log.Fatalf("登录失败：%v", err)
 }
 token := resp.Token
+```
+
+真实响应（脱敏）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I...",
+    "expiresAt": "2026-07-24T01:26:37+08:00",
+    "fallbackUsed": false
+  }
+}
 ```
 
 ---
@@ -367,6 +395,31 @@ info1, err := c.ActivateSession(ctx, token) // ~200-500ms
 info2, err := c.ActivateSession(ctx, token) // 0 HTTP
 ```
 
+真实响应（脱敏）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 10086,
+    "name": "张三",
+    "studentNumber": "G123456789012345678",
+    "studentId": 20101,
+    "studyNumber": "2508010404",
+    "nationalStudentNumber": "G123456789012345678",
+    "schoolId": 10001,
+    "schoolName": "示例高中",
+    "gradeId": 100,
+    "gradeName": "高一",
+    "classId": 1001,
+    "className": "八班",
+    "seat": 29
+  }
+}
+```
+
 ---
 
 ## 用户域（user.go）
@@ -396,6 +449,31 @@ if err != nil {
 log.Printf("欢迎 %s（%s）", info.Name, info.ClassName)
 ```
 
+真实响应（脱敏）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 10086,
+    "name": "张三",
+    "studentNumber": "G123456789012345678",
+    "studentId": 20101,
+    "studyNumber": "2508010404",
+    "nationalStudentNumber": "G123456789012345678",
+    "schoolId": 10001,
+    "schoolName": "示例高中",
+    "gradeId": 100,
+    "gradeName": "高一",
+    "classId": 1001,
+    "className": "八班",
+    "seat": 29
+  }
+}
+```
+
 **返回错误**：
 
 | 场景 | 错误 |
@@ -415,6 +493,73 @@ log.Printf("欢迎 %s（%s）", info.Name, info.ClassName)
 拉全部维度的任务。流程：`ActivateSession` → `getDimensions` → 遍历维度并发拉 `getCircleStatistics` → 聚合。
 
 **并发控制**：`errgroup.SetLimit(min(len(dimensions), 8))`，20 维度约 3 RTT 完成。超过 50 维度考虑调整 `fetchTasksConcurrentLimit` 常量。
+
+请求例子：
+
+```go
+tasks, err := c.FetchTasks(ctx, token)
+if err != nil {
+    log.Printf("获取任务失败（部分成功 %d 个）：%v", len(tasks), err)
+}
+```
+
+真实响应（脱敏，仅展示 2 条）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": [
+    {
+      "id": 10001,
+      "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
+      "typeName": "参加的艺术活动项目",
+      "dimensionName": "艺术素养",
+      "hours": 4,
+      "score": 1,
+      "remark": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声4个小时",
+      "submitted": false,
+      "needPic": false,
+      "startDateStr": "2026-06-30T00:00:00+08:00",
+      "endDateStr": "2026-07-30T00:00:00+08:00",
+      "auditStartDateStr": "2026-07-31T00:00:00+08:00",
+      "auditEndDateStr": "2026-09-30T00:00:00+08:00",
+      "creatorName": "林老师",
+      "roleName": "班主任",
+      "creationTime": [2026, 6, 30, 11, 39, 19],
+      "creationTimeStr": "2026-06-30T00:00:00+08:00",
+      "termId": 18,
+      "pushNum": 1,
+      "scopeType": 2,
+      "scopeTypeName": "年段任务"
+    },
+    {
+      "id": 10002,
+      "name": "诚以立身，信以应考（诚信教育 励志教育）主题班会",
+      "typeName": "主题班会",
+      "dimensionName": "思想品德",
+      "hours": 0.5,
+      "score": 1,
+      "remark": "心得+照片",
+      "submitted": false,
+      "needPic": false,
+      "startDateStr": "2026-07-10T00:00:00+08:00",
+      "endDateStr": "2026-07-18T00:00:00+08:00",
+      "auditStartDateStr": "2026-07-19T00:00:00+08:00",
+      "auditEndDateStr": "2026-07-22T00:00:00+08:00",
+      "creatorName": "王老师",
+      "roleName": "班主任",
+      "creationTime": [2026, 7, 4, 9, 33, 53],
+      "creationTimeStr": "2026-07-04T00:00:00+08:00",
+      "termId": 18,
+      "pushNum": 0,
+      "scopeType": 1,
+      "scopeTypeName": "班级任务"
+    }
+  ]
+}
+```
 
 **部分失败语义**：
 
@@ -493,6 +638,43 @@ type TaskSubmitPayload struct {
 }
 ```
 
+请求例子：
+
+```go
+result, err := c.SubmitTask(ctx, token, types.TaskSubmitPayload{
+    CircleTaskID: 18296,
+    CircleTypeID: 1,
+    Name:         "安全教育主题班会",
+    Content:      "通过案例分析和互动讨论，同学们掌握了防溺水、交通安全等实用技能。",
+    Hours:        0.5,
+    DimensionID:  53,
+    PlayRole:     "3",
+    CircleDate:   "2026-07-10",
+})
+if err != nil {
+    var bErr *types.BusinessError
+    if errors.As(err, &bErr) {
+        log.Printf("业务拒绝：code=%d msg=%s", bErr.Code, bErr.Msg)
+    }
+    log.Fatalf("提交失败：%v", err)
+}
+log.Printf("提交成功，result=%+v", result)
+```
+
+真实响应（脱敏）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "code": 1,
+    "msg": "保存成功"
+  }
+}
+```
+
 29 字段全部透传，SDK 不裁剪不处理。不同任务类型的字段差异（HAR 验证）：
 
 | 字段 | 劳动 | 军训 | 班会 | 通用 |
@@ -544,6 +726,32 @@ type SelfEvalStatus struct {
     ID             int64  `json:"id"`             // 自我评价 ID
     StudentComment string `json:"studentComment"` // 学生自评
     TeacherComment string `json:"teacherComment"` // 教师评语
+}
+```
+
+请求例子：
+
+```go
+status, err := c.QuerySelfEvaluation(ctx, token)
+if err != nil {
+    log.Fatalf("查询自我评价失败：%v", err)
+}
+log.Printf("自评：%s", status.StudentComment)
+log.Printf("师评：%s", status.TeacherComment)
+```
+
+真实响应（脱敏）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 50001,
+    "studentComment": "",
+    "teacherComment": ""
+  }
 }
 ```
 
@@ -624,6 +832,20 @@ log.Printf("上传成功，图片 ID：%d", id)
 
 `id` 后续可用于 `SubmitTask(..., types.TaskSubmitPayload{PictureList: []int64{id}, ...})`。
 
+真实响应（脱敏，类比）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 6000001,
+    "path": "./photo.jpg"
+  }
+}
+```
+
 ---
 
 ## 已提交写实记录域（submitted.go）
@@ -640,6 +862,44 @@ if err != nil {
 }
 for _, r := range records {
     fmt.Printf("记录：%s（%s，%.1f 学时）\n", r.Name, r.TypeName, r.Hours)
+}
+```
+
+真实响应（脱敏，仅展示 1 条）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "total": 2,
+    "records": [
+      {
+        "id": 20001,
+        "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
+        "content": "当最后一个音符落下，掌声如潮水般涌来，我才真正理解了\"班班有歌声\"的意义。",
+        "typeName": "",
+        "approved": false,
+        "circleDate": "0001-01-01T00:00:00Z",
+        "hours": 4,
+        "imgList": [
+          {
+            "id": 30001,
+            "circle_id": 20001,
+            "class_id": 1001,
+            "task_id": 10001,
+            "attachment_id": 6000001,
+            "imgPath": ".jpg"
+          }
+        ],
+        "imgPreViewList": [
+          "http://www.nazhisoft.com/common/attachment/getImg?id=6000001"
+        ],
+        "remark": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声4个小时"
+      }
+    ]
+  }
 }
 ```
 
@@ -675,6 +935,39 @@ for _, t := range types {
 }
 ```
 
+真实响应（脱敏，仅展示 3 条）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": [
+    {
+      "id": 1147,
+      "name": "校学生优秀干部",
+      "levelName": "",
+      "level": 5,
+      "dimensionName": ""
+    },
+    {
+      "id": 1148,
+      "name": "校三好学生",
+      "levelName": "",
+      "level": 5,
+      "dimensionName": ""
+    },
+    {
+      "id": 1150,
+      "name": "二级运动员",
+      "levelName": "",
+      "level": 1,
+      "dimensionName": ""
+    }
+  ]
+}
+```
+
 **双通道 fallback**：服务端同时支持 `dataList`（丰富字段）和 `returnData`（简化字段）两条路径，SDK 优先解析 `dataList`，`returnData` 兜底。
 
 ### `GetHonorTypeForSelect(ctx context.Context, token string) ([]types.HonorSelectOption, error)`
@@ -703,6 +996,35 @@ levels, err := c.GetHonorLevel(ctx, token, 1147)
 records, pb, err := c.GetHonorList(ctx, token, 1, 20)
 if err != nil { /* ... */ }
 fmt.Printf("共 %d 条（第 %d/%d 页）\n", pb.TotalNum, pb.PageNo, pb.TotalPage)
+```
+
+真实响应（脱敏）：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "total": 1,
+    "page": 1,
+    "pageSize": 20,
+    "totalPage": 1,
+    "records": [
+      {
+        "id": 56241,
+        "typeName": "阅读之星",
+        "levelName": "",
+        "level": 5,
+        "dimensionName": "",
+        "approved": false,
+        "approvedName": "",
+        "getDate": "0001-01-01T00:00:00Z",
+        "evaluationAgency": ""
+      }
+    ]
+  }
+}
 ```
 
 **`&key=` 参数**：服务端要求 URL 带 `&key=` 参数（可空值），否则返回 HTTP 400。SDK 内部已自动拼接。

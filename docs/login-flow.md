@@ -349,7 +349,7 @@ SDK/CLI                       SSO (nazhisoft.com)              业务系统 (139
     │<──────────────────────────────────│                                  │
     │                                  │                                  │
     │ 4. POST /validate                  │                                  │
-    │    {"schoolId":"173","username": │                                  │
+    │    {"schoolId":"10001","username": │                                  │
     │     "x","password":"plain"}       │                                  │
     │──────────────────────────────────>│                                  │
     │  {"code":1,"returnData":{        │                                  │
