@@ -1,6 +1,6 @@
 # CLI 参考
 
-nazhi-cli 提供 12 个用户可见命令 + 全局选项 + 环境变量 fallback。所有命令统一 envelope 输出到 stdout、错误 JSON 到 stderr（除非 `--quiet` 静默），便于脚本解析。
+nazhi-cli 提供用户可见命令 + 全局选项 + 环境变量 fallback。所有命令统一 envelope 输出到 stdout、错误 JSON 到 stderr（除非 `--quiet` 静默），便于脚本解析。
 
 ## 全局选项
 

@@ -7,19 +7,19 @@
 │  cmd/nazhi/  CLI 层：cobra 命令薄壳                       │
 │  - 参数解析 + env fallback + JSON 输出                    │
 │  - 顶层 panic recover（debug.Stack）+  LIFO 资源清理       │
-│  - 22 个源文件（含 main/client_builder/opt_builder/        │
+│  - 源文件（含 main/client_builder/opt_builder/        │
 │    lifecycle/output/env/parents/sub-commands）             │
 └────────────────────┬─────────────────────────────────────┘
                      │ 调用
                      ↓
 ┌──────────────────────────────────────────────────────────┐
 │  pkg/client/  SDK 层：核心业务                            │
-│  - Option 模式构造（13 个公开 Option）                    │
-│  - 21 个公开方法（Login / ActivateSession / FetchTasks…）  │
+│  - Option 模式构造                                         │
+│  - 公开方法（Login / ActivateSession / FetchTasks…）        │
 │  - HAR 对齐 Session 激活 + sessionManager 状态机          │
 │  - Pool 多实例 OCR 引擎 + ddddocr/!ddddocr build tag 分发  │
-│  - 21 个公开方法（含 honor delete 等）                    │
-│  - 15 个哨兵错误（errors.Is 精确分支）                    │
+│  - 公开方法（含 honor delete 等）                          │
+│  - 哨兵错误（errors.Is 精确分支）                          │
 └─────────┬─────────────────────────┬──────────────────────┘
           │ 使用                    │ 使用
           ↓                         ↓
@@ -63,7 +63,7 @@ nazhi-cli/
 │   ├── client_ocr_enabled.go              //go:build ddddocr   — defaultOCR() → ocr.NewPool
 │   ├── client_ocr_disabled.go             //go:build !ddddocr  — defaultOCR() → nil
 │   ├── request.go                         HTTP 基础设施（newHTTPClient / do / httpDo / rawDoWithResp / doBizGet / drainAndClose）
-│   ├── errors.go                          15 个哨兵错误
+│   ├── errors.go                          哨兵错误
 │   ├── error_category.go                  ClassifyError 错误分类枚举（ContextCancel/NetworkTimeout/BusinessError）
 │   ├── parallel.go                        ParallelDims[T] 泛型并发维度查询 helper
 │   ├── auth.go                            InitSession / GetSchoolID / Login
@@ -129,7 +129,7 @@ func New(opts ...Option) (*Client, error)
 每个 `*Client` 实例独立的 cookie jar，**天然并发安全**。构造函数返回 `(*Client, error)`——
 `error` 在 `syncCookieToken` 失败时返回（典型场景：自定义 `*http.Client` 的 `Jar` 不是 `*cookiejar.Jar`）。
 
-**13 个公开 Option**：
+**公开 Option**：
 
 | Option | 类型 | 默认 | 拒绝无效值 |
 |---|---|---|---|
@@ -216,7 +216,7 @@ Cookie 同步失败（如自定义 `Jar` 不是 `*cookiejar.Jar`）会让 `New()
 
 ### 6. OCR 跨平台 + Pool 多实例（v0.4.0 三轮修复）
 
-5 个 build tag 隔离的 `onnx_*.go` 文件嵌入对应平台的 onnxruntime：
+Build tag 隔离的 `onnx_*.go` 文件嵌入对应平台的 onnxruntime：
 
 | GOOS | GOARCH | 文件 |
 |---|---|---|
@@ -445,7 +445,7 @@ internal/ocr/                    OCR 单元测试（35+ 测试，含 cross-platf
 | #5 | sessionManager 封装 + SetBackoff race fix | 已实施 | `pkg/client/session.go` |
 | #6 | `ParallelDims` 泛型 helper | 已实施 | `pkg/client/parallel.go` |
 | #7 | `error_category.go` 错误分类 | 已实施 | `pkg/client/error_category.go` |
-| #8 | `pkg/client/error.go` 错误码集中定义 | 未实施 | 哨兵错误集中在 `errors.go`（已 15 个） |
+| #8 | `pkg/client/error.go` 错误码集中定义 | 未实施 | 哨兵错误集中在 `errors.go` |
 
 > `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**。
 > `FetchTasks` 仍用内联 `errgroup`（业务复杂性待后续迁移），但 `ParallelDims[T]` 泛型 helper 与 `ClassifyError` 分类枚举已可复用。
@@ -455,7 +455,7 @@ internal/ocr/                    OCR 单元测试（35+ 测试，含 cross-platf
 ```
 internal/ocr  (dddocr + onnxruntime)
     ↓
-pkg/client  ← Option 模式 + 20 个公开方法 + sessionManager + errors.go (15 sentinel)
+pkg/client  ← Option 模式 + 公开方法 + sessionManager + errors.go (哨兵)
     ↓
 pkg/tokenparse  ← SSO token 解析
     ↓

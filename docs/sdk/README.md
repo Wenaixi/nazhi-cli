@@ -4,7 +4,7 @@ nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 
 
 | 包 | 作用 | 文档入口 |
 |---|---|---|
-| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 21 个公开方法 + 13 个 Option + 15 个哨兵错误 | 本文 |
+| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 公开方法 + Option + 哨兵错误 | 本文 |
 | [`pkg/types`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/types) | 领域类型（请求/响应/任务/用户等）+ 统一响应泛型解码 | [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) |
 | [`pkg/tokenparse`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/tokenparse) | SSO token 从 302 Location 头 / ReturnData JSON 字节提取 | [tokenparse.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/tokenparse/tokenparse.go) |
 
@@ -661,7 +661,7 @@ for _, r := range records {
 
 ## 荣誉申报域（honor.go）
 
-荣誉申报域提供 6 个方法完成荣誉类型查询、级别查询、已申报记录拉取、荣誉申报和删除全流程。
+荣誉申报域提供方法完成荣誉类型查询、级别查询、已申报记录拉取、荣誉申报和删除全流程。
 
 ### `GetHonorTypes(ctx context.Context, token string) ([]types.HonorType, error)`
 
@@ -725,7 +725,7 @@ err := c.AddHonor(ctx, token, types.AddHonorPayload{
 if err != nil { /* 字段缺失或业务拒绝 */ }
 ```
 
-**必填字段**：Name / TypeID / TypeName / Level / EvaluationAgency / GetDate（6 个）。
+**必填字段**：Name / TypeID / TypeName / Level / EvaluationAgency / GetDate。
 
 **选填字段**：CertImgAttachmentID（先通过 `UploadFile` 上传证书图片，用返回的 ID 关联）。
 
@@ -814,7 +814,7 @@ case errors.Is(err, client.ErrRetryable):
 }
 ```
 
-### 全部哨兵错误一览（15 个）
+### 哨兵错误一览
 
 | 哨兵 | 触发场景 | 常用方法 |
 |---|---|---|
@@ -1195,7 +1195,7 @@ if err != nil { log.Fatal(err) }
 
 `pkg/client` 的所有公开方法自 v0.4.0（`internal/version/version.go`）起保持向后兼容。新增字段不会破坏现有调用方（Go 的结构体序列化容忍未知字段）。
 
-**BREAKING 变更记录**：v0.3.1 起 `New()` 返回 `(*Client, error)`；v0.3.4 删除 7 个孤儿字段 / 0 引用的死错误；v0.4.0 session 状态机下沉到 `sessionManager`、HTTP helper 改私有名（`httpDo` / `rawDoWithResp`）、token 解析拆 `pkg/tokenparse`。
+**BREAKING 变更记录**：v0.3.1 起 `New()` 返回 `(*Client, error)`；v0.3.4 删除孤儿字段 / 零引用的死错误；v0.4.0 session 状态机下沉到 `sessionManager`、HTTP helper 改私有名（`httpDo` / `rawDoWithResp`）、token 解析拆 `pkg/tokenparse`。
 
 详见根目录 `CHANGELOG.md`。
 

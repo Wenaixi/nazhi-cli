@@ -86,13 +86,18 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 // postProcessUserInfo 对解析后的 UserInfo 做后处理。
 // 包含：学校信息 SSO 降级、班级名年级前缀清理。
 func (c *Client) postProcessUserInfo(ctx context.Context, v *types.UserInfo) {
-	// 学校信息降级：业务 API 可能返回空的 schoolId/schoolName，尝试通过 SSO 接口补全。
-	if v.SchoolID == 0 && v.StudentNumber != "" {
+	// 学校信息 SSO 降级：当 schoolId 或 schoolName 任一缺失时，通过 GetSchoolID 公开 API
+	// 查询补全。GetSchoolID 无需 token，公开可用，条件放宽覆盖面。
+	//
+	// 旧逻辑 (v1.0.0)：仅 schoolId==0 时触发，schoolName 空但 schoolId 非零时静默保留空名。
+	if v.StudentNumber != "" && (v.SchoolID == 0 || v.SchoolName == "") {
 		if sid, sname, sErr := c.GetSchoolID(ctx, v.StudentNumber); sErr == nil {
-			if parsed, pErr := strconv.ParseInt(sid, 10, 64); pErr == nil && parsed > 0 {
-				v.SchoolID = parsed
+			if v.SchoolID == 0 {
+				if parsed, pErr := strconv.ParseInt(sid, 10, 64); pErr == nil && parsed > 0 {
+					v.SchoolID = parsed
+				}
 			}
-			if sname != "" {
+			if v.SchoolName == "" && sname != "" {
 				v.SchoolName = sname
 			}
 		} else {

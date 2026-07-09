@@ -185,7 +185,7 @@ err := cleanupTempDir(dir)
 - **删不掉的静默跳过**（如仍被其它运行中的实例 `LoadLibrary` 占用）
 - **防误删**：仅匹配 `ocrTempPrefix` 前缀的目录，其它程序目录 / 文件 / 非目录条目一律不碰
 
-**新增测试**（5 个）：
+**新增测试**：
 - `TestSweepStaleTempDirs_KeepsCurrent` — 不删当前 dir
 - `TestSweepStaleTempDirs_IgnoresOtherPrograms` — 不碰 `chromedp-*` / `vscode-*` 等其它前缀
 - `TestSweepStaleTempDirs_SingleFailureNotFatal` — 单个删除失败不阻断
