@@ -9,6 +9,45 @@
 
 暂无。
 
+## [1.0.0] - 2026-07-09
+
+**重大破坏性更新**：types 全面精简 + JSON tag 统一 camelCase + CLI 输出 envelope 化。
+升级前请阅读 [MIGRATION.md](MIGRATION.md)。
+
+### Breaking Changes
+
+- **types**: UserInfo 51→10 字段 (删除 initials/pinyin/seat/gender/birthday/telephone/creationTime 等 41 字段)
+- **types**: Task 18→11 字段 + 新增 ScopeClass/ScopeGrade/ScopeStage 常量 (删除 upPic/pushNum/score/creatorName/roleName/termID)
+- **types**: CircleRecord 15→9 字段, CircleImage 5→1 字段 (Approved bool + 仅 AttachmentID)
+- **types**: HonorType 8→5 字段, HonorRecord 17→9 字段 (approved bool 替代 status int)
+- **types**: SelfEvalStatus 10→3 字段 (id + studentComment + teacherComment)
+- **types**: LoginResponse 删 RawData 字段 (3 字段)
+- **命名**: 全 SDK 统一 camelCase JSON tag
+- **时间**: 时间字段改 time.Time (ISO 8601 + 时区序列化)
+- **CLI**: 删 `nazhi school` 命令 (从 UserInfo 获取)
+- **CLI**: 新增 `nazhi task done` 别名 (替代 `task submitted`)
+- **CLI**: 退出码三分 (0/1/2/3)
+
+### Added
+
+- pkg/envelope/envelope.go (统一 envelope 包装)
+- pkg/client/internal/convert.go (helper: MapTaskStatus/MapSchoolID/ParseServerDate/MapCircleApproved)
+- ScopeClass/ScopeGrade/ScopeStage 常量
+
+### Removed
+
+- types/score 字段 (Task/HonorType/HonorRecord)
+- types/initials/pinyin 字段 (UserInfo)
+- 全部 omitempty 派生字段 (UserInfo seatSort/telephone/email 等)
+- 重复字段 (UserInfo.studentName/SelfEvalStatus.schoolId 等与 UserInfo 重复)
+- nazhi school CLI 命令
+
+### Changed
+
+- UserInfo/Task/CircleRecord/HonorRecord/SelfEvalStatus 字段重命名 (status→submitted/approved)
+- circleTaskStatus 字符串 → submitted bool (简化版)
+- circleDate/getDate 字符串 → time.Time (自动序列化 ISO 8601)
+
 ## [0.6.0] - 2026-07-04
 
 ### 特性

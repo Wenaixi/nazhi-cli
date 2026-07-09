@@ -4,10 +4,23 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/Wenaixi/nazhi-cli/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 
-一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 SSO 登录（OCR 自动识别验证码）、Session 激活、任务管理、自我评价、文件上传等完整功能。所有 CLI 命令输出 JSON，便于脚本解析。
+一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 SSO 登录（OCR 自动识别验证码）、Session 激活、任务管理、自我评价、文件上传等完整功能。所有 CLI 命令统一 envelope 输出，便于脚本解析。
+
+## v1.0.0 重大变更
+
+- **types 精简** — UserInfo 51→10 字段, Task 18→11 字段, CircleRecord/HonorRecord/SelfEvalStatus 同步精简
+- **JSON tag 统一 camelCase** — 替代原 snake_case
+- **时间字段升级 time.Time** — 自动序列化 ISO 8601 + 时区
+- **CLI envelope 包装** — 所有 stdout 输出统一 `{status, code, message, data}` 结构
+- **退出码三分** — 0=成功, 1=业务错误/partial, 2=网络错误, 3=参数错误
+- **删除 `nazhi school`** — 学校信息从 `whoami` 获取
+- **新增 `nazhi task done`** — `task submitted` 的别名
+
+升级指南见 [MIGRATION.md](MIGRATION.md)。完整字段表见 [docs/sdk/api.md](docs/sdk/api.md)。
 
 ## 仓库一览
 
@@ -78,10 +91,10 @@ make release         # 全平台（CI 等价，含 OCR + CGO）
 ## 快速开始
 
 ```bash
-# 1. 登录拿 token（输出 JSON 到 stdout）
+# 1. 登录拿 token（envelope 输出，提取 .data.token）
 export NAZHI_USERNAME=学号
 export NAZHI_PASSWORD=密码
-TOKEN=$(nazhi login | jq -r .token)
+TOKEN=$(nazhi login | jq -r .data.token)
 export NAZHI_TOKEN=$TOKEN
 
 # 2. 激活业务 Session（HAR 对齐 4 步，登录后必做一次）
@@ -105,14 +118,14 @@ nazhi file upload -f ./photo.jpg
 ```
 nazhi
 ├── login                       SSO 登录（全自动 OCR）
-├── school                      查询学校 ID（无需登录）
 ├── session
 │   └── activate                 激活业务 Session（HAR 4 步）
-├── whoami                      获取当前用户信息
+├── whoami                      获取当前用户信息（含 schoolId）
 ├── task
 │   ├── list                     列出全维度任务
 │   ├── submit                   提交任务（支持 @payload.json）
-│   └── submitted                获取已提交写实记录（自动翻页）
+│   ├── submitted                获取已提交写实记录（自动翻页）
+│   └── done                     同 task submitted（v1.0.0 新增别名）
 ├── self-eval
 │   ├── submit                   提交自我评价
 │   └── status                   查询评价状态 + 教师评语
@@ -126,7 +139,65 @@ nazhi
 └── completion                  生成 shell 自动补全脚本
 ```
 
-完整参数与 JSON 输出字段见 [CLI 参考](docs/cli/README.md)。
+完整参数与 JSON 输出字段见 [CLI 参考](docs/cli/README.md)，命令速查见 [docs/cli/commands.md](docs/cli/commands.md)。
+
+> **v1.0.0 移除**：`nazhi school` 命令已删除，学校 ID 现从 `nazhi whoami` 返回的 `data.schoolId` 字段获取。
+
+## envelope 输出格式
+
+v1.0.0 起所有 CLI 输出统一包装在 envelope 内：
+
+```json
+{
+  "status": "success",
+  "code": 1,
+  "message": "",
+  "data": {
+    "id": 12345,
+    "name": "张三",
+    "studentNumber": "G350181200912110035",
+    "schoolId": 11000001,
+    "schoolName": "纳智高中",
+    "gradeId": 12,
+    "gradeName": "高一",
+    "classId": 88,
+    "className": "八班"
+  }
+}
+```
+
+字段说明：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `status` | string | `success` / `partial` / `error` |
+| `code` | int | 业务 code（1=成功）或 HTTP 状态码（200/401/500 等） |
+| `message` | string | 错误或提示消息，成功时为空 |
+| `data` | any | 业务载荷（object / array / scalar） |
+
+退出码三分：
+
+| 退出码 | 含义 |
+|--------|------|
+| 0 | 成功（status=success） |
+| 1 | 业务错误（code != 1）或 partial 状态 |
+| 2 | 网络/服务端错误（HTTP 4xx/5xx） |
+| 3 | 参数错误（CLI flag 解析失败） |
+
+jq 解析示例：
+
+```bash
+# 提取业务数据
+nazhi whoami | jq '.data.name'
+
+# 提取 token
+TOKEN=$(nazhi login | jq -r '.data.token')
+
+# 判断成功
+if [ $(nazhi task list | jq -r '.status') = "success" ]; then
+  echo "OK"
+fi
+```
 
 > 💡 `file upload` 子命令**不接受 `--token`** 是有意设计：上传服务器 `doc.nazhisoft.com` 是独立公共服务，
 > SDK 内部使用独立 `http.Client`（无 cookie jar + 禁用重定向），不发送任何业务 token，
@@ -173,10 +244,10 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 
 | 变量 | 作用 | 适用命令 | 默认值 |
 |---|---|---|---|
-| `NAZHI_USERNAME` | 学号 | `login`、`school` | — |
+| `NAZHI_USERNAME` | 学号 | `login` | — |
 | `NAZHI_PASSWORD` | 密码 | `login` | — |
 | `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — |
-| `NAZHI_SSO_BASE` | SSO 根地址 | `login`、`school` | `https://www.nazhisoft.com` |
+| `NAZHI_SSO_BASE` | SSO 根地址 | `login` | `https://www.nazhisoft.com` |
 | `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval`、`honor` | `http://139.159.205.146:8280` |
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` |
 | `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload` 是 `30`） |
