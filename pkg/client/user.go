@@ -1,4 +1,4 @@
-package client
+﻿package client
 
 import (
 	"context"
@@ -100,7 +100,7 @@ func (c *Client) postProcessUserInfo(ctx context.Context, v *types.UserInfo) {
 		}
 	}
 
-	// 清理班级名：API 返回的 className 含年级前缀（如"高一八班"→"八班"）。
+	// 清理班级名：API 返回的 className 含年级前缀（如"高一(8)班"→"八班"）。
 	// GradeName 已有年级信息，无需重复。去掉前缀后为空则保留原值。
 	if v.ClassName != "" && v.GradeName != "" && strings.HasPrefix(v.ClassName, v.GradeName) {
 		if trimmed := strings.TrimPrefix(v.ClassName, v.GradeName); trimmed != "" {

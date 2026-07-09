@@ -106,7 +106,7 @@ JSON 示例:
 {
   "id": 12345,
   "name": "张三",
-  "studentNumber": "G350181200912110035",
+  "studentNumber": "G123456789012345678",
   "studentId": 67890,
   "schoolId": 11000001,
   "schoolName": "纳智高中",
@@ -134,8 +134,8 @@ JSON 示例:
 | Hours | `float64` | `hours` | 是 | 学时 |
 | Submitted | `bool` | `submitted` | 是 | 是否已提交 (来自服务端 circleTaskStatus) |
 | NeedPic | `bool` | `needPic` | 是 | 是否需要图片 (来自服务端 upPic 0/1) |
-| StartDate | `time.Time` | `startDate` | 是 | 开始日期 (ISO 8601 + 时区) |
-| EndDate | `time.Time` | `endDate` | 是 | 结束日期 (ISO 8601 + 时区) |
+| StartDate | `DateOnly` | `startDateStr` | 是 | 开始日期 (如 2026-01-12) |
+| EndDate | `DateOnly` | `endDateStr` | 是 | 结束日期 (如 2026-02-10) |
 | ScopeType | `int` | `scopeType` | 是 | 作用域类型 (参见 ScopeClass/Grade/Stage 常量) |
 | ScopeTypeName | `string` | `scopeTypeName` | 是 | 作用域名称 (班级/年级/学段) |
 
@@ -158,8 +158,8 @@ JSON 示例:
   "hours": 2.5,
   "submitted": false,
   "needPic": true,
-  "startDate": "2026-01-12T00:00:00+08:00",
-  "endDate": "2026-02-10T23:59:59+08:00",
+  "startDateStr": "2026-01-12",
+  "endDateStr": "2026-02-10",
   "scopeType": 2,
   "scopeTypeName": "年级"
 }

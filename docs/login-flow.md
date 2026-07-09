@@ -1,6 +1,6 @@
 # 登录流程详解
 
-## SSO 完整流程（v0.6.0）
+## SSO 完整流程（v1.0.0）
 
 ```
 InitSession ─┐
@@ -48,7 +48,7 @@ Content-Type: application/json
 {
   "code": 1,
   "dataList": [
-    {"school_id": "173", "NAME": "福清一中"}
+    {"school_id": "11000001", "NAME": "示例中学"}
   ]
 }
 ```
@@ -108,7 +108,7 @@ POST https://www.nazhisoft.com/teacher/auth/studentLogin/validate
 Content-Type: application/json
 
 {
-  "schoolId": "173",
+  "schoolId": "11000001",
   "username": "学号",
   "password": "明文密码"   // HAR 对齐 — 不带 captcha 字段（已 validateCaptcha）
 }
@@ -210,9 +210,9 @@ c.syncCookieToken(token)  // 走 c.warnSyncCookieToken，失败仅 warn 不中�
 
 ```go
 type LoginResponse struct {
-    Token     string         `json:"token"`      // JWT
-    ExpiresAt time.Time      `json:"expires_at"` // 绝对时间
-    RawData   map[string]any `json:"-"`          // 200 响应原始 JSON map，调试 / 字段扩展用
+    Token        string    `json:"token"`        // JWT
+    ExpiresAt    time.Time `json:"expiresAt"`    // 绝对时间
+    FallbackUsed bool      `json:"fallbackUsed"` // 是否降级到备用 OCR
 }
 ```
 

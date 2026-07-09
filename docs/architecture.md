@@ -14,11 +14,11 @@
                      ↓
 ┌──────────────────────────────────────────────────────────┐
 │  pkg/client/  SDK 层：核心业务                            │
-│  - Option 模式构造（10 个公开 Option）                    │
+│  - Option 模式构造（11 个公开 Option）                    │
 │  - 12 个公开方法（Login / ActivateSession / FetchTasks…）  │
 │  - HAR 对齐 Session 激活 + sessionManager 状态机          │
 │  - Pool 多实例 OCR 引擎 + ddddocr/!ddddocr build tag 分发  │
-│  - 19 个公开方法（含 GetSubmittedCircles / 5 个 honor 方法）│
+│  - 20 个公开方法（含 honor delete 等）                    │
 │  - 15 个哨兵错误（errors.Is 精确分支）                    │
 └─────────┬─────────────────────────┬──────────────────────┘
           │ 使用                    │ 使用
@@ -49,7 +49,7 @@ nazhi-cli/
 ├── cmd/nazhi/                              CLI 入口
 │   ├── main.go                            cobra root + panic recover + closeAllClients
 │   ├── parents.go                         父命令（task / self-eval / file / session）
-│   ├── login.go school.go session.go whoami.go
+│   ├── login.go session.go whoami.go
 │   ├── task_list.go task_submit.go
 │   ├── self_eval_submit.go self_eval_status.go
 │   ├── file_upload.go version.go completion.go
@@ -129,7 +129,7 @@ func New(opts ...Option) (*Client, error)
 每个 `*Client` 实例独立的 cookie jar，**天然并发安全**。构造函数返回 `(*Client, error)`——
 `error` 在 `syncCookieToken` 失败时返回（典型场景：自定义 `*http.Client` 的 `Jar` 不是 `*cookiejar.Jar`）。
 
-**10 个公开 Option**：
+**12 个公开 Option**：
 
 | Option | 类型 | 默认 | 拒绝无效值 |
 |---|---|---|---|
@@ -141,6 +141,7 @@ func New(opts ...Option) (*Client, error)
 | `WithCustomOCR` | `CaptchaRecognizer` | `ocr.NewPool(0)`（含 OCR 构建）/ nil | `nil` 拒绝 |
 | `WithOCRConcurrency` | int | `min(4, NumCPU)`（含 OCR） | `<=0` 拒绝 |
 | `WithSessionBackoff` | time.Duration | `5s` | `<=0` 拒绝 |
+| `WithSubmittedPageSize` | int | `100` | `<=0` 拒绝；调整 GetSubmittedCircles 分页大小 |
 
 `withDurationGuard` 是 Option 构造工厂（拒绝 `<0` / `=0` 后调 setter），消除 WithTimeout / WithSessionBackoff 中重复的守卫逻辑。
 
@@ -353,12 +354,12 @@ defer func() {
      → InitSession (GET /uiStudentLogin/login)         ← 串行前置
      → errgroup.WithContext:                           ← 无数据依赖，并发
          ├─ GetSchoolID (POST getSchoolIdByStudentNumber)
-         └─ ocrRecognizeWithRetry (GET kaptcha.jpg + 1×99)
+         └─ ocrRecognizeWithRetry (GET kaptcha.jpg + 1×9)
      → Login POST (validate)  ← validateCaptcha 已在 OCR 循环内部完成
          ├─ 200 JSON 优先 → tokenparse.ExtractFromReturnData
          └─ 302 Location fallback → tokenparse.ExtractFromLocation
      → buildLoginResponse → syncCookieToken
-     → 返回 LoginResponse { Token, ExpiresAt, RawData }
+     → 返回 LoginResponse { Token, ExpiresAt, FallbackUsed }
 ```
 
 ### Session 激活流（HAR 4 步）
@@ -450,7 +451,7 @@ internal/ocr/                    OCR 单元测试（35+ 测试，含 cross-platf
 ```
 internal/ocr  (dddocr + onnxruntime)
     ↓
-pkg/client  ← Option 模式 + 12 个公开方法 + sessionManager + errors.go (15 sentinel)
+pkg/client  ← Option 模式 + 20 个公开方法 + sessionManager + errors.go (15 sentinel)
     ↓
 pkg/tokenparse  ← SSO token 解析
     ↓

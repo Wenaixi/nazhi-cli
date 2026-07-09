@@ -132,7 +132,8 @@ nazhi
 ├── honor
 │   ├── types                    获取荣誉类型列表
 │   ├── list                     获取已申报荣誉记录
-│   └── add                      申报荣誉（支持 @payload.json）
+│   ├── add                      申报荣誉（支持 @payload.json）
+│   └── delete                   删除荣誉记录
 ├── file
 │   └── upload                   上传图片（独立公共服务，不接受 --token）
 ├── version                     显示版本信息
@@ -155,7 +156,7 @@ v1.0.0 起所有 CLI 输出统一包装在 envelope 内：
   "data": {
     "id": 12345,
     "name": "张三",
-    "studentNumber": "G350181200912110035",
+    "studentNumber": "G123456789012345678",
     "schoolId": 11000001,
     "schoolName": "纳智高中",
     "gradeId": 12,

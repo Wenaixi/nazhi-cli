@@ -6,10 +6,10 @@
 
 | 变量 | 作用 | 适用命令 | 默认值 | 兜底无效值 |
 |---|---|---|---|---|
-| `NAZHI_USERNAME` | 学号 | `login`、`school` | — | 拒绝并 warn |
+| `NAZHI_USERNAME` | 学号 | `login` | — | 拒绝并 warn |
 | `NAZHI_PASSWORD` | 密码 | `login` | — | 拒绝并 warn |
 | `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — | 拒绝并 warn |
-| `NAZHI_SSO_BASE` | SSO 根地址 | `login`、`school` | `https://www.nazhisoft.com` | 保留默认 |
+| `NAZHI_SSO_BASE` | SSO 根地址 | `login` | `https://www.nazhisoft.com` | 保留默认 |
 | `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval`、`honor` | `http://139.159.205.146:8280` | 保留默认 |
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` | 保留默认 |
 | `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload` 是 `30`） | `<=0` 拒绝 |
@@ -33,7 +33,7 @@ CLI 在 `cmd/nazhi/opt_builder.go` 的 `buildClientOpts` 按 `urlType` 分流，
 
 | urlType | 命令 | URL 来源 | Token 来源 |
 |---|---|---|---|
-| `sso` | `login`、`school` | `--sso-base` / `NAZHI_SSO_BASE` | **不读 token**（Login 自带） |
+| `sso` | `login` | `--sso-base` / `NAZHI_SSO_BASE` | **不读 token**（Login 自带） |
 | `base` | `session`、`whoami`、`task`、`self-eval`、`honor` | `--base-url` / `NAZHI_BASE_URL` | `--token` / `NAZHI_TOKEN`（必填） |
 | `upload` | `file upload` | `--upload-url` / `NAZHI_UPLOAD_URL` | **不读 token**（文件服务器独立） |
 
@@ -105,7 +105,7 @@ NAZHI_TIMEOUT=120 nazhi file upload -f big.png
 
 ```bash
 # 第一次跑：登录 + 拿 token
-TOKEN=$(nazhi login | jq -r .token)
+TOKEN=$(nazhi login | jq -r '.data.token')
 echo "$TOKEN" > ~/.nazhi_token  # 仅本地用，chmod 600
 
 # 后续每次跑：直接用缓存的 token（14 天有效）
@@ -113,7 +113,7 @@ export NAZHI_TOKEN=$(cat ~/.nazhi_token)
 nazhi task list
 
 # Token 过期后重登录
-nazhi login > ~/.nazhi_token
+nazhi login > /dev/null  # 输出到 stderr 或静默
 ```
 
 **为什么不内置 `nazhi token save` 命令**：会增加状态管理负担（写入哪个文件、过期清理、加密存储等），

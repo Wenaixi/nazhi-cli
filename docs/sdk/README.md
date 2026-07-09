@@ -4,7 +4,7 @@ nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 
 
 | 包 | 作用 | 文档入口 |
 |---|---|---|
-| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 19 个公开方法 + 11 个 Option + 15 个哨兵错误 | 本文 |
+| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 17 个公开方法 + 12 个 Option + 15 个哨兵错误 | 本文 |
 | [`pkg/types`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/types) | 领域类型（请求/响应/任务/用户等）+ 统一响应泛型解码 | [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) |
 | [`pkg/tokenparse`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/tokenparse) | SSO token 从 302 Location 头 / ReturnData JSON 字节提取 | [tokenparse.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/tokenparse/tokenparse.go) |
 
@@ -184,7 +184,7 @@ wg.Wait()
 | `GetSchoolID(ctx, username)` | auth.go | 学号查学校 ID，无需登录 | `ErrBusinessRejected`、`ErrInvalidPayload`（school_id 非数字） |
 | `Login(ctx, req)` | auth.go | InitSession + GetSchoolID + OCR 多图多试 + validateCaptcha + validate，最后 200 JSON / 302 fallback 提 token | `ErrLoginRejected`、`ErrOCRNotConfigured`、`ErrOCRPanic`、`ErrTimeout` |
 | `ActivateSession(ctx, token)` | session.go | HAR 对齐 4 步激活（`/` + 两次 `getMenu` + `getMyInfo`），DCL fast-path + backoff 缓存 | `ErrBusinessRejected`、`ErrSessionBackoff`、`ErrEmptyUserInfo` |
-| `GetMyInfo(ctx, token)` | user.go | 完整 40+ 字段个人资料；先走 ActivateSession 复用步骤 4 数据避免重复 HTTP | `ErrBusinessRejected`、`ErrEmptyUserInfo`、`ErrNetwork` |
+| `GetMyInfo(ctx, token)` | user.go | 精简 10 字段个人资料；先走 ActivateSession 复用步骤 4 数据避免重复 HTTP | `ErrBusinessRejected`、`ErrEmptyUserInfo`、`ErrNetwork` |
 | `FetchTasks(ctx, token)` | task.go | 拉全维度任务聚合；8 路并发（errgroup.SetLimit）拉各维度 | `ErrBusinessRejected`、`ErrRetryable`（ctx cancel 触发）、`ErrEmptyUserInfo` |
 | `SubmitTask(ctx, token, payload)` | task.go | 提任务，29 字段 payload 透传不裁剪 | `ErrInvalidPayload`、`ErrBusinessRejected` |
 | `GetDimensions(ctx, token)` | task.go | 单独拉维度列表（CLI 未暴露，SDK 高级接口） | `ErrBusinessRejected` |
@@ -222,7 +222,7 @@ if err := c.InitSession(ctx); err != nil { /* 网络错 */ }
 
 ```go
 sid, name, err := c.GetSchoolID(ctx, "2025001")
-// sid="173", name="福清一中"
+// sid="11000001", name="示例中学"
 ```
 
 返回错误分支：
@@ -243,9 +243,9 @@ type LoginRequest struct {
 }
 
 type LoginResponse struct {
-	Token     string         // X-Auth-Token（JWT）
-	ExpiresAt time.Time      // 过期时间，绝对 time.Time
-	RawData   map[string]any // 服务端 200 响应的完整 JSON 透传（`json:"-"`，不参与序列化）
+	Token        string    // X-Auth-Token（JWT）
+	ExpiresAt    time.Time // 过期时间，绝对 time.Time
+	FallbackUsed bool      // 是否降级到备用 OCR（primary 失败后）
 }
 ```
 
@@ -369,19 +369,14 @@ info2, err := c.ActivateSession(ctx, token) // 0 HTTP
 
 ### `GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error)`
 
-获取完整个人资料。**会触发 ActivateSession**（复用其步骤 4 的 HTTP 请求），所以同 token 第一次调会做 4 步激活，第二次调则完全复用缓存，HTTP 0 次。
+获取用户个人资料。**会触发 ActivateSession**（复用其步骤 4 的 HTTP 请求），所以同 token 第一次调会做 4 步激活，第二次调则完全复用缓存，HTTP 0 次。
 
-字段一览（40+ 字段，详见 `pkg/types/types.go` `UserInfo`）：
+字段一览（10 字段，v1.0.0 精简版，详见 `pkg/types/user.go` `UserInfo`）：
 
-- 基础身份：`Name` 姓名、`StudentNumber` 学号、`StudentID` 学生 ID、`Initials` 姓名首字母、`Pinyin` 姓名全拼
-- 学校/班级：`SchoolID` 学校 ID、`SchoolName` 学校名、`GradeName` 年级、`ClassName` 班级、`Seat` 座号
-- 性别/民族/证件：`GenderName`、`Nation`、`IDType`、`IDCard`
-- 生日：`Birthday`（字符串版）+ `BirthdayDate`（`[y,m,d]` 数组版，自动双形态容错）
-- 联系方式：`Telephone`、`Email`、`CurrentAddress`、`FamilyAddress`、`NativePlace`
-- 学籍状态：`Status`、`StatusName`、`PositionName`、`YouthLeagueFlag`、`CriminalRecordFlag`
-- 入学时间 + 创建/修改时间：数组 + 字符串两种形式
-- 照片附件：`PhotoAttachmentID`
-- 积分：`TotalPoints`、`UsedPoints`
+- 基础身份：`ID`、`Name`、`StudentNumber`、`StudentID`
+- 学校/班级/年级：`SchoolID`、`SchoolName`、`GradeID`、`GradeName`、`ClassID`、`ClassName`
+
+> v1.0.0 精简原则：只保留业务 API 实际消费的核心身份/学校/班级字段。联系方式、证件号、积分等敏感或运营字段已移除，避免不必要的 PII 暴露面。
 
 ```go
 info, err := c.GetMyInfo(ctx, token)
@@ -536,7 +531,15 @@ if err := c.SubmitSelfEvaluation(ctx, token, "很好的学期"); err != nil {
 
 ### `QuerySelfEvaluation(ctx context.Context, token string) (*types.SelfEvalStatus, error)`
 
-查询自我评价 + 教师评语。返回结构包含 `StudentComment` / `TeacherComment` / `StudentName` / `ClassName` / `IsGrad` 等字段。
+查询自我评价 + 教师评语。返回结构（v1.0.0 精简版 3 字段）：
+
+```go
+type SelfEvalStatus struct {
+    ID             int64  `json:"id"`             // 自我评价 ID
+    StudentComment string `json:"studentComment"` // 学生自评
+    TeacherComment string `json:"teacherComment"` // 教师评语
+}
+```
 
 `Status` 字段 fallback 链（`returnData` → `dataMap` → `dataList[0]`），服务端任一字段格式变更都能拿到数据。
 
@@ -646,9 +649,7 @@ for _, r := range records {
 
 **错误**：`ErrBusinessRejected` / `ErrNetwork`。
 
-### `GetSubmittedCirclesRaw(ctx context.Context, token string) ([]types.CircleRecord, *types.PageBean, error)`
-
-`GetSubmittedCircles` 的低级版本，返回原始 `PageBean` 不加翻页合并。用于调用方需要自行拼接分页逻辑的场景（如分批导出、增量拉取）。
+`GetSubmittedCircles` 内部自动管理分页。**没有原始分页 API**——SDK 统一自动翻页合并，调用方无需关心分页逻辑。
 
 ---
 
@@ -712,7 +713,7 @@ err := c.AddHonor(ctx, token, types.AddHonorPayload{
     TypeID:           1147,
     TypeName:         "校学生优秀干部",
     Level:            5,
-    EvaluationAgency: "福清一中",
+    EvaluationAgency: "示例中学",
     GetDate:          "2026-06-30",
 })
 if err != nil { /* 字段缺失或业务拒绝 */ }

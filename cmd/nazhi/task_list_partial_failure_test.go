@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"bytes"
@@ -45,7 +45,7 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 			// 拉取维度之前就失败，永远走不到 partial failure 分支。
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"福清一中","className":"高一八班","seat":45}}`))
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"示例中学","className":"高一(8)班","seat":45}}`))
 		case "/api/studentCircleNew/getDimensions":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)

@@ -133,7 +133,7 @@ $ nazhi whoami
 $ nazhi whoami
 {
   "status": "success",
-  "code": 1,
+  "code": 200,
   "message": "",
   "data": {
     "id": 123,
@@ -160,9 +160,9 @@ nazhi whoami | jq '.data.name'
 $ nazhi task list
 # stderr: {"error": true, "message": "..."}
 
-# v1.0.0 — 错误也走 envelope 到 stdout, 但退出码 1
+# v1.0.0 — 错误也走 envelope 到 stderr, 但退出码 1
 $ nazhi task list
-# stdout: {"status": "error", "code": 500, "message": "...", "data": null}
+# stderr: {"status": "error", "code": 500, "message": "...", "data": null}
 # exit 1
 ```
 

@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"context"
@@ -30,7 +30,7 @@ func makeSelfEvalStatusTestCmd(t *testing.T, bizOK bool) *cobra.Command {
 				return
 			}
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"测试学校","className":"高一八班","seat":45}}`))
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"测试学校","className":"高一(8)班","seat":45}}`))
 		case "/api/studentMoralEduNew/querySelfEvaluation":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"studentComment":"很好的学期","teacherComment":"优秀","id":100}}`))

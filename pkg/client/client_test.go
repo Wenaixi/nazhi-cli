@@ -1,4 +1,4 @@
-// Package client_test 包含 nazhi-cli SDK 的全量测试。
+﻿// Package client_test 包含 nazhi-cli SDK 的全量测试。
 package client_test
 
 import (
@@ -163,7 +163,7 @@ func TestGetSchoolID(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
-			{"school_id": "173", "NAME": "福清一中"},
+			{"school_id": "173", "NAME": "示例中学"},
 		})))
 	}))
 	defer sso.Close()
@@ -176,8 +176,8 @@ func TestGetSchoolID(t *testing.T) {
 	if schoolID != "173" {
 		t.Errorf("期望 schoolID=173, 得到 %s", schoolID)
 	}
-	if schoolName != "福清一中" {
-		t.Errorf("期望 schoolName=福清一中, 得到 %s", schoolName)
+	if schoolName != "示例中学" {
+		t.Errorf("期望 schoolName=示例中学, 得到 %s", schoolName)
 	}
 }
 
@@ -207,7 +207,7 @@ func TestLogin(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
-				{"school_id": "173", "NAME": "福清一中"},
+				{"school_id": "173", "NAME": "示例中学"},
 			})))
 		case "/kaptcha/kaptcha.jpg":
 			mu.Lock()
@@ -275,7 +275,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
-				{"school_id": "173", "NAME": "福清一中"},
+				{"school_id": "173", "NAME": "示例中学"},
 			})))
 		case "/kaptcha/kaptcha.jpg":
 			w.Header().Set("Content-Type", "image/jpeg")
@@ -364,7 +364,7 @@ func TestActivateSession(t *testing.T) {
 			w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
 				"name":          "张三",
 				"studentNumber": "TEST2025001",
-				"schoolName":    "福清一中",
+				"schoolName":    "示例中学",
 				"gradeName":     "高一",
 				"className":     "八班",
 				"seat":          45,
@@ -407,7 +407,7 @@ func TestGetMyInfo(t *testing.T) {
 		w.Write([]byte(unifiedJSON(1, "成功", map[string]any{
 			"name":          "张三",
 			"studentNumber": "TEST2025001",
-			"schoolName":    "福清一中",
+			"schoolName":    "示例中学",
 			"gradeName":     "高一",
 			"className":     "八班",
 			"seat":          45,
@@ -446,7 +446,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 		"gradeId":       27900,
 		"gradeName":     "高一",
 		"classId":       162647,
-		"className":     "高一八班",
+		"className":     "高一(8)班",
 	}
 
 	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -484,7 +484,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	if info.GradeID != 27900 || info.GradeName != "高一" {
 		t.Errorf("Grade 错: id=%d name=%s", info.GradeID, info.GradeName)
 	}
-	if info.ClassID != 162647 || info.ClassName != "八班" {
+	if info.ClassID != 162647 || info.ClassName != "(8)班" {
 		t.Errorf("Class 错: id=%d name=%s", info.ClassID, info.ClassName)
 	}
 }
@@ -578,7 +578,7 @@ func TestSubmitTask(t *testing.T) {
 		DimensionID:  9,
 		Hours:        1.0,
 		Name:         "班会",
-		Address:      "高一八班",
+		Address:      "高一(8)班",
 		PlayRole:     "3",
 	})
 	if err != nil {
@@ -710,7 +710,7 @@ func TestConcurrentLoginsSucceed(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
-				{"school_id": "173", "NAME": "福清一中"},
+				{"school_id": "173", "NAME": "示例中学"},
 			})))
 		case "/kaptcha/kaptcha.jpg":
 			w.Header().Set("Content-Type", "image/jpeg")

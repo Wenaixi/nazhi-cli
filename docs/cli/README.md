@@ -1,6 +1,6 @@
 # CLI 参考
 
-nazhi-cli 提供 10 个用户可见命令 + 全局选项 + 环境变量 fallback。所有命令输出 JSON 到 stdout、错误 JSON 到 stderr（除非 `--quiet` 静默），便于管道处理。
+nazhi-cli 提供 11 个用户可见命令 + 全局选项 + 环境变量 fallback。所有命令统一 envelope 输出到 stdout、错误 JSON 到 stderr（除非 `--quiet` 静默），便于脚本解析。
 
 ## 全局选项
 
@@ -18,53 +18,152 @@ nazhi-cli 提供 10 个用户可见命令 + 全局选项 + 环境变量 fallback
 ```
 nazhi
 ├── login                          SSO 登录（全自动 OCR）
-├── school                          查询学校 ID（无需登录）
 ├── session
 │   └── activate                    激活业务 Session（HAR 4 步）
-├── whoami                          获取当前用户信息
+├── whoami                          获取当前用户信息（含 schoolId）
 ├── task
 │   ├── list                        列出全维度任务（8 路并发）
 │   ├── submit                      提交任务（@payload.json 文件读取）
-│   └── submitted                   获取已提交写实记录（自动翻页）
+│   ├── submitted                   获取已提交写实记录（自动翻页）
+│   └── done                        同 task submitted（v1.0.0 新增别名）
 ├── self-eval
 │   ├── submit                      提交自我评价（支持 stdin）
 │   └── status                      查询评价 + 教师评语
 ├── honor
 │   ├── types                       获取荣誉类型列表
 │   ├── list                        获取已申报荣誉记录（分页）
-│   └── add                         申报荣誉（@payload.json 文件读取）
+│   ├── add                         申报荣誉（@payload.json 文件读取）
+│   └── delete                      删除荣誉记录
 ├── file
 │   └── upload                      上传图片（不接受 --token）
 ├── version                         显示版本信息
 └── completion                      生成 shell 自动补全
 ```
 
+> **v1.0.0 移除**：`nazhi school` 命令已删除，学校信息现从 `nazhi whoami` 返回的 `schoolId` 字段获取。
+
 ## 输出约定
 
-| 场景 | 输出 | 退出码 |
-|---|---|---|
-| 成功 | JSON 对象 / 数组到 stdout | `0` |
-| 业务/网络错误 | `{"error": true, "message": "..."}` 到 stderr | `1` |
-| 内部 panic | stderr 打印 `debug.Stack()` + 同样 JSON envelope | `1` |
-| `--quiet` 下 | stderr 完全静默 | `0` 或 `1` 由 exit code 体现 |
+### envelope 格式（v1.0.0）
+
+所有 CLI 输出统一包装：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": { ... 业务载荷 ... }
+}
+```
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `status` | string | `success` / `partial` / `error` |
+| `code` | int | HTTP 风格状态码（200/4xx/5xx） |
+| `message` | string | 错误或提示消息，成功时为空 |
+| `data` | any | 业务载荷（object / array / scalar） |
+
+### 退出码三分（v1.0.0）
+
+| 退出码 | 含义 |
+|--------|------|
+| 0 | 成功（status=success） |
+| 1 | 业务错误（code != 1）或 partial 状态 |
+| 2 | 网络/服务端错误（HTTP 4xx/5xx） |
+| 3 | 参数错误（CLI flag 解析失败） |
+
+### envelope 输出示例
+
+**成功**:
+
+```bash
+$ nazhi whoami
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 12345,
+    "name": "张三",
+    "studentNumber": "G123456789012345678",
+    "studentId": 67890,
+    "schoolId": 11000001,
+    "schoolName": "纳智高中",
+    "gradeId": 12,
+    "gradeName": "高一",
+    "classId": 88,
+    "className": "八班"
+  }
+}
+```
+
+**业务错误**:
+
+```bash
+$ nazhi task list
+{
+  "status": "error",
+  "code": 500,
+  "message": "业务错误 (code=500): 未找到数据",
+  "data": null
+}
+# exit 1
+```
+
+**网络错误**:
+
+```bash
+$ nazhi task list
+{
+  "status": "error",
+  "code": 503,
+  "message": "服务端不可用",
+  "data": null
+}
+# exit 2
+```
+
+**参数错误**:
+
+```bash
+$ nazhi login --unknown-flag
+{
+  "status": "error",
+  "code": 400,
+  "message": "unknown flag: --unknown-flag",
+  "data": null
+}
+# exit 3
+```
 
 **JSON 缩进**：所有输出 `json.Indent("", "  ")`，**两空格缩进**，方便人眼查看。
-**退出码契约**：`printError` 不直接调 `os.Exit`（否则绕过 `defer closeAllClients()` 泄漏 ONNX 临时目录）；
-而是标记 `pendingExitCode=1`，由 `main` 统一退出，保证 LIFO 资源清理。
+
+**退出码契约**：`printError` 不直接调 `os.Exit`（否则绕过 `defer closeAllClients()` 泄漏 ONNX 临时目录）；而是标记 `pendingExitCode` 由 `main` 统一退出，保证 LIFO 资源清理。
 
 ---
 
 ## nazhi version
 
-显示版本号（含 Git commit hash，如有）。
+显示版本信息。
 
 ```bash
 $ nazhi version
-0.6.0
-
-$ nazhi --version
-nazhi version 0.6.0
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "version": "1.0.0"
+  }
+}
 ```
+
+`--version` 全局标志同此命令。
+
+输出为 envelope 格式，`data.version` 字段含当前版本号。
+
+---
 
 ## nazhi completion
 
@@ -116,50 +215,29 @@ nazhi login -u 学号 -p 密码
 
 ```json
 {
-  "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOi...",
-  "expires_at": "2026-07-15T08:00:00+08:00"
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOi...",
+    "expiresAt": "2026-07-15T08:00:00+08:00",
+    "fallbackUsed": false
+  }
 }
 ```
 
 > **Token 有效期**：14 天（JWT `exp` 字段），存到环境变量复用直到过期。
 >
-> **历史字段**：v0.3.3 之前曾输出 `refresh_after`（推荐刷新时间）和 `user_info`（用户基本信息），因全仓 0 引用 + 0 填充已删除。需要用户基本信息请改用 `nazhi whoami`。
+> **v1.0.0 精简**：`LoginResponse` 仅 3 字段（token / expiresAt / fallbackUsed），用户基本信息请用 `nazhi whoami`。
 
 **典型错误分支**：
 
 | 错误 | 原因 |
 |---|---|
-| `errors.ocr_not_configured: OCR 识别器未配置` | 当前构建未启用 `-tags ddddocr`，且没用 `WithCustomOCR` 注入（CLI 路径下用预编译 release 即可） |
-| `login rejected: code=-1 学号或密码错误` | 凭据错 |
-| `login rejected: 验证码校验失败` | 9 张图都识别不出来（极少见，可能是服务端 captcha 服务挂） |
-| `timeout: 请求 https://... 失败` | 网络慢，调大 `NAZHI_TIMEOUT=30` |
-
----
-
-## nazhi school
-
-根据学号查询学校 ID（**无需登录**）。
-
-```bash
-nazhi school -u 学号
-```
-
-| 标志 | 必填 | 环境变量 | 说明 |
-|---|---|---|---|
-| `-u, --username` | ✅ | `NAZHI_USERNAME` | 学号 |
-| `--sso-base` | — | `NAZHI_SSO_BASE` | SSO 根地址，默认 `https://www.nazhisoft.com` |
-| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），默认 `15` |
-
-**输出**：
-
-```json
-{
-  "school_id": "173",
-  "school_name": "福清一中"
-}
-```
-
-`school_id` 是数字字符串——内部有 `strconv.ParseInt` 校验，非数字会返回 `ErrInvalidPayload`，避免脏数据传给登录流程。
+| `OCR 识别器未配置或出错` | 当前构建未启用 `-tags ddddocr`，且没用 `WithCustomOCR` 注入（CLI 路径下用预编译 release 即可） |
+| `登录失败: 学号或密码错误` | 凭据错 |
+| `登录失败: 验证码校验失败` | 9 张图都识别不出来（极少见，可能是服务端 captcha 服务挂） |
+| `登录失败: timeout` | 网络慢，调大 `NAZHI_TIMEOUT=30` |
 
 ---
 
@@ -184,23 +262,21 @@ nazhi session activate --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 3. `GET /api/studentInfo/getMenu`（Referer: `/home`）
 4. `GET /api/studentInfo/getMyInfo`（返回完整 UserInfo）
 
-**输出**：完整 40+ 字段 `UserInfo` 对象，参考 [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) `UserInfo` 注释。
+**输出**：envelope 包裹的 `UserInfo`（10 字段），同 `nazhi whoami` 输出。
 
 **典型错误分支**：
 
 | 错误 | 原因 |
 |---|---|
-| `session activation backoff: in cooldown window` | 上次激活失败后 5 秒内再调（thundering herd 抑制） |
+| `session 激活冷却中` | 上次激活失败后 5 秒内再调（thundering herd 抑制），partial 429 |
 | `business request rejected by server` | 业务拒绝——通常是 token 过期或无效，重新 `nazhi login` |
-| `timeout` | 网络慢，调 `NAZHI_TIMEOUT` |
-
-**`--quiet` 下的 backoff 冷却**：session 激活失败 5 秒内重复调用时，stderr 仍输出 `{"status": "cooldown", "message": "请等待 X 秒"}` 让脚本感知（这不污染错误流，`--quiet` 才完全静默——backoff 提示走 `printError` 路径，所以也受 `--quiet` 守卫）。
+| `get_my_info_empty` | 业务成功但无数据，empty 204 |
 
 ---
 
 ## nazhi whoami
 
-获取当前登录用户完整资料。
+获取当前登录用户精简资料。
 
 ```bash
 nazhi whoami --token "eyJhbGciOiJIUzUxMiJ9.xxx"
@@ -212,15 +288,35 @@ nazhi whoami --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：40+ 字段 `UserInfo` JSON 对象（同 `session activate`，包括姓名 / 学号 / 学校 / 年级 / 班级 / 座号 / 联系方式）。
+**输出**：envelope 包裹的 `UserInfo`（10 字段，v1.0.0 精简版）。
 
-**空数据场景**：业务成功但确实无用户数据时，stdout 输出 `{"status": "empty", "reason": "returnData 和 dataMap 都为空"}` 而不是裸 `null`（v0.3.5+）。
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 12345,
+    "name": "张三",
+    "studentNumber": "G123456789012345678",
+    "studentId": 67890,
+    "schoolId": 11000001,
+    "schoolName": "纳智高中",
+    "gradeId": 12,
+    "gradeName": "高一",
+    "classId": 88,
+    "className": "八班"
+  }
+}
+```
+
+**空数据场景**：业务成功但无数据时，stdout 输出 `{"status":"error","code":204,"message":"get_my_info_empty","data":null}`。
 
 ---
 
 ## nazhi task list
 
-列出全维度的任务列表（思想品德 / 学业水平 / 身心健康 / 艺术素养 / 社会实践 / 劳动教育 / 军训等）。
+列出全维度的任务列表（思想品德 / 学业水平 / 身心健康 / 艺术素养 / 社会实践 / 劳动教育等）。
 
 ```bash
 nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
@@ -232,45 +328,43 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：`Task[]` 数组。
+**输出**：envelope 包裹的 `Task[]` 数组（11 字段，v1.0.0 精简版）。
 
 ```json
-[
-  {
-    "id": 16512,
-    "name": "校园劳动",
-    "circleTypeId": 9275,
-    "typeName": "劳动",
-    "dimensionId": 14,
-    "dimensionName": "劳动教育",
-    "hours": 2.0,
-    "circleTaskStatus": "已提交",
-    "upPic": 1,
-    "startDateStr": "2026-01-12",
-    "endDateStr": "2026-02-10",
-    "termId": 4
-  }
-]
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": [
+    {
+      "id": 16512,
+      "name": "校园劳动",
+      "typeName": "劳动",
+      "dimensionName": "劳动教育",
+      "hours": 2.0,
+      "submitted": false,
+      "needPic": true,
+      "startDateStr": "2026-01-12",
+      "endDateStr": "2026-02-10",
+      "scopeType": 2,
+      "scopeTypeName": "年级"
+    }
+  ]
+}
 ```
 
-**部分失败语义**：8 路并发拉各维度，单维度失败不影响其他维度。控制台输出两类 envelope：
+**部分失败语义**：8 路并发拉各维度，单维度失败不影响其他维度。控制台输出 envelope 表达：
 
 ```json
-// 全部成功
-[ {...}, {...} ]
-
-// 部分成功（部分维度业务拒绝）
 {
   "status": "partial",
-  "tasks": [ {...}, {...} ],
-  "error": "..."
+  "code": 207,
+  "message": "fetch_tasks_partial_failure: ...",
+  "data": {
+    "tasks": [ {...}, {...} ]
+  }
 }
-
-// 全部失败
-{ "error": true, "message": "..." }
 ```
-
-**`cancelledCount`**：上下文取消触发的失败会带 `cancelled_count` 字段提示是「可重试」的中断而非真正的业务错误。
 
 ---
 
@@ -308,18 +402,19 @@ echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --tok
 | `playRole` | `""` | `""` | `"3"` | `"3"` |
 | `hours` | `2.0` | `32.0` | `1.0` | `0.5` |
 
-完整 29 字段定义见 `pkg/types/types.go` `TaskSubmitPayload` 注释。
+完整 29 字段定义见 `pkg/types/task.go` `TaskSubmitPayload` 注释。
 
 **典型错误**：`invalid task payload: circleTaskId 和 circleTypeId 不能为空` —— 必填字段缺失，stderr envelope 退出码 1。
 
 ---
 
-## nazhi task submitted
+## nazhi task submitted / nazhi task done
 
-获取当前用户已提交的全部写实记录（含正文、图片、审核状态）。自动翻页合并，输出全量数据。
+获取当前用户已提交的全部写实记录（含正文、图片、审核状态）。自动翻页合并，输出全量数据。`nazhi task done` 是完全等价的别名（v1.0.0 新增）。
 
 ```bash
 nazhi task submitted --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+nazhi task done --token "eyJhbGciOiJIUzUxMiJ9.xxx"      # 同 submitted，别名
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
@@ -328,35 +423,33 @@ nazhi task submitted --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：
+**输出**：envelope 包裹，`total` + `records` 两层结构。
 
 ```json
 {
-  "total": 5,
-  "records": [
-    {
-      "id": 1024,
-      "name": "校园劳动",
-      "type_name": "劳动",
-      "status": 1,
-      "hours": 2.0,
-      "circle_date": "2026-06-15",
-      "content": "参与了校园绿化...",
-      "class_name": "高一(1)班",
-      "imgList": [
-        {
-          "id": 123,
-          "attachment_id": 456,
-          "circle_id": 1024,
-          "task_id": 789
-        }
-      ]
-    }
-  ]
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "total": 5,
+    "records": [
+      {
+        "id": 1024,
+        "name": "校园劳动",
+        "typeName": "劳动",
+        "content": "参与了校园绿化...",
+        "approved": false,
+        "circleDate": "2026-06-15T00:00:00+08:00",
+        "hours": 2.0,
+        "imgList": [
+          { "attachmentId": 456 }
+        ],
+        "remark": ""
+      }
+    ]
+  }
 }
 ```
-
-**输出 envelope**：`total` + `records` 两层包裹，`total` 是总记录数，`records` 是完整的 `CircleRecord[]` 数组（含正文、图片附件、审核状态等 14 字段）。
 
 **自动翻页**：单页就能覆盖绝大多数场景（默认每页 100 条，服务端上限约 500），只有记录超出一页时才自动翻页合并。翻页途中遇到错误时返回已有数据 + 错误信号。
 
@@ -381,12 +474,20 @@ echo "很充实" | nazhi self-eval submit --token "xxx" --comment -
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**stdin 提示**：当 stdin 是 TTY（交互终端）时，stderr 会打印 `请输入评价文本（Ctrl+D 结束）: `——这是 `printPrompt` 直写 stderr，不受 `--verbose` 守卫，受 `--quiet` 和 `isTerminalStdin()` 守卫。
+**stdin 提示**：当 stdin 是 TTY（交互终端）时，stderr 会打印 `请输入自我评价内容（Ctrl+D 结束）: `——这是 `printPrompt` 直写 stderr，受 `--quiet` 守卫。
 
-CI 用 stdin：
+**输出**：
 
-```bash
-printf '很好的学期' | nazhi self-eval submit --token "$TOKEN" --comment -
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "status": "ok",
+    "message": "自我评价提交成功"
+  }
+}
 ```
 
 ---
@@ -405,19 +506,18 @@ nazhi self-eval status --token "xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：
+**输出**：envelope 包裹的 `SelfEvalStatus`（3 字段，v1.0.0 精简版）。
 
 ```json
 {
-  "student_comment": "很好的学期，掌握了...",
-  "teacher_comment": "本学期表现优秀",
-  "student_name": "张三",
-  "student_number": "2025001",
-  "class_name": "高三(1)班",
-  "grade_name": "高三",
-  "school_id": 173,
-  "is_grad": "0",
-  "id": 12345
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 12345,
+    "studentComment": "很好的学期，掌握了...",
+    "teacherComment": "本学期表现优秀"
+  }
 }
 ```
 
@@ -439,14 +539,13 @@ nazhi file upload -f ./photo.jpg
 | `--upload-url` | — | `NAZHI_UPLOAD_URL` | 上传服务器，默认 `http://doc.nazhisoft.com` |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），**默认 `30`**（其他命令默认 15） |
 
-**不接受 `--token`**：文件服务器独立，发送 token 反而被风控。命令帮助文字明确写「本命令不接受 --token」，
-SDK 内部使用独立 `newCleanClient`（无 cookie jar + 禁用重定向）杜绝泄露。
+**不接受 `--token`**：文件服务器独立，发送 token 反而被风控。命令帮助文字明确写「本命令不接受 --token」参数，SDK 内部使用独立 `newCleanClient`（无 cookie jar + 禁用重定向）杜绝泄露。
 
 **支持格式**：JPEG / PNG / GIF（自动取首帧）/ WEBP。BMP 需先转换（stdlib 无 BMP 解码）。
 
 **自动预处理**：任意格式 → JPG + 透明合成 → 质量/缩放级联 → ≤ 5MB（不修改原文件，全部在内存完成）。
 
-预处理流程（F8.1 优化）：
+预处理流程：
 
 ```
 1. sniff magic bytes（避免依赖扩展名）
@@ -464,12 +563,17 @@ SDK 内部使用独立 `newCleanClient`（无 cookie jar + 禁用重定向）杜
 
 ```json
 {
-  "id": 12345,
-  "path": "./photo.jpg"
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "id": 12345,
+    "path": "./photo.jpg"
+  }
 }
 ```
 
-`id` 可用于 `task submit --payload '{..., "pictureList": [12345]}'`。
+`data.id` 可用于 `task submit --payload '{..., "pictureList": [12345]}'`。
 
 ---
 
@@ -487,21 +591,23 @@ nazhi honor types --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：`HonorType[]` 数组（含 id / name / level_name / level / score / dimension_name / sort_no）。
+**输出**：envelope 包裹的 `HonorType[]` 数组（5 字段，v1.0.0 精简版）。
 
 ```json
-[
-  {
-    "id": 1147,
-    "name": "校学生优秀干部",
-    "level_name": "校",
-    "level": 5,
-    "score": "分数：+5.0",
-    "dimension_id": 9,
-    "dimension_name": "思想品德",
-    "sort_no": 1
-  }
-]
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": [
+    {
+      "id": 1147,
+      "name": "校学生优秀干部",
+      "levelName": "校",
+      "level": 5,
+      "dimensionName": "思想品德"
+    }
+  ]
+}
 ```
 
 ---
@@ -523,35 +629,32 @@ nazhi honor list --token "xxx" --page 1 --page-size 50
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：
+**输出**：envelope 包裹，含 `total` / `page` / `pageSize` / `totalPage` / `records`。
 
 ```json
 {
-  "total": 2,
-  "page": 1,
-  "pageSize": 20,
-  "totalPage": 1,
-  "records": [
-    {
-      "id": 56241,
-      "type_name": "阅读之星",
-      "type_id": 1147,
-      "level": 5,
-      "level_name": "校",
-      "dimension_id": 9,
-      "dimension_name": "思想品德",
-      "score": 5.0,
-      "status": 1,
-      "statusName": "审核通过",
-      "student_name": "高博文",
-      "class_name": "高一八班",
-      "get_date": "2026-06-30",
-      "evaluation_agency": "福清一中",
-      "ifshow": "是",
-      "auditor_name": "许风华",
-      "show_report_flag": 1
-    }
-  ]
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "total": 2,
+    "page": 1,
+    "pageSize": 20,
+    "totalPage": 1,
+    "records": [
+      {
+        "id": 56241,
+        "typeName": "阅读之星",
+        "levelName": "校",
+        "level": 5,
+        "dimensionName": "思想品德",
+        "approved": true,
+        "approvedName": "已通过",
+        "getDate": "2026-06-30T00:00:00+08:00",
+        "evaluationAgency": "示例中学"
+      }
+    ]
+  }
 }
 ```
 
@@ -563,7 +666,7 @@ nazhi honor list --token "xxx" --page 1 --page-size 50
 
 ```bash
 # 方式 1：--payload 字符串
-nazhi honor add --token "xxx" --payload '{"name":"校学生优秀干部","typeId":1147,"typeName":"校学生优秀干部","level":5,"evaluationAgency":"福清一中","getDate":"2026-06-30"}'
+nazhi honor add --token "xxx" --payload '{"name":"校学生优秀干部","typeId":1147,"typeName":"校学生优秀干部","level":5,"evaluationAgency":"示例中学","getDate":"2026-06-30"}'
 
 # 方式 2：--payload @file.json 从文件读取
 nazhi honor add --token "xxx" --payload @honor.json
@@ -596,7 +699,12 @@ echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor ad
 ```json
 {
   "status": "success",
-  "msg": "荣誉申报成功"
+  "code": 200,
+  "message": "",
+  "data": {
+    "status": "success",
+    "msg": "荣誉申报成功"
+  }
 }
 ```
 
@@ -609,18 +717,78 @@ echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor ad
 
 ---
 
-## 退出码（见原文档）
+## nazhi honor delete
 
-| 退出码 | 含义 | stderr 内容 |
-|---|---|---|
-| `0` | 成功 | 空 |
-| `1` | 通用错误（业务 / 网络 / 用户错） | JSON `{"error": true, "message": "..."}` |
-| `2` | 不应出现（panic 已被 recover 转 1） | stderr 含 `debug.Stack()` |
+按 ID 删除已申报但未审核的荣誉记录。
 
-**为什么不用 2 区分 panic**：与 Go runtime 默认不一致（runtime panic 默认 exit 2）。
-v0.4.0 把 panic 也归到 1，让 CI 脚本区分「用户错」(1) 与「崩溃」(2) 时不再被误导。
+```bash
+nazhi honor delete --token "eyJhbGciOiJIUzUxMiJ9.xxx" --id 123
+```
 
-**`--quiet` 与退出码**：`--quiet` 抑制 stderr JSON 输出，**但退出码不变**——CI 流水线只看 exit code 仍能判断成败。
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--id` | ✅ | — | 荣誉记录 ID |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+
+**输出**：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "status": "success",
+    "msg": "荣誉记录已删除",
+    "id": 123
+  }
+}
+```
+
+---
+
+## jq 解析示例
+
+```bash
+# 提取数据
+nazhi whoami | jq '.data.name'
+# → "张三"
+
+# 提取 token
+TOKEN=$(nazhi login | jq -r '.data.token')
+
+# 退出码判断
+if [ $(nazhi task list | jq -r '.status') = "success" ]; then
+  echo "OK"
+fi
+
+# 错误消息捕获
+nazhi task list 2>/dev/null | jq -r '.message // "no error"'
+```
+
+---
+
+## 退出码与 `--quiet`
+
+### 退出码三分的实际表现
+
+| 场景 | exit code | 典型 data |
+|------|-----------|-----------|
+| `nazhi whoami` 成功 | 0 | UserInfo 对象 |
+| `nazhi task list` 部分失败 | 1 | `{"tasks": [...]}` |
+| `nazhi whoami` token 无效 | 1 | null |
+| `nazhi login` 网络超时 | 2 | null |
+| `nazhi login` 缺参数 | 3 | null |
+
+> v1.0.0 之前曾经把 panic 也归到 1。v1.0.0 起 panic = exit 2（与 Go runtime 默认一致）。
+
+### `--quiet` 与退出码
+
+`--quiet` 抑制 stderr JSON 输出，**但退出码不变**——CI 流水线只看 exit code 仍能判断成败。
+
+---
 
 ## 完整工作流示例
 
@@ -637,8 +805,8 @@ set -e
 # 慢网络下增加超时
 export NAZHI_TIMEOUT=60
 
-# 1. 登录拿 token（jq 提取 token 字段）
-TOKEN=$(nazhi login | jq -r .token)
+# 1. 登录拿 token（jq 提取 .data.token）
+TOKEN=$(nazhi login | jq -r '.data.token')
 export NAZHI_TOKEN="$TOKEN"
 
 # 2. 业务操作
@@ -667,14 +835,4 @@ nazhi -v login -u 学号 -p 密码  # 看完整 HTTP 请求头 / OCR 流程
 ```bash
 # 仅看退出码，不打印 stderr
 nazhi --quiet login -u "$U" -p "$P" > /dev/null && echo "登录成功"
-```
-
-**返回 JSON 解析**：
-
-```bash
-# 谁拿了什么班级
-nazhi whoami | jq -r '"班级：\(.className)\n姓名：\(.name)"'
-
-# 提取所有未完成任务
-nazhi task list | jq -r '.[] | select(.circleTaskStatus == "未提交") | .name'
 ```

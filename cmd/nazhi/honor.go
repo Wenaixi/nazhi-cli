@@ -90,7 +90,7 @@ var honorAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "申报荣誉",
 	Long:  `申报一条荣誉。payload 是 addHonor 请求体 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
-	Example: `  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"name":"校学生优秀干部","typeId":1147,"typeName":"校学生优秀干部","level":5,"evaluationAgency":"福清一中","getDate":"2026-06-30"}'
+	Example: `  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"name":"校学生优秀干部","typeId":1147,"typeName":"校学生优秀干部","level":5,"evaluationAgency":"示例中学","getDate":"2026-06-30"}'
 		  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor.json
 		  echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {

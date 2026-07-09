@@ -1,4 +1,4 @@
-// Package integration 包含需要真实 SSO/业务服务器环境的集成测试。
+﻿// Package integration 包含需要真实 SSO/业务服务器环境的集成测试。
 //
 // 通过 build tag `integration` 启用：
 //
@@ -618,12 +618,12 @@ func TestHAR_SubmitTask_Military(t *testing.T) {
 		CheckResult:         "1", // 军训 checkResult=1
 		PatentType:          "",
 		PatentNum:           "",
-		Address:             "福清一中", // 军训 address=学校名
+		Address:             "示例中学", // 军训 address=学校名
 		TermName:            "",
 		ActivityName:        "",
 		SportsName:          "",
 		TeamName:            "",
-		OrgName:             "福清一中", // 军训 orgName=学校名
+		OrgName:             "示例中学", // 军训 orgName=学校名
 		ResultsName:         "",
 		ObtainTime:          "",
 		SpecialtyTechnology: "",
@@ -676,7 +676,7 @@ func TestHAR_SubmitTask_ClassMeeting(t *testing.T) {
 		CheckResult:         "",
 		PatentType:          "",
 		PatentNum:           "",
-		Address:             "高一八班", // 班会 address=班级名
+		Address:             "高一(8)班", // 班会 address=班级名
 		TermName:            "",
 		ActivityName:        "",
 		SportsName:          "",
@@ -734,12 +734,12 @@ func TestHAR_SubmitTask_Labor(t *testing.T) {
 		CheckResult:         "",
 		PatentType:          "",
 		PatentNum:           "",
-		Address:             "福清一中", // 劳动 address=学校名
+		Address:             "示例中学", // 劳动 address=学校名
 		TermName:            "",
 		ActivityName:        "",
 		SportsName:          "",
 		TeamName:            "",
-		OrgName:             "福清一中", // 劳动 orgName=学校名
+		OrgName:             "示例中学", // 劳动 orgName=学校名
 		ResultsName:         "",
 		ObtainTime:          "",
 		SpecialtyTechnology: "",

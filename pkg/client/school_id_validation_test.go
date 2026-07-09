@@ -1,4 +1,4 @@
-package client_test
+﻿package client_test
 
 import (
 	"context"
@@ -77,7 +77,7 @@ func TestGetSchoolID_ValidNumericSchoolID_AfterE2Fix(t *testing.T) {
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
-				{"school_id": "173", "NAME": "福清一中"},
+				{"school_id": "173", "NAME": "示例中学"},
 			})))
 			return
 		}
@@ -94,7 +94,7 @@ func TestGetSchoolID_ValidNumericSchoolID_AfterE2Fix(t *testing.T) {
 	if schoolID != "173" {
 		t.Errorf("期望 schoolID=173, 得到 %s", schoolID)
 	}
-	if schoolName != "福清一中" {
-		t.Errorf("期望 schoolName=福清一中, 得到 %s", schoolName)
+	if schoolName != "示例中学" {
+		t.Errorf("期望 schoolName=示例中学, 得到 %s", schoolName)
 	}
 }

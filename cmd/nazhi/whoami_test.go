@@ -21,7 +21,7 @@ import (
 const unifiedOKEmpty = `{"code":1,"msg":"成功"}`
 
 // unifiedUserInfo 模拟 getMyInfo 返回完整用户信息的响应。
-const unifiedUserInfo = `{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"福清一中","className":"高一八班","seat":45}}`
+const unifiedUserInfo = `{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"示例中学","className":"高一(8)班","seat":45}}`
 
 // makeWhoamiTestCmd 创建 whoami 命令的测试用 cobra.Command + mock server。
 // getMyInfoBody 是 /api/studentInfo/getMyInfo 的响应体 JSON，空字符串时默认 unifiedOKEmpty。
@@ -196,8 +196,8 @@ func TestWhoami_Normal_OutputsUserInfo(t *testing.T) {
 	if !strings.Contains(stdout, `"name": "张三"`) {
 		t.Errorf("正常响应 stdout 应包含 name: 张三，实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"schoolName": "福清一中"`) {
-		t.Errorf("正常响应 stdout 应包含 schoolName: 福清一中，实际: %q", stdout)
+	if !strings.Contains(stdout, `"schoolName": "示例中学"`) {
+		t.Errorf("正常响应 stdout 应包含 schoolName: 示例中学，实际: %q", stdout)
 	}
 }
 

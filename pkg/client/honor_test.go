@@ -25,7 +25,7 @@ func honorRecordJSON(id int64, name, statusName string) map[string]any {
 		"approved":         true,
 		"approvedName":     statusName,
 		"getDate":          "2026-06-30T00:00:00+08:00",
-		"evaluationAgency": "福清一中",
+		"evaluationAgency": "示例中学",
 	}
 }
 
@@ -247,7 +247,7 @@ func TestAddHonor(t *testing.T) {
 		TypeID:           1147,
 		TypeName:         "校学生优秀干部",
 		Level:            5,
-		EvaluationAgency: "福清一中",
+		EvaluationAgency: "示例中学",
 		GetDate:          "2026-06-30",
 	})
 	if err != nil {

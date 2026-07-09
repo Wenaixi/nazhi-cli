@@ -21,7 +21,8 @@ nazhi
 ├── honor
 │   ├── types                       获取荣誉类型列表
 │   ├── list                        获取已申报荣誉记录 (分页)
-│   └── add                         申报荣誉 (@payload.json 文件读取)
+│   ├── add                         申报荣誉 (@payload.json 文件读取)
+│   └── delete                      删除荣誉记录
 ├── file
 │   └── upload                      上传图片 (不接受 --token)
 ├── version                         显示版本信息
@@ -79,12 +80,12 @@ nazhi
 $ nazhi whoami
 {
   "status": "success",
-  "code": 1,
+  "code": 200,
   "message": "",
   "data": {
     "id": 12345,
     "name": "张三",
-    "studentNumber": "G350181200912110035",
+    "studentNumber": "G123456789012345678",
     "studentId": 67890,
     "schoolId": 11000001,
     "schoolName": "纳智高中",
@@ -128,7 +129,7 @@ $ nazhi task list
 $ nazhi login --unknown-flag
 {
   "status": "error",
-  "code": 3,
+  "code": 400,
   "message": "unknown flag: --unknown-flag",
   "data": null
 }
@@ -155,20 +156,21 @@ nazhi task list 2>/dev/null | jq -r '.message // "no error"'
 
 | 命令 | 用途 | 关键 flag | 返回 data 类型 |
 |------|------|-----------|----------------|
-| `nazhi login` | SSO 登录 | `--token-out` | `{token, expiresAt, fallbackUsed}` |
-| `nazhi session activate` | 激活 session | -- | `{status: "activated"}` |
+| `nazhi login` | SSO 登录 | -- | `{token, expiresAt, fallbackUsed}` |
+| `nazhi session activate` | 激活 session | -- | `UserInfo` (10 字段) |
 | `nazhi whoami` | 当前用户信息 | -- | `UserInfo` (10 字段) |
-| `nazhi task list` | 列出任务 | `--dimension` | `[]Task` (11 字段) |
+| `nazhi task list` | 列出任务 | -- | `[]Task` (11 字段) |
 | `nazhi task submit` | 提交任务 | `--payload @file.json` 或 `-` | `TaskResult` |
-| `nazhi task submitted` | 已提交写实 | `--page` `--size` | `[]CircleRecord` (9 字段) |
-| `nazhi task done` | 同 submitted | -- | `[]CircleRecord` (别名) |
-| `nazhi self-eval submit` | 提交自评 | `--payload -` (stdin) | `SelfEvalStatus` (3 字段) |
-| `nazhi self-eval status` | 查询评价 | -- | `SelfEvalStatus` |
+| `nazhi task submitted` | 已提交写实 | -- | `{total, records}` |
+| `nazhi task done` | 同 submitted | -- | `{total, records}` (别名) |
+| `nazhi self-eval submit` | 提交自评 | `--comment` 或 `-` (stdin) | `{status, message}` |
+| `nazhi self-eval status` | 查询评价 | -- | `SelfEvalStatus` (3 字段) |
 | `nazhi honor types` | 荣誉类型 | -- | `[]HonorType` (5 字段) |
-| `nazhi honor list` | 已申报荣誉 | `--page` `--size` | `[]HonorRecord` (9 字段) |
-| `nazhi honor add` | 申报荣誉 | `--payload @file.json` 或 `-` | `{id, typeName, ...}` |
-| `nazhi file upload` | 上传图片 | `--file PATH` | `{id, name, size, url}` |
-| `nazhi version` | 版本号 | -- | `{version, commit}` |
+| `nazhi honor list` | 已申报荣誉 | `--page` `--page-size` | `{total,page,pageSize,totalPage,records}` |
+| `nazhi honor add` | 申报荣誉 | `--payload @file.json` 或 `-` | `{status, msg}` |
+| `nazhi honor delete` | 删除荣誉 | `--id` | `{status, msg, id}` |
+| `nazhi file upload` | 上传图片 | `--file PATH` | `{id, path}` |
+| `nazhi version` | 版本号 | -- | `{version}` |
 | `nazhi completion` | shell 补全 | `bash/zsh/fish/powershell` | shell 脚本字符串 |
 
 ## 全局选项
