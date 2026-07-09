@@ -1,4 +1,4 @@
-﻿// Package tokenparse 封装 SSO 登录 token 解析逻辑。
+// Package tokenparse 封装 SSO 登录 token 解析逻辑。
 package tokenparse
 
 import (

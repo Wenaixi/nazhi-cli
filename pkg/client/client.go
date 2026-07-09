@@ -1,4 +1,4 @@
-﻿// Package client 是 nazhi-cli SDK 的根包。
+// Package client 是 nazhi-cli SDK 的根包。
 package client
 
 import (
