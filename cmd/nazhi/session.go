@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -34,40 +35,26 @@ var sessionActivateCmd = &cobra.Command{
 		info, err := c.ActivateSession(cmd.Context(), token)
 		if err != nil {
 			// 用 errors.Is 精确匹配哨兵错误。
-			if errors.Is(err, client.ErrSessionBackoff) {
+			switch {
+			case errors.Is(err, client.ErrSessionBackoff):
 				// ErrSessionBackoff 在冷却窗口内被抑制
-				// 输出友好 cooldown 提示而非 error JSON。
-				// 标记错误退出码，让 CI 脚本能区分成功 vs 冷却中。
-				markError()
-				printJSON(map[string]string{
-					"status":  "cooldown",
-					"message": "session 激活冷却中，上次激活失败请稍后重试",
-				})
-			} else if errors.Is(err, client.ErrEmptyUserInfo) {
+				// 输出 partial envelope（友好 cooldown 提示），code=429（业务节流）
+				printEnvelope(envelope.Partial(429, "session 激活冷却中，上次激活失败请稍后重试", nil))
+			case errors.Is(err, client.ErrEmptyUserInfo):
 				// ErrEmptyUserInfo 是「业务成功但无数据」状态
-				//（非错误），与 whoami 对称输出 status envelope 而非裸 null。
-				// 标记错误退出码，让 CI 脚本能区分。
-				markError()
-				printJSON(map[string]string{
-					"status": "empty",
-					"reason": "get_my_info_empty",
-				})
-			} else {
+				printEnvelope(envelope.Empty("get_my_info_empty"))
+			default:
 				printError(fmt.Errorf("激活 Session 失败: %w", err))
 			}
 			return
 		}
 
 		if info == nil {
-			markError()
-			printJSON(map[string]string{
-				"status": "empty",
-				"reason": "get_my_info_nil",
-			})
+			printEnvelope(envelope.Empty("get_my_info_nil"))
 			return
 		}
 
-		printJSON(info)
+		printEnvelope(envelope.Success(info))
 	},
 }
 

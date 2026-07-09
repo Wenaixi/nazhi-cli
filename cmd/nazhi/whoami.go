@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -28,21 +29,16 @@ var whoamiCmd = &cobra.Command{
 		info, err := c.GetMyInfo(cmd.Context(), token)
 		if err != nil {
 			// ErrEmptyUserInfo 表示「业务成功但无数据」状态（非错误），
-			// 按 status envelope 输出而非走 printError。
+			// 按 status=empty envelope 输出（code=204 表示空数据）。
 			if errors.Is(err, client.ErrEmptyUserInfo) {
-				// 标记错误退出码，让 CI 脚本能区分「空数据完成」与「正确退出」。
-				markError()
-				printJSON(map[string]string{
-					"status": "empty",
-					"reason": "get_my_info_empty",
-				})
+				printEnvelope(envelope.Empty("get_my_info_empty"))
 				return
 			}
 			printError(fmt.Errorf("获取用户信息失败: %w", err))
 			return
 		}
 		// info 非 nil 但 err 为 nil：正常路径
-		printJSON(info)
+		printEnvelope(envelope.Success(info))
 	},
 }
 
