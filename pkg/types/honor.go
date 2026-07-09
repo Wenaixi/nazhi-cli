@@ -1,36 +1,38 @@
 package types
 
+import "time"
+
 // HonorType 一种可申报的荣誉类型（来自 getHonorType 接口）。
+//
+// 字段裁剪原则（v1.0.0 起）：
+//   - 仅保留调用方在展示/选择时需要的核心标识与级别信息
+//   - Score / DimensionID / SortNo 等运营/排序字段已移除，避免冗余数据流入业务逻辑
 type HonorType struct {
-	ID            int64  `json:"id"`             // 荣誉类型 ID
-	Name          string `json:"name"`           // 荣誉名称
-	LevelName     string `json:"level_name"`     // 级别名（校/区县/市/省/国家）
-	Level         int    `json:"level"`          // 级别代码（5=校, 4=区县, 3=市, 2=省, 1=国家）
-	Score         string `json:"score"`          // 分数说明（如"分数：+5.0"）
-	DimensionID   int64  `json:"dimension_id"`   // 所属维度 ID
-	DimensionName string `json:"dimension_name"` // 维度名
-	SortNo        int    `json:"sort_no"`        // 排序号
+	ID            int64  `json:"id"`            // 荣誉类型 ID
+	Name          string `json:"name"`          // 荣誉名称
+	LevelName     string `json:"levelName"`     // 级别名（校/区县/市/省/国家）
+	Level         int    `json:"level"`         // 级别代码（5=校, 4=区县, 3=市, 2=省, 1=国家）
+	DimensionName string `json:"dimensionName"` // 维度名
 }
 
 // HonorRecord 一条已申报的荣誉记录（来自 getHonorByStudentId 接口）。
+//
+// 字段裁剪原则（v1.0.0 起）：
+//   - 仅保留记录展示与申报回显所需的字段
+//   - Score / TypeID / DimensionID 等冗余 ID 已移除（可通过 typeName 反查）
+//   - StudentName / ClassName 等用户维度信息已移除，避免与 UserInfo 重复
+//   - 原 int status 收敛为 bool approved（true=审核通过），并以 approvedName 保留中文文案
+//   - GetDate 由字符串升级为 time.Time，调用方可直接做时间运算
 type HonorRecord struct {
-	ID               int64   `json:"id"`                // 荣誉记录 ID
-	TypeName         string  `json:"type_name"`         // 荣誉类型名
-	TypeID           int64   `json:"type_id"`           // 荣誉类型 ID
-	Level            int     `json:"level"`             // 级别代码
-	LevelName        string  `json:"level_name"`        // 级别名
-	DimensionID      int64   `json:"dimension_id"`      // 维度 ID
-	DimensionName    string  `json:"dimension_name"`    // 维度名
-	Score            float64 `json:"score"`             // 分数
-	Status           int     `json:"status"`            // 0=未审核, 1=审核通过
-	StatusName       string  `json:"statusName"`        // 状态名
-	StudentName      string  `json:"student_name"`      // 学生姓名
-	ClassName        string  `json:"class_name"`        // 班级名
-	GetDate          string  `json:"get_date"`          // 获得日期
-	EvaluationAgency string  `json:"evaluation_agency"` // 颁发机构
-	IfShow           string  `json:"ifshow"`            // 是否展示
-	AuditorName      string  `json:"auditor_name"`      // 审核人
-	ShowReportFlag   int     `json:"show_report_flag"`  // 是否在报告中展示
+	ID               int64     `json:"id"`               // 荣誉记录 ID
+	TypeName         string    `json:"typeName"`         // 荣誉类型名
+	LevelName        string    `json:"levelName"`        // 级别名
+	Level            int       `json:"level"`            // 级别代码
+	DimensionName    string    `json:"dimensionName"`    // 维度名
+	Approved         bool      `json:"approved"`         // 是否已通过审核（true=已通过，替代原 int status）
+	ApprovedName     string    `json:"approvedName"`     // 审核状态名（替代原 statusName）
+	GetDate          time.Time `json:"getDate"`          // 获得日期（替代原 get_date 字符串）
+	EvaluationAgency string    `json:"evaluationAgency"` // 颁发机构
 }
 
 // AddHonorPayload 是 addHonor 接口的请求体。
