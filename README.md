@@ -67,7 +67,7 @@ make build           # 当前平台（**已知坑：不含 OCR**，见下）
 make release         # 全平台（CI 等价，含 OCR + CGO）
 ```
 
-> ⚠️ **`make build` 已知坑**：`build-*` target 都未带 `-tags=ddddocr`，本机构建出的二进制 `c.ocr=nil`，
+> **注意：`make build` 已知坑**：`build-*` target 都未带 `-tags=ddddocr`，本机构建出的二进制 `c.ocr=nil`，
 > `nazhi login` 会立即返回 `ErrOCRNotConfigured`。本地想跑通登录必须显式带 tag：
 >
 > ```bash
@@ -127,7 +127,8 @@ nazhi
 │   ├── add                      申报荣誉（支持 @payload.json）
 │   └── delete                   删除荣誉记录
 ├── file
-│   └── upload                   上传图片（独立公共服务，不接受 --token）
+│   ├── upload                   上传图片（独立公共服务，不接受 --token）
+│   └── download                 下载附件图片（不接受 --token）
 ├── version                     显示版本信息
 └── completion                  生成 shell 自动补全脚本
 ```
@@ -192,7 +193,7 @@ if [ $(nazhi task list | jq -r '.status') = "success" ]; then
 fi
 ```
 
-> 💡 `file upload` 子命令**不接受 `--token`** 是有意设计：上传服务器 `doc.nazhisoft.com` 是独立公共服务，
+> **设计说明** `file upload` 子命令**不接受 `--token`** 是有意设计：上传服务器 `doc.nazhisoft.com` 是独立公共服务，
 > SDK 内部使用独立 `http.Client`（无 cookie jar + 禁用重定向），不发送任何业务 token，
 > 避免给公共服务发送业务域 token 触发风控。
 
@@ -289,7 +290,7 @@ make test-integration
 
 ## 安全
 
-⚠️ **重要历史事故**：早期版本曾有真实学号密码泄露到 git 历史（v0.2.0 之前，已用 `git-filter-repo` 彻底清除并 force push）。
+**注意：重要历史事故**：早期版本曾有真实学号密码泄露到 git 历史（v0.2.0 之前，已用 `git-filter-repo` 彻底清除并 force push）。
 如果您使用过早期版本，**务必在 SSO 平台修改密码**。
 
 仓库测试与文档**绝不**包含真实 PII——`test/integration/har_pii_redacted_test.go` 用 SHA-256 哈希单向防御

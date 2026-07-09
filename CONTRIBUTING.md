@@ -21,11 +21,11 @@
 
 | 版本 | 状态 | 备注 |
 |---|---|---|
-| `0.5.0` | 当前活跃维护 | honor 荣誉申报全功能 + GetSubmittedCircles + review-tdd 第 23 轮全面清理 + 文档全面同步 |
-| `0.4.0` | 仅安全修复 | review-tdd 第 15/16 轮架构深化 + OCR 三轮修复 |
+| `0.5.0` | 当前活跃维护 | honor 荣誉申报全功能 + GetSubmittedCircles + 全面清理 + 文档全面同步 |
+| `0.4.0` | 仅安全修复 | 架构深化 + OCR 三轮修复 |
 | `< 0.3` | 不再支持 | 强制升级 |
 
-新功能开发默认向 `main` 提 PR（非 `release/v0.4.x`），因为 review-tdd 修复横跨多个 commit，main 上的版本号由发版时统一切。
+新功能开发默认向 `main` 提 PR（非 `release/v0.4.x`），因为修复横跨多个 commit，main 上的版本号由发版时统一切。
 
 ## 本地开发
 
@@ -42,7 +42,7 @@ make lint
 make fmt
 ```
 
-> ⚠️ **`make build` 不带 `-tags=ddddocr`**，产出的二进制 `c.ocr=nil`，
+> **注意** `make build` 不带 `-tags=ddddocr`，产出的二进制 `c.ocr=nil`，
 > `nazhi login` 会立即返回 `ErrOCRNotConfigured`。本地想跑通登录必须显式带 tag。
 > Makefile / CI 的 `release` job 都已带 tag，无需手动加。
 
@@ -84,7 +84,7 @@ chore(deps): 依赖升级
 - 保持单次 PR 只聚焦一个功能 / 修复
 - 跨多个 worktree 的修复，按 fix group 拆 commit，merge 时 `git merge --no-ff` 保留结构
 
-## ⚠️ push 前必跑（CI 6 步铁律）
+## **注意** push 前必跑（CI 6 步铁律）
 
 CI 含 6 个独立 gate，每个都可能单独 fail。**绝不能只跑 `go test` 就 push**。
 本地一键验证（全绿才能 push）：

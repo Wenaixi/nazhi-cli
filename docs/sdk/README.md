@@ -4,7 +4,7 @@ nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 
 
 | 包 | 作用 | 文档入口 |
 |---|---|---|
-| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 18 个公开方法 + 12 个 Option + 15 个哨兵错误 | 本文 |
+| [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 21 个公开方法 + 13 个 Option + 15 个哨兵错误 | 本文 |
 | [`pkg/types`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/types) | 领域类型（请求/响应/任务/用户等）+ 统一响应泛型解码 | [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) |
 | [`pkg/tokenparse`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/tokenparse) | SSO token 从 302 Location 头 / ReturnData JSON 字节提取 | [tokenparse.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/tokenparse/tokenparse.go) |
 
@@ -43,7 +43,7 @@ go get github.com/Wenaixi/nazhi-cli/pkg/types
 go get github.com/Wenaixi/nazhi-cli/pkg/tokenparse
 ```
 
-Go 版本要求见仓库 `go.mod`：当前 **1.26.1**。
+Go 版本要求见仓库 `go.mod`：当前 1.26.1。
 
 ---
 
@@ -105,7 +105,7 @@ func main() {
 }
 ```
 
-> ⚠️ 学号密码只从环境变量读。命令行 `-u 学号 -p 密码` 在 shell 历史里留痕，是历史版本泄露事故的根因。CI 用 secret 注入。
+> **注意**：学号密码只从环境变量读。命令行 `-u 学号 -p 密码` 在 shell 历史里留痕，是历史版本泄露事故的根因。CI 用 secret 注入。
 
 ---
 
@@ -135,14 +135,16 @@ if err != nil {
 | `WithUploadURL(url)` | `string` | `http://doc.nazhisoft.com` | 同上 |
 | `WithTimeout(d)` | `time.Duration` | `15s` | `d<=0` 拒绝；`c.http==nil`（已 WithHTTPClient(nil)）时拒绝；HTTP 超时含连接/TLS/响应头/响应体读取 |
 | `WithHTTPClient(hc)` | `*http.Client` | 默认带 cookie jar 的客户端 | `nil` 拒绝；替换后由调用方负责 Jar；Cookie 同步假定 Jar 是 `*cookiejar.Jar` |
-| `WithLogger(l)` | `*slog.Logger` | stderr WARN 级别 | `nil` 拒绝；SDK 内部 warn/debug/error 走用户注入的 handler，**不**走 cobra 通道 |
+| `WithLogger(l)` | `*slog.Logger` | stderr WARN 级别 | `nil` 拒绝；SDK 内部 warn/debug/error 走用户注入的 handler，不走 cobra 通道 |
 | `WithToken(t)` | `string` | 无 | 同时写 Header（`X-Auth-Token`）+ Cookie；空字符串/纯空白拒绝；延迟到 `New()` 末尾统一 `syncCookieToken`，避免 Option 顺序敏感性 |
 | `WithCustomOCR(r)` | `CaptchaRecognizer` | `ocr.NewPool(0)`（含 `-tags ddddocr` 构建）/ `nil`（`!ddddocr`） | `nil` 拒绝；mock 必须实现 `Recognize([]byte) (string, error)` + `Close() error` |
 | `WithOCRConcurrency(n)` | `int` | `min(4, NumCPU)`（`-tags ddddocr`）/ `0` + warn（`!ddddocr`） | `n<=0` 拒绝；预热 n 个 ONNX session，每个约 50MB，单 Login 用默认即可 |
 | `WithSessionBackoff(d)` | `time.Duration` | `5s` | `d<=0` 拒绝；调整 Session 激活失败后抑制重试的冷却窗口 |
 | `WithSubmittedPageSize(n)` | `int` | `100` | `n<=0` 拒绝；调整 GetSubmittedCircles 分页大小（服务端上限约 500） |
+| `WithFallbackOCR(ok)` | `bool` | `false` | 启用 ddddocr 降级兜底；primary 全部失败后自动降级到内置 ddddocr |
+| `WithFallbackConcurrency(n)` | `int` | `1` | `n<=0` 拒绝；降级 OCR 池并发度，调高可缩短下钻时延 |
 
-> 所有 Option 的统一约定：**非法值（`nil`/`""`/`<=0`）拒绝并 `c.logger.Warn`，保留当前值**，从不会静默覆盖。生产代码可以放心不检查 `error`。
+> 所有 Option 的统一约定：非法值（`nil`/`""`/`<=0`）拒绝并 `c.logger.Warn`，保留当前值，从不会静默覆盖。生产代码可以放心不检查 `error`。
 
 ### 顺序无关性
 
@@ -152,7 +154,7 @@ if err != nil {
 
 ## 并发安全
 
-每个 `*Client` 实例拥有独立的 cookie jar，**天然并发安全**：
+每个 `*Client` 实例拥有独立的 cookie jar，天然并发安全：
 
 ```go
 c, _ := client.New(client.WithToken(token))
@@ -184,7 +186,7 @@ wg.Wait()
 | `GetSchoolID(ctx, username)` | auth.go | 学号查学校 ID，无需登录 | `ErrBusinessRejected`、`ErrInvalidPayload`（school_id 非数字） |
 | `Login(ctx, req)` | auth.go | InitSession + GetSchoolID + OCR 多图多试 + validateCaptcha + validate，最后 200 JSON / 302 fallback 提 token | `ErrLoginRejected`、`ErrOCRNotConfigured`、`ErrOCRPanic`、`ErrTimeout` |
 | `ActivateSession(ctx, token)` | session.go | HAR 对齐 4 步激活（`/` + 两次 `getMenu` + `getMyInfo`），DCL fast-path + backoff 缓存 | `ErrBusinessRejected`、`ErrSessionBackoff`、`ErrEmptyUserInfo` |
-| `GetMyInfo(ctx, token)` | user.go | 精简 10 字段个人资料；先走 ActivateSession 复用步骤 4 数据避免重复 HTTP | `ErrBusinessRejected`、`ErrEmptyUserInfo`、`ErrNetwork` |
+| `GetMyInfo(ctx, token)` | user.go | 精简 13 字段个人资料；先走 ActivateSession 复用步骤 4 数据避免重复 HTTP | `ErrBusinessRejected`、`ErrEmptyUserInfo`、`ErrNetwork` |
 | `FetchTasks(ctx, token)` | task.go | 拉全维度任务聚合；8 路并发（errgroup.SetLimit）拉各维度 | `ErrBusinessRejected`、`ErrRetryable`（ctx cancel 触发）、`ErrEmptyUserInfo` |
 | `SubmitTask(ctx, token, payload)` | task.go | 提任务，29 字段 payload 透传不裁剪 | `ErrInvalidPayload`、`ErrBusinessRejected` |
 | `GetDimensions(ctx, token)` | task.go | 单独拉维度列表（CLI 未暴露，SDK 高级接口） | `ErrBusinessRejected` |
@@ -198,11 +200,11 @@ wg.Wait()
 | `GetHonorList(ctx, token, pageNo, pageSize)` | honor.go | 查已申报荣誉记录（分页，服务器要求 &key= 参数） | `ErrBusinessRejected` |
 | `AddHonor(ctx, token, payload)` | honor.go | 申报一条荣誉 | `ErrBusinessRejected` |
 | `DeleteHonor(ctx, token, honorID)` | honor.go | 删除一条荣誉记录（GET 传 id 查询参数） | `ErrBusinessRejected` |
-| `UploadFile(ctx, filePath)` | file.go | 图片上传，自动预处理（→JPG + 压缩 ≤5MB）；**不发任何鉴权头** | `ErrNetwork`、`ErrFileTooLarge`、`ErrImageTooLarge`、`ErrUploadRejected`、`ErrRateLimited`、`ErrServiceUnavailable` |
-| `DownloadFile(ctx, attachmentID, dst)` | file.go | 按附件 ID 下载图片到本地；入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；**不发任何鉴权头** | `ErrNetwork` |
+| `UploadFile(ctx, filePath)` | file.go | 图片上传，自动预处理（→JPG + 压缩 ≤5MB）；不发任何鉴权头 | `ErrNetwork`、`ErrFileTooLarge`、`ErrImageTooLarge`、`ErrUploadRejected`、`ErrRateLimited`、`ErrServiceUnavailable` |
+| `DownloadFile(ctx, attachmentID, dst)` | file.go | 按附件 ID 下载图片到本地；入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；不发任何鉴权头 | `ErrNetwork` |
 | `Close()` | client.go | 释放 OCR session、HTTP keep-alive、临时目录；聚合 error 返回 | 多个清理错误 join 一起 |
 
-> **没有的方法**：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
+> 没有的方法：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
 
 ---
 
@@ -216,11 +218,11 @@ wg.Wait()
 if err := c.InitSession(ctx); err != nil { /* 网络错 */ }
 ```
 
-正常情况下 `Login()` 内部会调一次，**不需要手动调**。这个方法公开是为了测试或自定义登录脚本。
+正常情况下 `Login()` 内部会调一次，不需要手动调。这个方法公开是为了测试或自定义登录脚本。
 
 ### `GetSchoolID(ctx context.Context, username string) (schoolID, schoolName string, err error)`
 
-学号查学校 ID 和名称。**无需登录**——这是一个公开 API。
+学号查学校 ID 和名称。无需登录——这是一个公开 API。
 
 ```go
 sid, name, err := c.GetSchoolID(ctx, "2025001")
@@ -373,10 +375,12 @@ info2, err := c.ActivateSession(ctx, token) // 0 HTTP
 
 获取用户个人资料。**会触发 ActivateSession**（复用其步骤 4 的 HTTP 请求），所以同 token 第一次调会做 4 步激活，第二次调则完全复用缓存，HTTP 0 次。
 
-字段一览（10 字段，v1.0.0 精简版，详见 `pkg/types/user.go` `UserInfo`）：
+字段一览（13 字段，v1.0.0 精简版，详见 `pkg/types/user.go` `UserInfo`）：
 
 - 基础身份：`ID`、`Name`、`StudentNumber`、`StudentID`
+- 校内/全国学号：`StudyNumber`、`NationalStudentNumber`
 - 学校/班级/年级：`SchoolID`、`SchoolName`、`GradeID`、`GradeName`、`ClassID`、`ClassName`
+- 座号：`Seat`
 
 > v1.0.0 精简原则：只保留业务 API 实际消费的核心身份/学校/班级字段。联系方式、证件号、积分等敏感或运营字段已移除，避免不必要的 PII 暴露面。
 
@@ -1026,8 +1030,8 @@ if err != nil { /* 空 body / token 类型异常 */ }
 | `LoginRequest` | SchoolID / Username / Password |
 | `LoginResponse` | Token / ExpiresAt / RawData（`json:"-"`） |
 | `BusinessError` | Code（数值）/ Msg（字符串）；`errors.As(err, &b)` 精细分支 |
-| `UserInfo` | 10 字段用户身份/学校/班级资料（详见 `pkg/types/types.go`） |
-| `Task` | 任务条目（ID、Name、Hours、Status、DimensionName 等 16 字段） |
+| `UserInfo` | 13 字段用户身份/学校/班级/学号资料（详见 `pkg/types/types.go`） |
+| `Task` | 任务条目（ID、Name、Hours、Score、DimensionName 等 21 字段） |
 | `TaskSubmitPayload` | 29 字段 addCircle 请求体透传 |
 | `HonorType` | 荣誉类型（_id, Name, LevelName, Level, Score, DimensionName, SortNo_） |
 | `HonorRecord` | 已申报荣誉记录（_TypeName, TypeID, Level, Score, Status, StatusName, GetDate, EvaluationAgency, 等 15 字段_） |
@@ -1315,7 +1319,7 @@ addCircle 接口的完整请求体（29 字段透传）。`pkg/types/task.go`。
 
 ### CircleRecord
 
-> v1.0.0 + v1.0.x 共 11 字段，含 ImgPreViewList 图片 URL 列表。
+> v1.0.0 + v1.0.x 共 10 字段，含 ImgPreViewList 图片 URL 列表。
 
 | 字段 | Go 类型 | JSON tag | 必选 | 说明 |
 |------|---------|----------|------|------|

@@ -1,4 +1,4 @@
-# CHANGELOG
+﻿# CHANGELOG
 
 所有重要变更都会记录在此文件。
 
@@ -8,17 +8,17 @@
 ## [Unreleased]
 
 ### 新增
-- **SDK `DownloadFile(ctx, attachmentID, dst)`** — 按附件 ID 下载图片到本地。
+- SDK `DownloadFile(ctx, attachmentID, dst)` — 按附件 ID 下载图片到本地。
   入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；
   CheckRedirect 同域白名单（nazhisoft.com）+ 5 次上限；不发任何鉴权头。
-- **CLI `nazhi file download`** — 按附件 ID 下载图片。
+- CLI `nazhi file download` — 按附件 ID 下载图片。
   ```
   nazhi file download --id 5006375 --output ./photo.jpg
   ```
   不接受 `--token`（公开服务）；urlType=`sso` 走 SSO 域名。
 
 ### 修复
-- **Windows flaky timing 测试**：3 个 `TestFetchTasks_*` 在 Windows 慢机器偶发失败
+- Windows flaky timing 测试：3 个 `TestFetchTasks_*` 在 Windows 慢机器偶发失败
   - `TestFetchTasks_MixedBizAndCancel_FailedCountAccurate`: ctx 500ms → 1.5s
   - `TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected`: ctx 1s → 1.5s
   - `TestFetchTasks_Parallel`: bounds 重写为 `warmupOverhead+perDimDelay+slack`
@@ -28,22 +28,22 @@
 
 ## [1.0.0] - 2026-07-09
 
-**重大破坏性更新**：types 全面精简 + JSON tag 统一 camelCase + CLI 输出 envelope 化。
+重大破坏性更新：types 全面精简 + JSON tag 统一 camelCase + CLI 输出 envelope 化。
 升级前请阅读 [MIGRATION.md](MIGRATION.md)。
 
 ### Breaking Changes
 
-- **types**: UserInfo 51→10 字段 (删除 initials/pinyin/seat/gender/birthday/telephone/creationTime 等 41 字段)
-- **types**: Task 18→11 字段 + 新增 ScopeClass/ScopeGrade/ScopeStage 常量 (删除 upPic/pushNum/score/creatorName/roleName/termID)
-- **types**: CircleRecord 15→9 字段, CircleImage 5→1 字段 (Approved bool + 仅 AttachmentID)
-- **types**: HonorType 8→5 字段, HonorRecord 17→9 字段 (approved bool 替代 status int)
-- **types**: SelfEvalStatus 10→3 字段 (id + studentComment + teacherComment)
-- **types**: LoginResponse 删 RawData 字段 (3 字段)
-- **命名**: 全 SDK 统一 camelCase JSON tag
-- **时间**: 时间字段改 time.Time (ISO 8601 + 时区序列化)
-- **CLI**: 删 `nazhi school` 命令 (从 UserInfo 获取)
-- **CLI**: 新增 `nazhi task done` 别名 (替代 `task submitted`)
-- **CLI**: 退出码三分 (0/1/2/3)
+- types: UserInfo 51→10 字段 (删除 initials/pinyin/seat/gender/birthday/telephone/creationTime 等 41 字段)
+- types: Task 18→11 字段 + 新增 ScopeClass/ScopeGrade/ScopeStage 常量 (删除 upPic/pushNum/score/creatorName/roleName/termID)
+- types: CircleRecord 15→9 字段, CircleImage 5→1 字段 (Approved bool + 仅 AttachmentID)
+- types: HonorType 8→5 字段, HonorRecord 17→9 字段 (approved bool 替代 status int)
+- types: SelfEvalStatus 10→3 字段 (id + studentComment + teacherComment)
+- types: LoginResponse 删 RawData 字段 (3 字段)
+- 命名: 全 SDK 统一 camelCase JSON tag
+- 时间: 时间字段改 time.Time (ISO 8601 + 时区序列化)
+- CLI: 删 `nazhi school` 命令 (从 UserInfo 获取)
+- CLI: 新增 `nazhi task done` 别名 (替代 `task submitted`)
+- CLI: 退出码三分 (0/1/2/3)
 
 ### Added
 
@@ -69,52 +69,52 @@
 
 ### 特性
 
-- **OCR primary+fallback 双策略降级** — primary OCR 全部失败后自动降级到内置 ddddocr 重新识别新图，提高验证码识别成功率（v0.5.0 引入，本篇正式记录）。
+- OCR primary+fallback 双策略降级 — primary OCR 全部失败后自动降级到内置 ddddocr 重新识别新图，提高验证码识别成功率（v0.5.0 引入，本篇正式记录）。
 
 ### 修复
 
-- **ocr_fallback_test.go 格式修复** — `gofmt` 对齐不一致导致 lint 失败。
+- ocr_fallback_test.go 格式修复 — `gofmt` 对齐不一致导致 lint 失败。
 
 ### 构建
 
-- **版本号**: `0.6.0`
+- 版本号: `0.6.0`
 
 ## [0.5.2] - 2026-07-04
 
 ### 修复
 
-- **validateCaptcha 重试修复** — 之前 OCR 识别成功后只调一次 `validateCaptcha`，校验失败直接退出 Login，浪费剩下 8 次重试预算。修复后将 `validateCaptcha` 移入 `ocrRecognizeWithRetry` 循环内部，校验失败时 `continue` 换图重试，用完 9 张图预算为止。错误链保持 `errors.Is(err, ErrLoginRejected)` 兼容性。`Login()` 不再单独调 `validateCaptcha`，外层流程精简。
-- **warnIfExpiresAtFallback nil 守卫** — 两处 `c.logger.Warn` 未检查 `c.logger` 是否为 nil，可能导致 nil 指针 panic（review-tdd 第 24 轮 A 组）。
-- **GetSubmittedCircles ctx 取消返回 error** — 翻页过程中 context 取消时，之前返回 `(all, nil)` 掩盖错误，改为 `(all, err)` 让调用方感知截断（review-tdd 第 24 轮 B 组）。
-- **self-eval ReadString 错误传播** — `ReadString(0)` 的 error 被 `_` 丢弃，真实 I/O 错误被掩盖（review-tdd 第 24 轮 C 组）。
-- **honor 死代码删除** — `AddHonor` 中 `_ = resp` 无意义，改为 `_, err :=`（review-tdd 第 24 轮 D 组）。
-- **GetSubmittedCircles merge 误改修复** — 正常路径应返回 nil error，merge 冲突错误地改成了 `return all, err`。
+- validateCaptcha 重试修复 — 之前 OCR 识别成功后只调一次 `validateCaptcha`，校验失败直接退出 Login，浪费剩下 8 次重试预算。修复后将 `validateCaptcha` 移入 `ocrRecognizeWithRetry` 循环内部，校验失败时 `continue` 换图重试，用完 9 张图预算为止。错误链保持 `errors.Is(err, ErrLoginRejected)` 兼容性。`Login()` 不再单独调 `validateCaptcha`，外层流程精简。
+- warnIfExpiresAtFallback nil 守卫 — 两处 `c.logger.Warn` 未检查 `c.logger` 是否为 nil，可能导致 nil 指针 panic。
+- GetSubmittedCircles ctx 取消返回 error — 翻页过程中 context 取消时，之前返回 `(all, nil)` 掩盖错误，改为 `(all, err)` 让调用方感知截断。
+- self-eval ReadString 错误传播 — `ReadString(0)` 的 error 被 `_` 丢弃，真实 I/O 错误被掩盖。
+- honor 死代码删除 — `AddHonor` 中 `_ = resp` 无意义，改为 `_, err :=`。
+- GetSubmittedCircles merge 误改修复 — 正常路径应返回 nil error，merge 冲突错误地改成了 `return all, err`。
 
 ### 重构
 
-- **cmd payload 抽取公共 `parsePayloadFromArg`** — task_submit/honor 重复的 `@file.json`/stdin 读取逻辑归一到同一 helper（review-tdd 第 24 轮 E 组）。
-- **opt_builder switch case 替换为 map 查找** — 3 处相同的 switch 结构简化为一次 map 构建 + O(1) 查找（review-tdd 第 24 轮 E 组）。
+- cmd payload 抽取公共 `parsePayloadFromArg` — task_submit/honor 重复的 `@file.json`/stdin 读取逻辑归一到同一 helper。
+- opt_builder switch case 替换为 map 查找 — 3 处相同的 switch 结构简化为一次 map 构建 + O(1) 查找。
 
 ### 清理
 
-- **OCR/types 注释与参数清理** — NewPool preload 废弃标记、BusinessError 注释代码示例清理、LoginResponse 死字段历史注释清理（review-tdd 第 24 轮 F 组）。
+- OCR/types 注释与参数清理 — NewPool preload 废弃标记、BusinessError 注释代码示例清理、LoginResponse 死字段历史注释清理。
 
 ### 测试
 
-- **TestGetSubmittedCircles_CancelDuringPaging 竞态修复** — 同步点从 page 1 handler 响应后移到 page 2 handler 被调用时，消除 goroutine 调度不确定性。
+- TestGetSubmittedCircles_CancelDuringPaging 竞态修复 — 同步点从 page 1 handler 响应后移到 page 2 handler 被调用时，消除 goroutine 调度不确定性。
 
 ### 构建
 
-- **版本号**: `0.5.2`
-- **.gitignore**: 补充 `.git-rewrite/`、`.review-tdd-base`、`angle5-findings.json` 忽略规则。
+- 版本号: `0.5.2`
+- .gitignore: 补充 `.git-rewrite/`、``、`angle5-findings.json` 忽略规则。
 
 ## [0.5.1] - 2026-07-03
 
 ### 修复
 
-- **commit 消息 @ 前缀违规** — `feat(task):` 的 commit 消息以 `@` 开头，违反 Conventional Commits 约束，changelog 生成器解析异常。rebase 修复。
-- **honor.go 注释缩进** — `deleteHonorById` 行多一个制表符缩进，已对齐。
-- **CLAUDE.md 版本/OCR 参数同步** — 仍引用 v0.4.1 版本号和 `maxOCRImagesTotal=99`，更新为 v0.5.0 和 9。
+- commit 消息 @ 前缀违规 — `feat(task):` 的 commit 消息以 `@` 开头，违反 Conventional Commits 约束，changelog 生成器解析异常。rebase 修复。
+- honor.go 注释缩进 — `deleteHonorById` 行多一个制表符缩进，已对齐。
+- CLAUDE.md 版本/OCR 参数同步 — 仍引用 v0.4.1 版本号和 `maxOCRImagesTotal=99`，更新为 v0.5.0 和 9。
 
 ## [0.5.0] - 2026-07-03
 
@@ -122,90 +122,85 @@
 
 ### 新增
 
-- **荣誉申报 SDK（honor.go）** — 5 个方法：GetHonorTypes / GetHonorTypeForSelect / GetHonorLevel / GetHonorList / AddHonor。通过 TDD 驱动开发，11 个单元测试全部通过
-- **nazhi honor CLI 命令** — `nazhi honor types` / `nazhi honor list` / `nazhi honor add` 三个子命令，支持 `@file.json` 和 `-`（stdin）两种 payload 来源
-- **nazhi task submitted CLI 命令** — 调用 `GetSubmittedCircles` 获取已提交写实记录，自动翻页合并输出
-- **`--payload -`（stdin 读取）** — task submit 和 honor add 都支持从 stdin 读取请求体 JSON
+- 荣誉申报 SDK（honor.go） — 5 个方法：GetHonorTypes / GetHonorTypeForSelect / GetHonorLevel / GetHonorList / AddHonor。通过 TDD 驱动开发，11 个单元测试全部通过
+- nazhi honor CLI 命令 — `nazhi honor types` / `nazhi honor list` / `nazhi honor add` 三个子命令，支持 `@file.json` 和 `-`（stdin）两种 payload 来源
+- nazhi task submitted CLI 命令 — 调用 `GetSubmittedCircles` 获取已提交写实记录，自动翻页合并输出
+- `--payload -`（stdin 读取） — task submit 和 honor add 都支持从 stdin 读取请求体 JSON
 
 ### 改进
 
-- **docs SDK 参考** — 新增 submitted.go 和 honor.go 完整章节正文（含代码示例、错误说明、分页策略）
-- **docs CLI 参考** — 新增 `nazhi task submitted` 和 `nazhi honor {types,list,add}` 完整文档章节
-- **文档同步** — README.md / docs/README.md / docs/architecture.md / docs/env-vars.md 同步 honor + submitted 相关内容
-- **`parsePayload` 抽取** — task_submit.go 将从文件/从 stdin 读取 payload 的逻辑抽取为独立 helper，honor add 复用相同模式
+- docs SDK 参考 — 新增 submitted.go 和 honor.go 完整章节正文（含代码示例、错误说明、分页策略）
+- docs CLI 参考 — 新增 `nazhi task submitted` 和 `nazhi honor {types,list,add}` 完整文档章节
+- 文档同步 — README.md / docs/README.md / docs/architecture.md / docs/env-vars.md 同步 honor + submitted 相关内容
+- `parsePayload` 抽取 — task_submit.go 将从文件/从 stdin 读取 payload 的逻辑抽取为独立 helper，honor add 复用相同模式
 
 ## [0.4.1] - 2026-07-02
 
-合入 review-tdd 第 18~22 轮修复（约 80+ 个 commit，多轮并行工作树）。
 
 ### 新增
 
-- **`parallel.go`** — CLAUDE.md 候选 #6：`ParallelDims[T any]` 泛型并发维度查询 helper，含 `ParallelDimsResult` + 错误聚合。81 行（vendor 化），`FetchTasks` 后续可迁移
-- **`error_category.go`** — CLAUDE.md 候选 #7：`ClassifyError(err) ErrorCategory` 枚举（`ContextCancel` / `ContextTimeout` / `NetworkTimeout` / `BusinessError` / `Unknown`）。80 行，`task.go` `isContextError` 已使用
-- **`internal/recoverx` 包** — 统一 panic recover 策略，`RecoverPanic(recovered, sentinel, name)` 输出 `debug.Stack()` 到 stderr。auth.go / session.go / main.go 3 处调用点全部收敛
-- **`tokenparse` 3 个哨兵错误** — `ErrTokenReturnDataEmpty` / `ErrTokenTypeMismatch` / `ErrTokenFieldMissing`。`ExtractFromReturnData` 调用方可精确区分 3 种解析失败
-- **5 个 HTTP 状态码哨兵错误**：`ErrRateLimited`（429）/ `ErrServiceUnavailable`（5xx）/ `ErrTimeout`（超时）/ `ErrInvalidResponse`（4xx-其他）/ `ErrRetryable`（ctx cancel 可重试）。SDK 用户通过 `errors.Is` 精确识别 HTTP 层 / 业务层错误
-- **`doBizGet` 按 StatusCode 自动包装 sentinel**：429 → `ErrRateLimited`，5xx → `ErrServiceUnavailable`，4xx → `ErrInvalidResponse`，不再笼统 "ErrNetwork"
-- **`isTimeoutError` helper**：`c.do` 内部识别 `context.DeadlineExceeded` / `*url.Error.Timeout()` / `net.OpError.Timeout()`，用 `ErrTimeout` 包装
+- `parallel.go` — CLAUDE.md 候选 #6：`ParallelDims[T any]` 泛型并发维度查询 helper，含 `ParallelDimsResult` + 错误聚合。81 行（vendor 化），`FetchTasks` 后续可迁移
+- `error_category.go` — CLAUDE.md 候选 #7：`ClassifyError(err) ErrorCategory` 枚举（`ContextCancel` / `ContextTimeout` / `NetworkTimeout` / `BusinessError` / `Unknown`）。80 行，`task.go` `isContextError` 已使用
+- `internal/recoverx` 包 — 统一 panic recover 策略，`RecoverPanic(recovered, sentinel, name)` 输出 `debug.Stack()` 到 stderr。auth.go / session.go / main.go 3 处调用点全部收敛
+- `tokenparse` 3 个哨兵错误 — `ErrTokenReturnDataEmpty` / `ErrTokenTypeMismatch` / `ErrTokenFieldMissing`。`ExtractFromReturnData` 调用方可精确区分 3 种解析失败
+- 5 个 HTTP 状态码哨兵错误：`ErrRateLimited`（429）/ `ErrServiceUnavailable`（5xx）/ `ErrTimeout`（超时）/ `ErrInvalidResponse`（4xx-其他）/ `ErrRetryable`（ctx cancel 可重试）。SDK 用户通过 `errors.Is` 精确识别 HTTP 层 / 业务层错误
+- `doBizGet` 按 StatusCode 自动包装 sentinel：429 → `ErrRateLimited`，5xx → `ErrServiceUnavailable`，4xx → `ErrInvalidResponse`，不再笼统 "ErrNetwork"
+- `isTimeoutError` helper：`c.do` 内部识别 `context.DeadlineExceeded` / `*url.Error.Timeout()` / `net.OpError.Timeout()`，用 `ErrTimeout` 包装
 
 ### 修复
 
-review-tdd 第 18 轮：
-- **顶层 panic recover exit code 1 回归** — 之前 `pendingExitCode=0` 走 exit 0，与正常 error 不一致。修复 `printError` 递归 fallback 设 `pendingExitCode=1`
-- **OCR Pool 加 `sweepStaleTempDirs` 启动时清扫** — `nazhi login` 顺手 best-effort 扫 `%TEMP%` 历史残留，能删的删
-- **`fetchTasksForDimension` panic recover 错误链保留** — `defer recover` 用 `%w` 包装原始 error
-- **`SetLimit(0)` 死代码修复** — `errgroup.SetLimit(0)` 在 `len(dimensions)==0` 时死路径，调最小为 1
-- **PII 守卫 AST 自检盲区修复** — 字符串拼接绕过的扫描覆盖
-- **`task list` cancelledCount 虚高修复** — 占位 error 不计入 `failedCount`
-- **`cookie_sync` partial decode 防御** — `dec.More()` 检查 reader 残留，partial 时 RawData 置 nil
-- **`ErrFileTooLarge` 错误链修复** — `errors.Join(ErrFileTooLarge, ErrImageTooLarge)`，errors.Is 单一识别所有"文件过大"路径
-- **`Login` body 摘要** — 非预期状态码错误消息附 `logSafeBody(bodyBytes)` 100 字节截断
+- 顶层 panic recover exit code 1 回归 — 之前 `pendingExitCode=0` 走 exit 0，与正常 error 不一致。修复 `printError` 递归 fallback 设 `pendingExitCode=1`
+- OCR Pool 加 `sweepStaleTempDirs` 启动时清扫 — `nazhi login` 顺手 best-effort 扫 `%TEMP%` 历史残留，能删的删
+- `fetchTasksForDimension` panic recover 错误链保留 — `defer recover` 用 `%w` 包装原始 error
+- `SetLimit(0)` 死代码修复 — `errgroup.SetLimit(0)` 在 `len(dimensions)==0` 时死路径，调最小为 1
+- PII 守卫 AST 自检盲区修复 — 字符串拼接绕过的扫描覆盖
+- `task list` cancelledCount 虚高修复 — 占位 error 不计入 `failedCount`
+- `cookie_sync` partial decode 防御 — `dec.More()` 检查 reader 残留，partial 时 RawData 置 nil
+- `ErrFileTooLarge` 错误链修复 — `errors.Join(ErrFileTooLarge, ErrImageTooLarge)`，errors.Is 单一识别所有"文件过大"路径
+- `Login` body 摘要 — 非预期状态码错误消息附 `logSafeBody(bodyBytes)` 100 字节截断
 
-review-tdd 第 20 轮：
-- **注释中文化** — magic bytes sniff、`multipartBufPool` Grow 等
-- **`getQualitySteps` 内联为 `qualityAfterOptimization` 常量**
-- **结构化日志** — `warnIfExpiresAtFallback` 改为结构化 slog 字段
-- **`logSafeBody` 提取变量消除重复**
-- **`isContextError` helper 消除 3 处重复**
-- **self_eval 空值兜底 guard 删除**（无消费者）
+- 注释中文化 — magic bytes sniff、`multipartBufPool` Grow 等
+- `getQualitySteps` 内联为 `qualityAfterOptimization` 常量
+- 结构化日志 — `warnIfExpiresAtFallback` 改为结构化 slog 字段
+- `logSafeBody` 提取变量消除重复
+- `isContextError` helper 消除 3 处重复
+- self_eval 空值兜底 guard 删除（无消费者）
 
-review-tdd 第 21 轮（F 系列）：
-- **`ErrTimeout` 包装** — `isTimeoutError` 出口处用 `ErrTimeout` 包装而非裸 fmt.Errorf
-- **`doBizGet` 包装 body 摘要 + ErrInvalidResponse fallback**
-- **`atomic.Pointer[url.URL]` race 修复** — `c.baseURLParsed` 全部访问原子化
+- `ErrTimeout` 包装 — `isTimeoutError` 出口处用 `ErrTimeout` 包装而非裸 fmt.Errorf
+- `doBizGet` 包装 body 摘要 + ErrInvalidResponse fallback
+- `atomic.Pointer[url.URL]` race 修复 — `c.baseURLParsed` 全部访问原子化
 
-review-tdd 第 22 轮：
-- **`image_prep` 缩放级联简化** — 7 轮 resize 改为单次缩放（0.7^7 ≈ 0.082 常量计算），`getScaleFactors` 删除
-- **`decodeImage` 改用 `image.Decode`** — 删除手写 magic bytes switch，stdlib 自动识别格式
-- **`prepareImageForUpload` 加 `ctx` 参数** — 支持超时取消
-- **`defaultOCR` 惰性预热** — 从同步 `NewPool(min(NumCPU,4))` 改为 `sync.Once` + `atomic.Pointer` 懒加载
-- **`Close()` 清理 sessionManager backoff 状态** — 避免复用 Client 时误触发冷却
-- **`New()` `url.Parse` 静默吞错改为 warn 日志**
-- **`withURLGuard`/`withNilGuard` Option 工厂** — 消除 6 处 Option 重复守卫逻辑
-- **`--timeout 0` warn 回退** — 之前静默覆盖为正数超时，现在 warn 并保留默认值
-- **`valueToString` float64 精度保留** — 改用 `FormatFloat` 替代 `FormatInt` 截断
-- **`writeModelFile` 失败走 `cleanupTempDir`** — 复用 DLL 占用降级逻辑
-- **`sweepStaleTempDirs` case-insensitive FS 下 `EqualFold`** — 避免 Windows 大小写误判
-- **`initOnce` panic `%v` → `%w`** — 保留 error chain
-- **`tryDecodeFallback` 删除** — 被 `doBizGetDecode` 吸收，不再需泛型 fallback helper
-- **`maxOCRAttemptsPerImage` 常量删除** — 设计意图代之以代码注释（架构深化后单图 OCR 1 次策略已稳定）
-- **`getScaleFactors` 删除**
-- **`countTasksByType` `int` → `float64`** — 泛型 `sumValues[T int | float64]` 改为 `T int64` + `json.Number` 兼容
-- **`Close()` 末尾清 `sm.clearBackoff()` **
-- **`maps.Clone` 删除** — `doGetMenu` 直接修改 map 而非 Clone，减少一次分配
-- **DCL fast path `cachedUserInfo` nil guard**
+- `image_prep` 缩放级联简化 — 7 轮 resize 改为单次缩放（0.7^7 ≈ 0.082 常量计算），`getScaleFactors` 删除
+- `decodeImage` 改用 `image.Decode` — 删除手写 magic bytes switch，stdlib 自动识别格式
+- `prepareImageForUpload` 加 `ctx` 参数 — 支持超时取消
+- `defaultOCR` 惰性预热 — 从同步 `NewPool(min(NumCPU,4))` 改为 `sync.Once` + `atomic.Pointer` 懒加载
+- `Close()` 清理 sessionManager backoff 状态 — 避免复用 Client 时误触发冷却
+- `New()` `url.Parse` 静默吞错改为 warn 日志
+- `withURLGuard`/`withNilGuard` Option 工厂 — 消除 6 处 Option 重复守卫逻辑
+- `--timeout 0` warn 回退 — 之前静默覆盖为正数超时，现在 warn 并保留默认值
+- `valueToString` float64 精度保留 — 改用 `FormatFloat` 替代 `FormatInt` 截断
+- `writeModelFile` 失败走 `cleanupTempDir` — 复用 DLL 占用降级逻辑
+- `sweepStaleTempDirs` case-insensitive FS 下 `EqualFold` — 避免 Windows 大小写误判
+- `initOnce` panic `%v` → `%w` — 保留 error chain
+- `tryDecodeFallback` 删除 — 被 `doBizGetDecode` 吸收，不再需泛型 fallback helper
+- `maxOCRAttemptsPerImage` 常量删除 — 设计意图代之以代码注释（架构深化后单图 OCR 1 次策略已稳定）
+- `getScaleFactors` 删除
+- `countTasksByType` `int` → `float64` — 泛型 `sumValues[T int | float64]` 改为 `T int64` + `json.Number` 兼容
+- `Close()` 末尾清 `sm.clearBackoff()` 
+- `maps.Clone` 删除 — `doGetMenu` 直接修改 map 而非 Clone，减少一次分配
+- DCL fast path `cachedUserInfo` nil guard
 
 ### 改进
 
-- **`c.logger.Warn` 资源警告统一走用户注入 slog** — 不依赖 cmd 通道，SDK 纯净
-- **`go.mod` 模块单一** — 仓库只有一个 `module github.com/Wenaixi/nazhi-cli`
-- **文档全面升级到 v0.4.1** — CLI / SDK / 架构 / 登录流程 / OCR / HAR / 环境变量全部同步
+- `c.logger.Warn` 资源警告统一走用户注入 slog — 不依赖 cmd 通道，SDK 纯净
+- `go.mod` 模块单一 — 仓库只有一个 `module github.com/Wenaixi/nazhi-cli`
+- 文档全面升级到 v0.4.1 — CLI / SDK / 架构 / 登录流程 / OCR / HAR / 环境变量全部同步
 
 ### 构建
 
-- **版本号**：`0.4.1`
-- **make build 仍缺 `-tags=ddddocr`**（已知坑不变）
-- **新增 `internal/recoverx` 包** — 零依赖，无测试文件（由 3 个客户端隐式覆盖）
+- 版本号：`0.4.1`
+- make build 仍缺 `-tags=ddddocr`（已知坑不变）
+- 新增 `internal/recoverx` 包 — 零依赖，无测试文件（由 3 个客户端隐式覆盖）
 
 ## [0.4.0] - 2026-06-30
 
@@ -223,11 +218,11 @@ v0.3.5 → v0.4.0 之间合入 305 个 commit，172 个文件改动。
 
 OCR Windows 三轮 TDD 修复：
 
-- `5ff0ea8` **Windows DLL 占用降级**：`Close` 时删 `onnxruntime.dll` 因 `LoadLibrary` 句柄未释放被拒（`Access is denied`），抽 `cleanupTempDir` 对 Windows 两类 errno（`ERROR_ACCESS_DENIED` / `ERROR_SHARING_VIOLATION`）降级返 nil。stderr 不再被权限错误污染
-- `a81c9f3` **GOOS 守卫**：上一轮注释承诺「非 Windows 永远 false」但代码不保证（Linux errno 5=EIO、32=EPIPE 也会命中），加 `goosFn` 注入点 + `runtime.GOOS == "windows"` 守卫，降级只在 Windows 生效
-- `7d5dd65` **启动时清扫**：见新增段最后一条
+- `5ff0ea8` Windows DLL 占用降级：`Close` 时删 `onnxruntime.dll` 因 `LoadLibrary` 句柄未释放被拒（`Access is denied`），抽 `cleanupTempDir` 对 Windows 两类 errno（`ERROR_ACCESS_DENIED` / `ERROR_SHARING_VIOLATION`）降级返 nil。stderr 不再被权限错误污染
+- `a81c9f3` GOOS 守卫：上一轮注释承诺「非 Windows 永远 false」但代码不保证（Linux errno 5=EIO、32=EPIPE 也会命中），加 `goosFn` 注入点 + `runtime.GOOS == "windows"` 守卫，降级只在 Windows 生效
+- `7d5dd65` 启动时清扫：见新增段最后一条
 
-review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover 走 `closeAllClients` LIFO；`--output` 死代码删除；`Login` 并发（CallStep 改 mutex）；顶层 panic recover 输出 `debug.Stack()` 到 stderr；`buildLoginResponse` 非法 JSON 保底 `RawData` 为空 map（Finding #8）+ RawData 置 nil 消除二次解析；`image_prep` 缩放级联优化（resize N 次后统一 encode）；Transport 加 `TLSHandshakeTimeout=10s` 防网络挂起；`tryActivate` 先检查 `ctx.Err()` 再检查 backoff（避免被掩盖）；`bizURL` helper 集中处理裸 baseURL 拼接；`noRedirect` 共享变量；OCR Pool `o.mu` panic defer Unlock 防死锁；引用已删接口的文档清理；中文注释规范化。
+`SetBackoff` race 修复；`main` panic recover 走 `closeAllClients` LIFO；`--output` 死代码删除；`Login` 并发（CallStep 改 mutex）；顶层 panic recover 输出 `debug.Stack()` 到 stderr；`buildLoginResponse` 非法 JSON 保底 `RawData` 为空 map（Finding #8）+ RawData 置 nil 消除二次解析；`image_prep` 缩放级联优化（resize N 次后统一 encode）；Transport 加 `TLSHandshakeTimeout=10s` 防网络挂起；`tryActivate` 先检查 `ctx.Err()` 再检查 backoff（避免被掩盖）；`bizURL` helper 集中处理裸 baseURL 拼接；`noRedirect` 共享变量；OCR Pool `o.mu` panic defer Unlock 防死锁；引用已删接口的文档清理；中文注释规范化。
 
 ### 兼容性
 
@@ -247,37 +242,37 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Features
 
-- **OCR 可选构建** — 新增 `-tags ddddocr` 编译标签。不加标签时编译为纯 Go 二进制（无 CGO），`login` 命令会返回明确提示指导使用 `WithCustomOCR` 或下载预编译 release。CGO-free 嵌入式场景不再被 onnxruntime 强制依赖阻塞。
-- **新增 3 个错误哨兵** — `ErrOCRNotConfigured`、`ErrEmptyUserInfo`、`ErrSessionBackoff`。SDK 用户可用 `errors.Is` 精确区分 OCR 缺失、空用户信息、session 背压三种场景。
+- OCR 可选构建 — 新增 `-tags ddddocr` 编译标签。不加标签时编译为纯 Go 二进制（无 CGO），`login` 命令会返回明确提示指导使用 `WithCustomOCR` 或下载预编译 release。CGO-free 嵌入式场景不再被 onnxruntime 强制依赖阻塞。
+- 新增 3 个错误哨兵 — `ErrOCRNotConfigured`、`ErrEmptyUserInfo`、`ErrSessionBackoff`。SDK 用户可用 `errors.Is` 精确区分 OCR 缺失、空用户信息、session 背压三种场景。
 
 ### Fixed
 
-- **文件上传 multipart 缺少终止边界** — 修复 upload 请求体尾部缺 `--boundary--\r\n` 导致服务端解析失败。
-- **GIF 上传背景变黑** — 修复透明 GIF 合成白底时走特殊路径导致的回归。
-- **图片压缩失败死循环** — 修复 JPEG 编码失败时无限重试导致 CPU 100%。
-- **CLI 退出泄漏 ONNX 资源** — 修复 `os.Exit(1)` 跳过 defer 导致临时目录永久残留。
-- **上传命令误读 NAZHI_TOKEN** — 修复 `file upload` 将 `NAZHI_TOKEN` 环境变量误写入 sso 域 Cookie 的问题。
-- **OCR 并发关闭泄漏** — 修复池关闭后新创建的 OCR 实例不被清理、临时目录泄漏。
-- **不同 token 共享 session 背压状态** — 修复 A 登录失败导致 B 也被误判为激活失败。
-- **session 激活并发安全** — 修复 `ActivateSession` 无 mutex 保护导致并发请求数据污染。
-- **空用户信息被当错误处理** — 修复 `GetMyInfo` 返回空数据时误报错误。
-- **任务列表部分维度失败时空白** — 修复部分评价维度请求失败时整个列表不输出成功数据。
-- **空消息导致日志 panic** — 修复 `resp.Msg` 为 nil 时无保护解引用。
-- **维度抓取 panic 崩溃进程** — 修复某维度请求异常时整个 CLI 进程退出。
-- **11 处 PII 残留** — 替换测试文件和文档中残留的真实姓名和学号。
-- **HTTP 连接池限制** — 默认 `MaxIdleConnsPerHost=2` 不够用，改为 16 避免高并发反复 TLS 握手。
-- **Debug 日志无谓分配内存** — 非 Debug 级别不再为日志参数做 `fmt.Sprintf` 分配。
-- **Base URL 拼接不统一** — 3 处直接拼接改为 `bizURL()` helper 集中处理。
-- **token flag 空字符串覆盖环境变量** — 用 `flagChanged()` 区分"没传"和"传了空值"。
-- **顶层 panic 无保护** — 加 recover 统一 exit code 1，不打 stack trace。
-- **Session 背压无提示** — 捕获 `ErrSessionBackoff` 时输出冷却提示等待时长。
-- **context cancel 被任务抓取吞掉** — `FetchTasks` 的 goroutine 闭包检查 `gctx.Err()`。
-- **文档残留已删接口引用** — 同步清理 `login-flow.md` 中已删 `GetCaptcha` 的说明。
+- 文件上传 multipart 缺少终止边界 — 修复 upload 请求体尾部缺 `--boundary--\r\n` 导致服务端解析失败。
+- GIF 上传背景变黑 — 修复透明 GIF 合成白底时走特殊路径导致的回归。
+- 图片压缩失败死循环 — 修复 JPEG 编码失败时无限重试导致 CPU 100%。
+- CLI 退出泄漏 ONNX 资源 — 修复 `os.Exit(1)` 跳过 defer 导致临时目录永久残留。
+- 上传命令误读 NAZHI_TOKEN — 修复 `file upload` 将 `NAZHI_TOKEN` 环境变量误写入 sso 域 Cookie 的问题。
+- OCR 并发关闭泄漏 — 修复池关闭后新创建的 OCR 实例不被清理、临时目录泄漏。
+- 不同 token 共享 session 背压状态 — 修复 A 登录失败导致 B 也被误判为激活失败。
+- session 激活并发安全 — 修复 `ActivateSession` 无 mutex 保护导致并发请求数据污染。
+- 空用户信息被当错误处理 — 修复 `GetMyInfo` 返回空数据时误报错误。
+- 任务列表部分维度失败时空白 — 修复部分评价维度请求失败时整个列表不输出成功数据。
+- 空消息导致日志 panic — 修复 `resp.Msg` 为 nil 时无保护解引用。
+- 维度抓取 panic 崩溃进程 — 修复某维度请求异常时整个 CLI 进程退出。
+- 11 处 PII 残留 — 替换测试文件和文档中残留的真实姓名和学号。
+- HTTP 连接池限制 — 默认 `MaxIdleConnsPerHost=2` 不够用，改为 16 避免高并发反复 TLS 握手。
+- Debug 日志无谓分配内存 — 非 Debug 级别不再为日志参数做 `fmt.Sprintf` 分配。
+- Base URL 拼接不统一 — 3 处直接拼接改为 `bizURL()` helper 集中处理。
+- token flag 空字符串覆盖环境变量 — 用 `flagChanged()` 区分"没传"和"传了空值"。
+- 顶层 panic 无保护 — 加 recover 统一 exit code 1，不打 stack trace。
+- Session 背压无提示 — 捕获 `ErrSessionBackoff` 时输出冷却提示等待时长。
+- context cancel 被任务抓取吞掉 — `FetchTasks` 的 goroutine 闭包检查 `gctx.Err()`。
+- 文档残留已删接口引用 — 同步清理 `login-flow.md` 中已删 `GetCaptcha` 的说明。
 
 ### Changed
 
-- **OCR 可选构建** — `pkg/client` 不再强制导入 `internal/ocr`。无 `-tags ddddocr` 时编译为纯 Go，Login 返回 `ErrOCRNotConfigured`。
-- **错误哨兵体系** — 新增 4 个哨兵，覆盖 Location 解析、OCR 缺失、session 背压、空数据场景。
+- OCR 可选构建 — `pkg/client` 不再强制导入 `internal/ocr`。无 `-tags ddddocr` 时编译为纯 Go，Login 返回 `ErrOCRNotConfigured`。
+- 错误哨兵体系 — 新增 4 个哨兵，覆盖 Location 解析、OCR 缺失、session 背压、空数据场景。
 
 ### Build
 
@@ -289,27 +284,27 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Fixed
 
-- **Token 过期时间不准** — 之前 200 路径始终用 `now+24h` 兜底，现在会解析服务端返回的 `exp`/`expires_in` 字段。
-- **GetSchoolID 死分支** — 删除了一个永远不会触发的 else-if 分支（服务端只返回 NAME 字段）。
-- **`derefOr` helper 简化** — nil-safe 字符串解引用，5 行变 3 行。
-- **`LoginResponse.RefreshAfter` 字段删除** — 从未被服务端填充过，删掉免得误导调用方。
-- **`UnifiedResponse` 6 个孤儿字段删除** — DataString、PageBean、Note、InsertID、UpdateCount、IsAttendance 全仓库 0 引用。
-- **drain+close 全部统一** — 所有 HTTP 请求的 body 关闭前都会先 drain 再 close，保持 keep-alive 连接可重用。
-- **5+1 处业务错误用统一哨兵包装** — `SubmitSelfEvaluation`、`QuerySelfEvaluation`、`QuerySelfGradEvaluation`、`GetMyInfo`、`fetchDimensions` 的 CheckCode 改用 `ErrBusinessRejected` 而不是之前的各种散装错误。
-- **维度抓取不静默吞错误** — 之前 `fetchTasksForDimension` 遇到业务错误只 logDebug 就返回 nil，现在会返回 error 让调用方知情。
-- **上传客户端 50 次握手回归** — 修复新创建的 clean client 没复用 Transport 导致批量上传反复 TLS 握手。
-- **6 个 Option 加校验守卫** — `WithSSOBase`/`WithBaseURL`/`WithUploadURL`/`WithHTTPClient`/`WithOCRConcurrency`/`WithToken` 遇到空值或负值时 warn + 保留原值。
-- **CLI 自动获得 Client 清理** — school 和 file_upload 改用统一 `buildClient` helper 后，自动获得 `trackClient(c)` 注册，退出时不再泄漏 ONNX 临时目录。
-- **`whoami` 空数据不报错** — 当 `GetMyInfo` 返回 `(nil,nil)` 时输出 `{"status":"empty"}` 而不是裸 `null`，区分"空响应"和"激活失败"。
-- **Session 激活失败背压** — 失败后缓存 + 5 秒冷却窗口，防止 N 个并发请求同时触发激活。
-- **任务列表部分维度失败不吞成功数据** — 全失败返回全部错误；部分失败返回成功维度 + 错误信息；全成功正常返回。
+- Token 过期时间不准 — 之前 200 路径始终用 `now+24h` 兜底，现在会解析服务端返回的 `exp`/`expires_in` 字段。
+- GetSchoolID 死分支 — 删除了一个永远不会触发的 else-if 分支（服务端只返回 NAME 字段）。
+- `derefOr` helper 简化 — nil-safe 字符串解引用，5 行变 3 行。
+- `LoginResponse.RefreshAfter` 字段删除 — 从未被服务端填充过，删掉免得误导调用方。
+- `UnifiedResponse` 6 个孤儿字段删除 — DataString、PageBean、Note、InsertID、UpdateCount、IsAttendance 全仓库 0 引用。
+- drain+close 全部统一 — 所有 HTTP 请求的 body 关闭前都会先 drain 再 close，保持 keep-alive 连接可重用。
+- 5+1 处业务错误用统一哨兵包装 — `SubmitSelfEvaluation`、`QuerySelfEvaluation`、`QuerySelfGradEvaluation`、`GetMyInfo`、`fetchDimensions` 的 CheckCode 改用 `ErrBusinessRejected` 而不是之前的各种散装错误。
+- 维度抓取不静默吞错误 — 之前 `fetchTasksForDimension` 遇到业务错误只 logDebug 就返回 nil，现在会返回 error 让调用方知情。
+- 上传客户端 50 次握手回归 — 修复新创建的 clean client 没复用 Transport 导致批量上传反复 TLS 握手。
+- 6 个 Option 加校验守卫 — `WithSSOBase`/`WithBaseURL`/`WithUploadURL`/`WithHTTPClient`/`WithOCRConcurrency`/`WithToken` 遇到空值或负值时 warn + 保留原值。
+- CLI 自动获得 Client 清理 — school 和 file_upload 改用统一 `buildClient` helper 后，自动获得 `trackClient(c)` 注册，退出时不再泄漏 ONNX 临时目录。
+- `whoami` 空数据不报错 — 当 `GetMyInfo` 返回 `(nil,nil)` 时输出 `{"status":"empty"}` 而不是裸 `null`，区分"空响应"和"激活失败"。
+- Session 激活失败背压 — 失败后缓存 + 5 秒冷却窗口，防止 N 个并发请求同时触发激活。
+- 任务列表部分维度失败不吞成功数据 — 全失败返回全部错误；部分失败返回成功维度 + 错误信息；全成功正常返回。
 
 ### Changed
 
-- **`LoginResponse.RefreshAfter` 和 `UnifiedResponse` 6 个字段删除** — BREAKING API，全仓库确认 0 引用。旧 API 响应 JSON 反序列化兼容（Go 忽略未知字段）。
-- **OCR 进程级单例删除** — 不再有 `GetDefault`/`defaultOCR`/`defaultOnce`，由 Pool 替代。
-- **trackInit 改用 sync.Map** — 99 次串行锁写 map 改为 `LoadOrStore`，key 已存在时 lock-free 跳过。
-- **新增 `printPrompt` 函数** — 终端交互提示（如 self-eval 的"请输入评价"）走独立通道，不受 verbose 守卫，受 quiet + TTY 检测守卫。
+- `LoginResponse.RefreshAfter` 和 `UnifiedResponse` 6 个字段删除 — BREAKING API，全仓库确认 0 引用。旧 API 响应 JSON 反序列化兼容（Go 忽略未知字段）。
+- OCR 进程级单例删除 — 不再有 `GetDefault`/`defaultOCR`/`defaultOnce`，由 Pool 替代。
+- trackInit 改用 sync.Map — 99 次串行锁写 map 改为 `LoadOrStore`，key 已存在时 lock-free 跳过。
+- 新增 `printPrompt` 函数 — 终端交互提示（如 self-eval 的"请输入评价"）走独立通道，不受 verbose 守卫，受 quiet + TTY 检测守卫。
 
 ### Build
 
@@ -319,15 +314,15 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Fixed
 
-- **HAR 测试数据含真实姓名和学号** — `self_eval.json` 的 `student_number`/`studentName` 仍有真实信息，替换为占位值，新增自动化扫描防止再出现。
-- **图片处理 69 行死代码** — `prepareImageWithStats`、`prepResult`、`PrepStats` 结构体（14 字段）、`CompressionRatio` 方法全部未用，删除后 inline 到 `prepareImageForUpload`。
-- **syncCookieToken URL 解析失败静默** — 之前只有 Jar 类型断言失败会报错，URL 解析失败只打一条日志就返回 nil，现在统一返回 error。
-- **SubmitTask 业务错误用了错误的错误哨兵** — 业务 code≠1 时包装成 `ErrLoginRejected`，误导 SDK 用户走重新登录流程。新增 `ErrBusinessRejected` 哨兵专门用于业务拒绝场景。
-- **上传客户端污染业务连接池** — `newCleanClient` 复用业务 Client 的 Transport，调用 `CloseIdleConnections` 时会误关业务请求的 keep-alive 连接。改用 `Transport.Clone()` 创建独立 idle 连接池。
+- HAR 测试数据含真实姓名和学号 — `self_eval.json` 的 `student_number`/`studentName` 仍有真实信息，替换为占位值，新增自动化扫描防止再出现。
+- 图片处理 69 行死代码 — `prepareImageWithStats`、`prepResult`、`PrepStats` 结构体（14 字段）、`CompressionRatio` 方法全部未用，删除后 inline 到 `prepareImageForUpload`。
+- syncCookieToken URL 解析失败静默 — 之前只有 Jar 类型断言失败会报错，URL 解析失败只打一条日志就返回 nil，现在统一返回 error。
+- SubmitTask 业务错误用了错误的错误哨兵 — 业务 code≠1 时包装成 `ErrLoginRejected`，误导 SDK 用户走重新登录流程。新增 `ErrBusinessRejected` 哨兵专门用于业务拒绝场景。
+- 上传客户端污染业务连接池 — `newCleanClient` 复用业务 Client 的 Transport，调用 `CloseIdleConnections` 时会误关业务请求的 keep-alive 连接。改用 `Transport.Clone()` 创建独立 idle 连接池。
 
 ### Changed
 
-- **`LoginResponse.UserInfo` 字段删除** — BREAKING API。登录响应从未填充过这个字段，用户信息请通过 `GetMyInfo()` 获取。
+- `LoginResponse.UserInfo` 字段删除 — BREAKING API。登录响应从未填充过这个字段，用户信息请通过 `GetMyInfo()` 获取。
 
 ### Build
 
@@ -337,12 +332,12 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Fixed
 
-- **集成测试编译 break** — `client.New()` 签名改 `(*Client, error)` 后集成测试没适配，CI 编译失败。
-- **CLI 错误信息重复输出** — cobra 和 main 同时输出错误，终端看到两遍错误信息。统一由 `printError` 输出 JSON 格式。
-- **200 登录路径缺少 token 过期告警** — 302 fallback 路径有兜底 warn，200 路径没有，不对称。
-- **Referer 头里的 token 没做 URL 编码** — 虽然 JWT 是 URL-safe 的，但防御性编程应使用 `url.Values.Encode()`。
-- **OCR 池并发关闭不安全** — 第二个 goroutine 关闭时第一个还在释放实例，可能重复释放同一 ONNX session。
-- **任务抓取并发数不限** — 之前只留了 TODO 注释，现在加 `errgroup.SetLimit(8)` 限制并发。
+- 集成测试编译 break — `client.New()` 签名改 `(*Client, error)` 后集成测试没适配，CI 编译失败。
+- CLI 错误信息重复输出 — cobra 和 main 同时输出错误，终端看到两遍错误信息。统一由 `printError` 输出 JSON 格式。
+- 200 登录路径缺少 token 过期告警 — 302 fallback 路径有兜底 warn，200 路径没有，不对称。
+- Referer 头里的 token 没做 URL 编码 — 虽然 JWT 是 URL-safe 的，但防御性编程应使用 `url.Values.Encode()`。
+- OCR 池并发关闭不安全 — 第二个 goroutine 关闭时第一个还在释放实例，可能重复释放同一 ONNX session。
+- 任务抓取并发数不限 — 之前只留了 TODO 注释，现在加 `errgroup.SetLimit(8)` 限制并发。
 
 ### Build
 
@@ -353,20 +348,20 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Fixed
 
-- **登录请求后没 drain HTTP body** — 多个 early-return 路径直接 close 连接，导致 TCP 连接无法归还 keep-alive 池，高频调用下反复建连。
-- **Token 过期告警被静默** — expiresAt 兜底应打 Warn 级别，但误用了 Debug 级别，默认配置下完全看不到。
-- **200 登录路径 unmarshal 失败被吞** — 错误信息只说"未找到 token"，丢了 body 内容这个关键诊断信息。
-- **syncCookieToken 静默失败** — 类型断言失败只打一条 warn 就返回 nil，build client 阶段完全感知不到，后续业务接口全空时才暴露问题。改返回 error，`client.New()` 签名调整为 `(*Client, error)`。
-- **OCR 重试不响应 context cancel** — 99 次循环顶部没检查 ctx，用户取消后还会跑完所有重试。
-- **Session 激活并发安全** — 检查 state 后立刻放锁，4 步激活在无锁状态下执行，并发 goroutine 浪费请求且污染 cookie。
-- **Session 激活第 4 步失败被掩盖** — `getMyInfoRaw` 失败只打 debug 日志，调用方收到空 UserInfo 以为激活成功。
-- **WithTimeout 负数/零值没阻拦** — 0 值覆盖已有正数超时，导致请求可能永久挂起。
-- **`whoami` 输出 null 被当错误处理** — `GetMyInfo` 返回 `(nil,nil)` 时走 `printError` + 退出码 1，误导用户。
-- **`printError` 直接 os.Exit 绕过资源清理** — 跳过 `defer closeAllClients()`，ONNX session + 临时目录 + keep-alive 连接全部泄漏。改为标记退出码，统一在 main 末尾退出。
+- 登录请求后没 drain HTTP body — 多个 early-return 路径直接 close 连接，导致 TCP 连接无法归还 keep-alive 池，高频调用下反复建连。
+- Token 过期告警被静默 — expiresAt 兜底应打 Warn 级别，但误用了 Debug 级别，默认配置下完全看不到。
+- 200 登录路径 unmarshal 失败被吞 — 错误信息只说"未找到 token"，丢了 body 内容这个关键诊断信息。
+- syncCookieToken 静默失败 — 类型断言失败只打一条 warn 就返回 nil，build client 阶段完全感知不到，后续业务接口全空时才暴露问题。改返回 error，`client.New()` 签名调整为 `(*Client, error)`。
+- OCR 重试不响应 context cancel — 99 次循环顶部没检查 ctx，用户取消后还会跑完所有重试。
+- Session 激活并发安全 — 检查 state 后立刻放锁，4 步激活在无锁状态下执行，并发 goroutine 浪费请求且污染 cookie。
+- Session 激活第 4 步失败被掩盖 — `getMyInfoRaw` 失败只打 debug 日志，调用方收到空 UserInfo 以为激活成功。
+- WithTimeout 负数/零值没阻拦 — 0 值覆盖已有正数超时，导致请求可能永久挂起。
+- `whoami` 输出 null 被当错误处理 — `GetMyInfo` 返回 `(nil,nil)` 时走 `printError` + 退出码 1，误导用户。
+- `printError` 直接 os.Exit 绕过资源清理 — 跳过 `defer closeAllClients()`，ONNX session + 临时目录 + keep-alive 连接全部泄漏。改为标记退出码，统一在 main 末尾退出。
 
 ### Changed
 
-- **`client.New(opts ...Option) *Client` → `(*Client, error)`** — BREAKING API。`syncCookieToken` 现在返回 error，`WithHTTPClient` 传了非 CookieJar 的 Jar 时会报错。12 个 cmd 调用点已用 `c, _ := client.New(...)` 适配。
+- `client.New(opts ...Option) *Client` → `(*Client, error)` — BREAKING API。`syncCookieToken` 现在返回 error，`WithHTTPClient` 传了非 CookieJar 的 Jar 时会报错。12 个 cmd 调用点已用 `c, _ := client.New(...)` 适配。
 
 ### Build
 
@@ -376,22 +371,22 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Fixed
 
-- **io.ReadAll 错误静默丢弃** — 网络闪断时读 body 失败，错误没说清楚，只给一句误导性的"未找到 token"。
-- **验证码图片读取失败时没 drain** — 出错了也先 drain body 再 close，保证 TCP 连接可复用。
-- **ExpiresAt 零值** — 200 路径的登录过期时间返回公元 0001 年，改为 `now+24h` 兜底。
-- **syncCookieToken 兼容性** — 类型断言失败时输出实际类型和修复提示，方便排查。
-- **Session 激活不感知 token** — 不同 token 共享同一个 session 缓存，切换 token 后可能返回旧用户数据。
-- **FetchTasks 没用 session 激活** — 与其他业务方法不一致，少了 `activateSessionIfNeeded` 调用。
-- **getMyInfoRaw 错误传播中断** — CheckCode 错误被截断，调用方收不到准确错误。
-- **sync.Pool 裸类型断言** — 没有 `ok` 检查，GC 回收后可能 panic。
-- **上传客户端零超时传播** — 父 client 没设超时时上传请求无限等待，兜底 30s。
+- io.ReadAll 错误静默丢弃 — 网络闪断时读 body 失败，错误没说清楚，只给一句误导性的"未找到 token"。
+- 验证码图片读取失败时没 drain — 出错了也先 drain body 再 close，保证 TCP 连接可复用。
+- ExpiresAt 零值 — 200 路径的登录过期时间返回公元 0001 年，改为 `now+24h` 兜底。
+- syncCookieToken 兼容性 — 类型断言失败时输出实际类型和修复提示，方便排查。
+- Session 激活不感知 token — 不同 token 共享同一个 session 缓存，切换 token 后可能返回旧用户数据。
+- FetchTasks 没用 session 激活 — 与其他业务方法不一致，少了 `activateSessionIfNeeded` 调用。
+- getMyInfoRaw 错误传播中断 — CheckCode 错误被截断，调用方收不到准确错误。
+- sync.Pool 裸类型断言 — 没有 `ok` 检查，GC 回收后可能 panic。
+- 上传客户端零超时传播 — 父 client 没设超时时上传请求无限等待，兜底 30s。
 
 ### Changed
 
-- **重构 request.go** — 提取 `buildRequest()` 消除 `doRequest`/`doRequestWithResp` ~40 行重复代码。
-- **CLI 提取 `buildBizClient()`** — 消除 6 个命令文件各 ~15 行 env fallback + Client 构造样板，统一到 `cmd/nazhi/client_builder.go`。
-- **请求日志加 debug guard** — 非 Debug 级别不再每次请求都遍历 header。
-- **version 命令输出 JSON** — `nazhi version` 输出 `{"version":"0.3.0"}` 统一输出格式。
+- 重构 request.go — 提取 `buildRequest()` 消除 `doRequest`/`doRequestWithResp` ~40 行重复代码。
+- CLI 提取 `buildBizClient()` — 消除 6 个命令文件各 ~15 行 env fallback + Client 构造样板，统一到 `cmd/nazhi/client_builder.go`。
+- 请求日志加 debug guard — 非 Debug 级别不再每次请求都遍历 header。
+- version 命令输出 JSON — `nazhi version` 输出 `{"version":"0.3.0"}` 统一输出格式。
 
 ### Build
 
@@ -401,21 +396,21 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Added
 
-- **Shell 自动补全** `nazhi completion [bash|zsh|fish|powershell]`
-- **版本号子命令** `nazhi version`
+- Shell 自动补全 `nazhi completion [bash|zsh|fish|powershell]`
+- 版本号子命令 `nazhi version`
 
 ### Fixed
 
-- **Session 兜底 body 读取 bug** — `session.go:77` 中步骤 4 失败后 body 已被 defer Close 消耗的问题。
+- Session 兜底 body 读取 bug — `session.go:77` 中步骤 4 失败后 body 已被 defer Close 消耗的问题。
 
 ### Changed
 
-- **文档 emoji 清理** — 全部文档和注释移除 emoji。
-- **Makefile** — echo 消息纯文本化。
+- 文档 emoji 清理 — 全部文档和注释移除 emoji。
+- Makefile — echo 消息纯文本化。
 
 ### Tests
 
-- **`TestActivateSession_*` 系列** — 5 个 session fallback 测试覆盖。
+- `TestActivateSession_*` 系列 — 5 个 session fallback 测试覆盖。
 
 ### Build
 
@@ -425,19 +420,19 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Changed
 
-- **OCR 重试策略**：`3×33` → `1×99`。同一张图 OCR 结果是确定性的，重试无意义，换图才有效。
-- **Makefile echo**：移除所有 emoji，输出保持纯文本。
-- **CHANGELOG / README / 文档**：全部移除 emoji，统一风格。
+- OCR 重试策略：`3×33` → `1×99`。同一张图 OCR 结果是确定性的，重试无意义，换图才有效。
+- Makefile echo：移除所有 emoji，输出保持纯文本。
+- CHANGELOG / README / 文档：全部移除 emoji，统一风格。
 
 ### Fixed
 
-- **测试性能**：`TestPrepareImage_CompressesLargeImage` 从 3000×3000 降为 1500×1500 + Pix 直接填充（29s → 3s）。
-- **CI 全平台修复**：10+ 轮修复后，5 平台（Linux amd64/arm64, macOS arm64, Windows amd64/arm64）全部构建通过。
+- 测试性能：`TestPrepareImage_CompressesLargeImage` 从 3000×3000 降为 1500×1500 + Pix 直接填充（29s → 3s）。
+- CI 全平台修复：10+ 轮修复后，5 平台（Linux amd64/arm64, macOS arm64, Windows amd64/arm64）全部构建通过。
   - Linux arm64：`gcc-aarch64-linux-gnu` 在 amd64 runner 交叉编译
   - Windows arm64：`zig cc` 在 amd64 runner 交叉编译
   - golangci-lint：`go install` 兼容 Go 1.26.1
   - softprops release：`continue-on-error: true` 处理新 release 404
-- **CLAUDE.md**：OCR 并发策略、CI 修复历程、发布资产全部更新。
+- CLAUDE.md：OCR 并发策略、CI 修复历程、发布资产全部更新。
 
 ### Build
 
@@ -503,19 +498,19 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 ### Fixes
 
 #### Security
-- **历史凭据泄露已修复**（v0.1.0 之前）：通过 `git-filter-repo` 重写所有分支和 tag 历史
-- **CLI `--token` Cookie 同步**：新增 `WithToken()` Option，CLI 传 token 时同时写 Header + Cookie
-- **UploadFile 禁用重定向**：cleanClient.CheckRedirect 防止 302 跳转到攻击者主机
+- 历史凭据泄露已修复（v0.1.0 之前）：通过 `git-filter-repo` 重写所有分支和 tag 历史
+- CLI `--token` Cookie 同步：新增 `WithToken()` Option，CLI 传 token 时同时写 Header + Cookie
+- UploadFile 禁用重定向：cleanClient.CheckRedirect 防止 302 跳转到攻击者主机
 
 #### Bugs
-- **Task.StartDate 字段错配**：从 `startDate`（数组）改为 `startDateStr`（字符串）
-- **extractTokenFromLocation URL 解析**：从 `strings.Index` 改为 `net/url.Parse`，支持 fragment
-- **session.go 步骤 1/2 Body 泄漏**：defer + io.Copy 模式
-- **QuerySelfGradEvaluation 错误被吞**：所有路径失败时返回明确 error
-- **FetchTasks 静默失败**：用 `c.logDebug` 记录（不破坏 API）
-- **output.go stderr 编码失败**：加 `fmt.Fprintln` 兜底
-- **ImagePrep 兜底大小检查**：避免返回超大文件
-- **stdin 无 TTY 阻塞**：`isTerminalStdin()` 检测
+- Task.StartDate 字段错配：从 `startDate`（数组）改为 `startDateStr`（字符串）
+- extractTokenFromLocation URL 解析：从 `strings.Index` 改为 `net/url.Parse`，支持 fragment
+- session.go 步骤 1/2 Body 泄漏：defer + io.Copy 模式
+- QuerySelfGradEvaluation 错误被吞：所有路径失败时返回明确 error
+- FetchTasks 静默失败：用 `c.logDebug` 记录（不破坏 API）
+- output.go stderr 编码失败：加 `fmt.Fprintln` 兜底
+- ImagePrep 兜底大小检查：避免返回超大文件
+- stdin 无 TTY 阻塞：`isTerminalStdin()` 检测
 
 #### Dead Code 清理
 - 删除未使用的 4 个哨兵错误（ErrTokenExpired、ErrSessionExpired、ErrIncompleteResponse、ErrUnexpectedStatus）
@@ -544,15 +539,15 @@ review-tdd 第 15/16 轮合入：`SetBackoff` race 修复；`main` panic recover
 
 ### Features
 
-- **SSO 全自动登录** — InitSession → GetSchoolID → 验证码处理 → Login 全流程
-- **内置 OCR 验证码识别** — ddddocr 引擎 + 模型已内嵌至二进制，无需运行时下载
-- **学校 ID 查询** — 根据学号获取学校信息
-- **业务 Session 激活** — 登录后激活目标平台 API Session
-- **用户信息查询** — 获取当前用户 profile
-- **任务管理** — 列出任务 + 提交任务（支持 `@file.json` 读取）
-- **自我评价** — 提交评价 & 查询评价状态
-- **文件上传** — 本地图片上传至目标平台
-- **跨平台构建** — Linux / macOS / Windows 三平台二进制支持
+- SSO 全自动登录 — InitSession → GetSchoolID → 验证码处理 → Login 全流程
+- 内置 OCR 验证码识别 — ddddocr 引擎 + 模型已内嵌至二进制，无需运行时下载
+- 学校 ID 查询 — 根据学号获取学校信息
+- 业务 Session 激活 — 登录后激活目标平台 API Session
+- 用户信息查询 — 获取当前用户 profile
+- 任务管理 — 列出任务 + 提交任务（支持 `@file.json` 读取）
+- 自我评价 — 提交评价 & 查询评价状态
+- 文件上传 — 本地图片上传至目标平台
+- 跨平台构建 — Linux / macOS / Windows 三平台二进制支持
 
 ### Tech
 

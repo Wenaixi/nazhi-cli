@@ -422,7 +422,7 @@ type writeCloser interface {
 	io.Writer
 	Close() error
 }
-//
+
 // 安全保证：独立 http.Client（不共享 c.http.Jar），不发送任何 Cookie /
 // Authorization 头，杜绝业务域鉴权信息泄露到文件上传公共服务。
 //

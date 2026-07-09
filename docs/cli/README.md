@@ -1,6 +1,6 @@
 # CLI 参考
 
-nazhi-cli 提供 11 个用户可见命令 + 全局选项 + 环境变量 fallback。所有命令统一 envelope 输出到 stdout、错误 JSON 到 stderr（除非 `--quiet` 静默），便于脚本解析。
+nazhi-cli 提供 12 个用户可见命令 + 全局选项 + 环境变量 fallback。所有命令统一 envelope 输出到 stdout、错误 JSON 到 stderr（除非 `--quiet` 静默），便于脚本解析。
 
 ## 全局选项
 
@@ -11,7 +11,7 @@ nazhi-cli 提供 11 个用户可见命令 + 全局选项 + 环境变量 fallback
 | `-h, --help` | 显示命令帮助 |
 | `--version` | 显示版本号（同 `nazhi version`） |
 
-**优先级**：命令行 > 环境变量 > SDK 默认值。`flagChanged()` 守卫区分「没传 flag」和「传了空值」——`--token ""` 不会被 `NAZHI_TOKEN` 环境变量覆盖。
+优先级：命令行 > 环境变量 > SDK 默认值。`flagChanged()` 守卫区分「没传 flag」和「传了空值」——`--token ""` 不会被 `NAZHI_TOKEN` 环境变量覆盖。
 
 ## 命令树
 
@@ -35,12 +35,13 @@ nazhi
 │   ├── add                         申报荣誉（@payload.json 文件读取）
 │   └── delete                      删除荣誉记录
 ├── file
-│   └── upload                      上传图片（不接受 --token）
+│   ├── upload                      上传图片（不接受 --token）
+│   └── download                    下载附件图片（不接受 --token）
 ├── version                         显示版本信息
 └── completion                      生成 shell 自动补全
 ```
 
-> **v1.0.0 移除**：`nazhi school` 命令已删除，学校信息现从 `nazhi whoami` 返回的 `schoolId` 字段获取。
+> v1.0.0 移除：`nazhi school` 命令已删除，学校信息现从 `nazhi whoami` 返回的 `schoolId` 字段获取。
 
 ## 输出约定
 
@@ -75,7 +76,7 @@ nazhi
 
 ### envelope 输出示例
 
-**成功**:
+成功:
 
 ```bash
 $ nazhi whoami
@@ -98,7 +99,7 @@ $ nazhi whoami
 }
 ```
 
-**业务错误**:
+业务错误:
 
 ```bash
 $ nazhi task list
@@ -111,7 +112,7 @@ $ nazhi task list
 # exit 1
 ```
 
-**网络错误**:
+网络错误:
 
 ```bash
 $ nazhi task list
@@ -124,7 +125,7 @@ $ nazhi task list
 # exit 2
 ```
 
-**参数错误**:
+参数错误:
 
 ```bash
 $ nazhi login --unknown-flag
@@ -137,9 +138,9 @@ $ nazhi login --unknown-flag
 # exit 3
 ```
 
-**JSON 缩进**：所有输出 `json.Indent("", "  ")`，**两空格缩进**，方便人眼查看。
+JSON 缩进：所有输出 `json.Indent("", "  ")`，两空格缩进，方便人眼查看。
 
-**退出码契约**：`printError` 不直接调 `os.Exit`（否则绕过 `defer closeAllClients()` 泄漏 ONNX 临时目录）；而是标记 `pendingExitCode` 由 `main` 统一退出，保证 LIFO 资源清理。
+退出码契约：`printError` 不直接调 `os.Exit`（否则绕过 `defer closeAllClients()` 泄漏 ONNX 临时目录）；而是标记 `pendingExitCode` 由 `main` 统一退出，保证 LIFO 资源清理。
 
 ---
 
@@ -178,7 +179,7 @@ nazhi completion powershell
 
 支持的 shell：`bash` / `zsh` / `fish` / `powershell`。
 
-**使用示例**：
+使用示例：
 
 ```bash
 # Bash
@@ -198,7 +199,7 @@ nazhi completion powershell | Out-String | Invoke-Expression
 
 ## nazhi login
 
-完成 SSO 登录，自动处理 OCR 验证码识别。**包含 5 步网络调用**（详见 [login-flow.md](../login-flow.md)）。
+完成 SSO 登录，自动处理 OCR 验证码识别。包含 5 步网络调用（详见 [login-flow.md](../login-flow.md)）。
 
 ```bash
 nazhi login -u 学号 -p 密码
@@ -211,7 +212,7 @@ nazhi login -u 学号 -p 密码
 | `--sso-base` | — | `NAZHI_SSO_BASE` | SSO 根地址，默认 `https://www.nazhisoft.com` |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），默认 `15` |
 
-**输出**：
+输出：
 
 ```json
 {
@@ -226,11 +227,11 @@ nazhi login -u 学号 -p 密码
 }
 ```
 
-> **Token 有效期**：14 天（JWT `exp` 字段），存到环境变量复用直到过期。
+Token 有效期：14 天（JWT `exp` 字段），存到环境变量复用直到过期。
 >
-> **v1.0.0 精简**：`LoginResponse` 仅 3 字段（token / expiresAt / fallbackUsed），用户基本信息请用 `nazhi whoami`。
+> v1.0.0 精简：`LoginResponse` 仅 3 字段（token / expiresAt / fallbackUsed），用户基本信息请用 `nazhi whoami`。
 
-**典型错误分支**：
+典型错误分支：
 
 | 错误 | 原因 |
 |---|---|
@@ -243,7 +244,7 @@ nazhi login -u 学号 -p 密码
 
 ## nazhi session activate
 
-激活业务 Session。**Login 后必须调一次**，否则后续业务接口（`whoami` / `task list` / `task submit` / `self-eval`）会返回空数据。
+激活业务 Session。Login 后必须调一次，否则后续业务接口（`whoami` / `task list` / `task submit` / `self-eval`）会返回空数据。
 
 ```bash
 nazhi session activate --token "eyJhbGciOiJIUzUxMiJ9.xxx"
@@ -255,16 +256,16 @@ nazhi session activate --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址，默认 `http://139.159.205.146:8280` |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），默认 `15` |
 
-**HAR 对齐 4 步**（内部流程，HAR 抓包验证必须按顺序）：
+HAR 对齐 4 步（内部流程，HAR 抓包验证必须按顺序）：
 
 1. `GET /`（建立后端 Session）
 2. `GET /api/studentInfo/getMenu`（Referer: `/homepage?token=xxx`）
 3. `GET /api/studentInfo/getMenu`（Referer: `/home`）
 4. `GET /api/studentInfo/getMyInfo`（返回完整 UserInfo）
 
-**输出**：envelope 包裹的 `UserInfo`（10 字段），同 `nazhi whoami` 输出。
+输出：envelope 包裹的 `UserInfo`（13 字段），同 `nazhi whoami` 输出。
 
-**典型错误分支**：
+典型错误分支：
 
 | 错误 | 原因 |
 |---|---|
@@ -288,7 +289,7 @@ nazhi whoami --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：envelope 包裹的 `UserInfo`（10 字段，v1.0.0 精简版）。
+输出：envelope 包裹的 `UserInfo`（13 字段，v1.0.0 精简版）。
 
 ```json
 {
@@ -310,7 +311,7 @@ nazhi whoami --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 }
 ```
 
-**空数据场景**：业务成功但无数据时，stdout 输出 `{"status":"error","code":204,"message":"get_my_info_empty","data":null}`。
+空数据场景：业务成功但无数据时，stdout 输出 `{"status":"error","code":204,"message":"get_my_info_empty","data":null}`。
 
 ---
 
@@ -328,7 +329,7 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：envelope 包裹的 `Task[]` 数组（11 字段，v1.0.0 精简版）。
+输出：envelope 包裹的 `Task[]` 数组（21 字段，v1.0.0 精简版）。
 
 ```json
 {
@@ -353,7 +354,7 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 }
 ```
 
-**部分失败语义**：8 路并发拉各维度，单维度失败不影响其他维度。控制台输出 envelope 表达：
+部分失败语义：8 路并发拉各维度，单维度失败不影响其他维度。控制台输出 envelope 表达：
 
 ```json
 {
@@ -370,7 +371,7 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 
 ## nazhi task submit
 
-提交一次任务。29 字段 addCircle 请求体**透传不裁剪**，可直接喂从浏览器抓的 body。
+提交一次任务。29 字段 addCircle 请求体透传不裁剪，可直接喂从浏览器抓的 body。
 
 ```bash
 # 方式 1：--payload 字符串
@@ -390,7 +391,7 @@ echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --tok
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**任务类型字段差异**（HAR 验证）：
+任务类型字段差异（HAR 验证）：
 
 | 字段 | 劳动 | 军训 | 班会 | 通用 |
 |---|---|---|---|---|
@@ -406,7 +407,7 @@ echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --tok
 
 完整 29 字段定义见 `pkg/types/task.go` `TaskSubmitPayload` 注释。
 
-**典型错误**：`invalid task payload: circleTaskId 和 circleTypeId 不能为空` —— 必填字段缺失，stderr envelope 退出码 1。
+典型错误：`invalid task payload: circleTaskId 和 circleTypeId 不能为空` —— 必填字段缺失，stderr envelope 退出码 1。
 
 ---
 
@@ -425,7 +426,7 @@ nazhi task done --token "eyJhbGciOiJIUzUxMiJ9.xxx"      # 同 submitted，别名
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：envelope 包裹，`total` + `records` 两层结构。
+输出：envelope 包裹，`total` + `records` 两层结构。
 
 ```json
 {
@@ -453,7 +454,7 @@ nazhi task done --token "eyJhbGciOiJIUzUxMiJ9.xxx"      # 同 submitted，别名
 }
 ```
 
-**自动翻页**：单页就能覆盖绝大多数场景（默认每页 100 条，服务端上限约 500），只有记录超出一页时才自动翻页合并。翻页途中遇到错误时返回已有数据 + 错误信号。
+自动翻页：单页就能覆盖绝大多数场景（默认每页 100 条，服务端上限约 500），只有记录超出一页时才自动翻页合并。翻页途中遇到错误时返回已有数据 + 错误信号。
 
 ---
 
@@ -476,9 +477,9 @@ echo "很充实" | nazhi self-eval submit --token "xxx" --comment -
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**stdin 提示**：当 stdin 是 TTY（交互终端）时，stderr 会打印 `请输入自我评价内容（Ctrl+D 结束）: `——这是 `printPrompt` 直写 stderr，受 `--quiet` 守卫。
+stdin 提示：当 stdin 是 TTY（交互终端）时，stderr 会打印 `请输入自我评价内容（Ctrl+D 结束）: `——这是 `printPrompt` 直写 stderr，受 `--quiet` 守卫。
 
-**输出**：
+输出：
 
 ```json
 {
@@ -508,7 +509,7 @@ nazhi self-eval status --token "xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：envelope 包裹的 `SelfEvalStatus`（3 字段，v1.0.0 精简版）。
+输出：envelope 包裹的 `SelfEvalStatus`（3 字段，v1.0.0 精简版）。
 
 ```json
 {
@@ -529,7 +530,7 @@ nazhi self-eval status --token "xxx"
 
 ## nazhi file upload
 
-上传图片到文件服务器。**独立公共服务，不需要业务 token**。
+上传图片到文件服务器。独立公共服务，不需要业务 token。
 
 ```bash
 nazhi file upload -f ./photo.jpg
@@ -539,19 +540,19 @@ nazhi file upload -f ./photo.jpg
 |---|---|---|---|
 | `-f, --file` | ✅ | — | 本地图片路径 |
 | `--upload-url` | — | `NAZHI_UPLOAD_URL` | 上传服务器，默认 `http://doc.nazhisoft.com` |
-| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），**默认 `30`**（其他命令默认 15） |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），默认 `30`（其他命令默认 15） |
 
-**不接受 `--token`**：文件服务器独立，发送 token 反而被风控。命令帮助文字明确写「本命令不接受 --token」参数，SDK 内部使用独立 `newCleanClient`（无 cookie jar + 禁用重定向）杜绝泄露。
+不接受 `--token`：文件服务器独立，发送 token 反而被风控。命令帮助文字明确写「本命令不接受 --token」参数，SDK 内部使用独立 `newCleanClient`（无 cookie jar + 禁用重定向）杜绝泄露。
 
-**支持格式**：JPEG / PNG / GIF（自动取首帧）/ WEBP。BMP 需先转换（stdlib 无 BMP 解码）。
+支持格式：JPEG / PNG / GIF（自动取首帧）/ WEBP。BMP 需先转换（stdlib 无 BMP 解码）。
 
-**自动预处理**：任意格式 → JPG + 透明合成 → 质量/缩放级联 → ≤ 5MB（不修改原文件，全部在内存完成）。
+自动预处理：任意格式 → JPG + 透明合成 → 质量/缩放级联 → ≤ 5MB（不修改原文件，全部在内存完成）。
 
 ---
 
 ## nazhi file download
 
-按附件 ID 下载图片到本地。**独立公共服务，不需要业务 token**。
+按附件 ID 下载图片到本地。独立公共服务，不需要业务 token。
 
 ```bash
 # 下载附件 ID 5006375 到当前目录
@@ -569,7 +570,7 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 | `--sso-base` | — | `NAZHI_SSO_BASE` | SSO 域名，默认 `https://www.nazhisoft.com` |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），默认 `30` |
 
-**URL 流程**：
+URL 流程：
 
 ```
 GET https://www.nazhisoft.com/common/attachment/getImg?id=<ID>
@@ -577,9 +578,9 @@ GET https://www.nazhisoft.com/common/attachment/getImg?id=<ID>
 GET http://doc.nazhisoft.com/other/M00/.../<image>.jpg
 ```
 
-**不接受 `--token`**：下载服务器是公开服务（同上传），不发送任何鉴权头。
+不接受 `--token`：下载服务器是公开服务（同上传），不发送任何鉴权头。
 
-**安全约束**：
+安全约束：
 
 - 重定向跟随仅允许 `nazhisoft.com` 同域白名单（防 SSRF 跳转到第三方）
 - 重定向次数上限 5（防恶意 Location 循环）
@@ -599,7 +600,7 @@ GET http://doc.nazhisoft.com/other/M00/.../<image>.jpg
 9. 兜底：ErrFileTooLarge
 ```
 
-**输出**：
+输出：
 
 ```json
 {
@@ -631,7 +632,7 @@ nazhi honor types --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：envelope 包裹的 `HonorType[]` 数组（5 字段，v1.0.0 精简版）。
+输出：envelope 包裹的 `HonorType[]` 数组（5 字段，v1.0.0 精简版）。
 
 ```json
 {
@@ -669,7 +670,7 @@ nazhi honor list --token "xxx" --page 1 --page-size 50
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：envelope 包裹，含 `total` / `page` / `pageSize` / `totalPage` / `records`。
+输出：envelope 包裹，含 `total` / `page` / `pageSize` / `totalPage` / `records`。
 
 ```json
 {
@@ -722,7 +723,7 @@ echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor ad
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**payload 字段**：
+payload 字段：
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
@@ -734,7 +735,7 @@ echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor ad
 | `getDate` | string | ✅ | 获得日期（YYYY-MM-DD） |
 | `certImgAttachmentId` | string | — | 证书图片附件 ID（先 file upload 上传） |
 
-**输出**：
+输出：
 
 ```json
 {
@@ -748,7 +749,7 @@ echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor ad
 }
 ```
 
-**典型错误**：
+典型错误：
 
 | 错误 | 原因 |
 |---|---|
@@ -772,7 +773,7 @@ nazhi honor delete --token "eyJhbGciOiJIUzUxMiJ9.xxx" --id 123
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-**输出**：
+输出：
 
 ```json
 {
@@ -826,13 +827,13 @@ nazhi task list 2>/dev/null | jq -r '.message // "no error"'
 
 ### `--quiet` 与退出码
 
-`--quiet` 抑制 stderr JSON 输出，**但退出码不变**——CI 流水线只看 exit code 仍能判断成败。
+`--quiet` 抑制 stderr JSON 输出，但退出码不变——CI 流水线只看 exit code 仍能判断成败。
 
 ---
 
 ## 完整工作流示例
 
-**CI/CD 流水线**：
+CI/CD 流水线：
 
 ```bash
 #!/bin/bash
@@ -864,13 +865,13 @@ nazhi self-eval submit --comment "自动化测试学期评语"
 unset NAZHI_TOKEN  # 清理敏感变量
 ```
 
-**本地调试 / verbose**：
+本地调试 / verbose：
 
 ```bash
 nazhi -v login -u 学号 -p 密码  # 看完整 HTTP 请求头 / OCR 流程
 ```
 
-**静默管道**：
+静默管道：
 
 ```bash
 # 仅看退出码，不打印 stderr

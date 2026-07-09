@@ -9,12 +9,12 @@
 | `NAZHI_USERNAME` | 学号 | `login` | — | 拒绝并 warn |
 | `NAZHI_PASSWORD` | 密码 | `login` | — | 拒绝并 warn |
 | `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — | 拒绝并 warn |
-| `NAZHI_SSO_BASE` | SSO 根地址 | `login` | `https://www.nazhisoft.com` | 保留默认 |
+| `NAZHI_SSO_BASE` | SSO 根地址 | `login`、`file download` | `https://www.nazhisoft.com` | 保留默认 |
 | `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval`、`honor` | `http://139.159.205.146:8280` | 保留默认 |
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` | 保留默认 |
-| `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload` 是 `30`） | `<=0` 拒绝 |
+| `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload`、`file download` 是 `30`） | `<=0` 拒绝 |
 
-> **「拒绝并 warn」语义**：CLI 路径下为硬错（`printError` + exit 1），让 CI 立即发现；
+> 「拒绝并 warn」语义：CLI 路径下为硬错（`printError` + exit 1），让 CI 立即发现；
 > SDK 路径下静默 `c.logger.Warn` 保留当前值。这与 Option 模式的守卫约定对称。
 
 ## 优先级规则
@@ -23,7 +23,7 @@
 命令行标志 > 环境变量 > SDK 默认值
 ```
 
-**关键实现**：用 `cmd.Flags().Changed("name")` 判定用户是否显式传过 flag。
+关键实现：用 `cmd.Flags().Changed("name")` 判定用户是否显式传过 flag。
 `--token ""` 与 `--token "real"` 都算「显式传过」，不会被 `NAZHI_TOKEN` 环境变量覆盖。
 这样 CI 流水线可以放心设 `NAZHI_TOKEN`，同时允许命令行显式覆盖。
 
@@ -33,11 +33,11 @@ CLI 在 `cmd/nazhi/opt_builder.go` 的 `buildClientOpts` 按 `urlType` 分流，
 
 | urlType | 命令 | URL 来源 | Token 来源 |
 |---|---|---|---|
-| `sso` | `login` | `--sso-base` / `NAZHI_SSO_BASE` | **不读 token**（Login 自带） |
+| `sso` | `login`、`file download` | `--sso-base` / `NAZHI_SSO_BASE` | **不读 token**（Login 自带；下载服务器独立） |
 | `base` | `session`、`whoami`、`task`、`self-eval`、`honor` | `--base-url` / `NAZHI_BASE_URL` | `--token` / `NAZHI_TOKEN`（必填） |
 | `upload` | `file upload` | `--upload-url` / `NAZHI_UPLOAD_URL` | **不读 token**（文件服务器独立） |
 
-> **设计要点**：`file upload` 命令根本不注册 `--token` flag——`NAZHI_TOKEN` 即使设了值也会被 `urlType=="upload"` 分支短路（F16 修复 + 回归测试 `TestBuildClientOpts_UploadIgnoresNAZHI_TOKEN`）。
+> 设计要点：`file upload` 命令根本不注册 `--token` flag——`NAZHI_TOKEN` 即使设了值也会被 `urlType=="upload"` 分支短路（F16 修复 + 回归测试 `TestBuildClientOpts_UploadIgnoresNAZHI_TOKEN`）。
 >
 > 这避免了「上传临时文件被业务域审计抓取」的安全风险——上传图片不需要业务身份。
 
@@ -92,6 +92,7 @@ NAZHI_SSO_BASE=http://localhost:8080 nazhi login -u test -p test
 ```
 
 `NAZHI_BASE_URL`、`NAZHI_UPLOAD_URL` 同理——可用于对接内网代理或测试环境。
+`file download` 命令也使用 `NAZHI_SSO_BASE`（SSO 基址同域白名单以跟随下载重定向）。
 
 ### 自定义超时（慢网络）
 
@@ -99,7 +100,8 @@ NAZHI_SSO_BASE=http://localhost:8080 nazhi login -u test -p test
 NAZHI_TIMEOUT=120 nazhi file upload -f big.png
 ```
 
-`file upload` 默认 30 秒，其他命令默认 15 秒。慢 4G / VPN 下加到 60~120。
+`file upload` 默认 30 秒，其他命令默认 15 秒。`file download` 也是 30 秒（大附件慢网络）。
+慢 4G / VPN 下加到 60~120。
 
 ### 复用 Token 跨进程
 

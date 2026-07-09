@@ -10,12 +10,12 @@
 
 | GOOS | GOARCH | 状态 | 备注 |
 |---|---|---|---|
-| windows | amd64 | ✅ | 主力测试平台 |
-| windows | arm64 | ✅ | Windows on ARM（zig cc 交叉编译） |
-| linux | amd64 | ✅ | 服务器主流 |
-| linux | arm64 | ✅ | ARM 服务器 / Raspberry Pi 4+ |
-| darwin | arm64 | ✅ | Apple Silicon |
-| darwin | amd64 | ❌ **不支持** | Microsoft 已停发 macOS x86_64 onnxruntime |
+| windows | amd64 | 是 | 主力测试平台 |
+| windows | arm64 | 是 | Windows on ARM（zig cc 交叉编译） |
+| linux | amd64 | 是 | 服务器主流 |
+| linux | arm64 | 是 | ARM 服务器 / Raspberry Pi 4+ |
+| darwin | arm64 | 是 | Apple Silicon |
+| darwin | amd64 | 不支持 | Microsoft 已停发 macOS x86_64 onnxruntime |
 
 ## 文件结构
 

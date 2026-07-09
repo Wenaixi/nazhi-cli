@@ -26,10 +26,10 @@ type CircleRecord struct {
 
 // CircleImage 写实记录关联的图片附件。
 type CircleImage struct {
-	ID           int64  `json:"id"`           // 图片记录主键
-	CircleID     int64  `json:"circle_id"`    // 关联的写实记录 ID
-	ClassID      int64  `json:"class_id"`     // 班级 ID
-	TaskID       int64  `json:"task_id"`      // 关联的任务 ID
+	ID           int64  `json:"id"`            // 图片记录主键
+	CircleID     int64  `json:"circle_id"`     // 关联的写实记录 ID
+	ClassID      int64  `json:"class_id"`      // 班级 ID
+	TaskID       int64  `json:"task_id"`       // 关联的任务 ID
 	AttachmentID int64  `json:"attachment_id"` // 附件 ID（用于查询/下载图片）
 	ImgPath      string `json:"imgPath"`       // 图片扩展名（如 .jpg）
 }

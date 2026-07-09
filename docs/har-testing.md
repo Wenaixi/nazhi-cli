@@ -2,7 +2,7 @@
 
 ## 背景
 
-`test/integration/har_fixtures/` 下的 JSON 文件是从 Nazhi-auto 旧版 v1 的真实 HAR 抓包中提取的 API 响应 fixture。这些 fixtures 让 SDK 集成测试**无需真实期末数据**就能测 FetchTasks、SubmitTask 等任务相关方法。
+`test/integration/har_fixtures/` 下的 JSON 文件是从 Nazhi-auto 旧版 v1 的真实 HAR 抓包中提取的 API 响应 fixture。这些 fixtures 让 SDK 集成测试无需真实期末数据就能测 FetchTasks、SubmitTask 等任务相关方法。
 
 意义：
 

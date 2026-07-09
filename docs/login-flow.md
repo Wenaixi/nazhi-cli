@@ -273,7 +273,7 @@ ActivateSession(ctx, token)
 **与外层锁的并发契约**：
 
 ```go
-// ✅ 安全模式：直接 goroutine 并发
+// 安全模式：直接 goroutine 并发
 var wg sync.WaitGroup
 for i := 0; i < 10; i++ {
     wg.Add(1)
@@ -284,7 +284,7 @@ for i := 0; i < 10; i++ {
 }
 wg.Wait()
 
-// ❌ 死锁模式：外层持锁后再调
+// 死锁模式：外层持锁后再调
 mu.Lock()
 c.ActivateSession(ctx, token)  // sm.mu 不可重入，ABBA 死锁
 mu.Unlock()
@@ -385,17 +385,17 @@ SDK/CLI                       SSO (nazhisoft.com)              业务系统 (139
 
 ## 安全注意事项
 
-⚠️ **密码明文传输**：HAR 抓包里 `hex_md5(...)` 调用被注释，密码以**原始字符串**通过 HTTPS POST 提交。
+**注意**密码明文传输：HAR 抓包里 `hex_md5(...)` 调用被注释，密码以**原始字符串**通过 HTTPS POST 提交。
 如对传输安全有要求，建议自行在外层套一层代理加密（业务网络层）。
 
-⚠️ **登录无频率限制**：HAR 显示服务端可在短时间内接受多次登录尝试，但会因 OCR 多图多试触发本地资源开销。
+**注意**登录无频率限制：HAR 显示服务端可在短时间内接受多次登录尝试，但会因 OCR 多图多试触发本地资源开销。
 SDK 单 Login 上限 ≈ 9 张图 × 30s OCR 超时 ≈ 总耗时上限约 30s（不会无限重试）。
 
-✅ **JWT HS512 签名**：服务端持有密钥才能验证，**无法**伪造 token。
+JWT HS512 签名：服务端持有密钥才能验证，无法伪造 token。
 
-✅ **业务 token 双形态注入**：Header + Cookie 同时存在才认账，避免单 Cookie 泄露导致 SSRF 之外的攻击面。
+业务 token 双形态注入：Header + Cookie 同时存在才认账，避免单 Cookie 泄露导致 SSRF 之外的攻击面。
 
-✅ **Cookie sync 失败仅 warn**：`warnSyncCookieToken` 不抛 error，避免临时网络抖动导致整个登录失败。
+Cookie sync 失败仅 warn：`warnSyncCookieToken` 不抛 error，避免临时网络抖动导致整个登录失败。
 但这意味着若 sync 真正失败，业务接口会立刻返回空——CI 流水线建议业务接口返回空立即触发重登录。
 
 ## 实现注意点

@@ -10,7 +10,7 @@
 |---|---|
 | [README.md](../README.md) | 项目主页：快速开始 + 安装 + 命令概览 + 环境变量速查 |
 | [CLI 参考](./cli/README.md) | 13 个命令的 flag / 输出 / 错误码 / 完整工作流 |
-| [SDK 参考](./sdk/README.md) | Go SDK API：Client 构造 + 19 方法 + 11 Option + 15 sentinel + 错误处理骨架 |
+| [SDK 参考](./sdk/README.md) | Go SDK API：Client 构造 + 21 方法 + 13 Option + 15 sentinel + 错误处理骨架 |
 | [环境变量](./env-vars.md) | NAZHI_* 完整清单 + urlType 分流 + 与 SDK Option 对应表 |
 
 ## 架构文档（怎么实现的）
@@ -26,10 +26,10 @@
 | 文档 | 内容 |
 |---|---|
 | [HAR 驱动测试](./har-testing.md) | 抓包驱动 fixture + PII SHA-256 守卫反自反性陷阱 + 测试架构 |
-| [贡献指南](../CONTRIBUTING.md) | PR 流程、提交规范、**push 前必跑 6 步铁律** |
+| [贡献指南](../CONTRIBUTING.md) | PR 流程、提交规范、push 前必跑 6 步铁律 |
 | [CHANGELOG](../CHANGELOG.md) | 全部版本变更日志 |
 | [安全策略](../SECURITY.md) | 漏洞上报 + PII 守卫承诺 + 凭据历史清理说明 |
-| [项目记忆](../CLAUDE.md) | AI 协作专用（**git 忽略**），含架构细节与本机凭据 |
+| [项目记忆](../CLAUDE.md) | AI 协作专用（git 忽略），含架构细节与本机凭据 |
 
 ## 按角色看
 
@@ -66,9 +66,9 @@
 
 ## 文档版本控制
 
-文档随 `main` 分支同步更新。每次发版前会通过 review-tdd 流程增量更新到当前代码。
+文档随 `main` 分支同步更新。每次发版前会增量更新到当前代码。
 
-**历史版本**：[GitHub Releases](https://github.com/Wenaixi/nazhi-cli/releases) 对应 tag 的 docs/ 目录。
+历史版本：[GitHub Releases](https://github.com/Wenaixi/nazhi-cli/releases) 对应 tag 的 docs/ 目录。
 
 | 文档版本 | 对应 code 版本 | 文档冻结 |
 |---|---|---|
@@ -85,7 +85,7 @@
 
 ---
 
-**文档规范**（维护者参考）：
+文档规范（维护者参考）：
 
 - 中文为主，技术术语保留英文
 - 不堆形容词（"强大" / "业界领先" / "无缝集成" → 直接说能做什么）

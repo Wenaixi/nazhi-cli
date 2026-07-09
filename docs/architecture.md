@@ -14,11 +14,11 @@
                      ↓
 ┌──────────────────────────────────────────────────────────┐
 │  pkg/client/  SDK 层：核心业务                            │
-│  - Option 模式构造（11 个公开 Option）                    │
-│  - 12 个公开方法（Login / ActivateSession / FetchTasks…）  │
+│  - Option 模式构造（13 个公开 Option）                    │
+│  - 21 个公开方法（Login / ActivateSession / FetchTasks…）  │
 │  - HAR 对齐 Session 激活 + sessionManager 状态机          │
 │  - Pool 多实例 OCR 引擎 + ddddocr/!ddddocr build tag 分发  │
-│  - 20 个公开方法（含 honor delete 等）                    │
+│  - 21 个公开方法（含 honor delete 等）                    │
 │  - 15 个哨兵错误（errors.Is 精确分支）                    │
 └─────────┬─────────────────────────┬──────────────────────┘
           │ 使用                    │ 使用
@@ -115,7 +115,7 @@ nazhi-cli/
     └── .env.example
 ```
 
-> ✅ `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**（review-tdd 第 22 轮）。
+> `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**。
 > `FetchTasks` 仍用内联 `errgroup`（业务复杂性待后续迁移），但 `ParallelDims[T]` 泛型 helper 与 `ClassifyError` 分类枚举已可复用。
 
 ## 关键架构决策
@@ -129,7 +129,7 @@ func New(opts ...Option) (*Client, error)
 每个 `*Client` 实例独立的 cookie jar，**天然并发安全**。构造函数返回 `(*Client, error)`——
 `error` 在 `syncCookieToken` 失败时返回（典型场景：自定义 `*http.Client` 的 `Jar` 不是 `*cookiejar.Jar`）。
 
-**12 个公开 Option**：
+**13 个公开 Option**：
 
 | Option | 类型 | 默认 | 拒绝无效值 |
 |---|---|---|---|
@@ -142,6 +142,8 @@ func New(opts ...Option) (*Client, error)
 | `WithOCRConcurrency` | int | `min(4, NumCPU)`（含 OCR） | `<=0` 拒绝 |
 | `WithSessionBackoff` | time.Duration | `5s` | `<=0` 拒绝 |
 | `WithSubmittedPageSize` | int | `100` | `<=0` 拒绝；调整 GetSubmittedCircles 分页大小 |
+| `WithFallbackOCR` | bool | `false` | 启用 ddddocr 降级兜底；primary 全失败后自动降级 |
+| `WithFallbackConcurrency` | int | `1` | `<=0` 拒绝；降级 OCR 池并发度 |
 
 `withDurationGuard` 是 Option 构造工厂（拒绝 `<0` / `=0` 后调 setter），消除 WithTimeout / WithSessionBackoff 中重复的守卫逻辑。
 
@@ -248,7 +250,7 @@ Microsoft onnxruntime v1.25.0 已停发 macOS x86_64，**不支持**。
 - ddddocr build：`ocr.NewPool(0)`（懒加载 1 实例 + `sync.Mutex` 串行化）
 - !ddddocr build：`nil`，`Login()` 立即返 `ErrOCRNotConfigured`
 
-> 🔴 **CI 与 Makefile `build` 必须显式 `-tags=ddddocr`**，否则 release 的二进制 `c.ocr=nil`，
+> **重要** **CI 与 Makefile `build` 必须显式 `-tags=ddddocr`**，否则 release 的二进制 `c.ocr=nil`，
 > 用户 `nazhi login` 立即失败（v0.3.5 真实事故，v0.4.0 仍生效）。
 
 ### 8. 统一响应体解析（泛型）
@@ -271,19 +273,21 @@ selfEval, err := types.DecodeDataMap[types.SelfEvalStatus](resp)
 
 SDK 侧 fallback 解码统一走 `pkg/client/request.go` 的 `doBizGetDecode`——先试 `returnData` 再试 `dataList`，首个成功非 nil 的返回。
 
-### 9. 文件上传安全隔离
+### 9. 文件上传 / 下载安全隔离
 
-`UploadFile` 用独立的 `newCleanClient`（**无 cookie jar + 禁用重定向**），杜绝 SSO 鉴权头泄露到文件上传公共服务。
+`UploadFile` 用独立的 `newCleanClient`（**无 cookie jar + 禁用重定向**），杜绝 SSO 鉴权头泄露到文件上传公共服务。`DownloadFile` 同样走无 token 路径，但需要跟随重定向（SSO 域 → FastDFS 存储域），通过白名单限制仅 `.nazhisoft.com` / `nazhisoft.com` 域可跟随。
 
 | 行为 | 原因 |
 |---|---|
 | **不发任何 Token/Cookie/Authorization** | 文件服务器 `doc.nazhisoft.com` 是独立公共服务，发送业务 token 反而触发风控 |
-| **独立 `http.Client`** | 即使 `c.http.Jar` 有 Cookie，上传请求也不带 |
-| **禁用重定向** | `CheckRedirect=noRedirect`，防止 302 跳第三方时附带请求头 |
+| **上传独立 `http.Client`** | 即使 `c.http.Jar` 有 Cookie，上传请求也不带 |
+| **下载跟随重定向 + 白名单** | `DownloadFile` 跟随 302 到 FastDFS，但仅允许 `.nazhisoft.com` / `nazhisoft.com` 同域；防止 SSRF |
 | **共享 Transport 连接池** | 每张图 Clone 一次（O(1) struct copy + 重置 idle pool），N 张图批量上传只需 1 次 DNS+TCP+TLS 握手 |
 | **上传前自动预处理** | 任意格式 → JPG + 透明合成 + 缩放/质量级联 → ≤ 5MB |
+| **下载 0 字节自愈** | 服务端返回 0 字节时删除半成品文件，不留垃圾 |
 
 **域隔离细节**：`syncCookieToken` 只在 `c.baseURL` 域写 `X-Auth-Token`，而 `UploadFile` 走 `c.uploadURL` 域（独立文件服务器）。即使 `uploadURL` 与 `baseURL` 指向同一主机（自定义部署），同步到 baseURL 的 cookie **不会**被上传请求携带（newCleanClient 无 jar）。调用方仍应注意不要在业务 Client 的 baseURL 域上传敏感文件。
+`DownloadFile` 入口在 `ssoBaseURL` 域（`common/attachment/getImg?id=X`），收到 302 后跟着 Location 走到 `doc.nazhisoft.com` 存储域。两个域都不发送任何鉴权头。
 
 ### 10. HAR 驱动测试
 
@@ -434,16 +438,16 @@ internal/ocr/                    OCR 单元测试（35+ 测试，含 cross-platf
 
 | # | 候选 | 状态 | 落地位置 |
 |---|---|---|---|
-| #1 | Session 收口 | ✅ 实施 | `pkg/client/session.go` sessionManager 状态机 |
-| #2 | HTTP helper 私有化 | ✅ 实施 | `request.go` 的 `httpDo` / `rawDoWithResp` 提取共享 `do()` 核心 |
-| #3 | `DecodeUnified` 原语化 | ✅ 实施 | `pkg/types/response.go` 泛型辅助 |
-| #4 | tokenparse 包 + DerefOr[T] 升包 | ✅ 实施 | `pkg/tokenparse/tokenparse.go` + `pkg/types/deref.go` |
-| #5 | sessionManager 封装 + SetBackoff race fix | ✅ 实施 | `pkg/client/session.go` |
-| #6 | `ParallelDims` 泛型 helper | ✅ 实施 | `pkg/client/parallel.go`（review-tdd 第 22 轮） |
-| #7 | `error_category.go` 错误分类 | ✅ 实施 | `pkg/client/error_category.go`（review-tdd 第 22 轮） |
-| #8 | `pkg/client/error.go` 错误码集中定义 | ❌ 未实施 | 哨兵错误集中在 `errors.go`（已 15 个） |
+| #1 | Session 收口 | 已实施 | `pkg/client/session.go` sessionManager 状态机 |
+| #2 | HTTP helper 私有化 | 已实施 | `request.go` 的 `httpDo` / `rawDoWithResp` 提取共享 `do()` 核心 |
+| #3 | `DecodeUnified` 原语化 | 已实施 | `pkg/types/response.go` 泛型辅助 |
+| #4 | tokenparse 包 + DerefOr[T] 升包 | 已实施 | `pkg/tokenparse/tokenparse.go` + `pkg/types/deref.go` |
+| #5 | sessionManager 封装 + SetBackoff race fix | 已实施 | `pkg/client/session.go` |
+| #6 | `ParallelDims` 泛型 helper | 已实施 | `pkg/client/parallel.go` |
+| #7 | `error_category.go` 错误分类 | 已实施 | `pkg/client/error_category.go` |
+| #8 | `pkg/client/error.go` 错误码集中定义 | 未实施 | 哨兵错误集中在 `errors.go`（已 15 个） |
 
-> ✅ `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**（review-tdd 第 22 轮）。
+> `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**。
 > `FetchTasks` 仍用内联 `errgroup`（业务复杂性待后续迁移），但 `ParallelDims[T]` 泛型 helper 与 `ClassifyError` 分类枚举已可复用。
 
 ## 依赖关系
