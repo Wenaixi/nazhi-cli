@@ -1,4 +1,4 @@
-.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration lint vet fmt clean release install help
+.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
 
 # ─── 版本 ───
 
@@ -45,6 +45,10 @@ lint:
 	golangci-lint run ./...
 	@echo "lint 通过"
 
+lint-fix:
+	"$$(go env GOPATH)/bin/golangci-lint" run --fix ./...
+	@echo "lint 自动修复完成"
+
 vet:
 	go vet ./...
 	@echo "vet 通过"
@@ -52,6 +56,22 @@ vet:
 fmt:
 	gofmt -l -s -w .
 	@echo "gofmt 完成"
+
+# ─── CI 本地复现 ───
+
+# go.mod / go.sum 整洁校验（CI gate 1）
+tidy-check:
+	go mod tidy
+	git diff --exit-code go.mod go.sum
+
+# 单元测试 + 覆盖率汇总（只统计 pkg/，与 CI 单测范围一致）
+test-coverage:
+	go test -count=1 -race -coverprofile=coverage.out ./pkg/...
+	go tool cover -func=coverage.out | tail -1
+
+# 本地一键跑完 CI 的核心 gate（tidy → lint → vet → 单测 → 集成测试）
+ci-local: tidy-check lint vet test test-integration
+	@echo "ci-local 全绿"
 
 # ─── 安装 ───
 
