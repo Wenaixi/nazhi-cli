@@ -74,9 +74,13 @@ func f22BizHandler(t *testing.T, dimsJSON string, dimIDToBizErr map[string]bool)
 				_, _ = w.Write([]byte(`{"code":0,"msg":"业务失败","returnData":null}`))
 				return
 			}
-			// 阻塞直到 ctx 取消（net/http server 收到 cancel 后断开连接）
-			time.Sleep(2 * time.Second)
-			w.WriteHeader(http.StatusOK)
+			// 阻塞直到 ctx 取消：用 ctx.Done() 避免 mock handler 在 client 断开后还死睡 2s。
+			select {
+			case <-r.Context().Done():
+				w.WriteHeader(http.StatusInternalServerError)
+			case <-time.After(2 * time.Second):
+				w.WriteHeader(http.StatusOK)
+			}
 		default:
 			t.Errorf("未预期的请求: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusInternalServerError)

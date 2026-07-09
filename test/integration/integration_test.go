@@ -1,4 +1,4 @@
-﻿// Package integration 包含需要真实 SSO/业务服务器环境的集成测试。
+// Package integration 包含需要真实 SSO/业务服务器环境的集成测试。
 //
 // 通过 build tag `integration` 启用：
 //
@@ -296,7 +296,7 @@ func TestReal_FullChain(t *testing.T) {
 	if err != nil {
 		t.Errorf("GetMyInfo: %v", err)
 	} else if info != nil {
-		t.Logf("   ✅ %s / %s / %s / 座号 %d", info.Name, info.SchoolName, info.ClassName, info.Seat)
+		t.Logf("   ✅ %s / %s / %s (学号 %s)", info.Name, info.SchoolName, info.ClassName, info.StudentNumber)
 	}
 
 	// 6. GetDimensions（不需要任务）
@@ -394,7 +394,7 @@ func TestHAR_FetchTasks(t *testing.T) {
 			t.Logf("   ... 还有 %d 个任务", len(tasks)-i)
 			break
 		}
-		t.Logf("   - [%d] %s (dim=%d, hours=%.1f, status=%s)", task.ID, task.Name, task.DimensionID, task.Hours, task.Status)
+		t.Logf("   - [%d] %s (dim=%s, hours=%.1f, submitted=%t)", task.ID, task.Name, task.DimensionName, task.Hours, task.Submitted)
 	}
 
 	// 验证 SDK 触发了正确的端点
@@ -462,7 +462,7 @@ func TestHAR_FetchTasks_Debug(t *testing.T) {
 	t.Logf("📊 SDK DecodeDataList 解析出 %d 个任务", len(tasks))
 	if len(tasks) > 0 {
 		first := tasks[0]
-		t.Logf("   第一条: ID=%d, Name=%s, Status=%s", first.ID, first.Name, first.Status)
+		t.Logf("   第一条: ID=%d, Name=%s, Submitted=%t", first.ID, first.Name, first.Submitted)
 	}
 }
 

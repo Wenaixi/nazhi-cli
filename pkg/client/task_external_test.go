@@ -36,7 +36,7 @@ import (
 func TestFetchTasks_ConcurrentLimitBounded(t *testing.T) {
 	const (
 		dimCount      = 20
-		perDimDelay   = 50 * time.Millisecond
+		perDimDelay   = 20 * time.Millisecond
 		expectedLimit = 8 // 与 task.go 中 fetchTasksConcurrentLimit 常量一致
 	)
 	if expectedLimit >= dimCount {
@@ -355,6 +355,7 @@ func TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected(t *testing.T) {
 		{"id": int64(40), "name": "维度D"},
 	}
 
+	// 第 5、6 步：/getCircleStatistics（后 2 个维度延迟模拟 + context 感知）
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/api/studentCircleNew/getDimensions":
@@ -362,11 +363,14 @@ func TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected(t *testing.T) {
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(unifiedJSON(1, "成功", nil, dims)))
 		case "/api/studentCircleNew/getCircleStatistics":
-			// 用 dimensionId 参数决定是否 sleep，避免并发 handler 的计数 race
 			dimID := r.URL.Query().Get("dimensionId")
 			if dimID == "30" || dimID == "40" {
-				// 后 2 个维度睡眠足够久，确保 context 先超时
-				time.Sleep(300 * time.Millisecond)
+				// 后 2 个维度 ctx 感知阻塞，client cancel 时不硬等
+				select {
+				case <-r.Context().Done():
+					w.WriteHeader(http.StatusInternalServerError)
+				case <-time.After(300 * time.Millisecond):
+				}
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -529,10 +533,12 @@ func TestFetchTasks_MixedBizAndCancel_FailedCountAccurate(t *testing.T) {
 				w.WriteHeader(http.StatusInternalServerError)
 				return
 			}
-			// 简单阻塞：让 handler 在 cancel 触发时由 transport 关闭连接
-			// net/http server 的 connection close 会让 client 收到 cancel。
-			// 这里睡眠足够长；ctx 取消时 transport 会断开。
-			time.Sleep(2 * time.Second)
+			// ctx 感知阻塞：client cancel 时 handler 立即退出，不等满 2s。
+			select {
+			case <-r.Context().Done():
+				w.WriteHeader(http.StatusInternalServerError)
+			case <-time.After(2 * time.Second):
+			}
 		default:
 			t.Errorf("未预期的请求: %s %s", r.Method, r.URL.Path)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -542,8 +548,9 @@ func TestFetchTasks_MixedBizAndCancel_FailedCountAccurate(t *testing.T) {
 
 	c := newTestClient(nil, biz, nil)
 
-	// 50ms 超时，让维度 A/B 完成，触发 cancel 让 C/D/E 失败。
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	// 200ms 超时：足够 session 激活 + getDimensions + 维度 A/B 返回业务错误，
+	// 维度 C/D/E 因 ctx 取消而中断。
+	ctx, cancel := context.WithTimeout(context.Background(), 200*time.Millisecond)
 	defer cancel()
 
 	// 一旦 ctx 取消就允许后续 handler 短路（最佳努力，不影响 race 判定）。

@@ -4,6 +4,7 @@ package client
 import (
 	"bytes"
 	"context"
+	"errors"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -594,7 +595,7 @@ func TestEncodeJPEG_ConcurrentSafe(t *testing.T) {
 	wg.Wait()
 	close(errCh)
 	for err := range errCh {
-		if err == errEmpty {
+		if errors.Is(err, errEmpty) {
 			t.Error("encodeJPEG 返回空 []byte")
 		} else {
 			t.Errorf("encodeJPEG 错误: %v", err)
