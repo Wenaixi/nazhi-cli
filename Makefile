@@ -1,4 +1,4 @@
-.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
+.PHONY: build build-ocr build-linux build-darwin build-windows test test-verbose test-integration lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
 
 # ─── 版本 ───
 
@@ -11,16 +11,20 @@ build: clean-bin
 	go build $(LDFLAGS) -o bin/nazhi.exe ./cmd/nazhi
 	@echo "构建完成: bin/nazhi.exe"
 
+build-ocr:
+	go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-ocr.exe ./cmd/nazhi
+	@echo "OCR 构建完成: bin/nazhi-ocr.exe (含 ddddocr)"
+
 build-linux:
-	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
+	GOOS=linux GOARCH=amd64 go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
 	@echo "Linux amd64: bin/nazhi-linux-amd64"
 
 build-darwin:
-	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
+	GOOS=darwin GOARCH=arm64 go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
 	@echo "macOS arm64: bin/nazhi-darwin-arm64"
 
 build-windows:
-	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
+	GOOS=windows GOARCH=amd64 go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
 	@echo "Windows amd64: bin/nazhi-windows-amd64.exe"
 
 # ─── 测试 ───
@@ -81,7 +85,7 @@ install:
 
 # ─── 发布 ───
 
-release: test vet build-linux build-darwin build-windows
+release: test vet build-ocr build-linux build-darwin build-windows
 	@echo ""
 	@echo "═══════════════════════════"
 	@echo "  nazhi-cli v$(VERSION) 跨平台构建完成"
@@ -103,6 +107,7 @@ help:
 	@echo "nazhi-cli v$(VERSION) — 构建命令"
 	@echo "═══════════════════════════════════════"
 	@echo "  make build        编译 CLI → bin/nazhi.exe"
+	@echo "  make build-ocr    编译 CLI（含 OCR） → bin/nazhi-ocr.exe"
 	@echo "  make build-linux  交叉编译 Linux amd64"
 	@echo "  make build-darwin 交叉编译 macOS arm64"
 	@echo "  make build-windows 交叉编译 Windows amd64"

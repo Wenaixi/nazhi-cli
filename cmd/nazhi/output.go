@@ -10,7 +10,7 @@ import (
 )
 
 // pendingExitCode 追踪本进程退出码（语义退出码，非 0/1 二元）。
-// 从 0.7.0 起，三分退出码：0 成功 / 1 partial/业务 / 2 服务端 / 3 参数。
+// 从 1.0.0 起，三分退出码：0 成功 / 1 partial/业务 / 2 服务端 / 3 参数。
 // printError 不再调 os.Exit（否则绕过 main 中 defer closeAllClients()）。
 // 这里用 atomic.Int32 让 printEnvelope/printError 标记、main 读取，保证
 //   - 退出码语义保持原样（出过错则非 0）

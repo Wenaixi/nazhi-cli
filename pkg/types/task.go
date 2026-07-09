@@ -1,7 +1,5 @@
 package types
 
-import "time"
-
 // 任务作用域常量（对应服务端 scopeType）。
 const (
 	ScopeClass = 1 // 班级任务
@@ -21,8 +19,8 @@ type Task struct {
 	Hours         float64   `json:"hours"`         // 学时
 	Submitted     bool      `json:"submitted"`     // 是否已提交（来自服务端 circleTaskStatus）
 	NeedPic       bool      `json:"needPic"`       // 是否需要图片（来自服务端 upPic 0/1）
-	StartDate     time.Time `json:"startDate"`     // 开始日期（来自服务端 startDateStr，如 2026-01-12）
-	EndDate       time.Time `json:"endDate"`       // 结束日期（来自服务端 endDateStr，如 2026-02-10）
+	StartDate     DateOnly  `json:"startDateStr"` // 开始日期（来自服务端 startDateStr，如 2026-01-12）
+	EndDate       DateOnly  `json:"endDateStr"`   // 结束日期（来自服务端 endDateStr，如 2026-02-10）
 	ScopeType     int       `json:"scopeType"`     // 作用域类型（参见 ScopeClass/ScopeGrade/ScopeStage）
 	ScopeTypeName string    `json:"scopeTypeName"` // 作用域名称
 }
