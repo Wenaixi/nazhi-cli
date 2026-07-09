@@ -72,10 +72,12 @@ func isContextError(err error) bool {
 	return cat == CategoryContextCancel || cat == CategoryContextTimeout
 }
 
-// isTimeoutError 检测错误是否为超时相关错误（含网络超时与上下文超时）。
+// isTimeoutError 检测错误是否为超时相关错误（不包含上下文取消）。
 //
 // isTimeoutError 是 ClassifyError 的便捷封装，用于超时错误判定。
+// 注意：上下文取消（context.Canceled）不是超时，不纳入检查——取消由
+// isContextError 或调用方自行处理。
 func isTimeoutError(err error) bool {
 	cat := ClassifyError(err)
-	return cat == CategoryNetworkTimeout || cat == CategoryContextTimeout || cat == CategoryContextCancel
+	return cat == CategoryNetworkTimeout || cat == CategoryContextTimeout
 }

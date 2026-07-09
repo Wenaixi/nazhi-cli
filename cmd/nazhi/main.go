@@ -6,6 +6,7 @@ import (
 
 	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/Wenaixi/nazhi-cli/internal/version"
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -72,7 +73,9 @@ func main() {
 	// 配合 init() 里的 SilenceErrors + SilenceUsage，根除 stderr 重复输出。
 	execErr := rootCmd.Execute()
 	if execErr != nil {
-		printError(execErr)
+		// cobra 返回的 execErr 来自参数解析（如 --unknownflag），本质是用户参数错误。
+		// 用 code=400 获得 exit code 3，而非走 printError 的默认 500（exit code 2）。
+		printEnvelope(envelope.Error(400, execErr.Error()))
 	}
 	if pendingExitCode.Load() != 0 {
 		// os.Exit 之前显式调 closeAllClients。
@@ -85,7 +88,7 @@ func main() {
 		if err := closeAllClients(); err != nil {
 			printError(fmt.Errorf("关闭 Client 资源失败: %w", err))
 		}
-		// 三分退出码（0.7.0+）：
+		// 三分退出码（1.0.0+）：
 		//   pendingExitCode 由 printEnvelope/printError 按 envelope.ExitCode() 设置：
 		//   0 成功 / 1 partial / 业务 / 2 服务端 / 3 参数。
 		// 直接把 atomic 值传给 os.Exit，避免 switch 二元判断。

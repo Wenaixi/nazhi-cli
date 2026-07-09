@@ -53,9 +53,9 @@ func TestIsTimeoutError_ContextDeadline(t *testing.T) {
 			t.Error("isTimeoutError(context.DeadlineExceeded) = false, want true")
 		}
 	})
-	t.Run("context.Canceled 被识别为超时", func(t *testing.T) {
-		if !isTimeoutError(context.Canceled) {
-			t.Error("isTimeoutError(context.Canceled) = false, want true")
+	t.Run("context.Canceled 不被识别为超时（取消≠超时）", func(t *testing.T) {
+		if isTimeoutError(context.Canceled) {
+			t.Error("isTimeoutError(context.Canceled) = true, want false（取消不是超时）")
 		}
 	})
 	t.Run("context 超时 + url.Error 包装", func(t *testing.T) {
