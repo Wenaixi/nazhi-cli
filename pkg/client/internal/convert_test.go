@@ -2,7 +2,6 @@ package internal
 
 import (
 	"testing"
-	"time"
 )
 
 func TestMapTaskStatus(t *testing.T) {
@@ -48,5 +47,4 @@ func TestMapCircleApproved(t *testing.T) {
 	if !MapCircleApproved(1) {
 		t.Error("status=1 应为 true")
 	}
-	_ = time.Now() // keep time import if unused
 }

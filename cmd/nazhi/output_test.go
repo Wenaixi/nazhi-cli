@@ -194,6 +194,40 @@ func TestPrintError_DepthGuard_NoInfiniteLoop(t *testing.T) {
 	}
 }
 
+// TestPrintError_QuietModeSuppressesStderr 回归测试：quiet=true 时
+// printError 不得写 stderr。review 报告指出 envelope 化重构后
+// stderr JSON 编码发生在 quiet 守卫之前，导致 --quiet 不生效。
+// 修复：把 stderr 写入移到 if !quiet {} 内部，退出码仍正常标记。
+func TestPrintError_QuietModeSuppressesStderr(t *testing.T) {
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	origQuiet := quiet
+	quiet = true
+	t.Cleanup(func() { quiet = origQuiet })
+
+	printError(errors.New("quiet mode test"))
+
+	_ = w.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("读取 stderr 失败: %v", err)
+	}
+	if buf.Len() > 0 {
+		t.Errorf("quiet 模式下 printError 不应写 stderr，实际内容: %q", buf.String())
+	}
+
+	// 退出码仍应被标记（不因 quiet 而丢失）
+	if pendingExitCode.Load() == 0 {
+		t.Error("quiet 模式下 printError 仍应标记退出码")
+	}
+}
+
 // TestPrintPrompt_NonTTYStdinSuppressesOutput L finding 回归测试
 // stdin 不是 TTY 时（CI / 管道环境）printPrompt 必须不输出。
 // 模拟方法：用 os.Pipe 替换 os.Stdin（管道永远不是 TTY）。

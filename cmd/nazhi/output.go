@@ -79,26 +79,28 @@ func printError(err error) {
 	// depth 守卫：递归调用只在 depth==0 时触发，避免 stderr fd 关闭时死循环。
 	if printErrorDepth.Add(1) > 1 {
 		// 二次调用（兜底路径又失败）→ 直接降级为 fmt.Fprintf，不再递归
-		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
+		if !quiet {
+			_, _ = fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
+		}
 		printErrorDepth.Add(-1)
 		return
 	}
 	defer printErrorDepth.Add(-1)
 
-	// 把 error 包成 envelope，写 stderr 同时按 ExitCode 设退出码。
+	// 把 error 包成 envelope，按 ExitCode 设退出码。
 	// 默认 code=500（服务端错误兜底），具体命令可调 envelope.Error(code, msg)
 	// 自行设置更精确的状态码。
 	e := envelope.Error(500, err.Error())
-	enc := json.NewEncoder(os.Stderr)
-	enc.SetIndent("", "  ")
-	if enc.Encode(e) != nil {
-		// 兜底：JSON 编码失败时也必须走 pendingExitCode=1 路径
-		printError(fmt.Errorf("printError JSON 编码失败: %w", err))
-		return
-	}
-	// 不在 quiet 时跳过 stderr 输出，但仍要标记退出码
+
+	// quiet 模式下只标记退出码，不写 stderr
 	if !quiet {
-		// 已输出
+		enc := json.NewEncoder(os.Stderr)
+		enc.SetIndent("", "  ")
+		if enc.Encode(e) != nil {
+			// 兜底：JSON 编码失败时也必须走 pendingExitCode=1 路径
+			printError(fmt.Errorf("printError JSON 编码失败: %w", err))
+			return
+		}
 	}
 	if code := e.ExitCode(); code != 0 {
 		pendingExitCode.Store(int32(code))
