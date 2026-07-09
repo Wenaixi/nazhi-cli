@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -30,7 +31,7 @@ var loginCmd = &cobra.Command{
 		password := applyURLFlag(cmd, "password", "NAZHI_PASSWORD")
 
 		if username == "" || password == "" {
-			printError(fmt.Errorf("--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
+			printEnvelope(envelope.Error(400, "--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
 			return
 		}
 
@@ -48,20 +49,17 @@ var loginCmd = &cobra.Command{
 		})
 		if err != nil {
 			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
-			if errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic) {
-				printJSON(map[string]any{
-					"status":  "error",
-					"message": "登录失败：OCR 识别器未配置或出错。当前构建未启用 -tags ddddocr，请使用预编译 release 二进制，或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器。",
-				})
-				markError()
-			} else if errors.Is(err, client.ErrLoginRejected) {
-				printError(fmt.Errorf("登录失败: %w（请检查学号/密码，或确认 SSO 服务端正常）", err))
-			} else {
+			switch {
+			case errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic):
+				printEnvelope(envelope.Error(503, "登录失败：OCR 识别器未配置或出错。当前构建未启用 -tags ddddocr，请使用预编译 release 二进制，或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器。"))
+			case errors.Is(err, client.ErrLoginRejected):
+				printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error())))
+			default:
 				printError(fmt.Errorf("登录失败: %w", err))
 			}
 			return
 		}
-		printJSON(resp)
+		printEnvelope(envelope.Success(resp))
 	},
 }
 

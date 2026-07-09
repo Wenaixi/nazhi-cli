@@ -105,22 +105,22 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码必须标记为 1（partial failure 是失败信号）
+	// 退出码必须标记为 1（partial failure 是失败信号，envelope.Partial → exit 1）
 	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("partial failure 应触发 pendingExitCode=1，实际 %d", got)
+		t.Errorf("partial failure 应触发 pendingExitCode=1（envelope.Partial），实际 %d", got)
 	}
 
-	// stderr 不应含 error JSON（F9：partial failure 走 envelope，不走 printError）
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应含 error JSON（partial failure 应走 envelope），实际: %q", stderr)
+	// stderr 不应含 error envelope（partial failure 走 envelope，不走 printError）
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应含 error envelope（partial failure 应走 envelope），实际: %q", stderr)
 	}
 
 	// stdout 应包含 status: partial envelope
 	if !strings.Contains(stdout, `"status": "partial"`) {
 		t.Errorf("stdout 应包含 status: partial，实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"reason": "fetch_tasks_partial_failure"`) {
-		t.Errorf("stdout 应包含 reason: fetch_tasks_partial_failure，实际: %q", stdout)
+	if !strings.Contains(stdout, "fetch_tasks_partial_failure") {
+		t.Errorf("stdout message 应包含 fetch_tasks_partial_failure，实际: %q", stdout)
 	}
 
 	// 关键断言：成功维度的 tasks 数据必须仍输出到 stdout
@@ -131,9 +131,9 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 	if !strings.Contains(stdout, `"id": 2000`) {
 		t.Errorf("stdout 应包含成功维度的任务 id 2000，实际: %q", stdout)
 	}
-	// 失败维度的错误信息应在 error 字段
+	// 失败维度的错误信息应在 message 字段
 	if !strings.Contains(stdout, "维度 2") {
-		t.Errorf("stdout error 字段应包含失败维度 2 的信息，实际: %q", stdout)
+		t.Errorf("stdout message 字段应包含失败维度 2 的信息，实际: %q", stdout)
 	}
 }
 
@@ -192,13 +192,13 @@ func TestTaskList_AllFailure_StillPrintsError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码标记为 1
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("全失败应触发 pendingExitCode=1，实际 %d", got)
+	// 退出码标记为 2（全失败走 printError → envelope.ExitCode=2）
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("全失败应触发 pendingExitCode=2（envelope.ExitCode），实际 %d", got)
 	}
-	// 走 printError，stderr 含 error JSON
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("全失败应走 printError 路径，stderr 应含 error JSON，实际 stderr: %q", stderr)
+	// 走 printError，stderr 含 error envelope
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("全失败应走 printError 路径，stderr 应含 error envelope，实际 stderr: %q", stderr)
 	}
 	// stdout 不应有 partial envelope
 	if strings.Contains(stdout, `"status": "partial"`) {

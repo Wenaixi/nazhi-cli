@@ -48,7 +48,7 @@ func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) *cobra.Command {
 	return cmd
 }
 
-// TestTaskSubmitCmd_WithPayload 验证 --payload flag 正确传递并输出提交结果 JSON。
+// TestTaskSubmitCmd_WithPayload 验证 --payload flag 正确传递并输出 envelope 提交结果。
 func TestTaskSubmitCmd_WithPayload(t *testing.T) {
 	payload := `{"circleTaskId":1001,"circleTypeId":9256,"name":"测试任务","hours":1}`
 	cmd := makeTaskSubmitTestCmd(t, payload)
@@ -65,15 +65,15 @@ func TestTaskSubmitCmd_WithPayload(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 0 {
 		t.Errorf("正常路径不应触发 pendingExitCode=1，实际 %d", got)
 	}
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
 	if !strings.Contains(stdout, `"code": 1`) {
-		t.Errorf("stdout 应包含 code: 1，实际: %q", stdout)
+		t.Errorf("stdout 应包含 code: 1（业务响应码），实际: %q", stdout)
 	}
 }
 
-// TestTaskSubmitCmd_MissingPayload_PrintsError 验证 --payload 缺省时输出 error。
+// TestTaskSubmitCmd_MissingPayload_PrintsError 验证 --payload 缺省时输出 envelope.Error。
 func TestTaskSubmitCmd_MissingPayload_PrintsError(t *testing.T) {
 	cmd := makeTaskSubmitTestCmd(t, "") // 不设 payload flag
 
@@ -86,16 +86,17 @@ func TestTaskSubmitCmd_MissingPayload_PrintsError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("缺 payload 应触发 pendingExitCode=1，实际 %d", got)
+	// 缺 payload → envelope.Error(400, ...) → exit code 3
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("缺 payload 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	if !strings.Contains(stdout, `"status": "error"`) {
+		t.Errorf("stdout 应包含 envelope.Error，实际: %q", stdout)
 	}
-	if !strings.Contains(stderr, "payload") {
-		t.Errorf("stderr 应包含 payload 提示，实际: %q", stderr)
+	if !strings.Contains(stdout, "payload") {
+		t.Errorf("stdout 应包含 payload 提示，实际: %q", stdout)
 	}
-	_ = stdout
+	_ = stderr
 }
 
 // TestTaskSubmitCmd_FilePayload 验证 @file.json 语法从文件读取 payload。
@@ -120,8 +121,8 @@ func TestTaskSubmitCmd_FilePayload(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 0 {
 		t.Errorf("@file 路径不应触发 pendingExitCode=1，实际 %d", got)
 	}
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
 	if !strings.Contains(stdout, `"code": 1`) {
 		t.Errorf("stdout 应包含 code: 1，实际: %q", stdout)
@@ -167,11 +168,12 @@ func TestTaskSubmitCmd_ServerError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("业务错误应触发 pendingExitCode=1，实际 %d", got)
+	// 业务错误应触发 pendingExitCode=2（envelope.Error 5xx → exit code 2）
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("业务错误应触发 pendingExitCode=2，实际 %d", got)
 	}
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 应包含 error JSON，实际: %q", stderr)
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应包含 error envelope，实际: %q", stderr)
 	}
 	_ = stdout
 }

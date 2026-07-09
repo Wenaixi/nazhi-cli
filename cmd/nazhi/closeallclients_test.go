@@ -94,9 +94,9 @@ func TestCloseAllClients_Failure_GoesThroughPrintError(t *testing.T) {
 	}
 	stderr := stderrBuf.String()
 
-	// 8. 断言：stderr 含 JSON envelope（printError 输出）
-	if !strings.Contains(stderr, `"error": true`) {
-		t.Errorf("B4 修复未生效：closeAllClients 失败应走 printError 通道，stderr 应含 `\"error\": true`\n实际 stderr: %q", stderr)
+	// 8. 断言：stderr 含 JSON envelope（printError 输出 envelope.Error(500)）
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("B4 修复未生效：closeAllClients 失败应走 printError 通道，stderr 应含 `\"status\": \"error\"`\n实际 stderr: %q", stderr)
 	}
 
 	// 9. 断言：stderr 不含旧的纯文本格式（fmt.Fprintln 输出）
@@ -104,8 +104,8 @@ func TestCloseAllClients_Failure_GoesThroughPrintError(t *testing.T) {
 		t.Errorf("B4 修复未生效：closeAllClients 失败不应直写纯文本\n实际 stderr: %q", stderr)
 	}
 
-	// 10. 断言：pendingExitCode=1（printError 内部 markError）
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("B4 修复未生效：closeAllClients 失败后 pendingExitCode 应为 1，实际 %d", got)
+	// 10. 断言：pendingExitCode=2（printError 内部走 envelope.ExitCode，500 → 2）
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("B4 修复未生效：closeAllClients 失败后 pendingExitCode 应为 2，实际 %d", got)
 	}
 }

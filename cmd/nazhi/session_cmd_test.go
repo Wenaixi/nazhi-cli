@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -101,25 +102,27 @@ func TestSessionActivate_EmptyUserInfo_StatusEnvelope(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码应为 1（空用户信息是失败状态，CI 需要区分）
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("空响应 session activate 应触发 pendingExitCode=1，实际 %d", got)
+	// 退出码应为 2（envelope.Empty 成功路径：code=204 → exit code 0，
+	// 但本测试是 ErrEmptyUserInfo 兜底，期望 envelope.Empty() 走 stdout，
+	// 而 whoami/session 用 envelope.Empty 时不再 markError（204 是 success）
+	if got := pendingExitCode.Load(); got != 0 {
+		t.Errorf("envelope.Empty 应不触发 markError（status=success），实际 %d", got)
 	}
 
 	// stderr 不应有 error 标记
-	if strings.Contains(stderr, `"error": true`) {
-		t.Errorf("stderr 不应包含 error JSON（F10 修复后输出 status envelope），实际: %q", stderr)
+	if strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 不应包含 error JSON（F10 修复后输出 envelope.Empty），实际: %q", stderr)
 	}
 
-	// stdout 应输出 status envelope 而非裸 null
+	// stdout 应输出 envelope.Empty 而非裸 null
 	if strings.TrimSpace(stdout) == "null" {
-		t.Errorf("stdout 不应是裸 null（F10 修复后输出 status 对象），实际: %q", stdout)
+		t.Errorf("stdout 不应是裸 null（F10 修复后输出 envelope.Empty），实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"status": "empty"`) {
-		t.Errorf("stdout 应包含 status: empty，实际: %q", stdout)
+	if !strings.Contains(stdout, `"status": "success"`) {
+		t.Errorf("stdout 应包含 status=success（envelope.Empty），实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"reason": "get_my_info_empty"`) {
-		t.Errorf("stdout 应包含 reason: get_my_info_empty，实际: %q", stdout)
+	if !strings.Contains(stdout, `"code": 204`) {
+		t.Errorf("stdout 应包含 code=204（envelope.Empty），实际: %q", stdout)
 	}
 }
 
@@ -215,17 +218,13 @@ func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {
 
 	stdoutBuf, stderrBuf, restore := captureStdio(t)
 
-	// 直接测试 cmd 层对 ErrSessionBackoff 的处理逻辑（与 sessionActivateCmd.Run
+	// 模拟 cmd 层对 ErrSessionBackoff 的处理逻辑（与 sessionActivateCmd.Run
 	// 中的 if 分支相同逻辑）。这里**手动模拟** cmd 处理路径：
 	// sessionActivateCmd.Run 因 buildBizClient 每次新建 Client，无法保留 backoff
 	// 状态，无法通过 cobra 命令路径触发 backoff 分支；本测试改为单元级合约测试：
-	// 当 cmd 层处理 ErrSessionBackoff 时，必须同时调 markError()，否则 CI 误判成功。
+	// 当 cmd 层处理 ErrSessionBackoff 时，必须同时设 pendingExitCode=1（partial envelope）。
 	if errors.Is(backoffErr, client.ErrSessionBackoff) {
-		markError()
-		printJSON(map[string]string{
-			"status":  "cooldown",
-			"message": "session 激活冷却中，上次激活失败请稍后重试",
-		})
+		printEnvelope(envelope.Partial(429, "session 激活冷却中，上次激活失败请稍后重试", nil))
 	} else {
 		printError(backoffErr)
 	}
@@ -234,19 +233,19 @@ func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 退出码应为 1（backoff 是失败状态，CI 需要区分）
+	// 退出码应为 1（envelope.Partial(429) → exit code 1）
 	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("backoff 应触发 pendingExitCode=1，实际 %d", got)
+		t.Errorf("backoff 应触发 pendingExitCode=1（envelope.Partial(429)），实际 %d", got)
 	}
 
 	// stderr 不应包含 error 标记
-	if strings.Contains(stderr, `"error": true`) {
+	if strings.Contains(stderr, `"status": "error"`) {
 		t.Errorf("stderr 不应包含 error JSON，实际: %q", stderr)
 	}
 
-	// stdout 应输出 cooldown 状态
-	if !strings.Contains(stdout, `"status": "cooldown"`) {
-		t.Errorf("stdout 应包含 status: cooldown，实际: %q", stdout)
+	// stdout 应输出 partial 状态
+	if !strings.Contains(stdout, `"status": "partial"`) {
+		t.Errorf("stdout 应包含 status: partial，实际: %q", stdout)
 	}
 
 	// stdout 应包含友好提示（请稍后重试 / 冷却等）

@@ -34,15 +34,20 @@ func TestVersionCommand(t *testing.T) {
 		t.Fatal("版本输出为空")
 	}
 
-	// 验证 JSON 格式输出
-	var result map[string]string
+	// 验证 JSON 格式输出（envelope 是 map[string]any，version 是 string）
+	var result map[string]any
 	if err := json.Unmarshal([]byte(output), &result); err != nil {
 		t.Fatalf("输出应为 JSON 格式，解析失败: %v (原始输出: %q)", err, output)
 	}
 
-	v, ok := result["version"]
+	// envelope 包了一层 data → version
+	data, ok := result["data"].(map[string]any)
 	if !ok {
-		t.Fatalf("JSON 输出缺少 version 字段: %q", output)
+		t.Fatalf("JSON 缺少 envelope.data: %q", output)
+	}
+	v, ok := data["version"].(string)
+	if !ok {
+		t.Fatalf("data.version 不是 string: %q", output)
 	}
 	if v != version.Version {
 		t.Errorf("version 字段应为 %q，实际: %q", version.Version, v)

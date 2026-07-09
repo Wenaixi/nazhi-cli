@@ -85,7 +85,11 @@ func main() {
 		if err := closeAllClients(); err != nil {
 			printError(fmt.Errorf("关闭 Client 资源失败: %w", err))
 		}
-		os.Exit(1)
+		// 三分退出码（0.7.0+）：
+		//   pendingExitCode 由 printEnvelope/printError 按 envelope.ExitCode() 设置：
+		//   0 成功 / 1 partial / 业务 / 2 服务端 / 3 参数。
+		// 直接把 atomic 值传给 os.Exit，避免 switch 二元判断。
+		os.Exit(int(pendingExitCode.Load()))
 	}
 }
 
@@ -102,7 +106,6 @@ func init() {
 
 	// 一级命令
 	rootCmd.AddCommand(loginCmd)
-	rootCmd.AddCommand(schoolCmd)
 
 	// session
 	rootCmd.AddCommand(sessionCmd) // session parent
@@ -113,6 +116,7 @@ func init() {
 	taskCmd.AddCommand(taskListCmd)
 	taskCmd.AddCommand(taskSubmitCmd)
 	taskCmd.AddCommand(taskSubmittedCmd)
+	taskCmd.AddCommand(taskDoneCmd) // submitted 别名
 
 	// self-eval
 	rootCmd.AddCommand(selfEvalCmd) // self-eval parent

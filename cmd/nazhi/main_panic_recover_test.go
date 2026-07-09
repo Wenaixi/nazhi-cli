@@ -251,13 +251,13 @@ func TestMain_PanicRecover_EndToEnd(t *testing.T) {
 	}
 	stderrStr := buf.String()
 
-	// 断言 1：pendingExitCode 应为 1（panic recover 后走统一 exit code 1 路径）
-	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("F9 修复：panic 后 pendingExitCode 应为 1，实际 %d", got)
+	// 断言 1：pendingExitCode 应为 2（panic 走 envelope.Error(500, ...) → 退出码 2）
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("F9 修复：panic 后 pendingExitCode 应为 2（envelope.Error(500) → 退出码 2），实际 %d", got)
 	}
 
 	// 断言 2：stderr 应含 printError 输出（JSON envelope 或 "panic" 字样）
-	if !strings.Contains(stderrStr, `"error": true`) {
+	if !strings.Contains(stderrStr, `"status": "error"`) {
 		t.Errorf("F9 修复：panic 后 stderr 应含 JSON envelope，实际: %q", stderrStr)
 	}
 	if !strings.Contains(stderrStr, "forced panic") {

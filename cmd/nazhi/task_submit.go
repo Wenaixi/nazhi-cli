@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -32,7 +33,7 @@ var taskSubmitCmd = &cobra.Command{
 			return
 		}
 		if payloadRaw == "" {
-			printError(fmt.Errorf("--payload 为必填"))
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
 			return
 		}
 
@@ -55,7 +56,7 @@ var taskSubmitCmd = &cobra.Command{
 			return
 		}
 
-		printJSON(result)
+		printEnvelope(envelope.Success(result))
 	},
 }
 

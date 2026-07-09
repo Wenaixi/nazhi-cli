@@ -74,8 +74,8 @@ func TestMain_NoDoubleErrorOutput(t *testing.T) {
 	}
 
 	// 关键断言 3：必须包含 JSON envelope 的 error 字段
-	if !strings.Contains(stderrOutput, `"error": true`) {
-		t.Errorf("stderr 应包含 JSON envelope `\\\"error\\\": true`，完整输出:\n%s", stderrOutput)
+	if !strings.Contains(stderrOutput, `"status": "error"`) {
+		t.Errorf("stderr 应包含 JSON envelope `\\\"status\\\": \\\"error\\\"`，完整输出:\n%s", stderrOutput)
 	}
 }
 

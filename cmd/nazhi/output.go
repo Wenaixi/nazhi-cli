@@ -5,14 +5,15 @@ import (
 	"fmt"
 	"os"
 	"sync/atomic"
+
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 )
 
-// pendingExitCode 追踪本进程是否遇到错误。
-// printError 不再调 os.Exit（否则绕过 main 中 defer closeAllClients()）
-// 但 cobra Run 回调 `printError(err); return` 不会让 rootCmd.Execute() 返回
-// 非 nil error，于是退出码恒为 0，CI 脚本无法区分成败。
-// 这里用 atomic.Int32 让 printError 标记、main 读取，保证
-//   - 退出码语义保持原样（出过错则 exit 1）
+// pendingExitCode 追踪本进程退出码（语义退出码，非 0/1 二元）。
+// 从 0.7.0 起，三分退出码：0 成功 / 1 partial/业务 / 2 服务端 / 3 参数。
+// printError 不再调 os.Exit（否则绕过 main 中 defer closeAllClients()）。
+// 这里用 atomic.Int32 让 printEnvelope/printError 标记、main 读取，保证
+//   - 退出码语义保持原样（出过错则非 0）
 //   - defer closeAllClients() 仍能跑（os.Exit 只在 main 最后调一次）
 var pendingExitCode atomic.Int32
 
@@ -21,12 +22,16 @@ var pendingExitCode atomic.Int32
 // depth>1 时降级为直写 fmt.Fprintf，避免 stack overflow。
 var printErrorDepth atomic.Int32
 
-// markError 标记本进程遇到错误，main 退出时检查。
+// markError 标记本进程遇到错误（默认退出码 1）。
+// 若需要更精细的退出码（业务错误 1 / 服务端 2 / 参数 3），应直接调
+// pendingExitCode.Store(...) 或 printEnvelope 让 envelope.ExitCode() 接管。
 func markError() {
 	pendingExitCode.Store(1)
 }
 
-// printJSON 输出 JSON 到 stdout。
+// printJSON 输出 JSON 到 stdout（底层 helper）。
+// 新代码优先用 printEnvelope(envelope.Success(data))。
+// 保留供测试和特殊场景（如 session_nil_guard 静态扫描锚点）。
 func printJSON(v any) {
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
@@ -38,27 +43,39 @@ func printJSON(v any) {
 	}
 }
 
-// printError 输出错误 JSON 到 stderr 并标记退出码为 1。
+// printEnvelope 序列化 envelope 到 stdout 并按 ExitCode 标记退出码。
+// 这是 CLI 所有 Run 回调的统一出口。
+func printEnvelope(e *envelope.Envelope) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(e); err != nil {
+		markError()
+		if !quiet {
+			printError(fmt.Errorf("序列化 envelope 失败: %w", err))
+		}
+		return
+	}
+	if e == nil {
+		return
+	}
+	if code := e.ExitCode(); code != 0 {
+		pendingExitCode.Store(int32(code))
+	}
+}
+
+// printError 输出 envelope.Error 到 stderr 并标记退出码。
 // 注意：此函数**不**调用 os.Exit。退出由 main 在 rootCmd.Execute() 之后
 // 统一处理。原因：修复——os.Exit 绕过 goroutine 栈展开，导致 main 的
 // defer closeAllClients() 永远不执行，ONNX session + 临时目录 +
 // keep-alive 连接全部泄漏。
 // 退出码契约
-//   - printError 仅写 stderr + 设 pendingExitCode=1，然后 return
+//   - printError 仅写 stderr + 设 pendingExitCode（按 envelope.ExitCode）
 //   - 调用方（cobra Run 回调）保持原样 `printError(err); return`
-//   - main 在 Execute 返回非 nil 或 pendingExitCode=1 时统一 os.Exit(1)
+//   - main 在 Execute 返回非 nil 或 pendingExitCode!=0 时统一 os.Exit
 func printError(err error) {
-	markError()
-	type errOutput struct {
-		Error   bool   `json:"error"`
-		Message string `json:"message"`
-	}
-	if quiet {
+	if err == nil {
 		return
 	}
-	// 兜底走 printError 自身以确保 pendingExitCode=1 被设置。
-	// 原代码直接 fmt.Fprintf 写 stderr，main 看到 pendingExitCode=0 会以 exit 0 退出
-	// 看似成功实则失败——CI 脚本无法区分。
 	// depth 守卫：递归调用只在 depth==0 时触发，避免 stderr fd 关闭时死循环。
 	if printErrorDepth.Add(1) > 1 {
 		// 二次调用（兜底路径又失败）→ 直接降级为 fmt.Fprintf，不再递归
@@ -68,11 +85,23 @@ func printError(err error) {
 	}
 	defer printErrorDepth.Add(-1)
 
+	// 把 error 包成 envelope，写 stderr 同时按 ExitCode 设退出码。
+	// 默认 code=500（服务端错误兜底），具体命令可调 envelope.Error(code, msg)
+	// 自行设置更精确的状态码。
+	e := envelope.Error(500, err.Error())
 	enc := json.NewEncoder(os.Stderr)
 	enc.SetIndent("", "  ")
-	if enc.Encode(errOutput{Error: true, Message: err.Error()}) != nil {
+	if enc.Encode(e) != nil {
 		// 兜底：JSON 编码失败时也必须走 pendingExitCode=1 路径
 		printError(fmt.Errorf("printError JSON 编码失败: %w", err))
+		return
+	}
+	// 不在 quiet 时跳过 stderr 输出，但仍要标记退出码
+	if !quiet {
+		// 已输出
+	}
+	if code := e.ExitCode(); code != 0 {
+		pendingExitCode.Store(int32(code))
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
@@ -42,7 +43,7 @@ var honorTypesCmd = &cobra.Command{
 			return
 		}
 
-		printJSON(types)
+		printEnvelope(envelope.Success(types))
 	},
 }
 
@@ -72,13 +73,13 @@ var honorListCmd = &cobra.Command{
 			return
 		}
 
-		printJSON(map[string]any{
+		printEnvelope(envelope.Success(map[string]any{
 			"total":     pb.TotalNum,
 			"page":      pb.PageNo,
 			"pageSize":  pb.PageSize,
 			"totalPage": pb.TotalPage,
 			"records":   records,
-		})
+		}))
 	},
 }
 
@@ -101,7 +102,7 @@ var honorAddCmd = &cobra.Command{
 			return
 		}
 		if payloadRaw == "" {
-			printError(fmt.Errorf("--payload 为必填"))
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
 			return
 		}
 
@@ -117,10 +118,10 @@ var honorAddCmd = &cobra.Command{
 			return
 		}
 
-		printJSON(map[string]string{
+		printEnvelope(envelope.Success(map[string]string{
 			"status": "success",
 			"msg":    "荣誉申报成功",
-		})
+		}))
 	},
 }
 
