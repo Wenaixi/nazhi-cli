@@ -39,7 +39,7 @@ nazhi
 ```json
 {
   "status": "success",
-  "code": 1,
+  "code": 200,
   "message": "",
   "data": { ... 业务载荷 ... }
 }
@@ -50,7 +50,7 @@ nazhi
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | status | string | `success` / `partial` / `error` |
-| code | int | 业务 code (1=成功) 或 HTTP 状态码 (200/401/500 等) |
+| code | int | HTTP 风格状态码 (200/4xx/5xx) |
 | message | string | 错误或提示消息, 成功时为空 |
 | data | any | 业务载荷, 可为 object / array / scalar |
 

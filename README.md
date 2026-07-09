@@ -150,7 +150,7 @@ v1.0.0 起所有 CLI 输出统一包装在 envelope 内：
 ```json
 {
   "status": "success",
-  "code": 1,
+  "code": 200,
   "message": "",
   "data": {
     "id": 12345,
