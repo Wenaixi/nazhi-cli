@@ -10,18 +10,6 @@
 
 一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 SSO 登录（OCR 自动识别验证码）、Session 激活、任务管理、自我评价、文件上传等完整功能。所有 CLI 命令统一 envelope 输出，便于脚本解析。
 
-## v1.0.0 重大变更
-
-- **types 精简** — UserInfo 51→10 字段, Task 18→11 字段, CircleRecord/HonorRecord/SelfEvalStatus 同步精简
-- **JSON tag 统一 camelCase** — 替代原 snake_case
-- **时间字段升级 time.Time** — 自动序列化 ISO 8601 + 时区
-- **CLI envelope 包装** — 所有 stdout 输出统一 `{status, code, message, data}` 结构
-- **退出码三分** — 0=成功, 1=业务错误/partial, 2=网络错误, 3=参数错误
-- **删除 `nazhi school`** — 学校信息从 `whoami` 获取
-- **新增 `nazhi task done`** — `task submitted` 的别名
-
-升级指南见 [MIGRATION.md](MIGRATION.md)。完整字段表见 [docs/sdk/api.md](docs/sdk/api.md)。
-
 ## 仓库一览
 
 | 入口 | 说明 |
@@ -109,6 +97,10 @@ nazhi self-eval status
 
 # 4. 上传图片（独立服务，不需要 token）
 nazhi file upload -f ./photo.jpg
+
+# 5. 下载附件（按 ID 拿到 task submitted 里的图片）
+nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
+  xargs -I {} nazhi file download --id {} --output ./img_{}.jpg
 ```
 
 更详细的环境变量配置见 [docs/env-vars.md](docs/env-vars.md)。
@@ -140,7 +132,7 @@ nazhi
 └── completion                  生成 shell 自动补全脚本
 ```
 
-完整参数与 JSON 输出字段见 [CLI 参考](docs/cli/README.md)，命令速查见 [docs/cli/commands.md](docs/cli/commands.md)。
+完整参数与 JSON 输出字段见 [CLI 参考](docs/cli/README.md)。
 
 > **v1.0.0 移除**：`nazhi school` 命令已删除，学校 ID 现从 `nazhi whoami` 返回的 `data.schoolId` 字段获取。
 

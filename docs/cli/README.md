@@ -547,6 +547,44 @@ nazhi file upload -f ./photo.jpg
 
 **自动预处理**：任意格式 → JPG + 透明合成 → 质量/缩放级联 → ≤ 5MB（不修改原文件，全部在内存完成）。
 
+---
+
+## nazhi file download
+
+按附件 ID 下载图片到本地。**独立公共服务，不需要业务 token**。
+
+```bash
+# 下载附件 ID 5006375 到当前目录
+nazhi file download --id 5006375 --output ./photo.jpg
+
+# 配合 task submitted 批量下载
+nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
+  xargs -I {} nazhi file download --id {} --output ./img_{}.jpg
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--id` | ✅ | — | 附件 ID（int64，来自 `task submitted` 的 `imgList[].attachment_id` 或 `file upload` 的 `id`） |
+| `-o, --output` | ✅ | — | 本地保存路径 |
+| `--sso-base` | — | `NAZHI_SSO_BASE` | SSO 域名，默认 `https://www.nazhisoft.com` |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒），默认 `30` |
+
+**URL 流程**：
+
+```
+GET https://www.nazhisoft.com/common/attachment/getImg?id=<ID>
+  ↓ 302 重定向
+GET http://doc.nazhisoft.com/other/M00/.../<image>.jpg
+```
+
+**不接受 `--token`**：下载服务器是公开服务（同上传），不发送任何鉴权头。
+
+**安全约束**：
+
+- 重定向跟随仅允许 `nazhisoft.com` 同域白名单（防 SSRF 跳转到第三方）
+- 重定向次数上限 5（防恶意 Location 循环）
+- 服务端返回 0 字节时删除半成品文件（不留垃圾）
+
 预处理流程：
 
 ```

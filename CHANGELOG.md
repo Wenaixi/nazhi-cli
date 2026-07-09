@@ -7,7 +7,24 @@
 
 ## [Unreleased]
 
-暂无。
+### 新增
+- **SDK `DownloadFile(ctx, attachmentID, dst)`** — 按附件 ID 下载图片到本地。
+  入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；
+  CheckRedirect 同域白名单（nazhisoft.com）+ 5 次上限；不发任何鉴权头。
+- **CLI `nazhi file download`** — 按附件 ID 下载图片。
+  ```
+  nazhi file download --id 5006375 --output ./photo.jpg
+  ```
+  不接受 `--token`（公开服务）；urlType=`sso` 走 SSO 域名。
+
+### 修复
+- **Windows flaky timing 测试**：3 个 `TestFetchTasks_*` 在 Windows 慢机器偶发失败
+  - `TestFetchTasks_MixedBizAndCancel_FailedCountAccurate`: ctx 500ms → 1.5s
+  - `TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected`: ctx 1s → 1.5s
+  - `TestFetchTasks_Parallel`: bounds 重写为 `warmupOverhead+perDimDelay+slack`
+    （warmupOverhead=800ms，反映 Windows session warmup 真实耗时）
+  - handler sleep 300ms → 2s（确保 dim 必被 ctx cancel 而非正常完成）
+  30 次连跑零失败。
 
 ## [1.0.0] - 2026-07-09
 

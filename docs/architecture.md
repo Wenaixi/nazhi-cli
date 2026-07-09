@@ -73,7 +73,7 @@ nazhi-cli/
 │   ├── submitted.go                       GetSubmittedCircles（自动翻页合并）
 │   ├── user.go                            GetMyInfo
 │   ├── honor.go                           GetHonorTypes / GetHonorTypeForSelect / GetHonorLevel / GetHonorList / AddHonor
-│   ├── file.go                            UploadFile + newCleanClient
+│   ├── file.go                            UploadFile + DownloadFile + newCleanClient
 │   ├── image_prep.go                      magic bytes sniff + flattenOnWhite + 缩放/质量级联
 │   └── cookie_sync.go                     syncCookieToken / buildLoginResponse
 ├── pkg/tokenparse/                        SSO token 解析

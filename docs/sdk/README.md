@@ -199,6 +199,7 @@ wg.Wait()
 | `AddHonor(ctx, token, payload)` | honor.go | 申报一条荣誉 | `ErrBusinessRejected` |
 | `DeleteHonor(ctx, token, honorID)` | honor.go | 删除一条荣誉记录（GET 传 id 查询参数） | `ErrBusinessRejected` |
 | `UploadFile(ctx, filePath)` | file.go | 图片上传，自动预处理（→JPG + 压缩 ≤5MB）；**不发任何鉴权头** | `ErrNetwork`、`ErrFileTooLarge`、`ErrImageTooLarge`、`ErrUploadRejected`、`ErrRateLimited`、`ErrServiceUnavailable` |
+| `DownloadFile(ctx, attachmentID, dst)` | file.go | 按附件 ID 下载图片到本地；入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；**不发任何鉴权头** | `ErrNetwork` |
 | `Close()` | client.go | 释放 OCR session、HTTP keep-alive、临时目录；聚合 error 返回 | 多个清理错误 join 一起 |
 
 > **没有的方法**：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
@@ -1193,3 +1194,249 @@ if err != nil { log.Fatal(err) }
 **BREAKING 变更记录**：v0.3.1 起 `New()` 返回 `(*Client, error)`；v0.3.4 删除 7 个孤儿字段 / 0 引用的死错误；v0.4.0 session 状态机下沉到 `sessionManager`、HTTP helper 改私有名（`httpDo` / `rawDoWithResp`）、token 解析拆 `pkg/tokenparse`。
 
 详见根目录 `CHANGELOG.md`。
+
+---
+
+## 字段参考（pkg/types 完整表）
+
+> v1.0.0 后的精简版字段。完整定义见 `pkg/types/` 源码。
+
+### UnifiedResponse
+
+平台所有业务接口的通用响应包。`pkg/types/response.go`。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| Code | `int` | `code` | 是 | 业务 code：1=成功，其他=错误 |
+| Msg | `*string` | `msg` | 否 | 业务消息；nil 或空字符串时回落为 "未知错误" |
+| ReturnData | `*json.RawMessage` | `returnData` | 否 | 主业务数据（解码延迟） |
+| DataList | `*json.RawMessage` | `dataList` | 否 | 列表数据 |
+| DataMap | `*json.RawMessage` | `dataMap` | 否 | 字典数据 |
+| PageBean | `*json.RawMessage` | `pageBean` | 否 | 分页信息 |
+
+辅助方法：`DecodeResponse` / `CheckCode` / `DecodeReturnData[T]` / `DecodeDataList[T]` / `DecodeDataMap[T]` / `DecodePageBean`。
+
+### LoginResponse
+
+SSO 登录成功响应。`pkg/types/login.go`。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| Token | `string` | `token` | 是 | X-Auth-Token 凭证 |
+| ExpiresAt | `time.Time` | `expiresAt` | 是 | token 过期时间（ISO 8601 + 时区） |
+| FallbackUsed | `bool` | `fallbackUsed` | 是 | 本次登录是否降级到 ddddocr OCR |
+
+### UserInfo
+
+> v1.0.0 从 51 字段精简到 13 字段（10 核心 + 座号 + 双学号）。联系方式/证件号/积分已移除。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 用户 ID |
+| Name | `string` | `name` | 是 | 姓名 |
+| StudentNumber | `string` | `studentNumber` | 是 | 学号 |
+| StudentID | `int64` | `studentId` | 是 | 学生 ID（与 id 不同，服务端逻辑区分） |
+| StudyNumber | `string` | `studyNumber` | 否 | 校内短学号 |
+| NationalStudentNumber | `string` | `nationalStudentNumber` | 否 | 全国学号 |
+| SchoolID | `int64` | `schoolId` | 是 | 学校 ID |
+| SchoolName | `string` | `schoolName,omitempty` | 否 | 学校名（平台返回 null 时省略） |
+| GradeID | `int64` | `gradeId` | 是 | 年级 ID |
+| GradeName | `string` | `gradeName` | 是 | 年级名 |
+| ClassID | `int64` | `classId` | 是 | 班级 ID |
+| ClassName | `string` | `className` | 是 | 班级名 |
+| Seat | `int` | `seat` | 否 | 座号 |
+
+### Task
+
+> v1.0.0 + v1.0.x 共 21 字段。Score/AuditStartDate/AuditEndDate/CreatorName/RoleName 等业务高频字段已恢复。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 任务 ID（即 circleTaskId） |
+| Name | `string` | `name` | 是 | 任务名称 |
+| TypeName | `string` | `typeName` | 是 | 类型名称 |
+| DimensionName | `string` | `dimensionName` | 是 | 维度名称 |
+| Hours | `float64` | `hours` | 是 | 学时 |
+| Score | `float64` | `score` | 否 | 学分（与 hours 不同） |
+| Remark | `string` | `remark` | 否 | 任务说明（"照片加描述" 等） |
+| Submitted | `bool` | `submitted` | 是 | 是否已提交（来自 circleTaskStatus） |
+| NeedPic | `bool` | `needPic` | 是 | 是否需要图片（来自 upPic 0/1） |
+| StartDate | `DateOnly` | `startDateStr` | 是 | 开始日期（如 `2026-01-12`） |
+| EndDate | `DateOnly` | `endDateStr` | 是 | 结束日期 |
+| AuditStartDate | `DateOnly` | `auditStartDateStr` | 否 | 审核开始日期 |
+| AuditEndDate | `DateOnly` | `auditEndDateStr` | 否 | 审核截止日期 |
+| CreatorName | `string` | `creatorName` | 否 | 创建者（"许风华"/"管理员"） |
+| RoleName | `string` | `roleName` | 否 | 创建者角色（"班主任"） |
+| CreationTime | `[]int` | `creationTime` | 否 | 任务创建时间（`[y,m,d,h,m,s]` 数组） |
+| CreationTimeStr | `DateOnly` | `creationTimeStr` | 否 | 任务创建日期字符串 |
+| TermID | `int64` | `termId` | 否 | 学期 ID |
+| PushNum | `int` | `pushNum` | 否 | 推送次数 |
+| ScopeType | `int` | `scopeType` | 是 | 作用域类型（见 `ScopeClass/Grade/Stage` 常量） |
+| ScopeTypeName | `string` | `scopeTypeName` | 是 | 作用域名称 |
+
+**ScopeType 常量**：
+
+| 常量 | 值 | 说明 |
+|------|----|------|
+| `ScopeClass` | `1` | 班级任务 |
+| `ScopeGrade` | `2` | 年段任务 |
+| `ScopeStage` | `3` | 学段任务 |
+
+### TaskSubmitPayload
+
+addCircle 接口的完整请求体（29 字段透传）。`pkg/types/task.go`。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `*int64` | `id` | 否 | 记录 ID（新建时为空，更新时填） |
+| Name | `string` | `name` | 是 | 写实标题 |
+| HostName | `string` | `hostName` | 否 | 主办方 |
+| CircleDate | `string` | `circleDate` | 否 | 写实日期（YYYY-MM-DD） |
+| Rank | `string` | `rank` | 否 | 排名 |
+| Level | `string` | `level` | 否 | 级别 |
+| Content | `string` | `content` | 是 | 写实正文 |
+| PictureList | `[]int64` | `pictureList` | 否 | 图片附件 ID 列表 |
+| CircleTaskID | `int64` | `circleTaskId` | 是 | 关联任务 ID |
+| CircleTypeID | `int64` | `circleTypeId` | 是 | 写实类型 ID |
+| DimensionID | `int64` | `dimensionId` | 是 | 维度 ID |
+| Hours | `float64` | `hours` | 否 | 实践时长 |
+| CircleBeginDate / CircleEndDate | `string` | — | 否 | 开始/结束日期 |
+| CheckResult / PatentType / PatentNum / Address | `string` | — | 否 | 检查/专利/地址 |
+| TermName / ActivityName / SportsName / TeamName / OrgName / ResultsName / ObtainTime / SpecialtyTechnology | `string` | — | 否 | 学期/活动/项目/团队/组织/成果/时间/特长 |
+| PlayRole | `string` | `playRole` | 否 | 承担角色（`"1"`=主持策划者 `"2"`=主要参与者 `"3"`=参与者，见 `PlayRole*` 常量） |
+| LikeSpecialty1/2/3 | `string` | `likeSpecialtyN` | 否 | 兴趣特长 1/2/3 |
+
+### TaskResult
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| Code | `int` | `code` | 是 | 业务 code（1=成功） |
+| Msg | `string` | `msg` | 是 | 结果描述 |
+
+### CircleRecord
+
+> v1.0.0 + v1.0.x 共 11 字段，含 ImgPreViewList 图片 URL 列表。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 写实记录主键 |
+| Name | `string` | `name` | 是 | 写实标题 |
+| Content | `string` | `content` | 是 | 写实正文 |
+| TypeName | `string` | `typeName` | 是 | 类型名 |
+| Approved | `bool` | `approved` | 是 | 是否已通过审核 |
+| CircleDate | `time.Time` | `circleDate` | 是 | 写实发生日期（ISO 8601 + 时区） |
+| Hours | `float64` | `hours` | 是 | 实践时长（小时） |
+| ImgList | `[]CircleImage` | `imgList` | 是 | 关联图片附件列表 |
+| ImgPreViewList | `[]string` | `imgPreViewList` | 否 | 图片预览 URL 列表（服务端返回的可访问链接） |
+| Remark | `string` | `remark` | 否 | 备注 |
+
+### CircleImage
+
+> v1.0.0 从 1 字段扩展到 6 字段（完整附件元数据）。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 图片记录主键 |
+| CircleID | `int64` | `circle_id` | 是 | 关联的写实记录 ID |
+| ClassID | `int64` | `class_id` | 是 | 班级 ID |
+| TaskID | `int64` | `task_id` | 是 | 关联的任务 ID |
+| AttachmentID | `int64` | `attachment_id` | 是 | 附件 ID（用于查询/下载） |
+| ImgPath | `string` | `imgPath` | 是 | 图片扩展名（如 `.jpg`） |
+
+### PageBean
+
+平台通用分页信息。`pkg/types/circle.go`。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| PageNo | `int` | `pageNo` | 是 | 当前页码（1-based） |
+| PageSize | `int` | `pageSize` | 是 | 每页条数 |
+| TotalNum | `int` | `totalNum` | 是 | 总条数 |
+| TotalPage | `int` | `totalPage` | 是 | 总页数 |
+
+### HonorType
+
+> v1.0.0 精简到 5 字段。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 荣誉类型 ID |
+| Name | `string` | `name` | 是 | 荣誉名称 |
+| LevelName | `string` | `levelName` | 是 | 级别名（校/区县/市/省/国家） |
+| Level | `int` | `level` | 是 | 级别代码（5=校, 4=区县, 3=市, 2=省, 1=国家） |
+| DimensionName | `string` | `dimensionName` | 是 | 维度名 |
+
+### HonorRecord
+
+> v1.0.0 精简到 9 字段。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 荣誉记录 ID |
+| TypeName | `string` | `typeName` | 是 | 荣誉类型名 |
+| LevelName | `string` | `levelName` | 是 | 级别名 |
+| Level | `int` | `level` | 是 | 级别代码 |
+| DimensionName | `string` | `dimensionName` | 是 | 维度名 |
+| Approved | `bool` | `approved` | 是 | 是否已通过审核 |
+| ApprovedName | `string` | `approvedName` | 是 | 审核状态名 |
+| GetDate | `time.Time` | `getDate` | 是 | 获得日期 |
+| EvaluationAgency | `string` | `evaluationAgency` | 是 | 颁发机构 |
+
+### AddHonorPayload
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| Name | `string` | `name` | 是 | 荣誉名称 |
+| TypeID | `int64` | `typeId` | 是 | 荣誉类型 ID |
+| TypeName | `string` | `typeName` | 是 | 荣誉类型名 |
+| Level | `int` | `level` | 是 | 级别代码 |
+| EvaluationAgency | `string` | `evaluationAgency` | 是 | 颁发机构 |
+| GetDate | `string` | `getDate` | 是 | 获得日期（YYYY-MM-DD） |
+| CertImgAttachmentID | `string` | `certImgAttachmentId` | 否 | 证书图片附件 ID 或空 |
+
+### HonorSelectOption
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| Label | `string` | `label` | 是 | 显示文本 |
+| Value | `int` | `value` | 是 | 选项值 |
+
+### SelfEvalStatus
+
+> v1.0.0 精简到 3 字段，仅保留 id + 双向评语。
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 自我评价 ID |
+| StudentComment | `string` | `studentComment` | 是 | 学生自评 |
+| TeacherComment | `string` | `teacherComment` | 是 | 教师评语 |
+
+### Dimension
+
+| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
+|------|---------|----------|------|------|
+| ID | `int64` | `id` | 是 | 维度 ID（0=全部汇总，FetchTasks 会跳过） |
+| Name | `string` | `name` | 是 | 维度名 |
+
+### BusinessError
+
+业务错误，保留数值 code 供 `errors.As` 精细判别。`pkg/types/response.go`。
+
+| 字段 | Go 类型 | 必选 | 说明 |
+|------|---------|------|------|
+| Code | `int` | 是 | 业务 code（非 1） |
+| Msg | `string` | 是 | 错误描述 |
+
+调用方：
+
+```go
+var bizErr *types.BusinessError
+if errors.As(err, &bizErr) {
+    switch bizErr.Code {
+    case 2:
+        // 重试
+    case 500:
+        // 致命
+    }
+}
+```
