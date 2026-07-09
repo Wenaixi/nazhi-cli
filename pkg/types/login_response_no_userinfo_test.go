@@ -43,11 +43,11 @@ func TestLoginResponse_NoUserInfoField(t *testing.T) {
 		t.Errorf("LoginResponse 序列化不应含 'user_info' 键，实际: %s", data)
 	}
 
-	// 反向断言：序列化应保留 token / expires_at 字段
+	// 反向断言：序列化应保留 token / expiresAt 字段
 	if !strings.Contains(string(data), "test-token") {
 		t.Errorf("LoginResponse 序列化应保留 Token 字段，实际: %s", data)
 	}
-	if !strings.Contains(string(data), "expires_at") {
-		t.Errorf("LoginResponse 序列化应保留 expires_at 字段，实际: %s", data)
+	if !strings.Contains(string(data), "expiresAt") {
+		t.Errorf("LoginResponse 序列化应保留 expiresAt 字段，实际: %s", data)
 	}
 }
