@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -29,7 +30,7 @@ var selfEvalStatusCmd = &cobra.Command{
 			return
 		}
 
-		printJSON(status)
+		printEnvelope(envelope.Success(status))
 	},
 }
 

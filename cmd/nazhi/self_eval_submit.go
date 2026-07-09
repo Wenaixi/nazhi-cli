@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -42,7 +43,7 @@ var selfEvalSubmitCmd = &cobra.Command{
 			}
 			comment = strings.TrimSpace(input)
 			if comment == "" {
-				printError(fmt.Errorf("评价内容不能为空"))
+				printEnvelope(envelope.Error(400, "评价内容不能为空"))
 				return
 			}
 		}
@@ -54,7 +55,7 @@ var selfEvalSubmitCmd = &cobra.Command{
 			return
 		}
 
-		printJSON(map[string]string{"status": "ok", "message": "自我评价提交成功"})
+		printEnvelope(envelope.Success(map[string]string{"status": "ok", "message": "自我评价提交成功"}))
 	},
 }
 

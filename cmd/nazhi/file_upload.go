@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +25,7 @@ SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath, _ := cmd.Flags().GetString("file")
 		if filePath == "" {
-			printError(fmt.Errorf("--file 为必填"))
+			printEnvelope(envelope.Error(400, "--file 为必填"))
 			return
 		}
 
@@ -43,10 +44,10 @@ SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。
 			return
 		}
 
-		printJSON(map[string]any{
+		printEnvelope(envelope.Success(map[string]any{
 			"id":   id,
 			"path": filePath,
-		})
+		}))
 	},
 }
 
