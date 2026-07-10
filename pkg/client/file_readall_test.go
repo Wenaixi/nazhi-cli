@@ -123,8 +123,8 @@ func TestUploadFile_ReadAllErrorIsWrappedAsErrNetwork(t *testing.T) {
 	}
 }
 
-// TestUploadFile_ReadAllErrorNotSwallowed 防护测试:
-// 错误信息绝不能是含糊的 EOF 误报 (修复前的症状)。
+// TestUploadFile_ReadAllErrorNotSwallowed 防护测试：
+// 错误信息不应是含糊的 EOF 误报（修复前的症状）。
 // 因为 json.Unmarshal([]) 在 body 为空时返回 EOF, 旧实现会报「解析上传响应失败: EOF」,
 // 把网络层根因丢失, 误导用户以为是协议错误。
 func TestUploadFile_ReadAllErrorNotSwallowed(t *testing.T) {

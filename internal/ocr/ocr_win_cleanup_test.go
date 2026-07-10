@@ -10,7 +10,7 @@
 //
 // 修复：把「删除临时目录」抽成 cleanupTempDir helper，
 // 对 OS 级「文件被占用」类错误降级（返回 nil），其他错误照常上报。
-// 「不静默吞错」铁律保留：仅 DLL/原生库持锁导致的 errno 才降级，
+// 「不静默吞错」原则保留：仅 DLL/原生库持锁导致的 errno 才降级，
 // 其他 errno（权限拒绝、磁盘满等）照常返回。
 //
 // 测试用 removeDirFn 函数变量注入删除行为，避免依赖真实 Windows 持锁。
@@ -68,7 +68,7 @@ func TestCleanupTempDir_SharingViolation_DowngradesToNil(t *testing.T) {
 	}
 }
 
-// TestCleanupTempDir_OtherError_Propagates 「不静默吞错」铁律：
+// TestCleanupTempDir_OtherError_Propagates 「不静默吞错」原则：
 // 除 access-denied/sharing-violation 之外的真实清理错误必须照常返回，
 // 否则 Linux 上的权限拒绝、磁盘满、只读卷等都会变成 silent failure。
 func TestCleanupTempDir_OtherError_Propagates(t *testing.T) {
@@ -153,7 +153,7 @@ func TestOCR_CloseWindowsBusyDLL_NoStderrPollution(t *testing.T) {
 // TestCleanupTempDir_LinuxEIO_Propagates 平台守卫 RED 测试：非 Windows 平台
 // 上 syscall.Errno 数值（5=EIO、32=EPIPE）也会被 Windows 错误码命中。
 // 若 isPlatformLibBusy 不加 GOOS 守卫，Linux 上 os.RemoveAll 因磁盘 I/O
-// 故障返回裸 EIO/EPIPE 会被误判为「DLL 占用」而吞掉，违反「不静默吞错」铁律。
+// 故障返回裸 EIO/EPIPE 会被误判为「DLL 占用」而吞掉，违反「不静默吞错」原则。
 //
 // 本测试：goosFn 注入 "linux" + 注入 errnoAccessDeniedWin(5)，断言 cleanupTempDir
 // 必须返回 wrap 错误（不能降级为 nil）。
@@ -174,7 +174,7 @@ func TestCleanupTempDir_LinuxEIO_Propagates(t *testing.T) {
 
 	err := cleanupTempDir("/tmp/nazhi-cli-ocr-fake")
 	if err == nil {
-		t.Fatalf("Linux + errno=5(EIO) 必须透传错误，不能降级为 nil（违反「不静默吞错」铁律）")
+		t.Fatalf("Linux + errno=5(EIO) 必须透传错误，不能降级为 nil（违反「不静默吞错」原则）")
 	}
 	// 进一步断言：必须是 wrap 后的业务错误，而非 raw syscall error
 	if !strings.Contains(err.Error(), "清理临时目录") {

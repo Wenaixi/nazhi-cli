@@ -26,7 +26,7 @@
 | 文档 | 内容 |
 |---|---|
 | [HAR 驱动测试](./har-testing.md) | 抓包驱动 fixture + PII SHA-256 守卫反自反性陷阱 + 测试架构 |
-| [贡献指南](../CONTRIBUTING.md) | PR 流程、提交规范、push 前必跑 6 步铁律 |
+| [贡献指南](../CONTRIBUTING.md) | PR 流程、提交规范、push 前必跑 CI 6 步 |
 | [CHANGELOG](../CHANGELOG.md) | 全部版本变更日志 |
 | [安全策略](../SECURITY.md) | 漏洞上报 + PII 守卫承诺 + 凭据历史清理说明 |
 | [项目记忆](../CLAUDE.md) | AI 协作专用（git 忽略），含架构细节与本机凭据 |
@@ -47,7 +47,7 @@
 
 ### 我是贡献者，要改代码
 
-1. 看 [CONTRIBUTING.md](../CONTRIBUTING.md) 的「push 前必跑」6 步铁律
+1. 看 [CONTRIBUTING.md](../CONTRIBUTING.md) 的「push 前必跑」CI 6 步
 2. 看 [architecture.md](./architecture.md) 了解代码结构
 3. 看 [har-testing.md](./har-testing.md) 了解测试体系
 4. 提交规范遵循 Conventional Commits

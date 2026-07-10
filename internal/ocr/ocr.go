@@ -43,7 +43,7 @@ var removeDirFn = os.RemoveAll
 // 这种 OS 级占用错误会在进程退出时由 OS 自然清理（句柄释放 → 文件可删），
 // 没必要把非「业务可控」的 stderr 污染当作 Close 失败上报。
 //
-// 「不静默吞错」铁律保留：仅 Windows 下 DLL/原生库占用导致的两类 errno 才降级，
+// 「不静默吞错」原则保留：仅 Windows 下 DLL/原生库占用导致的两类 errno 才降级，
 // 其他错误（Linux EPERM、磁盘满、只读卷、路径不存在等）照常返回。
 //
 // 跨平台：由 isPlatformLibBusy 的 GOOS 守卫保证降级只在 Windows 生效，
@@ -78,7 +78,7 @@ func cleanupTempDir(dir string) error {
 //
 // 平台守卫（关键）：仅在 GOOS == "windows" 时才判 errno，否则永远 false。
 // 否则 Linux 上 errno=5(EIO) / errno=32(EPIPE) 也是合法 errno，会被误判为
-// 「DLL 占用」而吞掉真实 I/O 错误，违反「不静默吞错」铁律。
+// 「DLL 占用」而吞掉真实 I/O 错误，违反「不静默吞错」原则。
 func isPlatformLibBusy(err error) bool {
 	if goosFn() != "windows" {
 		return false

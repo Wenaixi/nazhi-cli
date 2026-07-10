@@ -17,7 +17,7 @@
 
 ## 当前版本
 
-仓库 `internal/version/version.go` 是版本号唯一真源。当前活跃版本：
+仓库 `internal/version/version.go` 是版本号唯一写入处，CI 与 Makefile 从这里读。当前活跃版本：
 
 | 版本 | 状态 | 备注 |
 |---|---|---|
@@ -84,9 +84,9 @@ chore(deps): 依赖升级
 - 保持单次 PR 只聚焦一个功能 / 修复
 - 跨多个 worktree 的修复，按 fix group 拆 commit，merge 时 `git merge --no-ff` 保留结构
 
-## **注意** push 前必跑（CI 6 步铁律）
+## push 前必跑 CI 6 步
 
-CI 含 6 个独立 gate，每个都可能单独 fail。**绝不能只跑 `go test` 就 push**。
+`go test` 不能替代完整 CI。CI 有 6 个独立 gate，每个都可能单独 fail。
 本地一键验证（全绿才能 push）：
 
 ```bash

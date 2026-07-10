@@ -61,7 +61,7 @@ func TestOCR_RecognizeAfterCloseViaOnce_ReturnsError(t *testing.T) {
 	o.ocr = nil
 	o.initMu.Unlock()
 
-	// 关键断言：必须返回错误，绝不能 panic
+	// 关键断言：必须返回错误，不能 panic
 	var result string
 	var err error
 	func() {

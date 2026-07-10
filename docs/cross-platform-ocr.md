@@ -156,7 +156,7 @@ func defaultOCR() CaptchaRecognizer {
 
 ### 轮次 B：GOOS=windows 平台守卫（commit `a81c9f3`）
 
-**问题**：5ff0ea8 引入的 `isPlatformLibBusy` 仅判 `syscall.Errno` 数值（5 / 32），注释承诺「非 Windows 永远 false」但代码未做平台守卫。Linux 上 `EIO=5` / `EPIPE=32` 也是合法 errno，会被误判为「DLL 占用」而吞掉真实 I/O 错误，违反「不静默吞错」铁律。
+**问题**：5ff0ea8 引入的 `isPlatformLibBusy` 仅判 `syscall.Errno` 数值（5 / 32），注释承诺「非 Windows 永远 false」但代码未做平台守卫。Linux 上 `EIO=5` / `EPIPE=32` 也是合法 errno，会被误判为「DLL 占用」而吞掉真实 I/O 错误，这违反了"不静默吞错"的原则。
 
 **修复**：
 - 抽 `goosFn` 函数变量作为平台注入点，默认 `runtime.GOOS`，便于测试不依赖 build tag

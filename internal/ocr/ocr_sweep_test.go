@@ -137,14 +137,14 @@ func TestSweepStaleTempDirs_NeverTouchesForeignEntries(t *testing.T) {
 	}
 	sort.Strings(want)
 	if len(removed) != len(want) {
-		t.Fatalf("删除数量不对：got %v want %v（绝不能误删 chrome/vscode/go-build/random.txt/log）", removed, want)
+		t.Fatalf("删除数量不对：got %v want %v（不应误删 chrome/vscode/go-build/random.txt/log）", removed, want)
 	}
 	for i := range want {
 		if removed[i] != want[i] {
 			t.Errorf("删除列表第 %d 项：got %q want %q", i, removed[i], want[i])
 		}
 	}
-	// 二次断言（更严格）：结果中绝不能出现非 nazhi-cli-ocr- 前缀
+	// 二次断言（更严格）：结果中不应出现非 nazhi-cli-ocr- 前缀
 	for _, p := range removed {
 		base := filepath.Base(p)
 		if !strings.HasPrefix(base, "nazhi-cli-ocr-") {
