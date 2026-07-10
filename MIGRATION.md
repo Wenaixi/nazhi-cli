@@ -19,11 +19,14 @@ v1.0.0 是破坏性更新。所有 SDK 消费者必须做以下调整:
 
 ### 2. 字段删除 (UserInfo 影响最大)
 
-UserInfo 从 51 字段精简到 10 字段:
+v1.0.0 首发时 UserInfo 从 51 字段精简到 10 字段:
 
 - 删除: initials/pinyin/studyNumber/nationalStudentNumber/seat/seatSort/gender/genderName/nation/idType/idCard/birthday/birthdayStr/telephone/email/qq/wechat/address/nationality/politicalStatus/creationTime/modificationTime 等 41 字段
-- 保留: id/name/studentNumber/studentId/schoolId/schoolName/gradeId/gradeName/classId/className (10 字段)
-- 如需恢复: 在 v1.0.x 之前升级; v1.1.0 可能加回 (按需)
+- 首发保留: id/name/studentNumber/studentId/schoolId/schoolName/gradeId/gradeName/classId/className
+
+后续 v1.0.x 补回了业务侧高频字段，最终保留以下字段：
+
+id / name / studentNumber / studentId / studyNumber / nationalStudentNumber / schoolId / schoolName / gradeId / gradeName / classId / className / seat
 
 ### 3. JSON 命名统一 camelCase
 
