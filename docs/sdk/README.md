@@ -273,7 +273,7 @@ resp, err := c.Login(ctx, types.LoginRequest{
 2. errgroup.WithContext 并发：
    ├─ GetSchoolID（仅当 req.SchoolID 为空）
    └─ ocrRecognizeWithRetry（最多 9 张图 × 1 次/图）
-3. 验证码预校验已在 OCR 循环内部完成（v0.6.0）
+3. 验证码预校验已在 OCR 循环内部完成
 4. POST /validate
    ├─ 200 路径 → tokenparse.ExtractFromReturnData
    └─ 302 fallback → tokenparse.ExtractFromLocation
@@ -350,7 +350,7 @@ token := resp.Token
 
 跳过任何一步都会让后续接口返回空数据。
 
-**状态机**：v0.4.0 架构深化后由内部 `sessionManager` 状态机统一管理：
+**状态机**：由内部 `sessionManager` 状态机统一管理：
 
 - **DCL fast-path**：同 token 第二次调用直接返回缓存 `*UserInfo`，不发起 HTTP
 - **backoff 缓存**：失败后同 token 在 5 秒内重复调用返 `ErrSessionBackoff`，防止 thundering herd（可用 `WithSessionBackoff` 调窗口）
@@ -482,7 +482,7 @@ log.Printf("欢迎 %s（%s）", info.Name, info.ClassName)
 | 业务成功但 returnData + dataMap 都为空 | `errors.Is(err, ErrEmptyUserInfo)` |
 | 网络层失败 | `errors.Is(err, ErrNetwork)` / `ErrTimeout` |
 
-**历史**：`v0.3.4` 及更早版本曾返 `(nil, nil)` 表示空响应，CLI 输出误导性的 `null`；v0.3.5 改返 `ErrEmptyUserInfo` 让 cmd 层走统一的 status envelope。
+**历史**：早期版本曾返 `(nil, nil)` 表示空响应，CLI 输出误导性的 `null`；后改返 `ErrEmptyUserInfo` 让 cmd 层走统一的 status envelope。
 
 ---
 
@@ -771,7 +771,7 @@ log.Printf("师评：%s", status.TeacherComment)
 
 上传图片到文件服务器，返回图片 ID。
 
-**关键设计**（v0.3.5+）：
+**关键设计**：
 
 | 行为 | 原因 |
 |---|---|
@@ -1081,7 +1081,7 @@ func (c *Client) Close() error
 - OCR session（ONNX runtime + 临时目录）
 - HTTP Transport 空闲 keep-alive 连接
 
-**约定**：业务完成后 `defer c.Close()`。Windows 上尤其重要——未调 Close 的话进程退出时 DLL 句柄未释放，`%TEMP%/nazhi-cli-ocr-*/onnxruntime.dll` 会被 `LoadLibrary` 占用到下次启动才能扫掉（v0.4.0 三轮修复的"启动清扫"是兜底）。
+**约定**：业务完成后 `defer c.Close()`。Windows 上尤其重要——未调 Close 的话进程退出时 DLL 句柄未释放，`%TEMP%/nazhi-cli-ocr-*/onnxruntime.dll` 会被 `LoadLibrary` 占用到下次启动才能扫掉（"启动清扫"是兜底）。
 
 **多 Client 场景**：
 
@@ -1341,7 +1341,7 @@ if err != nil { /* 空 body / token 类型异常 */ }
 | **JWT payload exp（中间兜底）** | Unix 秒，绝对时间 | JWT token |
 | **兜底 `DefaultTokenTTL = 24h`** | 当三个字段都不存在 | `tokenparse.DefaultTokenTTL` |
 
-畸形 URL 直接返回 `url.Parse` 底层错误（已是可读 parse error）。**注意**：`ErrLocationParseFailed` sentinel **已删除**——历史上曾定义但 `auth.go` 未用 `%w` 链入，导致 `errors.Is` 永不命中，纯死代码。
+畸形 URL 直接返回 `url.Parse` 底层错误（已是可读 parse error）。**注意**：`ErrLocationParseFailed` sentinel **已删除**——曾定义但 `auth.go` 未用 `%w` 链入，导致 `errors.Is` 永不命中，纯死代码。
 
 ---
 
@@ -1515,9 +1515,9 @@ if err != nil { log.Fatal(err) }
 
 ## 版本契约
 
-`pkg/client` 的所有公开方法自 v0.4.0（`internal/version/version.go`）起保持向后兼容。新增字段不会破坏现有调用方（Go 的结构体序列化容忍未知字段）。
+`pkg/client` 的所有公开方法均保持向后兼容。新增字段不会破坏现有调用方（Go 的结构体序列化容忍未知字段）。
 
-**BREAKING 变更记录**：v0.3.1 起 `New()` 返回 `(*Client, error)`；v0.3.4 删除孤儿字段 / 零引用的死错误；v0.4.0 session 状态机下沉到 `sessionManager`、HTTP helper 改私有名（`httpDo` / `rawDoWithResp`）、token 解析拆 `pkg/tokenparse`。
+**BREAKING 变更记录**：早期 `New()` 曾返回 `(*Client, error)` 而非 `(*Client, error)`；后续删除了孤儿字段/零引用的死错误；session 状态机下沉到 `sessionManager`、HTTP helper 改私有名（`httpDo` / `rawDoWithResp`）、token 解析拆 `pkg/tokenparse`。
 
 详见根目录 `CHANGELOG.md`。
 
@@ -1574,7 +1574,7 @@ SSO 登录成功响应。`pkg/types/login.go`。
 
 ### Task
 
-> v1.0.0 + v1.0.x 共 21 字段。Score/AuditStartDate/AuditEndDate/CreatorName/RoleName 等业务高频字段已恢复。
+> 共 21 字段。Score/AuditStartDate/AuditEndDate/CreatorName/RoleName 等业务高频字段已恢复。
 
 | 字段 | Go 类型 | JSON tag | 必选 | 说明 |
 |------|---------|----------|------|------|
@@ -1641,7 +1641,7 @@ addCircle 接口的完整请求体（29 字段透传）。`pkg/types/task.go`。
 
 ### CircleRecord
 
-> v1.0.0 + v1.0.x 共 10 字段，含 ImgPreViewList 图片 URL 列表。
+> 共 10 字段，含 ImgPreViewList 图片 URL 列表。
 
 | 字段 | Go 类型 | JSON tag | 必选 | 说明 |
 |------|---------|----------|------|------|

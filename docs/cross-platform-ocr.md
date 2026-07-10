@@ -22,8 +22,8 @@
 ```
 internal/ocr/
 ├── ocr.go                          # OCR Pool + 跨平台路径处理 + Windows DLL 降级 + 启动清扫
-├── ocr_sweep_test.go               # 启动清扫测试（v0.4.0 第 3 轮修复）
-├── ocr_win_cleanup_test.go         # Windows DLL 降级测试（v0.4.0 第 1 轮修复）
+├── ocr_sweep_test.go               # 启动清扫测试
+├── ocr_win_cleanup_test.go         # Windows DLL 降级测试
 ├── onnx_win_amd64.go               //go:build windows && amd64
 ├── onnx_win_arm64.go               //go:build windows && arm64
 ├── onnx_lin_amd64.go               //go:build linux && amd64
@@ -99,7 +99,7 @@ platformLibName := func() string {
 
 ## Pool 多实例 + sync.Mutex
 
-v0.4.0 起 OCR 用 `Pool` 多实例替代 v0.3.5 之前的进程级单例（`GetDefault()` 已删除）：
+OCR 用 `Pool` 多实例替代早期的进程级单例（`GetDefault()` 已删除）：
 
 ```go
 pool := ocr.NewPool(0)  // 0 = 懒加载 1 实例
@@ -113,9 +113,9 @@ pool := ocr.NewPool(4)  // 预热 4 个实例
 
 **内存代价**：N=4 约 200MB（4 实例 × 50MB）。业务场景批量 Login 才需要调高；单次 Login 用默认足够。
 
-> **历史说明**：v0.3.4 之前曾提供 `ocr.GetDefault()` 进程级单例，但生产代码无调用方，已删除。
+> **历史说明**：早期曾提供 `ocr.GetDefault()` 进程级单例，但生产代码无调用方，已删除。
 
-## OCR 可选构建（v0.3.5+）
+## OCR 可选构建
 
 ```go
 // client_ocr_enabled.go  //go:build ddddocr
@@ -139,7 +139,7 @@ func defaultOCR() CaptchaRecognizer {
 - `Login()` 立即返 `ErrOCRNotConfigured`，错误消息明确给出 actionable 指引（用预编译 release 或 `WithCustomOCR` 注入）
 - `WithOCRConcurrency` 在 `!ddddocr` 构建下为 no-op warn（不会 panic 也不会替换已有 ocr）
 
-## Windows OCR 三轮修复（v0.4.0 第 15/16 轮 TDD）
+## Windows OCR 三轮修复
 
 ### 轮次 A：Windows DLL 占用降级（commit `5ff0ea8`）
 
@@ -287,7 +287,7 @@ $ NAZHI_TIMEOUT=60 nazhi -v login -u x -p y
 2. 服务端 captcha 服务慢（kaptcha.jpg 图片下载）—— 加大 `NAZHI_TIMEOUT`
 3. 9 张图都识别失败（ddddocr 模型错位）—— 升级 `internal/ocr/models/` 的模型文件
 
-### 临时目录堆积问题（v0.4.0 修复前）
+### 临时目录堆积问题（修复前）
 
 修复前 Windows 上 `nazhi login` N 次会留 N 个 `nazhi-cli-ocr-*` 目录在 `%TEMP%`。
 修复后 `nazhi login` 会顺手 best-effort 清扫旧目录，**不必手动清理**。

@@ -83,7 +83,7 @@ var noRedirect = func(_ *http.Request, _ []*http.Request) error {
 }
 ```
 
-`http.Client.CheckRedirect = noRedirect` **不自动跟随 302**，因为 SSO 登录成功的 JWT token 在 302 的 `Location` 头里。`noRedirect` 是包级共享变量（v0.4.0 提炼，消除 3 处相同闭包）。
+`http.Client.CheckRedirect = noRedirect` **不自动跟随 302**，因为 SSO 登录成功的 JWT token 在 302 的 `Location` 头里。`noRedirect` 是包级共享变量。
 
 ### 3. 双重 Token 注入
 
@@ -113,7 +113,7 @@ Cookie 同步失败（如自定义 `Jar` 不是 `*cookiejar.Jar`）会让 `New()
 
 跳过任何一步都会让后续接口返回空数据。
 
-**v0.4.0 架构深化**：
+**架构深化**：
 
 - **4 入口收口**：删除 `activateWithBackoffCheck` + `activateSessionIfNeeded`，`ActivateSession` 直接委托给 `sm.Activate`
 - **`sessionManager` 封装**：`SetBackoff` 加 `sm.mu.Lock` 消除 d≤0 race + 与 WithTimeout 守卫对称
@@ -138,11 +138,11 @@ Cookie 同步失败（如自定义 `Jar` 不是 `*cookiejar.Jar`）会让 `New()
 
 **OCR 重试策略**：单图 OCR 1 次（ddddocr 对同图确定性，重试无意义），失败换新图，最多 9 张图。常量 `maxOCRImagesTotal=9`。
 
-**并发安全**：v0.4.0 之前 CallStep 严格排序，v0.4.0 之后改用 mutex 保护的状态变量，**支持 Login 并发**（不影响正确性，但 OCR 引擎一次只能识别一张图，所以真并发看 Pool concurrency）。
+**并发安全**：早期 CallStep 严格排序，之后改用 mutex 保护的状态变量，**支持 Login 并发**（不影响正确性，但 OCR 引擎一次只能识别一张图，所以真并发看 Pool concurrency）。
 
 **token 解析下沉到 pkg/tokenparse**（架构深化 #4）：`ExtractFromLocation` / `ExtractFromReturnData` 两个公开函数，`auth.go` 两条路径（200/302）都走。`DefaultTokenTTL=24h` 兜底 + `ErrLocationParseFailed` 死 sentinel 删除。
 
-### 6. OCR 跨平台 + Pool 多实例（v0.4.0 三轮修复）
+### 6. OCR 跨平台 + Pool 多实例（三轮修复）
 
 Build tag 隔离的 `onnx_*.go` 文件嵌入对应平台的 onnxruntime：
 
@@ -155,7 +155,7 @@ Build tag 隔离的 `onnx_*.go` 文件嵌入对应平台的 onnxruntime：
 每文件 `var OnnxRuntimeDLL []byte`，编译时按 `(GOOS, GOARCH)` 只取一份嵌入二进制。
 Microsoft onnxruntime v1.25.0 已停发 macOS x86_64，**不支持**。
 
-**v0.4.0 三轮 Windows 修复**：
+**三轮 Windows 修复**：
 
 | 轮次 | Commit | 解决的问题 |
 |---|---|---|
@@ -167,7 +167,7 @@ Microsoft onnxruntime v1.25.0 已停发 macOS x86_64，**不支持**。
 
 ### 7. OCR 可选构建（build tag 二选一）
 
-`internal/ocr` 依赖 `onnxruntime_go` **强制 CGO**。v0.3.5+ 为兼顾 CLI 开箱即用与 CGO-free 消费者：
+`internal/ocr` 依赖 `onnxruntime_go` **强制 CGO**。为兼顾 CLI 开箱即用与 CGO-free 消费者：
 
 | 构建 | 命令 | OCR 行为 | 场景 |
 |---|---|---|---|
@@ -179,7 +179,7 @@ Microsoft onnxruntime v1.25.0 已停发 macOS x86_64，**不支持**。
 - !ddddocr build：`nil`，`Login()` 立即返 `ErrOCRNotConfigured`
 
 > **重要** **CI 与 Makefile `build` 必须显式 `-tags=ddddocr`**，否则 release 的二进制 `c.ocr=nil`，
-> 用户 `nazhi login` 立即失败（v0.3.5 真实事故，v0.4.0 仍生效）。
+> 用户 `nazhi login` 立即失败（历史事故）。
 
 ### 8. 统一响应体解析（泛型）
 
@@ -221,7 +221,7 @@ SDK 侧 fallback 解码统一走 `pkg/client/request.go` 的 `doBizGetDecode`—
 
 `test/integration/` 下用真实抓包 fixture 喂 mock server（`httptest.Server`），无需期末数据就能测任务流。
 
-**PII 守卫 SHA-256 哈希方案**（v0.3.5 重写）：
+**PII 守卫 SHA-256 哈希方案**：
 - 守卫表只存 PII 的 **SHA-256 hex 摘要**（单向不可逆）
 - 扫描时算 hash 查表，命中即报错
 - 早期守卫曾用 PII 本身自检（`"用 PII 防御 PII"`），结果守卫文件自身成了新的泄露源
@@ -247,7 +247,7 @@ stderr = JSON 错误（printError） + verbose 日志（printVerbose）
 **为什么需要文档化**：直写 stderr 易被误判为「绕过 printError 应重构」。
 但 `printPrompt` 走 printError 会污染错误流，走 printVerbose 用户没加 `-v` 看不到——只有直写 stderr 同时满足「可见 + 不污染错误流」。
 
-### 12. 顶层 panic recover（v0.4.0）
+### 12. 顶层 panic recover
 
 ```go
 // cmd/nazhi/main.go

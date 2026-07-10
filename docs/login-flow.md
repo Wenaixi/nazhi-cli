@@ -323,7 +323,7 @@ JWT（JSON Web Token），算法 **HS512**：
 - `ExtractFromReturnData(raw json.RawMessage)` — 从 ReturnData JSON 字节解析
 
 畸形 URL 直接返回 `url.Parse` 底层错误（已是可读 parse error）。
-**注意**：`ErrLocationParseFailed` sentinel **已删除**（历史上曾定义但 `auth.go` 未用 `%w` 链入，导致 `errors.Is` 永不命中，纯死代码）。
+**注意**：`ErrLocationParseFailed` sentinel **已删除**（曾定义但 `auth.go` 未用 `%w` 链入，导致 `errors.Is` 永不命中，纯死代码）。
 
 ## 完整时序图
 

@@ -290,7 +290,7 @@ make test-integration
 
 ## 安全
 
-历史事故：早期版本曾有真实学号密码泄露到 git 历史（v0.2.0 之前，已用 `git-filter-repo`
+历史事故：早期版本曾有真实学号密码泄露到 git 历史（已用 `git-filter-repo`
 彻底清除并 force push）。如果您使用过早期版本，请在 SSO 平台修改密码。
 
 仓库测试与文档**绝不**包含真实 PII——`test/integration/har_pii_redacted_test.go` 用 SHA-256 哈希单向防御

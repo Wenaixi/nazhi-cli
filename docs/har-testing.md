@@ -125,11 +125,11 @@ HAR 验证的真实场景（不同任务类型字段差异）：
 
 1. **Task.StartDate 字段错配**：JSON tag 用了 `startDate`（数组），但平台返回 `startDateStr`（字符串）。修复后 SDK 能正确解析所有任务。
 2. **extractTokenFromLocation 脆弱**：原代码用 `strings.Index`，无法处理 fragment + URL 编码。改用 `net/url.Parse`（最终归入 `pkg/tokenparse`）。
-3. **FetchTasks 静默失败**：单维度失败被吞，改用 `c.logDebug` 记录 + 错误链 propagate（v0.4.0+ 全维度错误聚合到 `ErrBusinessRejected`）。
+3. **FetchTasks 静默失败**：单维度失败被吞，改用 `c.logDebug` 记录 + 错误链 propagate（全维度错误聚合到 `ErrBusinessRejected`）。
 4. **Cookie token 同步缺失**：`WithToken` 之前只写 Header，业务接口返回空——补 Cookie 同步。
 5. **OCR 池非线程安全**：`Pool.Recognize` 内部 ONNX session 是不可重入，加上 `sync.Mutex` 串行化。
 
-### 扩展 PII 守卫（v0.3.5 重写为 SHA-256 哈希方案）
+### 扩展 PII 守卫（SHA-256 哈希方案）
 
 `test/integration/har_pii_redacted_test.go` 的 `TestNoRealPII` 从仅扫描 HAR fixtures 扩展到全仓库 `*_test.go` + `har_fixtures/*.json`，通过 Go AST + JSON 遍历扫描所有字符串字面量。**默认 tag 运行**（无 build tag），确保 `go test ./...` 必跑。
 
@@ -139,7 +139,7 @@ HAR 验证的真实场景（不同任务类型字段差异）：
 
 #### 自反性陷阱与修复
 
-v0.3.5 之前的守卫把真实姓名、学号、身份证号等明文写在 `forbidden` 常量里（"用 PII 防御 PII"）。结果是守卫自身成了新的泄露源——任何能看仓库源码的人都能直接读到这些明文 PII（包括 hex 字符串拼接绕过 AST 自检的变体）。
+早期的守卫把真实姓名、学号、身份证号等明文写在 `forbidden` 常量里（"用 PII 防御 PII"）。结果是守卫自身成了新的泄露源——任何能看仓库源码的人都能直接读到这些明文 PII（包括 hex 字符串拼接绕过 AST 自检的变体）。
 
 修复后 `piiHexMap` 只存 64 字符 SHA-256 hex 摘要（单向不可逆）：
 
@@ -152,7 +152,7 @@ var piiHexMap = map[string]string{
 }
 ```
 
-**教训**：「用 PII 的不可逆表示，而非 PII 本身」；字符串拼接只防「自己看自己」，防不住「别人看你」。
+**要点**：「用 PII 的不可逆表示，而非 PII 本身」；字符串拼接只防「自己看自己」，防不住「别人看你」。
 
 #### 扫描范围
 

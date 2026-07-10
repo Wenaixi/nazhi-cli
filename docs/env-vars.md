@@ -173,12 +173,12 @@ $ NAZHI_BASE_URL=http://localhost:8280 NAZHI_TIMEOUT=30 nazhi -v task list --tok
 - **用 secret 管理**（GitHub Secrets、Vault、AWS Secrets Manager）
 - **.env 文件绝不入 git**（已在 `.gitignore` 第 49 行隔离 + `verify_gitignore/` 兜底测试）
 - **临时文件中残留的 token** 已用 `git-filter-repo` 清理历史
-- **定期轮换** SSO 密码（历史上 v0.2.0 之前发生过泄露）
+- **定期轮换** SSO 密码（历史上发生过泄露）
 - **`NAZHI_TIMEOUT` 调试时不要改太大**：300+ 秒会让 panic recover 后的资源清理卡住
 
 ## 历史字段清理
 
-v0.4.0 之前曾存在的环境变量：
+曾存在的环境变量：
 
 | 旧变量 | 状态 | 备注 |
 |---|---|---|
