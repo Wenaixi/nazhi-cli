@@ -230,7 +230,7 @@ SDK 侧 fallback 解码统一走 `pkg/client/request.go` 的 `doBizGetDecode`—
 ### 11. CLI 输出通道
 
 ```
-stdout = JSON 输出（printJSON）
+stdout = JSON 输出（printEnvelope）
 stderr = JSON 错误（printError） + verbose 日志（printVerbose）
 ```
 
@@ -267,7 +267,7 @@ defer func() {
 
 ### 13. CLI 资源生命周期
 
-`pkg/client.lifeCycle.go` 中：
+`cmd/nazhi/lifecycle.go` 中：
 
 - `pendingClients` 是 `[]*client.Client`，用 `sync.Mutex` 保护 —— 多个 goroutine 通过 `trackClient` 追加注册
 - `closeAllClients()` 是正向遍历顺序（FIFO），与构造顺序一致。Close 本身幂等，无需反向遍历
