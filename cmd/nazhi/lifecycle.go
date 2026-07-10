@@ -33,8 +33,8 @@ func closeAllClients() error {
 
 	// 收集所有 Close 错误而非只保留第一个。
 	var firstErr error
-	for _, c := range clients {
-		if err := c.Close(); err != nil {
+	for i := len(clients) - 1; i >= 0; i-- {
+		if err := clients[i].Close(); err != nil {
 			firstErr = errors.Join(firstErr, err)
 		}
 	}
