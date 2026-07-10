@@ -19,7 +19,7 @@ ocrRecognizeWithRetry ────────────────┘    ↓
 `validateCaptcha` 嵌入 OCR 循环内部，通过才继续。
 
 **并发优化收益**：串行版耗时 ≈ InitSession(150ms) + GetSchoolID(200ms) + OCR(2-5s) + ValidateCaptcha(150ms) + Login(300ms) ≈ 3~6s；
-并发版（v0.6.0+）耗时 ≈ InitSession(150ms) + max(GetSchoolID, OCR) + Login(300ms) ≈ 2.1~5.3s。
+并发版耗时 ≈ InitSession(150ms) + max(GetSchoolID, OCR) + Login(300ms) ≈ 2.1~5.3s。
 
 ## 步骤详解
 
@@ -59,22 +59,23 @@ Content-Type: application/json
 ### Step 3: OCR 识别 + 预校验（最多 9 张图 × 1 次/图 = 9 次总尝试）
 
 ```go
-// 多图多试策略（v0.2.1+）：
+// 多图多试策略：
 //   - 单张图片 OCR 1 次（ddddocr 对同一张图是确定性的，重试无意义）
 //   - 失败则换新图，最多换 9 张
 //   - 总尝试次数上限 = 1 × 9 = 9 次
 //
 // 内部流程：每轮先调 c.fetchCaptchaImage(ctx) 拉一张新图（atomic 计数器 seq 防缓存碰撞），
 // 再走 c.safeOCRRecognize(imgBytes) OCR 识别。OCR 成功后调用 validateCaptcha 预校验，
-// 只有服务端确认验证码有效才返回；校验失败换图重试（v0.6.0）。
+// 只有服务端确认验证码有效才返回；校验失败换图重试。
 // SDK 外部无需关心图床调用。
 //
-// v0.3.5+ OCR 可选构建：
+// OCR 可选构建：
 //   不加 -tags ddddocr 时 c.ocr == nil，Login() 立即返回 ErrOCRNotConfigured，
 //   调用方需用 WithCustomOCR 注入识别器。
 //
-// 此步骤与 Step 2 GetSchoolID 通过 errgroup 并发执行；
+// 此步骤与 GetSchoolID 通过 errgroup 并发执行；
 // ctx cancel 在循环顶部检测（提前 break），避免 9 张图全失败才退出。
+
 //
 // ocrRecognizeWithRetry 入口自动加 30s timeout（var ocrTimeout）
 // 防止 9 张图 OCR 卡死整个 Login 调用，测试可注入更短值加速。
@@ -87,7 +88,7 @@ for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
     if err != nil { continue }
     text, err := c.safeOCRRecognize(imgBytes)  // defer recover 兜底 panic
     if err == nil && text != "" {
-        // 预校验：服务端确认验证码有效，校验失败换图重试（v0.6.0）
+        // 预校验：服务端确认验证码有效，校验失败换图重试
         if err := c.validateCaptcha(ctx, text); err != nil {
             continue
         }
@@ -136,7 +137,7 @@ Location: https://www.nazhisoft.com/homepage?token=eyJhbGciOiJIUzUxMiJ9.xxx&expi
 - SDK **优先处理 200 JSON**，fallback 到 302 Location
 - 两条路径的 token 提取统一走 `pkg/tokenparse` 包（架构深化 #4）
 
-#### Token 解析下沉（v0.4.0 架构深化）
+#### Token 解析
 
 ```go
 // 200 路径
@@ -145,8 +146,6 @@ token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
 // 302 fallback 路径
 token, expiresAt, err := tokenparse.ExtractFromLocation(location)
 ```
-
-两者均返回 `(token string, expiresAt time.Time, err error)` 三元组。
 
 #### expires_in / exp 解析规则
 
@@ -177,7 +176,7 @@ func parseExpiresMap(q map[string]any, token string) time.Time {
 }
 ```
 
-#### expiresAt 异常告警（v0.4.0）
+#### expiresAt 异常告警
 
 `warnIfExpiresAtFallback` 检测两类异常，通过 `c.logger.Warn` 输出（走用户注入的 slog handler）：
 
@@ -217,8 +216,8 @@ type LoginResponse struct {
 ```
 
 **历史字段清理**：
-- v0.3.3 之前曾带 `RefreshAfter time.Time`（推荐刷新时间）—— 全仓 0 引用，删除
-- v0.3.3 之前曾带 `UserInfo *UserInfo`（用户基本信息）—— Login 两条路径都不填充，删除
+- 之前曾带 `RefreshAfter time.Time`（推荐刷新时间）—— 全仓 0 引用，删除
+- 之前曾带 `UserInfo *UserInfo`（用户基本信息）—— Login 两条路径都不填充，删除
 
 如需用户基本信息，调 `c.GetMyInfo(ctx, token)`。
 
@@ -241,9 +240,9 @@ type LoginResponse struct {
 
 跳过任何一步都会导致后续 `task list` 等业务接口返回空数据。
 
-### v0.4.0 sessionManager 状态机
+### sessionManager 状态机
 
-v0.4.0 把激活逻辑收口到 `pkg/client/session.go` 的 `sessionManager` 状态机（架构深化 #1）：
+sessionManager 把激活逻辑收口到 `pkg/client/session.go`：
 
 ```
 ActivateSession(ctx, token)
@@ -265,7 +264,7 @@ ActivateSession(ctx, token)
 - `cachedUserInfo` 在 mu 临界区内写入
 
 **backoff 设计**：
-- 上次失败后 `defaultSessionBackoff = 5s`（v0.3.5+）内同 token 重复调用返 `ErrSessionBackoff`
+- 上次失败后 `defaultSessionBackoff = 5s` 内同 token 重复调用返 `ErrSessionBackoff`
 - 防止 thundering herd（N 个 goroutine 并发激活打挂服务）
 - 缓存键包含 token：不同 token 不共享冷却状态（A 登录失败不影响 B）
 - 可调：`WithSessionBackoff(d)`
@@ -406,4 +405,4 @@ Cookie sync 失败仅 warn：`warnSyncCookieToken` 不抛 error，避免临时�
 - **OCR 池并发**：`Pool.Recognize` 非线程安全，`sync.Mutex` 串行化；预热 `WithOCRConcurrency(n)` 可开 n 路真并发（每实例约 50MB 内存）
 - **ctx cancel 在循环顶部检查**：避免 9 张图都跑完才退出导致大量无谓 HTTP
 - **`SessionBackoff` 缓存含 token**：A token 失败不影响 B token 第一次调用
-- **`tryActivate` 先 ctx 后 backoff**：避免 ctx cancel 被误判为 backoff（这是 v0.4.0 关键修复之一）
+- **`tryActivate` 先 ctx 后 backoff**：避免 ctx cancel 被误判为 backoff
