@@ -301,7 +301,7 @@ func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimen
 }
 
 // SubmitTask 提交一次任务。
-// payload 是完整的 addCircle 请求体（29 字段透传）。
+// payload 是完整的 addCircle 请求体（30 字段透传）。
 func (c *Client) SubmitTask(ctx context.Context, token string, payload types.TaskSubmitPayload) (*types.TaskResult, error) {
 	// 验证 payload
 	if payload.CircleTaskID == 0 || payload.CircleTypeID == 0 {

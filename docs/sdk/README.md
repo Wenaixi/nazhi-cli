@@ -201,7 +201,7 @@ wg.Wait()
 | `AddHonor(ctx, token, payload)` | honor.go | 申报一条荣誉 | `ErrBusinessRejected` |
 | `DeleteHonor(ctx, token, honorID)` | honor.go | 删除一条荣誉记录（GET 传 id 查询参数） | `ErrBusinessRejected` |
 | `UploadFile(ctx, filePath)` | file.go | 图片上传，自动预处理（→JPG + 压缩 ≤5MB）；不发任何鉴权头 | `ErrNetwork`、`ErrFileTooLarge`、`ErrImageTooLarge`、`ErrUploadRejected`、`ErrRateLimited`、`ErrServiceUnavailable` |
-| `DownloadFile(ctx, attachmentID, dst)` | file.go | 按附件 ID 下载图片到本地；入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；不发任何鉴权头 | `ErrNetwork` |
+| `DownloadFile(ctx, attachmentID int64, dst string)` | file.go | 按附件 ID 下载图片到本地；入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；不发任何鉴权头 | `ErrNetwork` |
 | `Close()` | client.go | 释放 OCR session、HTTP keep-alive、临时目录；聚合 error 返回 | 多个清理错误 join 一起 |
 
 > 没有的方法：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
@@ -1148,9 +1148,11 @@ case errors.Is(err, client.ErrRetryable):
 | `ErrInvalidResponse` | HTTP 4xx（排除 429） | 所有方法 |
 | `ErrUploadRejected` | 上传文件域业务拒绝 / 响应 code≠1 / 4xx | `UploadFile` |
 | `ErrFileTooLarge` | 图片压缩后仍 > 5MB | `UploadFile` |
+| `ErrImageTooLarge` | 图片原始尺寸过大（嵌入 `ErrFileTooLarge` 错误链） | `UploadFile` |
+| `ErrUnsupportedFormat` | 图片格式不受支持（含 BMP，stdlib 无内置 BMP 解码） | `UploadFile` |
 | `ErrInvalidPayload` | task payload 缺字段 / GetSchoolID school_id 非数字 | `SubmitTask`、`GetSchoolID` |
-| `ErrBusinessRejected` | 业务请求被服务端拒绝（非登录） | `SubmitTask` / `GetMyInfo` / `FetchTasks` / `QuerySelfEvaluation` / `QuerySelfGradEvaluation` / `GetDimensions` / `GetSchoolID` / `ActivateSession` |
-| `ErrOCRNotConfigured` | `!ddddocr` 构建且未注入 OCR | `Login` |
+| `ErrBusinessRejected` | 业务请求被服务端拒绝（非登录） | `SubmitTask` / `GetMyInfo` / `FetchTasks` / `QuerySelfEvaluation` / `QuerySelfGradEvaluation` / `GetDimensions` / `GetSchoolID` / `ActivateSession` / `GetSubmittedCircles` / `GetHonorTypes` / `GetHonorTypeForSelect` / `GetHonorLevel` / `GetHonorList` / `AddHonor` / `DeleteHonor` / `SubmitSelfEvaluation` |
+| `ErrOCRNotConfigured` | `!ddddocr` 构建且未注入 OCR；fallback OCR 也未注入 | `Login` |
 | `ErrOCRPanic` | OCR 识别器 panic 被 `safeOCRRecognize` recover | `Login` |
 | `ErrSessionBackoff` | session 激活失败后同 token 在冷却窗口内 | `ActivateSession` |
 | `ErrEmptyUserInfo` | 业务成功但 `returnData` + `dataMap` 都为空 | `GetMyInfo` / `QuerySelfEvaluation` / `ActivateSession`（步骤 4 失败时） |
@@ -1379,7 +1381,11 @@ selfEval, err := types.DecodeDataMap[types.SelfEvalStatus](resp)
 - `DecodeReturnData[T]` 解析 `returnData` 字段（单个对象）
 - `DecodeDataList[T]` 解析 `dataList` 字段（数组）
 - `DecodeDataMap[T]` 解析 `dataMap` 字段（单对象）
+- `DecodePageBean[T]` 解析 `pageBean` 分页字段
+- `DecodeReturnDataSlice[T]` 解析 `returnData` 中的对象数组
 - `CheckCode` 检查 `code==1`，否则返 `*BusinessError`
+
+> **关键**：`DecodeResponse` **只做 JSON 解析，不做 code 检查**。取的数据是否有效，必须再调 `CheckCode`。这是有意设计——让调用方能先取 `PageBean` 再做 code 检查，或先 code 检查再按需解码具体字段。
 
 注：`pkg/types/deref.go` 提供 `DerefOr[T]` 安全解引用（用于 `*string` 等指针类型，转 `T` 零值兜底）。
 

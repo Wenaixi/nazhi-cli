@@ -197,7 +197,6 @@ func TestSDK_TaskSubmitPayloadFieldTableHasTags(t *testing.T) {
 	root := repoRoot(t)
 	sdk := mustRead(t, filepath.Join(root, "docs/sdk/README.md"))
 	// 字段参考表中 14 个字段的 JSON tag 列被写成 "—"，应补全真实 tag
-	// 抽样几个关键字段
 	for _, tag := range []string{
 		`circleBeginDate`,
 		`circleEndDate`,
@@ -217,6 +216,30 @@ func TestSDK_TaskSubmitPayloadFieldTableHasTags(t *testing.T) {
 		mustGrep(t, "TaskSubmitPayload JSON tag "+tag,
 			sdk, "`"+tag+"`")
 	}
+}
+
+func TestSDK_GenericHelpersListComplete(t *testing.T) {
+	root := repoRoot(t)
+	sdk := mustRead(t, filepath.Join(root, "docs/sdk/README.md"))
+	// 泛型辅助函数应包含 DecodePageBean / DecodeReturnDataSlice
+	mustGrep(t, "泛型辅助 DecodePageBean",
+		sdk, "DecodePageBean")
+	mustGrep(t, "泛型辅助 DecodeReturnDataSlice",
+		sdk, "DecodeReturnDataSlice")
+	// DecodeResponse 契约说明应包含 "不做 code 检查"
+	mustGrep(t, "DecodeResponse 契约说明",
+		sdk, "不做 code 检查")
+}
+
+func TestSDK_BusinessRejectedMethodList(t *testing.T) {
+	root := repoRoot(t)
+	sdk := mustRead(t, filepath.Join(root, "docs/sdk/README.md"))
+	// ErrBusinessRejected 方法列表应包含 GetSubmittedCircles / SubmitSelfEvaluation
+	//（审查发现缺了这些常用方法）
+	mustGrep(t, "ErrBusinessRejected 包含 GetSubmittedCircles",
+		sdk, "GetSubmittedCircles")
+	mustGrep(t, "ErrBusinessRejected 包含 SubmitSelfEvaluation",
+		sdk, "SubmitSelfEvaluation")
 }
 
 // extractTypeIndex 提取「pkg/types 类型索引」表格（被多次复用）。

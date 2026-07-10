@@ -20,7 +20,7 @@ func parsePayload(raw string) ([]byte, error) {
 var taskSubmitCmd = &cobra.Command{
 	Use:   "submit",
 	Short: "提交任务",
-	Long:  `提交一次任务。payload 是完整的 addCircle 请求体（29 字段 JSON），可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
+	Long:  `提交一次任务。payload 是完整的 addCircle 请求体（30 字段 JSON），可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
 	Example: `  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"circleTaskId":1001,"circleTypeId":9256,"name":"班会","hours":1}'
 		  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json
 		  echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --token "xxx" --payload -`,

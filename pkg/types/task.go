@@ -46,7 +46,7 @@ type Task struct {
 	ScopeTypeName   string   `json:"scopeTypeName"`     // 作用域名称
 }
 
-// TaskSubmitPayload 是 addCircle 接口的完整请求体（29 字段透传）。
+// TaskSubmitPayload 是 addCircle 接口的完整请求体（30 字段透传）。
 type TaskSubmitPayload struct {
 	ID                  *int64  `json:"id"`
 	Name                string  `json:"name"`
