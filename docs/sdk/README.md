@@ -188,7 +188,7 @@ wg.Wait()
 | `ActivateSession(ctx, token)` | session.go | HAR 对齐 4 步激活（`/` + 两次 `getMenu` + `getMyInfo`），DCL fast-path + backoff 缓存 | `ErrBusinessRejected`、`ErrSessionBackoff`、`ErrEmptyUserInfo` |
 | `GetMyInfo(ctx, token)` | user.go | 精简 13 字段个人资料；先走 ActivateSession 复用步骤 4 数据避免重复 HTTP | `ErrBusinessRejected`、`ErrEmptyUserInfo`、`ErrNetwork` |
 | `FetchTasks(ctx, token)` | task.go | 拉全维度任务聚合；8 路并发（errgroup.SetLimit）拉各维度 | `ErrBusinessRejected`、`ErrRetryable`（ctx cancel 触发）、`ErrEmptyUserInfo` |
-| `SubmitTask(ctx, token, payload)` | task.go | 提任务，29 字段 payload 透传不裁剪 | `ErrInvalidPayload`、`ErrBusinessRejected` |
+| `SubmitTask(ctx, token, payload)` | task.go | 提任务，30 字段 payload 透传不裁剪 | `ErrInvalidPayload`、`ErrBusinessRejected` |
 | `GetDimensions(ctx, token)` | task.go | 单独拉维度列表（CLI 未暴露，SDK 高级接口） | `ErrBusinessRejected` |
 | `SubmitSelfEvaluation(ctx, token, comment)` | self_eval.go | 提交评价文本 | `ErrBusinessRejected` |
 | `QuerySelfEvaluation(ctx, token)` | self_eval.go | 查评价状态 + 教师评语 | `ErrBusinessRejected`、`ErrEmptyUserInfo` |
@@ -521,14 +521,14 @@ if err != nil {
       "remark": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声4个小时",
       "submitted": false,
       "needPic": false,
-      "startDateStr": "2026-06-30T00:00:00+08:00",
-      "endDateStr": "2026-07-30T00:00:00+08:00",
-      "auditStartDateStr": "2026-07-31T00:00:00+08:00",
-      "auditEndDateStr": "2026-09-30T00:00:00+08:00",
+      "startDateStr": "2026-06-30",
+      "endDateStr": "2026-07-30",
+      "auditStartDateStr": "2026-07-31",
+      "auditEndDateStr": "2026-09-30",
       "creatorName": "林老师",
       "roleName": "班主任",
       "creationTime": [2026, 6, 30, 11, 39, 19],
-      "creationTimeStr": "2026-06-30T00:00:00+08:00",
+      "creationTimeStr": "2026-06-30",
       "termId": 18,
       "pushNum": 1,
       "scopeType": 2,
@@ -544,14 +544,14 @@ if err != nil {
       "remark": "心得+照片",
       "submitted": false,
       "needPic": false,
-      "startDateStr": "2026-07-10T00:00:00+08:00",
-      "endDateStr": "2026-07-18T00:00:00+08:00",
-      "auditStartDateStr": "2026-07-19T00:00:00+08:00",
-      "auditEndDateStr": "2026-07-22T00:00:00+08:00",
+      "startDateStr": "2026-07-10",
+      "endDateStr": "2026-07-18",
+      "auditStartDateStr": "2026-07-19",
+      "auditEndDateStr": "2026-07-22",
       "creatorName": "王老师",
       "roleName": "班主任",
       "creationTime": [2026, 7, 4, 9, 33, 53],
-      "creationTimeStr": "2026-07-04T00:00:00+08:00",
+      "creationTimeStr": "2026-07-04",
       "termId": 18,
       "pushNum": 0,
       "scopeType": 1,
@@ -675,7 +675,7 @@ log.Printf("提交成功，result=%+v", result)
 }
 ```
 
-29 字段全部透传，SDK 不裁剪不处理。不同任务类型的字段差异（HAR 验证）：
+30 字段全部透传，SDK 不裁剪不处理。不同任务类型的字段差异（HAR 验证）：
 
 | 字段 | 劳动 | 军训 | 班会 | 通用 |
 |---|---|---|---|---|
@@ -1354,13 +1354,13 @@ if err != nil { /* 空 body / token 类型异常 */ }
 | `BusinessError` | Code（数值）/ Msg（字符串）；`errors.As(err, &b)` 精细分支 |
 | `UserInfo` | 13 字段用户身份/学校/班级/学号资料（详见 `pkg/types/types.go`） |
 | `Task` | 任务条目（ID、Name、Hours、Score、DimensionName 等 21 字段） |
-| `TaskSubmitPayload` | 29 字段 addCircle 请求体透传 |
-| `HonorType` | 荣誉类型（_id, Name, LevelName, Level, Score, DimensionName, SortNo_） |
-| `HonorRecord` | 已申报荣誉记录（_TypeName, TypeID, Level, Score, Status, StatusName, GetDate, EvaluationAgency, 等 15 字段_） |
+| `TaskSubmitPayload` | 30 字段 addCircle 请求体透传 |
+| `HonorType` | 荣誉类型（_ID, Name, LevelName, Level, DimensionName_，5 字段） |
+| `HonorRecord` | 已申报荣誉记录（_ID, TypeName, LevelName, Level, DimensionName, Approved, ApprovedName, GetDate, EvaluationAgency_，9 字段） |
 | `AddHonorPayload` | 荣誉申报请求（_Name, TypeID, TypeName, Level, EvaluationAgency, GetDate, CertImgAttachmentID_） |
 | `HonorSelectOption` | 下拉选择（_Label / Value_ 对） |
-| `CircleRecord` | 已提交写实记录（_Name, Content, Status, Hours, ImgList_） |
-| `CircleImage` | 写实记录关联图片（_AttachmentID_） |
+| `CircleRecord` | 已提交写实记录（_ID, Name, TypeName, Content, Approved, CircleDate, Hours, ImgList, ImgPreViewList, Remark_，10 字段） |
+| `CircleImage` | 写实记录关联图片（_ID, CircleID, ClassID, TaskID, AttachmentID, ImgPath_，6 字段） |
 | `TaskResult` | 任务提交结果（_Code, Msg_） |
 
 ### pkg/types/response.go 泛型辅助
@@ -1610,7 +1610,7 @@ SSO 登录成功响应。`pkg/types/login.go`。
 
 ### TaskSubmitPayload
 
-addCircle 接口的完整请求体（29 字段透传）。`pkg/types/task.go`。
+addCircle 接口的完整请求体（30 字段透传）。`pkg/types/task.go`。
 
 | 字段 | Go 类型 | JSON tag | 必选 | 说明 |
 |------|---------|----------|------|------|
@@ -1626,9 +1626,20 @@ addCircle 接口的完整请求体（29 字段透传）。`pkg/types/task.go`。
 | CircleTypeID | `int64` | `circleTypeId` | 是 | 写实类型 ID |
 | DimensionID | `int64` | `dimensionId` | 是 | 维度 ID |
 | Hours | `float64` | `hours` | 否 | 实践时长 |
-| CircleBeginDate / CircleEndDate | `string` | — | 否 | 开始/结束日期 |
-| CheckResult / PatentType / PatentNum / Address | `string` | — | 否 | 检查/专利/地址 |
-| TermName / ActivityName / SportsName / TeamName / OrgName / ResultsName / ObtainTime / SpecialtyTechnology | `string` | — | 否 | 学期/活动/项目/团队/组织/成果/时间/特长 |
+| CircleBeginDate | `string` | `circleBeginDate` | 否 | 开始日期 |
+| CircleEndDate | `string` | `circleEndDate` | 否 | 结束日期 |
+| CheckResult | `string` | `checkResult` | 否 | 检查结果（军训任务 `"1"` 等） |
+| PatentType | `string` | `patentType` | 否 | 专利类型 |
+| PatentNum | `string` | `patentNum` | 否 | 专利号 |
+| Address | `string` | `address` | 否 | 地址 |
+| TermName | `string` | `termName` | 否 | 学期名 |
+| ActivityName | `string` | `activityName` | 否 | 活动名 |
+| SportsName | `string` | `sportsName` | 否 | 体育项目名 |
+| TeamName | `string` | `teamName` | 否 | 团队名 |
+| OrgName | `string` | `orgName` | 否 | 组织名 |
+| ResultsName | `string` | `resultsName` | 否 | 成果名 |
+| ObtainTime | `string` | `obtainTime` | 否 | 获得时间 |
+| SpecialtyTechnology | `string` | `specialtyTechnology` | 否 | 特长技术 |
 | PlayRole | `string` | `playRole` | 否 | 承担角色（`"1"`=主持策划者 `"2"`=主要参与者 `"3"`=参与者，见 `PlayRole*` 常量） |
 | LikeSpecialty1/2/3 | `string` | `likeSpecialtyN` | 否 | 兴趣特长 1/2/3 |
 

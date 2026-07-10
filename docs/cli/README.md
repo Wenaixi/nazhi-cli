@@ -317,7 +317,7 @@ nazhi whoami --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 }
 ```
 
-空数据场景：业务成功但无数据时，stdout 输出 `{"status":"error","code":204,"message":"get_my_info_empty","data":null}`。
+空数据场景：业务成功但无数据时，stdout 输出 `{"status":"success","code":204,"message":"get_my_info_empty","data":null}`（`envelope.Empty` 用 `StatusSuccess`，仅 code=204 区分语义，状态仍为 success 走退出码 0）。
 
 ---
 
@@ -410,7 +410,7 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 
 ## nazhi task submit
 
-提交一次任务。29 字段 addCircle 请求体透传不裁剪，可直接喂从浏览器抓的 body。
+提交一次任务。30 字段 addCircle 请求体透传不裁剪，可直接喂从浏览器抓的 body。
 
 ```bash
 # 方式 1：--payload 字符串
@@ -444,7 +444,7 @@ echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --tok
 
 > `playRole` 数字编码：`"1"`=主持策划者 `"2"`=主要参与者 `"3"`=参与者。SDK 使用时可通过 `types.PlayRoleHost` / `types.PlayRoleMainParticipant` / `types.PlayRoleParticipant` 常量赋值。
 
-完整 29 字段定义见 `pkg/types/task.go` `TaskSubmitPayload` 注释。
+完整 30 字段定义见 `pkg/types/task.go` `TaskSubmitPayload` 注释。
 
 典型错误：`invalid task payload: circleTaskId 和 circleTypeId 不能为空` —— 必填字段缺失，stderr envelope 退出码 1。
 
@@ -658,7 +658,7 @@ GET http://doc.nazhisoft.com/other/M00/.../<image>.jpg
   "message": "",
   "data": {
     "id": 12345,
-    "path": "./photo.jpg"
+    "output": "./photo.jpg"
   }
 }
 ```
