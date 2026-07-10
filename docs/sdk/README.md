@@ -1350,7 +1350,7 @@ if err != nil { /* 空 body / token 类型异常 */ }
 | 类型 | 字段说明 |
 |---|---|
 | `LoginRequest` | SchoolID / Username / Password |
-| `LoginResponse` | Token / ExpiresAt / RawData（`json:"-"`） |
+| `LoginResponse` | Token / ExpiresAt / FallbackUsed（3 字段，v1.0.0 精简版） |
 | `BusinessError` | Code（数值）/ Msg（字符串）；`errors.As(err, &b)` 精细分支 |
 | `UserInfo` | 13 字段用户身份/学校/班级/学号资料（详见 `pkg/types/types.go`） |
 | `Task` | 任务条目（ID、Name、Hours、Score、DimensionName 等 21 字段） |
