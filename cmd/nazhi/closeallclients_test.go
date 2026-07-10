@@ -40,6 +40,52 @@ type closeErrMockOCR struct{}
 func (closeErrMockOCR) Recognize(_ []byte) (string, error) { return "abcd", nil }
 func (closeErrMockOCR) Close() error                       { return errors.New("simulated OCR close failure") }
 
+type orderedCloseMockOCR struct {
+	name  string
+	order *[]string
+	err   error
+}
+
+func (*orderedCloseMockOCR) Recognize(_ []byte) (string, error) { return "abcd", nil }
+func (m *orderedCloseMockOCR) Close() error {
+	*m.order = append(*m.order, m.name)
+	return m.err
+}
+
+func TestCloseAllClients_LIFOAndCollectsAllErrors(t *testing.T) {
+	pendingClientsMu.Lock()
+	pendingClients = nil
+	pendingClientsMu.Unlock()
+	t.Cleanup(func() {
+		pendingClientsMu.Lock()
+		pendingClients = nil
+		pendingClientsMu.Unlock()
+	})
+
+	var order []string
+	firstErr := errors.New("first close failure")
+	thirdErr := errors.New("third close failure")
+	for _, mock := range []*orderedCloseMockOCR{
+		{name: "first", order: &order, err: firstErr},
+		{name: "second", order: &order},
+		{name: "third", order: &order, err: thirdErr},
+	} {
+		c, err := client.New(client.WithCustomOCR(mock))
+		if err != nil {
+			t.Fatalf("client.New: %v", err)
+		}
+		trackClient(c)
+	}
+
+	err := closeAllClients()
+	if got, want := strings.Join(order, ","), "third,second,first"; got != want {
+		t.Fatalf("Client 关闭顺序 = %q，期望 LIFO 顺序 %q", got, want)
+	}
+	if !errors.Is(err, firstErr) || !errors.Is(err, thirdErr) {
+		t.Fatalf("closeAllClients 应聚合所有关闭错误，实际: %v", err)
+	}
+}
+
 // TestCloseAllClients_Failure_GoesThroughPrintError 验证 main.go defer 块
 // 在 closeAllClients 失败时调用 printError 而非 fmt.Fprintln 直写 stderr。
 //

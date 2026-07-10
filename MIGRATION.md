@@ -15,7 +15,7 @@ v1.0.0 是破坏性更新。所有 SDK 消费者必须做以下调整:
 | `circle.status` (int 0/1) | `circle.approved` (bool) | int 转 bool |
 | `honor.status` (int 0/1) | `honor.approved` (bool) | int 转 bool |
 | `honor.statusName` (camelCase) | `honor.approvedName` (camelCase) | 重命名 |
-| `self-eval.student_comment` (snake) | `selfEval.studentComment` (camel) | 统一 camelCase |
+| `self-eval.student_comment` (snake) | `selfEval.studentComment` (camel) | 统一 camelCase；SDK/CLI 读取时仍兼容 snake_case 实际返回 |
 
 ### 2. 字段删除 (UserInfo 影响最大)
 

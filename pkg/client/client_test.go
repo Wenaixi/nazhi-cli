@@ -38,6 +38,24 @@ func unifiedJSON(code int, msg string, returnData any, dataList any) string {
 	return string(b)
 }
 
+func unifiedJSONWithDataMap(code int, msg string, returnData any, dataMap any, dataList any) string {
+	m := map[string]any{
+		"code": code,
+		"msg":  msg,
+	}
+	if returnData != nil {
+		m["returnData"] = returnData
+	}
+	if dataMap != nil {
+		m["dataMap"] = dataMap
+	}
+	if dataList != nil {
+		m["dataList"] = dataList
+	}
+	b, _ := json.Marshal(m)
+	return string(b)
+}
+
 // ─── mock OCR ───
 
 // mockOCR 返回固定验证码文本，用于测试。
@@ -638,6 +656,68 @@ func TestQuerySelfEvaluation(t *testing.T) {
 	}
 	if status.TeacherComment != "继续努力" {
 		t.Errorf("期望 TeacherComment=继续努力, 得到 %s", status.TeacherComment)
+	}
+}
+
+func TestQuerySelfEvaluation_AliasFields(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentMoralEduNew/querySelfEvaluation" {
+			t.Errorf("期望路径 querySelfEvaluation, 得到 %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(unifiedJSONWithDataMap(1, "成功", nil, map[string]any{
+			"id":            42,
+			"content":       "平台真实自评内容",
+			"teacherRemark": "老师别名评语",
+		}, nil)))
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	status, err := c.QuerySelfEvaluation(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("QuerySelfEvaluation 失败: %v", err)
+	}
+	if status.StudentComment != "平台真实自评内容" {
+		t.Errorf("期望 StudentComment=平台真实自评内容, 得到 %s", status.StudentComment)
+	}
+	if status.TeacherComment != "老师别名评语" {
+		t.Errorf("期望 TeacherComment=老师别名评语, 得到 %s", status.TeacherComment)
+	}
+	if status.ID != 42 {
+		t.Errorf("期望 ID=42, 得到 %d", status.ID)
+	}
+}
+
+func TestQuerySelfEvaluation_SnakeCaseFields(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentMoralEduNew/querySelfEvaluation" {
+			t.Errorf("期望路径 querySelfEvaluation, 得到 %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(unifiedJSONWithDataMap(1, "成功", nil, map[string]any{
+			"id":              372235,
+			"student_comment": "HAR 里的学生自评",
+			"teacher_comment": "HAR 里的教师评语",
+		}, nil)))
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	status, err := c.QuerySelfEvaluation(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("QuerySelfEvaluation 失败: %v", err)
+	}
+	if status.StudentComment != "HAR 里的学生自评" {
+		t.Errorf("期望 StudentComment=HAR 里的学生自评, 得到 %s", status.StudentComment)
+	}
+	if status.TeacherComment != "HAR 里的教师评语" {
+		t.Errorf("期望 TeacherComment=HAR 里的教师评语, 得到 %s", status.TeacherComment)
+	}
+	if status.ID != 372235 {
+		t.Errorf("期望 ID=372235, 得到 %d", status.ID)
 	}
 }
 
