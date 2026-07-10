@@ -368,12 +368,11 @@ internal/ocr/                    OCR 单元测试（含 cross-platform build tag
 |---|---|---|---|
 | #1 | Session 收口 | 已实施 | `pkg/client/session.go` sessionManager 状态机 |
 | #2 | HTTP helper 私有化 | 已实施 | `request.go` 的 `httpDo` / `rawDoWithResp` 提取共享 `do()` 核心 |
-| #3 | `DecodeUnified` 原语化 | 已实施 | `pkg/types/response.go` 泛型辅助 |
-| #4 | tokenparse 包 + DerefOr[T] 升包 | 已实施 | `pkg/tokenparse/tokenparse.go` + `pkg/types/deref.go` |
-| #5 | sessionManager 封装 + SetBackoff race fix | 已实施 | `pkg/client/session.go` |
-| #6 | `ParallelDims` 泛型 helper | 已实施 | `pkg/client/parallel.go` |
-| #7 | `error_category.go` 错误分类 | 已实施 | `pkg/client/error_category.go` |
-| #8 | `pkg/client/error.go` 错误码集中定义 | 未实施 | 哨兵错误集中在 `errors.go` |
+| #3 | tokenparse 包 + DerefOr[T] 升包 | 已实施 | `pkg/tokenparse/tokenparse.go` + `pkg/types/deref.go` |
+| #4 | sessionManager 封装 + SetBackoff race fix | 已实施 | `pkg/client/session.go` |
+| #5 | `ParallelDims` 泛型 helper | 已实施 | `pkg/client/parallel.go` |
+| #6 | `error_category.go` 错误分类 | 已实施 | `pkg/client/error_category.go` |
+| #7 | `pkg/client/error.go` 错误码集中定义 | 未实施 | 哨兵错误集中在 `errors.go` |
 
 > `pkg/client/parallel.go` 与 `pkg/client/error_category.go` **已实施**。
 > `FetchTasks` 仍用内联 `errgroup`（业务复杂性待后续迁移），但 `ParallelDims[T]` 泛型 helper 与 `ClassifyError` 分类枚举已可复用。
