@@ -7,18 +7,19 @@
 │  cmd/nazhi/  CLI 层：cobra 命令薄壳                       │
 │  - 参数解析 + env fallback + JSON 输出                    │
 │  - 顶层 panic recover（debug.Stack）+  LIFO 资源清理       │
-│  - 源文件（含 main/client_builder/opt_builder/        │
-│    lifecycle/output/env/parents/sub-commands）             │
+│  - main/client_builder/opt_builder/                         │
+│    lifecycle/output/env/parents + 各子命令                  │
 └────────────────────┬─────────────────────────────────────┘
                      │ 调用
                      ↓
 ┌──────────────────────────────────────────────────────────┐
 │  pkg/client/  SDK 层：核心业务                            │
 │  - Option 模式构造                                         │
-│  - 公开方法（Login / ActivateSession / FetchTasks…）        │
+│  - 公开方法：Login / ActivateSession / FetchTasks /        │
+│    SubmitTask / SubmitSelfEvaluation / GetHonorList /      │
+│    UploadFile / DownloadFile / ...                         │
 │  - HAR 对齐 Session 激活 + sessionManager 状态机          │
 │  - Pool 多实例 OCR 引擎 + ddddocr/!ddddocr build tag 分发  │
-│  - 公开方法（含 honor delete 等）                          │
 │  - 哨兵错误（errors.Is 精确分支）                          │
 └─────────┬─────────────────────────┬──────────────────────┘
           │ 使用                    │ 使用
@@ -349,11 +350,11 @@ c.SubmitTask(ctx, token, payload)
 
 ```
 pkg/client/*_test.go            单元测试（httptest.Server mock 服务端，验证 HTTP 方法/路径/头/body/调用顺序/错误路径/并发隔离/cookie jar 独立性）
-pkg/tokenparse/*_test.go         tokenparse 单元测试（289 行）
+pkg/tokenparse/*_test.go         tokenparse 单元测试
 test/integration/har_*_test.go  HAR 驱动 + PII 守卫（SHA-256 hash）
 test/integration/verify_*_test.go    //go:build verify — CLAUDE.md 不能被 git track
 test/integration/*_test.go      真实环境集成（需要 NAZHI_USERNAME/NAZHI_PASSWORD，默认 skip）
-internal/ocr/                    OCR 单元测试（35+ 测试，含 cross-platform build tag 隔离）
+internal/ocr/                    OCR 单元测试（含 cross-platform build tag 隔离，覆盖 Pool/cleanup/sweep/win/mu 等）
 ```
 
 **SDK 单元测试**不依赖真实 ddddocr（太重），用 `recognizer` 接口注入 mock。`test/integration/` 用 build tag 隔离：
