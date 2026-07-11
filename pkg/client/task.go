@@ -272,6 +272,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	}
 
 	for i := range tasks {
+		tasks[i].RefreshSubmitted()
 		tasks[i].DimensionName = dim.Name
 	}
 	return tasks, nil

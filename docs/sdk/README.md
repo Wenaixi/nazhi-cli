@@ -492,6 +492,8 @@ log.Printf("欢迎 %s（%s）", info.Name, info.ClassName)
 
 拉全部维度的任务。流程：`ActivateSession` → `getDimensions` → 遍历维度并发拉 `getCircleStatistics` → 聚合。
 
+> `Task.Submitted` 与 `Task.NeedPic` 是 SDK 分别从平台原始字段 `circleTaskStatus` 与 `upPic` 映射得到的语义字段。
+
 **并发控制**：`errgroup.SetLimit(min(len(dimensions), 8))`，20 维度约 3 RTT 完成。超过 50 维度考虑调整 `fetchTasksConcurrentLimit` 常量。
 
 请求例子：

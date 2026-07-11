@@ -1,5 +1,7 @@
 package types
 
+import "strings"
+
 // 任务作用域常量（对应服务端 scopeType）。
 const (
 	ScopeClass = 1 // 班级任务
@@ -32,6 +34,8 @@ type Task struct {
 	Remark          string   `json:"remark"`            // 任务说明（"照片加描述" 等）
 	Submitted       bool     `json:"submitted"`         // 是否已提交（来自服务端 circleTaskStatus）
 	NeedPic         bool     `json:"needPic"`           // 是否需要图片（来自服务端 upPic 0/1）
+	CircleTaskStatus string   `json:"circleTaskStatus"` // 平台原始提交状态
+	UpPic            int      `json:"upPic"`            // 平台原始图片要求：1 需要，0 不需要
 	StartDate       DateOnly `json:"startDateStr"`      // 开始日期（来自服务端 startDateStr，如 2026-01-12）
 	EndDate         DateOnly `json:"endDateStr"`        // 结束日期（来自服务端 endDateStr，如 2026-02-10）
 	AuditStartDate  DateOnly `json:"auditStartDateStr"` // 审核开始日期
@@ -44,6 +48,15 @@ type Task struct {
 	PushNum         int      `json:"pushNum"`           // 推送次数
 	ScopeType       int      `json:"scopeType"`         // 作用域类型（参见 ScopeClass/ScopeGrade/ScopeStage）
 	ScopeTypeName   string   `json:"scopeTypeName"`     // 作用域名称
+}
+
+// RefreshSubmitted 根据平台原始字段同步提交状态和图片要求。
+func (t *Task) RefreshSubmitted() {
+	t.Submitted = strings.Contains(t.CircleTaskStatus, "已提交") ||
+		strings.Contains(t.CircleTaskStatus, "审核通过") ||
+		strings.Contains(t.CircleTaskStatus, "审核中") ||
+		strings.Contains(t.CircleTaskStatus, "已审核")
+	t.NeedPic = t.UpPic == 1
 }
 
 // TaskSubmitPayload 是 addCircle 接口的完整请求体（30 字段透传）。
