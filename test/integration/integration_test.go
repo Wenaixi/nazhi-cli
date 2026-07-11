@@ -479,42 +479,17 @@ func TestHAR_SubmitTask(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = c.Close() })
 
-	// 用真实 HAR addCircle 的字段（解码 GBK 中文）
-	payload := types.TaskSubmitPayload{
-		ID:                  nil,
-		Name:                "示例任务名",
-		HostName:            "",
-		CircleDate:          "",
-		Rank:                "",
-		Level:               "",
-		Content:             "通过参加爱党等相关活动...（真实内容约 100 字）",
-		PictureList:         []int64{4384402},
-		CircleTaskID:        16493,
-		CircleTypeID:        9255,
-		DimensionID:         9,
-		Hours:               0.5,
-		CircleBeginDate:     "",
-		CircleEndDate:       "",
-		CheckResult:         "",
-		PatentType:          "",
-		PatentNum:           "",
-		Address:             "学校操场",
-		TermName:            "",
-		ActivityName:        "",
-		SportsName:          "",
-		TeamName:            "",
-		OrgName:             "",
-		ResultsName:         "",
-		ObtainTime:          "",
-		SpecialtyTechnology: "",
-		PlayRole:            types.PlayRoleParticipant,
-		LikeSpecialty1:      "",
-		LikeSpecialty2:      "",
-		LikeSpecialty3:      "",
+	input := types.TaskSubmitInput{
+		TaskID:     16493,
+		Content:    "通过参加爱党等相关活动...（真实内容约 100 字）",
+		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		Address:    "学校操场",
+		Level:      "5",
+		PlayRole:   "3",
 	}
 
 	t.Log("→ POST /api/studentCircleNew/addCircle (SDK SubmitTask)")
-	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", payload)
+	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", input)
 	if err != nil {
 		t.Fatalf("SDK SubmitTask 失败: %v", err)
 	}
@@ -599,42 +574,15 @@ func TestHAR_SubmitTask_Military(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = c.Close() })
 
-	// 真实军训 payload（从 military.json 提取）
-	payload := types.TaskSubmitPayload{
-		ID:                  nil,
-		Name:                "", // 军训 name 必须为空
-		HostName:            "",
-		CircleDate:          "",
-		Rank:                "",
-		Level:               "", // 军训 level 必须为空
-		Content:             "通过军训，我学会了坚持和团队合作...（真实心得约 100 字）",
-		PictureList:         []int64{4400262},
-		CircleTaskID:        16513,
-		CircleTypeID:        3691,
-		DimensionID:         13,
-		Hours:               32, // 军训固定 32 学时
-		CircleBeginDate:     "",
-		CircleEndDate:       "",
-		CheckResult:         "1", // 军训 checkResult=1
-		PatentType:          "",
-		PatentNum:           "",
-		Address:             "示例中学", // 军训 address=学校名
-		TermName:            "",
-		ActivityName:        "",
-		SportsName:          "",
-		TeamName:            "",
-		OrgName:             "示例中学", // 军训 orgName=学校名
-		ResultsName:         "",
-		ObtainTime:          "",
-		SpecialtyTechnology: "",
-		PlayRole:            "", // 军训 playRole 必须为空
-		LikeSpecialty1:      "",
-		LikeSpecialty2:      "",
-		LikeSpecialty3:      "",
+	input := types.TaskSubmitInput{
+		TaskID:     16513,
+		Content:    "通过军训，我学会了坚持和团队合作...（真实心得约 100 字）",
+		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		Address:    "示例中学",
 	}
 
 	t.Log("→ POST /api/studentCircleNew/addCircle (军训类型)")
-	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", payload)
+	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", input)
 	if err != nil {
 		t.Fatalf("SubmitTask (军训): %v", err)
 	}
@@ -658,41 +606,16 @@ func TestHAR_SubmitTask_ClassMeeting(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = c.Close() })
 
-	payload := types.TaskSubmitPayload{
-		ID:                  nil,
-		Name:                "班会", // 班会 name 固定为"班会"
-		HostName:            "",
-		CircleDate:          "",
-		Rank:                "",
-		Level:               "", // 班会 level 必须为空
-		Content:             "今天班会我们讨论了诚信考试的重要性...（真实心得）",
-		PictureList:         []int64{4401164},
-		CircleTaskID:        16324,
-		CircleTypeID:        9256,
-		DimensionID:         9,
-		Hours:               1, // 班会 1 学时
-		CircleBeginDate:     "",
-		CircleEndDate:       "",
-		CheckResult:         "",
-		PatentType:          "",
-		PatentNum:           "",
-		Address:             "高一(8)班", // 班会 address=班级名
-		TermName:            "",
-		ActivityName:        "",
-		SportsName:          "",
-		TeamName:            "",
-		OrgName:             "", // 班会 orgName 必须为空
-		ResultsName:         "",
-		ObtainTime:          "",
-		SpecialtyTechnology: "",
-		PlayRole:            types.PlayRoleParticipant, // 班会 playRole=3
-		LikeSpecialty1:      "",
-		LikeSpecialty2:      "",
-		LikeSpecialty3:      "",
+	input := types.TaskSubmitInput{
+		TaskID:     16324,
+		Content:    "今天班会我们讨论了诚信考试的重要性...（真实心得）",
+		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		Address:    "高一(8)班",
+		PlayRole:   types.PlayRoleParticipant,
 	}
 
 	t.Log("→ POST /api/studentCircleNew/addCircle (班会类型)")
-	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", payload)
+	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", input)
 	if err != nil {
 		t.Fatalf("SubmitTask (班会): %v", err)
 	}
@@ -716,41 +639,16 @@ func TestHAR_SubmitTask_Labor(t *testing.T) {
 	)
 	t.Cleanup(func() { _ = c.Close() })
 
-	payload := types.TaskSubmitPayload{
-		ID:                  nil,
-		Name:                "", // 劳动 name 用原始任务名（这里保持空）
-		HostName:            "",
-		CircleDate:          "",
-		Rank:                "",
-		Level:               "5", // 劳动 level="5" 校级
-		Content:             "通过参加校园劳动，我体会到...（真实心得约 100 字）",
-		PictureList:         []int64{4399727},
-		CircleTaskID:        16512,
-		CircleTypeID:        9275,
-		DimensionID:         14,
-		Hours:               2, // 劳动 2 学时
-		CircleBeginDate:     "",
-		CircleEndDate:       "",
-		CheckResult:         "",
-		PatentType:          "",
-		PatentNum:           "",
-		Address:             "示例中学", // 劳动 address=学校名
-		TermName:            "",
-		ActivityName:        "",
-		SportsName:          "",
-		TeamName:            "",
-		OrgName:             "示例中学", // 劳动 orgName=学校名
-		ResultsName:         "",
-		ObtainTime:          "",
-		SpecialtyTechnology: "",
-		PlayRole:            "", // 劳动 playRole 必须为空
-		LikeSpecialty1:      "",
-		LikeSpecialty2:      "",
-		LikeSpecialty3:      "",
+	input := types.TaskSubmitInput{
+		TaskID:     16512,
+		Content:    "通过参加校园劳动，我体会到...（真实心得约 100 字）",
+		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		Address:    "示例中学",
+		Level:      "5",
 	}
 
 	t.Log("→ POST /api/studentCircleNew/addCircle (劳动类型)")
-	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", payload)
+	result, err := c.SubmitTask(context.Background(), "fake-jwt-token", input)
 	if err != nil {
 		t.Fatalf("SubmitTask (劳动): %v", err)
 	}
