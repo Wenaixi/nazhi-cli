@@ -6,7 +6,7 @@
 //
 // 修复：在 printEnvelope(envelope.Success(info)) 前加 if info == nil 守卫。
 // 测试策略：AST 静态扫描 session.go 的 sessionActivateCmd.Run 函数体，
-// 断言在 printEnvelope 调用之前必须出现 `info == nil` 守卫。
+// 断言在 printEnvelope 调用之前必须出现 info == nil 或 len(raw) == 0 守卫。
 // 防止 future refactor 删掉这个守卫造成裸 null 回归。
 package main
 
@@ -18,8 +18,8 @@ import (
 )
 
 // TestSessionActivate_HasNilGuardBeforePrintEnvelope AST 扫描 sessionActivateCmd.Run 函数
-// 断言 printEnvelope(envelope.Success(info)) 调用之前必须显式检查 info == nil
-// （防御 future regression）。
+// 断言 printEnvelope(envelope.Success(...)) 调用之前必须显式检查 info == nil 或
+// len(raw) == 0（防御 future regression）。
 func TestSessionActivate_HasNilGuardBeforePrintEnvelope(t *testing.T) {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "session.go", nil, 0)
@@ -75,7 +75,8 @@ func TestSessionActivate_HasNilGuardBeforePrintEnvelope(t *testing.T) {
 		t.Fatal("找不到 sessionActivateCmd.Run 函数")
 	}
 
-	// 2. 找 printEnvelope(envelope.Success(info)) 调用位置
+	// 2. 找 printEnvelope(envelope.Success(...)) 调用位置
+	// 匹配 envelope.Success(info) 或 envelope.Success(json.RawMessage(raw)) 等
 	var printEnvPos token.Pos
 	ast.Inspect(runFunc.Body, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
@@ -86,7 +87,6 @@ func TestSessionActivate_HasNilGuardBeforePrintEnvelope(t *testing.T) {
 		if !ok || fn.Name != "printEnvelope" {
 			return true
 		}
-		// 必须是 envelope.Success(info) 形式
 		if len(call.Args) != 1 {
 			return true
 		}
@@ -98,21 +98,14 @@ func TestSessionActivate_HasNilGuardBeforePrintEnvelope(t *testing.T) {
 		if !ok || sel.Sel.Name != "Success" {
 			return true
 		}
-		// envelope.Success 的唯一参数必须是 info
-		if len(inner.Args) != 1 {
-			return true
-		}
-		if arg, ok := inner.Args[0].(*ast.Ident); ok && arg.Name == "info" {
-			printEnvPos = call.Pos()
-			return false
-		}
-		return true
+		printEnvPos = call.Pos()
+		return false
 	})
 	if printEnvPos == 0 {
-		t.Fatal("sessionActivateCmd.Run 未发现 printEnvelope(envelope.Success(info)) 调用")
+		t.Fatal("sessionActivateCmd.Run 未发现 printEnvelope(envelope.Success(...)) 调用")
 	}
 
-	// 3. 找 info == nil 守卫（IfStmt with == nil 检查 on info）
+	// 3. 找守卫（IfStmt with == nil 或 len() == 0 检查）
 	// 必须在 printEnvPos 之前出现
 	var nilGuardPos token.Pos
 	ast.Inspect(runFunc.Body, func(n ast.Node) bool {
@@ -124,17 +117,12 @@ func TestSessionActivate_HasNilGuardBeforePrintEnvelope(t *testing.T) {
 		if !ok || be.Op != token.EQL {
 			return true
 		}
-		left, ok := be.X.(*ast.Ident)
-		if !ok || left.Name != "info" {
-			return true
-		}
-		right, ok := be.Y.(*ast.Ident)
-		if !ok || right.Name != "nil" {
-			return true
-		}
-		if ifStmt.Pos() < printEnvPos {
-			if nilGuardPos == 0 || ifStmt.Pos() > nilGuardPos {
-				nilGuardPos = ifStmt.Pos()
+		// 兼容：info == nil 或 len(raw) == 0
+		if matched := isNilOrLengthGuard(be); matched {
+			if ifStmt.Pos() < printEnvPos {
+				if nilGuardPos == 0 || ifStmt.Pos() > nilGuardPos {
+					nilGuardPos = ifStmt.Pos()
+				}
 			}
 		}
 		return true
@@ -142,11 +130,39 @@ func TestSessionActivate_HasNilGuardBeforePrintEnvelope(t *testing.T) {
 
 	if nilGuardPos == 0 {
 		printEnvLine := fset.Position(printEnvPos).Line
-		t.Errorf("B5 守卫缺失：sessionActivateCmd.Run 在 printEnvelope(envelope.Success(info)) (line %d) 之前必须有 `if info == nil` 守卫。\n"+
+		t.Errorf("B5 守卫缺失：sessionActivateCmd.Run 在 printEnvelope(envelope.Success(...)) (line %d) 之前必须有 nil/空守卫。\n"+
 			"future regression：如果 SDK 回归到返回 (nil, nil)，cmd 层会输出裸 null。",
 			printEnvLine)
 		return
 	}
-	t.Logf("✓ B5 修复锚定：info == nil 守卫在 line %d，printEnvelope 在 line %d",
+	t.Logf("✓ B5 修复锚定：nil/空守卫在 line %d，printEnvelope 在 line %d",
 		fset.Position(nilGuardPos).Line, fset.Position(printEnvPos).Line)
+}
+
+// isNilOrLengthGuard 判断 BinaryExpr 是否为 info == nil 或 len(x) == 0 守卫。
+func isNilOrLengthGuard(be *ast.BinaryExpr) bool {
+	// info == nil
+	if ident, ok := be.X.(*ast.Ident); ok {
+		if y, ok := be.Y.(*ast.Ident); ok && ident.Name == "info" && y.Name == "nil" {
+			return true
+		}
+	}
+	if be.Y == nil {
+		return false
+	}
+	// nil == info
+	if ident, ok := be.Y.(*ast.Ident); ok {
+		if x, ok := be.X.(*ast.Ident); ok && ident.Name == "info" && x.Name == "nil" {
+			return true
+		}
+	}
+	// len(raw) == 0
+	if call, ok := be.X.(*ast.CallExpr); ok {
+		if f, ok := call.Fun.(*ast.Ident); ok && f.Name == "len" && len(call.Args) == 1 {
+			if lit, ok := be.Y.(*ast.BasicLit); ok && lit.Kind == token.INT && lit.Value == "0" {
+				return true
+			}
+		}
+	}
+	return false
 }

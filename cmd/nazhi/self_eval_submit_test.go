@@ -48,7 +48,7 @@ func makeSelfEvalSubmitTestCmd(t *testing.T, comment string) *cobra.Command {
 	return cmd
 }
 
-// TestSelfEvalSubmitCmd_WithComment 验证 --comment flag 正常提交并输出成功 JSON。
+// TestSelfEvalSubmitCmd_WithComment 验证 --comment flag 正常提交并输出 envelope.Empty。
 func TestSelfEvalSubmitCmd_WithComment(t *testing.T) {
 	cmd := makeSelfEvalSubmitTestCmd(t, "很好的学期")
 
@@ -67,8 +67,12 @@ func TestSelfEvalSubmitCmd_WithComment(t *testing.T) {
 	if strings.Contains(stderr, `"status": "error"`) {
 		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
-	if !strings.Contains(stdout, `"status": "ok"`) {
-		t.Errorf("stdout 应包含 status: ok，实际: %q", stdout)
+	// SubmitSelfEvaluation SDK 成功路径返回 nil → envelope.Empty (HTTP 204)
+	if !strings.Contains(stdout, `"code": 204`) {
+		t.Errorf("stdout 应是 envelope.Empty (code=204)，实际: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"data": null`) {
+		t.Errorf("stdout data 字段应为 null（无业务负载），实际: %q", stdout)
 	}
 }
 
@@ -103,8 +107,8 @@ func TestSelfEvalSubmitCmd_StdinPipe(t *testing.T) {
 	if strings.Contains(stderr, `"status": "error"`) {
 		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
-	if !strings.Contains(stdout, `"status": "ok"`) {
-		t.Errorf("stdout 应包含 status: ok，实际: %q", stdout)
+	if !strings.Contains(stdout, `"code": 204`) {
+		t.Errorf("stdout 应是 envelope.Empty (code=204)，实际: %q", stdout)
 	}
 }
 

@@ -1212,7 +1212,7 @@ func TestGetSchoolID_URLEncodesUsername(t *testing.T) {
 		WithTimeout(5*time.Second),
 	)
 
-	_, _, err := c.GetSchoolID(context.Background(), "S123&456")
+	_, err := c.GetSchoolID(context.Background(), "S123&456")
 	if err != nil {
 		t.Fatalf("GetSchoolID 失败: %v", err)
 	}

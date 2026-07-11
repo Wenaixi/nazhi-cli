@@ -123,8 +123,8 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 		t.Errorf("stdout message 应包含 fetch_tasks_partial_failure，实际: %q", stdout)
 	}
 
-	// 关键断言：成功维度的 tasks 数据必须仍输出到 stdout
-	if !strings.Contains(stdout, `"tasks"`) {
+	// 关键断言：成功维度的 tasks 数据必须仍输出到 stdout（partial envelope 携带 struct{ Tasks }）
+	if !strings.Contains(stdout, `"data": `) {
 		t.Errorf("stdout 应包含 tasks 字段（成功维度的数据），实际: %q", stdout)
 	}
 	// 任务 ID 2000 应出现（来自成功维度 1 和 3）

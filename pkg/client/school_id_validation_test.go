@@ -33,7 +33,7 @@ func TestGetSchoolID_NonNumericSchoolID_ReturnsErrInvalidPayload(t *testing.T) {
 	defer sso.Close()
 
 	c := newTestClient(sso, nil, nil)
-	_, _, err := c.GetSchoolID(context.Background(), "TEST2025001")
+	_, err := c.GetSchoolID(context.Background(), "TEST2025001")
 	if err == nil {
 		t.Fatal("期望非数字 school_id 返回 error, 得到 nil")
 	}
@@ -60,7 +60,7 @@ func TestGetSchoolID_NilSchoolID_ReturnsErrInvalidPayload(t *testing.T) {
 	defer sso.Close()
 
 	c := newTestClient(sso, nil, nil)
-	_, _, err := c.GetSchoolID(context.Background(), "TEST2025001")
+	_, err := c.GetSchoolID(context.Background(), "TEST2025001")
 	if err == nil {
 		t.Fatal("期望 nil school_id 返回 error, 得到 nil")
 	}
@@ -87,14 +87,14 @@ func TestGetSchoolID_ValidNumericSchoolID_AfterE2Fix(t *testing.T) {
 	defer sso.Close()
 
 	c := newTestClient(sso, nil, nil)
-	schoolID, schoolName, err := c.GetSchoolID(context.Background(), "TEST2025001")
+	info, err := c.GetSchoolID(context.Background(), "TEST2025001")
 	if err != nil {
 		t.Fatalf("合法 school_id 不应返回 error: %v", err)
 	}
-	if schoolID != "173" {
-		t.Errorf("期望 schoolID=173, 得到 %s", schoolID)
+	if info.SchoolID != "173" {
+		t.Errorf("期望 schoolID=173, 得到 %s", info.SchoolID)
 	}
-	if schoolName != "示例中学" {
-		t.Errorf("期望 schoolName=示例中学, 得到 %s", schoolName)
+	if info.SchoolName != "示例中学" {
+		t.Errorf("期望 schoolName=示例中学, 得到 %s", info.SchoolName)
 	}
 }

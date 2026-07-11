@@ -82,7 +82,7 @@ func TestFileUploadCmd_MissingFile_PrintsError(t *testing.T) {
 	}
 }
 
-// TestFileUploadCmd_HappyPath 验证完整上传流程：JPEG 文件上传成功，输出 id + path。
+// TestFileUploadCmd_HappyPath 验证完整上传流程：JPEG 文件上传成功，输出 id。
 func TestFileUploadCmd_HappyPath(t *testing.T) {
 	jpegPath := makeTempJPEG(t)
 	cmd := makeFileUploadTestCmd(t, jpegPath)
@@ -102,14 +102,13 @@ func TestFileUploadCmd_HappyPath(t *testing.T) {
 	if strings.Contains(stderr, `"status": "error"`) {
 		t.Errorf("stderr 不应包含 error envelope，实际: %q", stderr)
 	}
-	if !strings.Contains(stdout, `"id": 42`) {
-		t.Errorf("stdout 应包含上传返回的 id: 42，实际: %q", stdout)
+	// envelope.data 直接是 UploadFile 返回对象（CLI 1:1，不再包装 path）
+	if !strings.Contains(stdout, `"attachmentID": 42`) {
+		t.Errorf("stdout envelope.data 应是 SDK UploadFile 返回对象 attachmentID=42，实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"path":`) {
-		t.Errorf("stdout 应包含 path 字段，实际: %q", stdout)
-	}
-	if !strings.Contains(stdout, "test.jpg") {
-		t.Errorf("stdout 应包含源文件名 test.jpg，实际: %q", stdout)
+	// CLI 不再伪装 path 字段（避免伪装成 SDK 输出）
+	if strings.Contains(stdout, `"path":`) {
+		t.Errorf("stdout 不应包含 path 字段（CLI 与 SDK 1:1），实际: %q", stdout)
 	}
 }
 

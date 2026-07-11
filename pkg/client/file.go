@@ -42,7 +42,7 @@ var multipartBufPool = sync.Pool{
 //
 // 上传前自动预处理：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB。
 // 全部在内存中完成，不写盘、不修改原文件。
-func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error) {
+func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.UploadFileResult, error) {
 	// 1. 图片预处理
 	fileData, mimeType, err := c.prepareImageForUpload(filePath)
 	if err != nil {
@@ -53,12 +53,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		//
 		// 注：errors.Is(err, ErrImageTooLarge) 仍命中（pre-existing 行为保留），
 		// 只是额外让 ErrFileTooLarge 也进入链。
-		return 0, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
+		return nil, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
 	}
 	if len(fileData) > MaxImageSize {
 		// A3 修复：让两条"图片过大"路径的 sentinel 行为一致。
 		// 兜底路径也用 errors.Join 包含 ErrImageTooLarge。
-		return 0, fmt.Errorf("压缩后仍达 %d 字节: %w", len(fileData),
+		return nil, fmt.Errorf("压缩后仍达 %d 字节: %w", len(fileData),
 			errors.Join(ErrFileTooLarge, ErrImageTooLarge))
 	}
 	c.logDebug("图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
@@ -83,10 +83,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 
 	part, err := writer.CreateFormFile("file", filePath+".jpg")
 	if err != nil {
-		return 0, fmt.Errorf("创建 multipart form 失败: %w", err)
+		return nil, fmt.Errorf("创建 multipart form 失败: %w", err)
 	}
 	if _, err := part.Write(fileData); err != nil {
-		return 0, fmt.Errorf("写入图片到 multipart 失败: %w", err)
+		return nil, fmt.Errorf("写入图片到 multipart 失败: %w", err)
 	}
 
 	// 显式 Close：在 NewRequest 之前写入终结边界到 buf。
@@ -94,7 +94,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// writer 在 NewRequest 前已完成终结边界的写入。CreateFormFile 和
 	// part.Write 在 Close 前已返回，CreateFormFile/Write 路径无另存早退点。
 	if err := writer.Close(); err != nil {
-		return 0, fmt.Errorf("关闭 multipart writer 失败: %w", err)
+		return nil, fmt.Errorf("关闭 multipart writer 失败: %w", err)
 	}
 
 	// ⚠️ 关键顺序：先拷贝完整 body bytes，再回收 buf。HTTP transport 的
@@ -125,7 +125,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		"User-Agent": defaultUserAgent,
 	}, writer.FormDataContentType())
 	if err != nil {
-		return 0, fmt.Errorf("%w: 创建上传请求失败: %w", ErrNetwork, err)
+		return nil, fmt.Errorf("%w: 创建上传请求失败: %w", ErrNetwork, err)
 	}
 
 	// 4. 关键安全措施：使用独立的 clean http.Client（无 cookie jar）
@@ -139,7 +139,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 只需 1 次 DNS+TCP+TLS 握手，后续 keep-alive 复用。
 	resp, err := newCleanClient(c).Do(req)
 	if err != nil {
-		return 0, fmt.Errorf("%w: 上传请求失败: %w", ErrNetwork, err)
+		return nil, fmt.Errorf("%w: 上传请求失败: %w", ErrNetwork, err)
 	}
 	defer drainAndClose(resp.Body)
 
@@ -149,7 +149,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		// A2 修复：复用 request.go 的 classifyHTTPStatus 统一 sentinel 分类。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrUploadRejected)
-		return 0, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
+		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -158,13 +158,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 		// 当服务端断网 (connection reset / unexpected EOF) 时 bodyBytes 为空,
 		// 后续 json.Unmarshal([]) 返回 EOF, 报「解析上传响应失败: EOF」丢失根因。
 		// 现在包装为 ErrNetwork 哨兵, 上层可 errors.Is 识别。
-		return 0, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
+		return nil, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
 	}
 
 	// 5. 解析响应
 	unified, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		return 0, fmt.Errorf("解析上传响应失败: %w", err)
+		return nil, fmt.Errorf("解析上传响应失败: %w", err)
 	}
 
 	// I3 修复：故意不走 types.CheckCode，统一响应码 ≠ 1 仍用
@@ -175,12 +175,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	//     SDK 用户按 docs/sdk/README.md 推荐 errors.Is(ErrBusinessRejected) 重激活
 	// 两者不可合并——上传服务与业务 API 是独立服务域，错误处理路径完全不同。
 	if unified.Code != 1 {
-		return 0, fmt.Errorf("%w: code=%d", ErrUploadRejected, unified.Code)
+		return nil, fmt.Errorf("%w: code=%d", ErrUploadRejected, unified.Code)
 	}
 
 	// 6. 从 returnData 提取 id
 	if unified.ReturnData == nil {
-		return 0, fmt.Errorf("%w: 响应中缺少 returnData", ErrUploadRejected)
+		return nil, fmt.Errorf("%w: 响应中缺少 returnData", ErrUploadRejected)
 	}
 
 	var result map[string]any
@@ -195,7 +195,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	dec := json.NewDecoder(bytes.NewReader(*unified.ReturnData))
 	dec.UseNumber()
 	if err := dec.Decode(&result); err != nil {
-		return 0, fmt.Errorf("解析 returnData 失败: %w", err)
+		return nil, fmt.Errorf("解析 returnData 失败: %w", err)
 	}
 
 	// J2 修复：先区分字段是否存在，再做类型断言。
@@ -204,14 +204,14 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 	// 误导用户去检查协议而非数据类型。
 	rawID, exists := result["id"]
 	if !exists {
-		return 0, fmt.Errorf("%w: returnData 中缺少 id 字段", ErrUploadRejected)
+		return nil, fmt.Errorf("%w: returnData 中缺少 id 字段", ErrUploadRejected)
 	}
 	// decode returnData 采用 UseNumber 一致地解析 json.Number，
 	// 但 float64 断言也要兼容——json.Number 需通过 Float64() 转换。
 	var idInt int64
 	switch v := rawID.(type) {
 	case nil:
-		return 0, fmt.Errorf("%w: returnData.id 字段为 null", ErrUploadRejected)
+		return nil, fmt.Errorf("%w: returnData.id 字段为 null", ErrUploadRejected)
 	case float64:
 		idInt = int64(v)
 	case json.Number:
@@ -222,15 +222,15 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (int64, error)
 			var f float64
 			f, err = v.Float64()
 			if err != nil {
-				return 0, fmt.Errorf("%w: returnData.id 不是合法数字: %w", ErrUploadRejected, err)
+				return nil, fmt.Errorf("%w: returnData.id 不是合法数字: %w", ErrUploadRejected, err)
 			}
 			idInt = int64(f)
 		}
 	default:
-		return 0, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 或 json.Number 实际 %T", ErrUploadRejected, rawID)
+		return nil, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 或 json.Number 实际 %T", ErrUploadRejected, rawID)
 	}
 
-	return idInt, nil
+	return &types.UploadFileResult{AttachmentID: idInt}, nil
 }
 
 // DownloadFile 按附件 ID 从公开文件服务器下载图片到本地 dst。

@@ -34,8 +34,6 @@ type Task struct {
 	Remark          string   `json:"remark"`            // 任务说明（"照片加描述" 等）
 	Submitted       bool     `json:"submitted"`         // 是否已提交（来自服务端 circleTaskStatus）
 	NeedPic         bool     `json:"needPic"`           // 是否需要图片（来自服务端 upPic 0/1）
-	CircleTaskStatus string   `json:"circleTaskStatus"` // 平台原始提交状态
-	UpPic            int      `json:"upPic"`            // 平台原始图片要求：1 需要，0 不需要
 	StartDate       DateOnly `json:"startDateStr"`      // 开始日期（来自服务端 startDateStr，如 2026-01-12）
 	EndDate         DateOnly `json:"endDateStr"`        // 结束日期（来自服务端 endDateStr，如 2026-02-10）
 	AuditStartDate  DateOnly `json:"auditStartDateStr"` // 审核开始日期
@@ -50,17 +48,34 @@ type Task struct {
 	ScopeTypeName   string   `json:"scopeTypeName"`     // 作用域名称
 }
 
-// RefreshSubmitted 根据平台原始字段同步提交状态和图片要求。
-func (t *Task) RefreshSubmitted() {
-	t.Submitted = strings.Contains(t.CircleTaskStatus, "已提交") ||
-		strings.Contains(t.CircleTaskStatus, "审核通过") ||
-		strings.Contains(t.CircleTaskStatus, "审核中") ||
-		strings.Contains(t.CircleTaskStatus, "已审核")
-	t.NeedPic = t.UpPic == 1
+// TaskSubmitInput 是公开给 SDK 调用方的最小任务提交输入。
+//
+// 设计目标：调用方只提供真正需要人工决策的字段；其余 30 字段 payload 由 SDK
+// 内部根据 taskId 元数据、用户资料和上传结果自动组装。
+type TaskSubmitInput struct {
+	TaskID     int64    // 必填：任务 ID
+	Content    string   // 必填：心得/感悟
+	ImagePaths []string // 可选：本地图片路径列表
+	PlayRole   string   // 可选：默认空串，显式传入时覆盖
+	Address    string   // 可选：为空时默认 schoolName，允许调用方覆盖
+	Level      string   // 可选：为空时默认校级（5），允许调用方覆盖
 }
 
-// TaskSubmitPayload 是 addCircle 接口的完整请求体（30 字段透传）。
-type TaskSubmitPayload struct {
+// Validate 校验最小任务提交输入。
+func (in TaskSubmitInput) Validate() error {
+	if in.TaskID <= 0 {
+		return ErrTaskInputTaskIDRequired
+	}
+	if strings.TrimSpace(in.Content) == "" {
+		return ErrTaskInputContentRequired
+	}
+	return nil
+}
+
+// TaskAddCirclePayload 是 SDK 内部使用的 addCircle 完整请求体（30 字段透传）。
+//
+// 不再作为公开调用契约，仅用于 SDK 内部向真实接口提交请求。
+type TaskAddCirclePayload struct {
 	ID                  *int64  `json:"id"`
 	Name                string  `json:"name"`
 	HostName            string  `json:"hostName"`
@@ -87,14 +102,43 @@ type TaskSubmitPayload struct {
 	ResultsName         string  `json:"resultsName"`
 	ObtainTime          string  `json:"obtainTime"`
 	SpecialtyTechnology string  `json:"specialtyTechnology"`
-	// PlayRole 承担角色（数字编码，见 PlayRoleHost / PlayRoleMainParticipant / PlayRoleParticipant 常量）。
-	PlayRole       string `json:"playRole"`
-	LikeSpecialty1 string `json:"likeSpecialty1"`
-	LikeSpecialty2 string `json:"likeSpecialty2"`
-	LikeSpecialty3 string `json:"likeSpecialty3"`
+	PlayRole            string  `json:"playRole"`
+	LikeSpecialty1      string  `json:"likeSpecialty1"`
+	LikeSpecialty2      string  `json:"likeSpecialty2"`
+	LikeSpecialty3      string  `json:"likeSpecialty3"`
 }
 
+// TaskSubmitPayload 兼容旧调用方，已废弃。
+// Deprecated: 请改用 TaskSubmitInput。仅在迁移期保留，后续移除。
+type TaskSubmitPayload = TaskAddCirclePayload
+
+// TaskResult 是 addCircle 的业务返回摘要。
 type TaskResult struct {
 	Code int    `json:"code"`
 	Msg  string `json:"msg"`
 }
+
+// TaskCircleTypeInfo 是 getCircleTypeByTaskId 返回的任务提交元数据。
+//
+// 真实网页在提交 addCircle 前会先请求该接口，拿到 circleTypeId / dimensionId /
+// hours / remark 等字段，再拼最终提交 payload。SDK 暴露该类型，避免调用方手工猜测。
+type TaskCircleTypeInfo struct {
+	TaskName      string  `json:"task_name"`
+	CircleTypeID  int64   `json:"circle_type_id"`
+	Hours         float64 `json:"hours"`
+	TypeName      string  `json:"type_name"`
+	DimensionID   int64   `json:"dimension_id"`
+	DimensionName string  `json:"dimension_name"`
+	TaskID        int64   `json:"task_id"`
+	Remark        string  `json:"remark"`
+	Type          int     `json:"type"`
+}
+
+var (
+	ErrTaskInputTaskIDRequired   = taskInputError("taskId 为必填且必须 > 0")
+	ErrTaskInputContentRequired  = taskInputError("content 为必填")
+)
+
+type taskInputError string
+
+func (e taskInputError) Error() string { return string(e) }

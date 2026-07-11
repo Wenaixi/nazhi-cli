@@ -32,7 +32,7 @@ func (c *Client) InitSession(ctx context.Context) error {
 // ─── GetSchoolID ───
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
-func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID string, schoolName string, err error) {
+func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.SchoolInfo, error) {
 	u := c.ssoURL("/teacher/auth/studentLogin/getSchoolIdByStudentNumber", url.Values{"userName": {username}})
 
 	headers := c.ssoHeaders()
@@ -40,25 +40,25 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 
 	bodyBytes, err := c.httpDo(ctx, http.MethodPost, u, map[string]string{"key": ""}, headers, "application/json")
 	if err != nil {
-		return "", "", fmt.Errorf("GetSchoolID 请求失败: %w", err)
+		return nil, fmt.Errorf("GetSchoolID 请求失败: %w", err)
 	}
 
 	resp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		return "", "", fmt.Errorf("GetSchoolID 响应解析失败: %w", err)
+		return nil, fmt.Errorf("GetSchoolID 响应解析失败: %w", err)
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return "", "", fmt.Errorf("GetSchoolID 业务错误: %w", errors.Join(ErrBusinessRejected, err))
+		return nil, fmt.Errorf("GetSchoolID 业务错误: %w", errors.Join(ErrBusinessRejected, err))
 	}
 
 	schools, err := types.DecodeDataList[map[string]any](resp)
 	if err != nil {
-		return "", "", fmt.Errorf("GetSchoolID dataList 解析失败: %w", err)
+		return nil, fmt.Errorf("GetSchoolID dataList 解析失败: %w", err)
 	}
 
 	if len(schools) == 0 {
-		return "", "", fmt.Errorf("GetSchoolID: 未找到学校信息")
+		return nil, fmt.Errorf("GetSchoolID: 未找到学校信息")
 	}
 
 	school := schools[0]
@@ -66,18 +66,21 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (schoolID str
 	// 校验 school_id 为有效数字，防止非数字值被静默传给登录请求
 	schoolIDRaw, ok := school["school_id"]
 	if !ok || schoolIDRaw == nil {
-		return "", "", fmt.Errorf("%w: GetSchoolID school_id 字段缺失或为 nil", ErrInvalidPayload)
+		return nil, fmt.Errorf("%w: GetSchoolID school_id 字段缺失或为 nil", ErrInvalidPayload)
 	}
 	schoolIDStr := fmt.Sprintf("%v", schoolIDRaw)
 	if _, err := strconv.ParseInt(schoolIDStr, 10, 64); err != nil {
-		return "", "", fmt.Errorf("%w: GetSchoolID school_id=%q 不是有效数字: %w", ErrInvalidPayload, schoolIDStr, err)
+		return nil, fmt.Errorf("%w: GetSchoolID school_id=%q 不是有效数字: %w", ErrInvalidPayload, schoolIDStr, err)
 	}
-	schoolID = schoolIDStr
+	schoolName := ""
 	if v, ok := school["NAME"]; ok {
 		schoolName = fmt.Sprintf("%v", v)
 	}
 
-	return schoolID, schoolName, nil
+	return &types.SchoolInfo{
+		SchoolID:   schoolIDStr,
+		SchoolName: schoolName,
+	}, nil
 }
 
 // ─── Login ───
@@ -120,11 +123,11 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	if schoolID == "" {
 		g.Go(func() error {
-			sid, _, err := c.GetSchoolID(gctx, req.Username)
+			info, err := c.GetSchoolID(gctx, req.Username)
 			if err != nil {
 				return fmt.Errorf("Login GetSchoolID 失败: %w", err)
 			}
-			schoolID = sid
+			schoolID = info.SchoolID
 			return nil
 		})
 	}

@@ -24,6 +24,9 @@ func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) *cobra.Command {
 		case "/api/studentInfo/getMyInfo":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"测试学校","className":"高一(8)班","seat":45}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null,"dataList":null,"dataMap":{"task_name":"测试任务","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"普通任务说明","type":10},"pageBean":null}`))
 		case "/api/studentCircleNew/addCircle":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":5}`))
@@ -48,10 +51,12 @@ func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) *cobra.Command {
 	return cmd
 }
 
-// TestTaskSubmitCmd_WithPayload 验证 --payload flag 正确传递并输出 envelope 提交结果。
+// TestTaskSubmitCmd_WithPayload 验证新最小输入模型能正确提交并输出 envelope。
 func TestTaskSubmitCmd_WithPayload(t *testing.T) {
-	payload := `{"circleTaskId":1001,"circleTypeId":9256,"name":"测试任务","hours":1}`
+	payload := `{"taskId":1001,"content":"测试任务心得","address":"高一(8)班"}`
 	cmd := makeTaskSubmitTestCmd(t, payload)
+	cmd.Flags().String("address", "", "")
+	cmd.Flags().String("level", "", "")
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -75,7 +80,9 @@ func TestTaskSubmitCmd_WithPayload(t *testing.T) {
 
 // TestTaskSubmitCmd_MissingPayload_PrintsError 验证 --payload 缺省时输出 envelope.Error。
 func TestTaskSubmitCmd_MissingPayload_PrintsError(t *testing.T) {
-	cmd := makeTaskSubmitTestCmd(t, "") // 不设 payload flag
+	cmd := makeTaskSubmitTestCmd(t, "")
+	cmd.Flags().String("address", "", "")
+	cmd.Flags().String("level", "", "")
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -86,7 +93,6 @@ func TestTaskSubmitCmd_MissingPayload_PrintsError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 缺 payload → envelope.Error(400, ...) → exit code 3
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("缺 payload 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
@@ -99,15 +105,17 @@ func TestTaskSubmitCmd_MissingPayload_PrintsError(t *testing.T) {
 	_ = stderr
 }
 
-// TestTaskSubmitCmd_FilePayload 验证 @file.json 语法从文件读取 payload。
+// TestTaskSubmitCmd_FilePayload 验证 @file.json 语法从文件读取最小输入模型。
 func TestTaskSubmitCmd_FilePayload(t *testing.T) {
-	payloadContent := `{"circleTaskId":2002,"circleTypeId":9256,"name":"文件测试任务","hours":2}`
+	payloadContent := `{"taskId":1001,"content":"文件测试任务心得"}`
 	payloadPath := t.TempDir() + "/task.json"
 	if err := os.WriteFile(payloadPath, []byte(payloadContent), 0644); err != nil {
 		t.Fatalf("写入 payload 文件失败: %v", err)
 	}
 
 	cmd := makeTaskSubmitTestCmd(t, "@"+payloadPath)
+	cmd.Flags().String("address", "", "")
+	cmd.Flags().String("level", "", "")
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -140,6 +148,9 @@ func TestTaskSubmitCmd_ServerError(t *testing.T) {
 		case "/api/studentInfo/getMyInfo":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001","schoolName":"测试学校","className":"高一(8)班","seat":45}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null,"dataList":null,"dataMap":{"task_name":"测试任务","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"普通任务说明","type":10},"pageBean":null}`))
 		case "/api/studentCircleNew/addCircle":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":500,"msg":"业务处理失败"}`))
@@ -153,11 +164,13 @@ func TestTaskSubmitCmd_ServerError(t *testing.T) {
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
 	_ = cmd.Flags().Set("token", "test-token")
-	cmd.Flags().String("payload", `{"circleTaskId":1001,"circleTypeId":9256,"name":"测试任务","hours":1}`, "")
-	_ = cmd.Flags().Set("payload", `{"circleTaskId":1001,"circleTypeId":9256,"name":"测试任务","hours":1}`)
+	cmd.Flags().String("payload", `{"taskId":1001,"content":"测试任务心得"}`, "")
+	_ = cmd.Flags().Set("payload", `{"taskId":1001,"content":"测试任务心得"}`)
 	cmd.Flags().String("base-url", "", "")
 	_ = cmd.Flags().Set("base-url", srv.URL)
 	cmd.Flags().Int("timeout", 5, "")
+	cmd.Flags().String("address", "", "")
+	cmd.Flags().String("level", "", "")
 
 	quiet = false
 	pendingExitCode.Store(0)
@@ -168,7 +181,6 @@ func TestTaskSubmitCmd_ServerError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 业务错误应触发 pendingExitCode=2（envelope.Error 5xx → exit code 2）
 	if got := pendingExitCode.Load(); got != 2 {
 		t.Errorf("业务错误应触发 pendingExitCode=2，实际 %d", got)
 	}

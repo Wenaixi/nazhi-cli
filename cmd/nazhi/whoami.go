@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -12,6 +13,9 @@ import (
 // whoamiCmd 表示 nazhi whoami 命令
 //
 //	nazhi whoami --token <token> [--base-url <url>] [--timeout <秒>]
+//
+// envelope.data 直接透传 SDK GetMyInfoJSON 的原始 JSON（getMyInfo 响应 returnData
+// / dataMap 字节），CLI 输出与平台响应 byte-for-byte 一致。
 var whoamiCmd = &cobra.Command{
 	Use:   "whoami",
 	Short: "获取当前登录用户完整信息",
@@ -26,10 +30,8 @@ var whoamiCmd = &cobra.Command{
 		}
 
 		printVerbose("正在获取用户信息...")
-		info, err := c.GetMyInfo(cmd.Context(), token)
+		raw, err := c.GetMyInfoJSON(cmd.Context(), token)
 		if err != nil {
-			// ErrEmptyUserInfo 表示「业务成功但无数据」状态（非错误），
-			// 按 status=empty envelope 输出（code=204 表示空数据）。
 			if errors.Is(err, client.ErrEmptyUserInfo) {
 				printEnvelope(envelope.Empty("get_my_info_empty"))
 				return
@@ -37,8 +39,7 @@ var whoamiCmd = &cobra.Command{
 			printError(fmt.Errorf("获取用户信息失败: %w", err))
 			return
 		}
-		// info 非 nil 但 err 为 nil：正常路径
-		printEnvelope(envelope.Success(info))
+		printEnvelope(envelope.Success(json.RawMessage(raw)))
 	},
 }
 

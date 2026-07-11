@@ -82,9 +82,9 @@ func TestSubmitTask_BusinessError_NotMisclassifiedAsLogin(t *testing.T) {
 	// 跳过 session 激活，用 sm 直接注入已激活状态
 	c.sm.StoreToken("fake-token")
 
-	_, err = c.SubmitTask(context.Background(), "fake-token", types.TaskSubmitPayload{
-		CircleTaskID: 1,
-		CircleTypeID: 1,
+	_, err = c.SubmitTask(context.Background(), "fake-token", types.TaskSubmitInput{
+		TaskID:  1,
+		Content: "测试内容",
 	})
 
 	if err == nil {

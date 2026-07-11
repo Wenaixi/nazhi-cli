@@ -187,15 +187,15 @@ func TestGetSchoolID(t *testing.T) {
 	defer sso.Close()
 
 	c := newTestClient(sso, nil, nil)
-	schoolID, schoolName, err := c.GetSchoolID(context.Background(), "TEST2025001")
+	info, err := c.GetSchoolID(context.Background(), "TEST2025001")
 	if err != nil {
 		t.Fatalf("GetSchoolID 失败: %v", err)
 	}
-	if schoolID != "173" {
-		t.Errorf("期望 schoolID=173, 得到 %s", schoolID)
+	if info.SchoolID != "173" {
+		t.Errorf("期望 schoolID=173, 得到 %s", info.SchoolID)
 	}
-	if schoolName != "示例中学" {
-		t.Errorf("期望 schoolName=示例中学, 得到 %s", schoolName)
+	if info.SchoolName != "示例中学" {
+		t.Errorf("期望 schoolName=示例中学, 得到 %s", info.SchoolName)
 	}
 }
 
@@ -567,37 +567,46 @@ func TestFetchTasks(t *testing.T) {
 
 func TestSubmitTask(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/studentCircleNew/addCircle" {
-			t.Errorf("期望路径 addCircle, 得到 %s", r.URL.Path)
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null,"dataList":null,"dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"普通任务说明","type":10},"pageBean":null}`))
+		case "/api/studentCircleNew/addCircle":
+			if r.Method != http.MethodPost {
+				t.Errorf("期望 POST, 得到 %s", r.Method)
+			}
+			var payload types.TaskAddCirclePayload
+			_ = json.NewDecoder(r.Body).Decode(&payload)
+			if payload.CircleTaskID != 1001 {
+				t.Errorf("期望 CircleTaskID=1001, 得到 %d", payload.CircleTaskID)
+			}
+			if payload.Name != "" {
+				t.Errorf("期望 Name 为空，得到 %s", payload.Name)
+			}
+			if payload.Address != "高一(8)班" {
+				t.Errorf("期望 Address=高一(8)班, 得到 %s", payload.Address)
+			}
+			if payload.PlayRole != "" {
+				t.Errorf("期望 PlayRole 为空，得到 %s", payload.PlayRole)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(unifiedJSON(1, "提交成功", map[string]any{
+				"insertID": 12345,
+			}, nil)))
+		default:
+			t.Errorf("期望路径 getCircleTypeByTaskId/addCircle, 得到 %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
 		}
-		if r.Method != http.MethodPost {
-			t.Errorf("期望 POST, 得到 %s", r.Method)
-		}
-		var payload types.TaskSubmitPayload
-		_ = json.NewDecoder(r.Body).Decode(&payload)
-		if payload.CircleTaskID != 1001 {
-			t.Errorf("期望 CircleTaskID=1001, 得到 %d", payload.CircleTaskID)
-		}
-		if payload.Name != "班会" {
-			t.Errorf("期望 Name=班会, 得到 %s", payload.Name)
-		}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(unifiedJSON(1, "提交成功", map[string]any{
-			"insertID": 12345,
-		}, nil)))
 	})))
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	result, err := c.SubmitTask(context.Background(), "test-token", types.TaskSubmitPayload{
-		CircleTaskID: 1001,
-		CircleTypeID: 9256,
-		DimensionID:  9,
-		Hours:        1.0,
-		Name:         "班会",
-		Address:      "高一(8)班",
-		PlayRole:     types.PlayRoleParticipant,
+	result, err := c.SubmitTask(context.Background(), "test-token", types.TaskSubmitInput{
+		TaskID:  1001,
+		Content: "测试内容",
+		Address: "高一(8)班",
 	})
 	if err != nil {
 		t.Fatalf("SubmitTask 失败: %v", err)
@@ -764,12 +773,12 @@ func TestUploadFile_RealImage(t *testing.T) {
 	}
 	f.Close()
 
-	id, err := c.UploadFile(context.Background(), tmpfile)
+	result, err := c.UploadFile(context.Background(), tmpfile)
 	if err != nil {
 		t.Fatalf("UploadFile 失败: %v", err)
 	}
-	if id != 67890 {
-		t.Errorf("期望 id=67890, 得到 %d", id)
+	if result.AttachmentID != 67890 {
+		t.Errorf("期望 id=67890, 得到 %d", result.AttachmentID)
 	}
 }
 

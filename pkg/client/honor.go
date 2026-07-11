@@ -83,27 +83,30 @@ func (c *Client) GetHonorLevel(ctx context.Context, token string, honorTypeID in
 //
 // 服务端要求同时带上 &key= 参数（可空值），否则返回 HTTP 400。
 // pageNo 从 1 开始，pageSize 建议 20。
-func (c *Client) GetHonorList(ctx context.Context, token string, pageNo, pageSize int) ([]types.HonorRecord, *types.PageBean, error) {
+func (c *Client) GetHonorList(ctx context.Context, token string, pageNo, pageSize int) (*types.HonorListResult, error) {
 	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
 
 	resp, err := c.doBizAndDecode(ctx, token, "GetHonorList", path, http.MethodGet, nil)
 	if err != nil {
-		return nil, nil, fmt.Errorf("GetHonorList 失败: %w", err)
+		return nil, fmt.Errorf("GetHonorList 失败: %w", err)
 	}
 
 	// 解析分页信息
 	pb, err := types.DecodePageBean(*resp)
 	if err != nil {
-		return nil, nil, fmt.Errorf("GetHonorList 解析分页信息失败: %w", err)
+		return nil, fmt.Errorf("GetHonorList 解析分页信息失败: %w", err)
 	}
 
 	// 解析记录列表
 	records, err := types.DecodeDataList[types.HonorRecord](*resp)
 	if err != nil {
-		return nil, nil, fmt.Errorf("GetHonorList 解析荣誉记录失败: %w", err)
+		return nil, fmt.Errorf("GetHonorList 解析荣誉记录失败: %w", err)
 	}
 
-	return records, pb, nil
+	return &types.HonorListResult{
+		Records: records,
+		Page:    pb,
+	}, nil
 }
 
 // DeleteHonor 删除一条荣誉记录。

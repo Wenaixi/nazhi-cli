@@ -55,7 +55,9 @@ var selfEvalSubmitCmd = &cobra.Command{
 			return
 		}
 
-		printEnvelope(envelope.Success(map[string]string{"status": "ok", "message": "自我评价提交成功"}))
+		// SubmitSelfEvaluation SDK 成功路径返回 nil —— envelope.Empty (HTTP 204) 表达
+		// "成功无业务负载"，与 SDK 语义 1:1。
+		printEnvelope(envelope.Empty("自我评价提交成功"))
 	},
 }
 

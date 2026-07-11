@@ -276,11 +276,11 @@ func TestReal_FullChain(t *testing.T) {
 
 	// 3. GetSchoolID
 	t.Log("③ GetSchoolID")
-	schoolID, schoolName, err := c.GetSchoolID(ctx, username)
+	school, err := c.GetSchoolID(ctx, username)
 	if err != nil {
 		t.Errorf("GetSchoolID: %v", err)
 	} else {
-		t.Logf("   ✅ 学校: %s (ID=%s)", schoolName, schoolID)
+		t.Logf("   ✅ 学校: %s (ID=%s)", school.SchoolName, school.SchoolID)
 	}
 
 	// 4. ActivateSession（4 步 HAR 对齐）
@@ -348,11 +348,11 @@ func TestReal_FullChain(t *testing.T) {
 	tmpImg := createTestImage(t)
 	defer os.Remove(tmpImg)
 
-	id, err := c.UploadFile(ctx, tmpImg)
+	result, err := c.UploadFile(ctx, tmpImg)
 	if err != nil {
 		t.Errorf("UploadFile: %v", err)
 	} else {
-		t.Logf("   ✅ 上传成功，图片 ID: %d", id)
+		t.Logf("   ✅ 上传成功，图片 ID: %d", result.AttachmentID)
 	}
 }
 

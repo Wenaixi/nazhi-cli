@@ -48,7 +48,10 @@ func TestSubmitTask_AutoActivatesSession(t *testing.T) {
 			_, _ = w.Write([]byte(`{"code":1,"msg":"ok","returnData":null}`))
 		case "/api/studentInfo/getMyInfo":
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"code":1,"msg":"ok","returnData":{"name":"测试用户"}}`))
+			_, _ = w.Write([]byte(`{"code":1,"msg":"ok","returnData":{"name":"测试用户","schoolName":"测试学校","className":"测试班级"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null,"dataList":null,"dataMap":{"task_name":"测试任务","circle_type_id":456,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":123,"remark":"普通任务说明","type":10},"pageBean":null}`))
 		case "/api/studentCircleNew/addCircle":
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"ok","returnData":null}`))
@@ -67,20 +70,21 @@ func TestSubmitTask_AutoActivatesSession(t *testing.T) {
 	)
 
 	// 关键：直接调 SubmitTask，**不**先调 FetchTasks
-	_, err := c.SubmitTask(context.Background(), "test-token", types.TaskSubmitPayload{
-		CircleTaskID: 123,
-		CircleTypeID: 456,
+	_, err := c.SubmitTask(context.Background(), "test-token", types.TaskSubmitInput{
+		TaskID:  123,
+		Content: "测试内容",
 	})
 	if err != nil {
 		t.Fatalf("SubmitTask 失败: %v", err)
 	}
 
 	expected := []string{
-		"GET /",                                // 步骤 1
-		"GET /api/studentInfo/getMenu",         // 步骤 2
-		"GET /api/studentInfo/getMenu",         // 步骤 3
-		"GET /api/studentInfo/getMyInfo",       // 步骤 4
-		"POST /api/studentCircleNew/addCircle", // SubmitTask 实际请求
+		"GET /",                                          // 步骤 1
+		"GET /api/studentInfo/getMenu",                   // 步骤 2
+		"GET /api/studentInfo/getMenu",                   // 步骤 3
+		"GET /api/studentInfo/getMyInfo",                 // 步骤 4
+		"GET /api/studentCircleNew/getCircleTypeByTaskId", // 提交前元数据预取
+		"POST /api/studentCircleNew/addCircle",           // SubmitTask 实际请求
 	}
 	if !reflect.DeepEqual(callOrder, expected) {
 		t.Errorf("调用顺序错误（session 预热缺失或顺序错）\n实际: %v\n期望: %v", callOrder, expected)

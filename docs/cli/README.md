@@ -23,7 +23,7 @@ nazhi
 ├── whoami                          获取当前用户信息（含 schoolId）
 ├── task
 │   ├── list                        列出全维度任务（8 路并发）
-│   ├── submit                      提交任务（@payload.json 文件读取）
+│   ├── submit                      提交任务（最小输入模型 + SDK 自动补全）
 │   ├── submitted                   获取已提交写实记录（自动翻页）
 │   └── done                        同 task submitted（v1.0.0 新增别名）
 ├── self-eval
@@ -345,12 +345,12 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
   "data": [
     {
       "id": 10001,
-      "name": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声",
+      "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
       "typeName": "参加的艺术活动项目",
       "dimensionName": "艺术素养",
       "hours": 4,
       "score": 1,
-      "remark": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声4个小时",
+      "remark": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声4个小时",
       "submitted": false,
       "needPic": false,
       "startDateStr": "2026-06-30T00:00:00+08:00",
@@ -410,43 +410,73 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 
 ## nazhi task submit
 
-提交一次任务。30 字段 addCircle 请求体透传不裁剪，可直接喂从浏览器抓的 body。
+提交一次任务。payload 现在是最小必要输入 JSON，SDK 内部自动补齐任务元数据、学校信息、图片上传结果并提交。
 
 ```bash
 # 方式 1：--payload 字符串
-nazhi task submit --token "xxx" --payload '{"circleTaskId":1001,"name":"班会","hours":1}'
+nazhi task submit --token "xxx" --payload '{"taskId":18155,"content":"手握扫帚净校园，春意盎然拂面来。每一次躬身劳动，都是对责任与成长的最好诠释。"}'
 
-# 方式 2：--payload @file.json 从文件读取
-nazhi task submit --token "xxx" --payload @task.json
+# 方式 2：附带图片
+nazhi task submit --token "xxx" --payload '{"taskId":18155,"content":"手握扫帚净校园，春意盎然拂面来。每一次躬身劳动，都是对责任与成长的最好诠释。","imagePaths":["./photo.jpg"]}'
 
-# 方式 3：从 stdin 读取
-echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --token "xxx" --payload -
+# 方式 3：从文件读取，并用 flag 覆盖地点和等级
+nazhi task submit --token "xxx" --payload @task.json --address "示例中学" --level 5
+
+# 方式 4：从 stdin 读取
+echo '{"taskId":18155,"content":"劳动让我更懂责任。"}' | nazhi task submit --token "xxx" --payload -
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
 |---|---|---|---|
 | `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
 | `--payload` | ✅ | — | 任务 JSON 字符串、`@file.json` 路径，或 `-` 从 stdin 读取 |
+| `--address` | — | — | 地点（覆盖 `payload.address`；未传则默认学校名） |
+| `--level` | — | — | 等级（1=国家 2=省 3=地区/市 4=区/县/街道/社区 5=校；未传默认 5） |
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-任务类型字段差异（HAR 验证）：
+最小输入 JSON 字段：
 
-| 字段 | 劳动 | 军训 | 班会 | 通用 |
-|---|---|---|---|---|
-| `name` | 任务原名 | `""` | `"班会"` | 任务原名 |
-| `level` | `"5"` | `""` | `""` | `""` |
-| `checkResult` | `""` | `"1"` | `""` | `""` |
-| `address` | 学校名 | 学校名 | 班级名 | `""` |
-| `orgName` | 学校名 | 学校名 | `""` | `""` |
-| `playRole` | `""` | `""` | `"3"`（参与者） | `"3"`（参与者） |
-| `hours` | `2.0` | `32.0` | `1.0` | `0.5` |
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `taskId` | int64 | ✅ | 任务 ID |
+| `content` | string | ✅ | 心得/感悟 |
+| `imagePaths` | string[] | — | 本地图片路径列表，SDK 自动上传后填入 `pictureList` |
+| `playRole` | string | — | 承担角色；不传默认空串 |
+| `address` | string | — | 地点；不传默认学校名 |
+| `level` | string | — | 等级；不传默认 `"5"` |
 
-> `playRole` 数字编码：`"1"`=主持策划者 `"2"`=主要参与者 `"3"`=参与者。SDK 使用时可通过 `types.PlayRoleHost` / `types.PlayRoleMainParticipant` / `types.PlayRoleParticipant` 常量赋值。
+SDK 内部自动执行：
 
-完整 30 字段定义见 `pkg/types/task.go` `TaskSubmitPayload` 注释。
+1. `getCircleTypeByTaskId(taskId)` 获取 `circleTypeId / dimensionId / hours`
+2. `whoami / getMyInfo` 获取 `schoolName`
+3. 上传 `imagePaths` 并转成 `pictureList`
+4. 组装完整 `addCircle` 请求体后提交
 
-典型错误：`invalid task payload: circleTaskId 和 circleTypeId 不能为空` —— 必填字段缺失，stderr envelope 退出码 1。
+成功输出：
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "code": 1,
+    "msg": "成功"
+  }
+}
+```
+
+失败输出（该任务只能提交一次）：
+
+```json
+{
+  "status": "error",
+  "code": 500,
+  "message": "提交任务失败: business request rejected by server\nSubmitTask失败: 业务错误 (code=-1): 发表写实失败，限制本写实活动只能发表1次",
+  "data": null
+}
+```
 
 ---
 
@@ -477,8 +507,8 @@ nazhi task done --token "eyJhbGciOiJIUzUxMiJ9.xxx"      # 同 submitted，别名
     "records": [
       {
         "id": 20001,
-        "name": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声",
-        "content": "当最后一个音符落下，掌声如潮水般涌来，我才真正理解了"班班有歌声"的意义。",
+        "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
+        "content": "当最后一个音符落下，掌声如潮水般涌来，我才真正理解了\"班班有歌声\"的意义。",
         "typeName": "",
         "approved": false,
         "circleDate": "0001-01-01T00:00:00Z",
@@ -533,12 +563,9 @@ stdin 提示：当 stdin 是 TTY（交互终端）时，stderr 会打印 `请输
 ```json
 {
   "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "status": "ok",
-    "message": "自我评价提交成功"
-  }
+  "code": 204,
+  "message": "自我评价提交成功",
+  "data": null
 }
 ```
 
@@ -597,9 +624,16 @@ nazhi file upload -f ./photo.jpg
 
 自动预处理：任意格式 → JPG + 透明合成 → 质量/缩放级联 → ≤ 5MB（不修改原文件，全部在内存完成）。
 
----
+输出：
 
-## nazhi file download
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": 5041963
+}
+```
 
 按附件 ID 下载图片到本地。独立公共服务，不需要业务 token。
 
@@ -663,7 +697,18 @@ GET http://doc.nazhisoft.com/other/M00/.../<image>.jpg
 }
 ```
 
-`data.id` 可用于 `task submit --payload '{..., "pictureList": [12345]}'`。
+`data.id` 可用于后续业务场景引用图片；在任务提交新模型中，直接把本地路径放进 `imagePaths` 即可，SDK 会自动上传并生成 `pictureList`。
+
+输出：
+
+```json
+{
+  "status": "success",
+  "code": 204,
+  "message": "下载成功",
+  "data": null
+}
+```
 
 ---
 
@@ -798,6 +843,17 @@ payload 字段：
 }
 ```
 
+输出：
+
+```json
+{
+  "status": "success",
+  "code": 204,
+  "message": "荣誉申报成功",
+  "data": null
+}
+```
+
 典型错误：
 
 | 错误 | 原因 |
@@ -834,6 +890,17 @@ nazhi honor delete --token "eyJhbGciOiJIUzUxMiJ9.xxx" --id 123
     "msg": "荣誉记录已删除",
     "id": 123
   }
+}
+```
+
+输出：
+
+```json
+{
+  "status": "success",
+  "code": 204,
+  "message": "荣誉记录已删除",
+  "data": null
 }
 ```
 

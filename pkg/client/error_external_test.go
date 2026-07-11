@@ -97,20 +97,25 @@ func TestErrWrapping_FetchDimensions(t *testing.T) {
 // 错误链包含 ErrBusinessRejected。
 func TestErrWrapping_SubmitTask(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/studentCircleNew/addCircle" {
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null,"dataList":null,"dataMap":{"task_name":"测试任务","circle_type_id":1,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1,"remark":"普通任务说明","type":10},"pageBean":null}`))
+		case "/api/studentCircleNew/addCircle":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(unifiedJSON(2, "任务已提交", nil, nil)))
-			return
+		default:
+			w.WriteHeader(http.StatusInternalServerError)
 		}
-		w.WriteHeader(http.StatusInternalServerError)
 	})))
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	_, err := c.SubmitTask(context.Background(), "test-token", types.TaskSubmitPayload{
-		CircleTaskID: 1,
-		CircleTypeID: 1,
+	_, err := c.SubmitTask(context.Background(), "test-token", types.TaskSubmitInput{
+		TaskID:  1,
+		Content: "测试内容",
 	})
 	assertErrBizRejected(t, err, "SubmitTask")
 }

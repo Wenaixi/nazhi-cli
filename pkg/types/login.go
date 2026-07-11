@@ -21,3 +21,14 @@ type LoginResponse struct {
 	ExpiresAt    time.Time `json:"expiresAt"    example:"2026-07-23T18:38:00+08:00"  description:"token 过期时间（ISO 8601 + 时区）"`
 	FallbackUsed bool      `json:"fallbackUsed" example:"false"                       description:"本次登录是否降级到 ddddocr OCR（primary 失败后）"`
 }
+
+// SchoolInfo 是 GetSchoolID 的统一返回对象。
+type SchoolInfo struct {
+	SchoolID   string `json:"schoolID"`
+	SchoolName string `json:"schoolName"`
+}
+
+// UploadFileResult 是 UploadFile 的统一返回对象。
+type UploadFileResult struct {
+	AttachmentID int64 `json:"attachmentID"`
+}

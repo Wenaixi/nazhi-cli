@@ -23,6 +23,9 @@ var honorCmd = &cobra.Command{
 // honorTypesCmd 表示 nazhi honor types 命令
 //
 //	nazhi honor types --token <token> [--base-url <url>] [--timeout <秒>]
+//
+// envelope.data 直接透传 SDK GetHonorTypesJSON 的原始 JSON 数组，
+// 与平台响应 1:1（dataList 优先 / returnData 兜底）。
 var honorTypesCmd = &cobra.Command{
 	Use:   "types",
 	Short: "获取所有荣誉类型",
@@ -37,19 +40,23 @@ var honorTypesCmd = &cobra.Command{
 		}
 
 		printVerbose("正在获取荣誉类型...")
-		types, err := c.GetHonorTypes(cmd.Context(), token)
+		raw, err := c.GetHonorTypesJSON(cmd.Context(), token)
 		if err != nil {
 			printError(fmt.Errorf("获取荣誉类型失败: %w", err))
 			return
 		}
 
-		printEnvelope(envelope.Success(types))
+		printEnvelope(envelope.Success(json.RawMessage(raw)))
 	},
 }
 
 // honorListCmd 表示 nazhi honor list 命令
 //
 //	nazhi honor list --token <token> [--page <页>] [--page-size <条>] [--base-url <url>] [--timeout <秒>]
+//
+// envelope.data 直接透传 SDK GetHonorListJSON 的拼装 JSON
+// （内部将 records + pageBean 拼为 {records,page}），
+// records 与 page 字段值都是平台原始字节。
 var honorListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "获取已申报荣誉记录",
@@ -67,19 +74,13 @@ var honorListCmd = &cobra.Command{
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 
 		printVerbose("正在获取荣誉记录...")
-		records, pb, err := c.GetHonorList(cmd.Context(), token, pageNo, pageSize)
+		raw, err := c.GetHonorListJSON(cmd.Context(), token, pageNo, pageSize)
 		if err != nil {
 			printError(fmt.Errorf("获取荣誉记录失败: %w", err))
 			return
 		}
 
-		printEnvelope(envelope.Success(map[string]any{
-			"total":     pb.TotalNum,
-			"page":      pb.PageNo,
-			"pageSize":  pb.PageSize,
-			"totalPage": pb.TotalPage,
-			"records":   records,
-		}))
+		printEnvelope(envelope.Success(json.RawMessage(raw)))
 	},
 }
 
@@ -118,10 +119,9 @@ var honorAddCmd = &cobra.Command{
 			return
 		}
 
-		printEnvelope(envelope.Success(map[string]string{
-			"status": "success",
-			"msg":    "荣誉申报成功",
-		}))
+		// AddHonor SDK 成功路径返回 nil —— 用 envelope.Empty (HTTP 204) 表达
+		// "成功无业务负载"，与 SDK 语义 1:1。
+		printEnvelope(envelope.Empty("荣誉申报成功"))
 	},
 }
 
@@ -153,11 +153,9 @@ var honorDeleteCmd = &cobra.Command{
 			return
 		}
 
-		printEnvelope(envelope.Success(map[string]any{
-			"status": "success",
-			"msg":    "荣誉记录已删除",
-			"id":     honorID,
-		}))
+		// DeleteHonor SDK 成功路径返回 nil —— 用 envelope.Empty (HTTP 204) 表达
+		// "成功无业务负载"，与 SDK 语义 1:1。
+		printEnvelope(envelope.Empty("荣誉记录已删除"))
 	},
 }
 

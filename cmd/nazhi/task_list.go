@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -13,6 +14,9 @@ import (
 // taskListCmd 表示 nazhi task list 命令
 //
 //	nazhi task list --token <token> [--base-url <url>] [--timeout <秒>]
+//
+// envelope.data 直接透传 SDK FetchTasksJSON 的跨维度合并原始 JSON 数组，
+// 保留 platform 原始字段（如 circleTaskStatus / upPic 等），与平台响应 1:1。
 var taskListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "获取全维度任务列表",
@@ -27,29 +31,27 @@ var taskListCmd = &cobra.Command{
 		}
 
 		printVerbose("正在获取任务列表...")
-		tasks, err := c.FetchTasks(cmd.Context(), token)
+		raw, err := c.FetchTasksJSON(cmd.Context(), token)
 		if err != nil {
-			// 用 errors.Is 精确匹配哨兵错误。
-			// 以下哨兵被视为 partial failure（有部分数据可用时输出 envelope）：
-			//   - ErrBusinessRejected：业务错误（部分维度失败）
-			//   - ErrEmptyUserInfo：session 激活返回空用户数据
-			//   - ErrSessionBackoff：session 激活在冷却窗口被抑制
-			// 注：ErrInvalidPayload 不在此列——FetchTasks 不返回此错误（SubmitTask 专用）。
-			// context 取消/超时独立于哨兵系统（标准库错误，非 client 哨兵）。
-			isPartialErr := errors.Is(err, client.ErrBusinessRejected) ||
-				errors.Is(err, client.ErrEmptyUserInfo) ||
-				errors.Is(err, client.ErrSessionBackoff) ||
-				errors.Is(err, context.Canceled) ||
-				errors.Is(err, context.DeadlineExceeded)
-			if isPartialErr && len(tasks) > 0 {
-				printEnvelope(envelope.Partial(207, "fetch_tasks_partial_failure: "+err.Error(), map[string]any{"tasks": tasks}))
-				return
+			// partial 语义：raw 非 nil 表示已有部分维度数据可用，按 partial envelope 输出。
+			// raw 为 nil 表示全部失败，走 printError。
+			if len(raw) > 0 {
+				isPartial := errors.Is(err, client.ErrBusinessRejected) ||
+					errors.Is(err, client.ErrEmptyUserInfo) ||
+					errors.Is(err, client.ErrSessionBackoff) ||
+					errors.Is(err, context.Canceled) ||
+					errors.Is(err, context.DeadlineExceeded)
+				if isPartial {
+					printEnvelope(envelope.Partial(207, "fetch_tasks_partial_failure: "+err.Error(),
+						json.RawMessage(raw)))
+					return
+				}
 			}
 			printError(fmt.Errorf("获取任务列表失败: %w", err))
 			return
 		}
 
-		printEnvelope(envelope.Success(tasks))
+		printEnvelope(envelope.Success(json.RawMessage(raw)))
 	},
 }
 

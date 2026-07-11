@@ -14,16 +14,17 @@ func parsePayload(raw string) ([]byte, error) {
 	return parsePayloadFromArg(raw)
 }
 
-// taskSubmitCmd 表示 nazhi task submit 命令
+// taskSubmitCmd 表示 nazhi task submit 命令。
 //
-//	nazhi task submit --token <token> --payload '<json>' [--base-url <url>] [--timeout <秒>]
+// 公开输入模型已升级为最小必要字段：taskId / content / imagePaths / playRole / address / level。
 var taskSubmitCmd = &cobra.Command{
 	Use:   "submit",
 	Short: "提交任务",
-	Long:  `提交一次任务。payload 是完整的 addCircle 请求体（30 字段 JSON），可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
-	Example: `  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"circleTaskId":1001,"circleTypeId":9256,"name":"班会","hours":1}'
-		  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json
-		  echo '{"circleTaskId":1001,"name":"班会","hours":1}' | nazhi task submit --token "xxx" --payload -`,
+	Long:  `提交一次任务。payload 是最小必要输入 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。SDK 会自动补齐任务元数据、学校信息、图片上传结果并提交。`,
+	Example: `  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"taskId":18154,"content":"劳动让我体会到责任的重要性。"}'
+		  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"taskId":18154,"content":"劳动让我体会到责任的重要性。","imagePaths":["./photo.jpg"],"playRole":"3"}'
+		  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json --address "福清一中" --level 5
+		  echo '{"taskId":18154,"content":"劳动让我体会到责任的重要性。"}' | nazhi task submit --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 
@@ -43,14 +44,21 @@ var taskSubmitCmd = &cobra.Command{
 			return
 		}
 
-		var payload types.TaskSubmitPayload
-		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+		var input types.TaskSubmitInput
+		if err := json.Unmarshal(payloadBytes, &input); err != nil {
 			printError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}
 
-		printVerbose("正在提交任务...")
-		result, err := c.SubmitTask(cmd.Context(), token, payload)
+		if v, _ := cmd.Flags().GetString("address"); v != "" {
+			input.Address = v
+		}
+		if v, _ := cmd.Flags().GetString("level"); v != "" {
+			input.Level = v
+		}
+
+		printVerbose("正在提交任务（自动补全任务元数据/学校信息/图片上传）...")
+		result, err := c.SubmitTask(cmd.Context(), token, input)
 		if err != nil {
 			printError(fmt.Errorf("提交任务失败: %w", err))
 			return
@@ -63,4 +71,6 @@ var taskSubmitCmd = &cobra.Command{
 func init() {
 	registerBizFlags(taskSubmitCmd)
 	taskSubmitCmd.Flags().String("payload", "", "任务 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
+	taskSubmitCmd.Flags().String("address", "", "地点（可选，覆盖 payload.address；未传则 SDK 默认学校名）")
+	taskSubmitCmd.Flags().String("level", "", "等级（可选，1=国家 2=省 3=地区/市 4=区/县/街道/社区 5=校；未传默认 5）")
 }

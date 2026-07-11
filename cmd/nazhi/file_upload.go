@@ -38,16 +38,15 @@ SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。
 		}
 
 		printVerbose("正在上传文件（无 token 模式）...")
-		id, err := c.UploadFile(cmd.Context(), filePath)
+		result, err := c.UploadFile(cmd.Context(), filePath)
 		if err != nil {
 			printError(fmt.Errorf("上传文件失败: %w", err))
 			return
 		}
 
-		printEnvelope(envelope.Success(map[string]any{
-			"id":   id,
-			"path": filePath,
-		}))
+		// envelope.data 直接传 SDK UploadFile 返回对象（attachmentID）。
+		// 与 SDK 返回值 1:1 —— 不在 CLI 侧加 path 等额外字段，避免伪装成 SDK 输出。
+		printEnvelope(envelope.Success(result))
 	},
 }
 

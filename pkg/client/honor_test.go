@@ -177,18 +177,18 @@ func TestGetHonorList(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	records, pb, err := c.GetHonorList(context.Background(), "test-token", 1, 20)
+	result, err := c.GetHonorList(context.Background(), "test-token", 1, 20)
 	if err != nil {
 		t.Fatalf("GetHonorList 失败: %v", err)
 	}
-	if len(records) != 1 {
-		t.Fatalf("期望 1 条记录，实际 %d", len(records))
+	if len(result.Records) != 1 {
+		t.Fatalf("期望 1 条记录，实际 %d", len(result.Records))
 	}
-	if records[0].TypeName != "阅读之星" || records[0].ApprovedName != "审核通过" {
-		t.Errorf("字段解析错误: %+v", records[0])
+	if result.Records[0].TypeName != "阅读之星" || result.Records[0].ApprovedName != "审核通过" {
+		t.Errorf("字段解析错误: %+v", result.Records[0])
 	}
-	if pb == nil || pb.TotalNum != 1 {
-		t.Errorf("分页信息错误: %+v", pb)
+	if result.Page == nil || result.Page.TotalNum != 1 {
+		t.Errorf("分页信息错误: %+v", result.Page)
 	}
 }
 
@@ -210,15 +210,15 @@ func TestGetHonorList_Empty(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	records, pb, err := c.GetHonorList(context.Background(), "test-token", 1, 20)
+	result, err := c.GetHonorList(context.Background(), "test-token", 1, 20)
 	if err != nil {
 		t.Fatalf("GetHonorList 失败: %v", err)
 	}
-	if len(records) != 0 {
-		t.Fatalf("期望 0 条记录，实际 %d", len(records))
+	if len(result.Records) != 0 {
+		t.Fatalf("期望 0 条记录，实际 %d", len(result.Records))
 	}
-	if pb == nil || pb.TotalPage != 0 {
-		t.Errorf("分页信息错误: %+v", pb)
+	if result.Page == nil || result.Page.TotalPage != 0 {
+		t.Errorf("分页信息错误: %+v", result.Page)
 	}
 }
 
@@ -336,7 +336,7 @@ func TestGetHonorList_PageParam(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	_, _, err := c.GetHonorList(context.Background(), "test-token", 2, 50)
+	_, err := c.GetHonorList(context.Background(), "test-token", 2, 50)
 	if err != nil {
 		t.Fatalf("GetHonorList 分页失败: %v", err)
 	}

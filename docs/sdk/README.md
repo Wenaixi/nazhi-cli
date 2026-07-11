@@ -1,14 +1,12 @@
-# SDK 参考（pkg/client、pkg/types、pkg/tokenparse）
+﻿# SDK 参考（pkg/client / pkg/types / pkg/tokenparse）
 
-nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 `go get` 后直接调用：
+nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 `go get` 后直接调用。
 
 | 包 | 作用 | 文档入口 |
 |---|---|---|
 | [`pkg/client`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client) | 核心 SDK：Client 构造 + 公开方法 + Option + 哨兵错误 | 本文 |
 | [`pkg/types`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/types) | 领域类型（请求/响应/任务/用户等）+ 统一响应泛型解码 | [types.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/types/types.go) |
 | [`pkg/tokenparse`](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/tokenparse) | SSO token 从 302 Location 头 / ReturnData JSON 字节提取 | [tokenparse.go](https://github.com/Wenaixi/nazhi-cli/blob/main/pkg/tokenparse/tokenparse.go) |
-
-设计取舍：三个包各自只做一件事，不互嵌业务逻辑。`pkg/client` 偶发性依赖 `pkg/types` 与 `pkg/tokenparse`；`pkg/types` 与 `pkg/tokenparse` 互不依赖。这样第三方库可以单独引用 `pkg/tokenparse` 不必拖进整个 SDK。
 
 ---
 
@@ -17,21 +15,21 @@ nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 
 - [安装](#安装)
 - [快速开始](#快速开始)
 - [Client 构造与 Option 模式](#client-构造与-option-模式)
-- [并发安全](#并发安全)
-- [SDK 方法总览](#sdk-方法总览)
+- [SDK 方法签名速查](#sdk-方法签名速查)
+- [CLI 输出 vs SDK 返回值](#cli-输出-vs-sdk-返回值)
 - [认证域（auth.go）](#认证域authgo)
 - [Session 域（session.go）](#session-域sessiongo)
 - [用户域（user.go）](#用户域usergo)
 - [任务域（task.go）](#任务域taskgo)
 - [自我评价域（self_eval.go）](#自我评价域self_evalgo)
-- [文件域（file.go）](#文件域filego)
 - [已提交写实记录域（submitted.go）](#已提交写实记录域submittedgo)
 - [荣誉申报域（honor.go）](#荣誉申报域honorgo)
+- [文件域（file.go）](#文件域filego)
 - [资源释放（Close）](#资源释放close)
 - [错误处理](#错误处理)
-- [高级用法](#高级用法)
 - [pkg/tokenparse 单独使用](#pkgtokenparse-单独使用)
 - [pkg/types 类型索引](#pkgtypes-类型索引)
+- [pkg/types/response.go 泛型辅助](#pkgtypesresponsego-泛型辅助)
 
 ---
 
@@ -49,14 +47,11 @@ Go 版本要求见仓库 `go.mod`：当前 1.26.1。
 
 ## 快速开始
 
-最常见的脚本——登录、激活 Session、获取个人信息：
-
 ```go
 package main
 
 import (
 	"context"
-	"errors"
 	"log"
 	"os"
 	"time"
@@ -67,45 +62,40 @@ import (
 
 func main() {
 	c, err := client.New(
-		client.WithSSOBase("https://www.nazhisoft.com"),                 // 可省，默认就是这个
-		client.WithBaseURL("http://139.159.205.146:8280"),              // 可省，默认就是这个
-		client.WithUploadURL("http://doc.nazhisoft.com"),               // 可省，默认就是这个
-		client.WithTimeout(30*time.Second),                             // 默认 15s
+		client.WithSSOBase("https://www.nazhisoft.com"),
+		client.WithBaseURL("http://139.159.205.146:8280"),
+		client.WithUploadURL("http://doc.nazhisoft.com"),
+		client.WithTimeout(30*time.Second),
 	)
 	if err != nil {
 		log.Fatalf("Client 初始化失败：%v", err)
 	}
-	defer c.Close() // 关闭 OCR session、释放 keep-alive 连接、清临时目录
+	defer c.Close()
 
 	ctx := context.Background()
 
-	// 1. 登录（含 OCR 验证码自动识别）
 	resp, err := c.Login(ctx, types.LoginRequest{
-		Username: os.Getenv("NAZHI_USERNAME"), // 学号
-		Password: os.Getenv("NAZHI_PASSWORD"), // 密码
+		Username: os.Getenv("NAZHI_USERNAME"),
+		Password: os.Getenv("NAZHI_PASSWORD"),
 	})
 	if err != nil {
 		log.Fatalf("登录失败：%v", err)
 	}
 	token := resp.Token
 
-	// 2. 激活业务 Session（HAR 对齐 4 步，Login 后必须调一次）
 	info, err := c.ActivateSession(ctx, token)
 	if err != nil {
 		log.Fatalf("激活 Session 失败：%v", err)
 	}
-	log.Printf("已登录：%s（%s）", info.Name, info.ClassName)
+	log.Printf("已登录：%s，%s", info.Name, info.ClassName)
 
-	// 3. 业务操作
 	tasks, err := c.FetchTasks(ctx, token)
 	if err != nil {
-		log.Fatalf("拉取任务失败：%v", err)
+		log.Printf("获取任务失败（部分成功 %d 个）：%v", len(tasks), err)
 	}
 	log.Printf("共 %d 个任务", len(tasks))
 }
 ```
-
-> **注意**：学号密码只从环境变量读。命令行 `-u 学号 -p 密码` 在 shell 历史里留痕，是历史版本泄露事故的根因。CI 用 secret 注入。
 
 ---
 
@@ -115,16 +105,7 @@ func main() {
 func New(opts ...Option) (*Client, error)
 ```
 
-构造函数返回 `(*Client, error)`——`error` 在 `syncCookieToken` 失败时返回（典型场景：用 `WithHTTPClient` 传的自定义 `*http.Client` 没把 `Jar` 字段设成 `*cookiejar.Jar`，导致 `X-Auth-Token` 同步不到 Cookie，后续业务接口返回空数据）。
-
-```go
-c, err := client.New(client.WithToken("xxx"))
-if err != nil {
-    log.Fatalf("Client 初始化失败：%v", err)
-}
-```
-
-默认配置（不传 `WithHTTPClient`）下 `err` 始终为 `nil`——默认 HTTP 客户端自带 cookie jar。
+构造函数返回 `(*Client, error)`——`error` 在 `syncCookieToken` 失败时返回（典型场景：用 `WithHTTPClient` 传入的自定义 `*http.Client` 未配备 cookie jar）。默认配置下 `err` 始终为 `nil`。
 
 ### 全部 Option
 
@@ -133,78 +114,64 @@ if err != nil {
 | `WithSSOBase(url)` | `string` | `https://www.nazhisoft.com` | 空字符串被拒绝（warn）并保留当前值；非空则赋值 |
 | `WithBaseURL(url)` | `string` | `http://139.159.205.146:8280` | 同上 |
 | `WithUploadURL(url)` | `string` | `http://doc.nazhisoft.com` | 同上 |
-| `WithTimeout(d)` | `time.Duration` | `15s` | `d<=0` 拒绝；`c.http==nil`（已 WithHTTPClient(nil)）时拒绝；HTTP 超时含连接/TLS/响应头/响应体读取 |
-| `WithHTTPClient(hc)` | `*http.Client` | 默认带 cookie jar 的客户端 | `nil` 拒绝；替换后由调用方负责 Jar；Cookie 同步假定 Jar 是 `*cookiejar.Jar` |
-| `WithLogger(l)` | `*slog.Logger` | stderr WARN 级别 | `nil` 拒绝；SDK 内部 warn/debug/error 走用户注入的 handler，不走 cobra 通道 |
-| `WithToken(t)` | `string` | 无 | 同时写 Header（`X-Auth-Token`）+ Cookie；空字符串/纯空白拒绝；延迟到 `New()` 末尾统一 `syncCookieToken`，避免 Option 顺序敏感性 |
-| `WithCustomOCR(r)` | `CaptchaRecognizer` | `ocr.NewPool(0)`（含 `-tags ddddocr` 构建）/ `nil`（`!ddddocr`） | `nil` 拒绝；mock 必须实现 `Recognize([]byte) (string, error)` + `Close() error` |
-| `WithOCRConcurrency(n)` | `int` | `min(4, NumCPU)`（`-tags ddddocr`）/ `0` + warn（`!ddddocr`） | `n<=0` 拒绝；预热 n 个 ONNX session，每个约 50MB，单 Login 用默认即可 |
-| `WithSessionBackoff(d)` | `time.Duration` | `5s` | `d<=0` 拒绝；调整 Session 激活失败后抑制重试的冷却窗口 |
-| `WithSubmittedPageSize(n)` | `int` | `100` | `n<=0` 拒绝；调整 GetSubmittedCircles 分页大小（服务端上限约 500） |
-| `WithFallbackOCR(ok)` | `bool` | `false` | 启用 ddddocr 降级兜底；primary 全部失败后自动降级到内置 ddddocr |
-| `WithFallbackConcurrency(n)` | `int` | `1` | `n<=0` 拒绝；降级 OCR 池并发度，调高可缩短下钻时延 |
-
-> 所有 Option 的统一约定：非法值（`nil`/`""`/`<=0`）拒绝并 `c.logger.Warn`，保留当前值，从不会静默覆盖。生产代码可以放心不检查 `error`。
-
-### 顺序无关性
-
-`WithToken` 调多少次、在 `WithSSOBase` 之前还是之后调用，结果一致——`New()` 末尾才统一执行 `syncCookieToken`，届时所有 URL 已就位。
+| `WithTimeout(d)` | `time.Duration` | `15s` | `d<=0` 拒绝 |
+| `WithHTTPClient(hc)` | `*http.Client` | 默认自带 cookie jar 的客户端 | `nil` 拒绝；替换后由调用方负责 Jar 兼容性 |
+| `WithLogger(l)` | `*slog.Logger` | stderr WARN 级别 | `nil` 拒绝 |
+| `WithToken(t)` | `string` | 无 | 同时设置 Header + Cookie；空字符串拒绝 |
+| `WithCustomOCR(r)` | `CaptchaRecognizer` | `ocr.NewPool(0)`（`-tags ddddocr`）/ `nil`（`!ddddocr`） | `nil` 拒绝 |
+| `WithOCRConcurrency(n)` | `int` | `min(4, NumCPU)` | `n<=0` 拒绝 |
+| `WithSessionBackoff(d)` | `time.Duration` | `5s` | `d<=0` 拒绝 |
+| `WithSubmittedPageSize(n)` | `int` | `100` | `n<=0` 拒绝；服务端上限 500 |
+| `WithFallbackOCR(ok)` | `bool` | `false` | 启用 ddddocr 降级兜底 |
+| `WithFallbackConcurrency(n)` | `int` | `1` | `n<=0` 拒绝 |
 
 ---
 
-## 并发安全
+## SDK 方法签名速查
 
-每个 `*Client` 实例拥有独立的 cookie jar，天然并发安全：
-
-```go
-c, _ := client.New(client.WithToken(token))
-
-var wg sync.WaitGroup
-for i := 0; i < 10; i++ {
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		// 多个 goroutine 并发拉任务，c 复用，无需锁
-		tasks, _ := c.FetchTasks(ctx, token)
-		_ = tasks
-	}()
-}
-wg.Wait()
-```
-
-**不能跨 Client 复用 goroutine 内部的 `*Client`**：每个 Client 的 cookie jar 互相隔离，多账户场景（一个进程跑 N 个学生）需要 `client.New()` N 次，各拿一个 `*Client`。
-
-`Cookie jar` 的底层 `url.URL` 由 `c.baseURLParsed`（`atomic.Pointer[url.URL]`，F3 修复）保护，热路径无锁；并发写 `syncCookieToken` 之间用 CAS 解决竞争。
+| 方法 | 签名 | 返回 |
+|---|---|---|
+| `InitSession` | `(ctx) error` | — |
+| `GetSchoolID` | `(ctx, username) (*SchoolInfo, error)` | `schoolID` + `schoolName` |
+| `Login` | `(ctx, req) (*LoginResponse, error)` | Token / ExpiresAt / FallbackUsed |
+| `ActivateSession` | `(ctx, token) (*UserInfo, error)` | 13 字段用户资料 |
+| `GetMyInfo` | `(ctx, token) (*UserInfo, error)` | 13 字段用户资料 |
+| `FetchTasks` | `(ctx, token) ([]Task, error)` | 21 字段任务条目 |
+| `SubmitTask` | `(ctx, token, input) (*TaskResult, error)` | Code / Msg |
+| `GetDimensions` | `(ctx, token) ([]Dimension, error)` | ID / Name |
+| `SubmitSelfEvaluation` | `(ctx, token, comment) error` | — |
+| `QuerySelfEvaluation` | `(ctx, token) (*SelfEvalStatus, error)` | ID + 双向评语 |
+| `QuerySelfGradEvaluation` | `(ctx, token) (*map[string]any, error)` | 泛型 map |
+| `GetSubmittedCircles` | `(ctx, token) ([]CircleRecord, error)` | 10 字段写实记录 |
+| `GetHonorTypes` | `(ctx, token) ([]HonorType, error)` | 5 字段荣誉类型 |
+| `GetHonorTypeForSelect` | `(ctx, token) ([]HonorSelectOption, error)` | Label / Value |
+| `GetHonorLevel` | `(ctx, token, honorTypeID) ([]HonorSelectOption, error)` | Label / Value |
+| `GetHonorList` | `(ctx, token, pageNo, pageSize) (*HonorListResult, error)` | `records` + `page` |
+| `AddHonor` | `(ctx, token, payload) error` | — |
+| `DeleteHonor` | `(ctx, token, honorID) error` | — |
+| `UploadFile` | `(ctx, filePath) (*UploadFileResult, error)` | `attachmentID` |
+| `DownloadFile` | `(ctx, attachmentID, dst) error` | — |
 
 ---
 
-## SDK 方法总览
+## CLI 输出 vs SDK 返回值
 
-| 方法 | 文件 | 关键行为 | 常见错误 |
+本节专门说明：CLI `envelope.data` 和 SDK 返回值之间是否严格 1:1。
+
+| 命令 | SDK 方法 | 是否 1:1 | 说明 |
 |---|---|---|---|
-| `InitSession(ctx)` | auth.go | GET 登录页 → 建 JSESSIONID Cookie。Login 内部已调用，一般不直接调 | `ErrNetwork` |
-| `GetSchoolID(ctx, username)` | auth.go | 学号查学校 ID，无需登录 | `ErrBusinessRejected`、`ErrInvalidPayload`（school_id 非数字） |
-| `Login(ctx, req)` | auth.go | InitSession + GetSchoolID + OCR 多图多试 + validateCaptcha + validate，最后 200 JSON / 302 fallback 提 token | `ErrLoginRejected`、`ErrOCRNotConfigured`、`ErrOCRPanic`、`ErrTimeout` |
-| `ActivateSession(ctx, token)` | session.go | HAR 对齐 4 步激活（`/` + 两次 `getMenu` + `getMyInfo`），DCL fast-path + backoff 缓存 | `ErrBusinessRejected`、`ErrSessionBackoff`、`ErrEmptyUserInfo` |
-| `GetMyInfo(ctx, token)` | user.go | 精简 13 字段个人资料；先走 ActivateSession 复用步骤 4 数据避免重复 HTTP | `ErrBusinessRejected`、`ErrEmptyUserInfo`、`ErrNetwork` |
-| `FetchTasks(ctx, token)` | task.go | 拉全维度任务聚合；8 路并发（errgroup.SetLimit）拉各维度 | `ErrBusinessRejected`、`ErrRetryable`（ctx cancel 触发）、`ErrEmptyUserInfo` |
-| `SubmitTask(ctx, token, payload)` | task.go | 提任务，30 字段 payload 透传不裁剪 | `ErrInvalidPayload`、`ErrBusinessRejected` |
-| `GetDimensions(ctx, token)` | task.go | 单独拉维度列表（CLI 未暴露，SDK 高级接口） | `ErrBusinessRejected` |
-| `SubmitSelfEvaluation(ctx, token, comment)` | self_eval.go | 提交评价文本 | `ErrBusinessRejected` |
-| `QuerySelfEvaluation(ctx, token)` | self_eval.go | 查评价状态 + 教师评语 | `ErrBusinessRejected`、`ErrEmptyUserInfo` |
-| `QuerySelfGradEvaluation(ctx, token)` | self_eval.go | 查学期评价（SDK 高级接口） | `ErrBusinessRejected` |
-| `GetSubmittedCircles(ctx, token)` | submitted.go | 查已提交写实记录，自动翻页合并 | `ErrBusinessRejected`、`ErrNetwork` |
-| `GetHonorTypes(ctx, token)` | honor.go | 查荣誉类型列表（dataList 优先，returnData fallback） | `ErrBusinessRejected` |
-| `GetHonorTypeForSelect(ctx, token)` | honor.go | 查荣誉级别下拉选项 | `ErrBusinessRejected` |
-| `GetHonorLevel(ctx, token, honorTypeID)` | honor.go | 查指定荣誉类型的可用级别 | `ErrBusinessRejected` |
-| `GetHonorList(ctx, token, pageNo, pageSize)` | honor.go | 查已申报荣誉记录（分页，服务器要求 &key= 参数） | `ErrBusinessRejected` |
-| `AddHonor(ctx, token, payload)` | honor.go | 申报一条荣誉 | `ErrBusinessRejected` |
-| `DeleteHonor(ctx, token, honorID)` | honor.go | 删除一条荣誉记录（GET 传 id 查询参数） | `ErrBusinessRejected` |
-| `UploadFile(ctx, filePath)` | file.go | 图片上传，自动预处理（→JPG + 压缩 ≤5MB）；不发任何鉴权头 | `ErrNetwork`、`ErrFileTooLarge`、`ErrImageTooLarge`、`ErrUploadRejected`、`ErrRateLimited`、`ErrServiceUnavailable` |
-| `DownloadFile(ctx, attachmentID int64, dst string)` | file.go | 按附件 ID 下载图片到本地；入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储；不发任何鉴权头 | `ErrNetwork` |
-| `Close()` | client.go | 释放 OCR session、HTTP keep-alive、临时目录；聚合 error 返回 | 多个清理错误 join 一起 |
-
-> 没有的方法：SDK 不暴露 `FetchTaskByID`、`UpdateProfile`、`SubmitBatchTask`、`EditHonor` 等——这些 HTTP 路径服务器未提供或未在 HAR 中验证。如有需求请开 issue。
+| `nazhi whoami` | `GetMyInfoJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
+| `nazhi session activate` | `ActivateSessionJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
+| `nazhi task list` | `FetchTasksJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
+| `nazhi task submitted` / `task done` | `GetSubmittedCirclesJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
+| `nazhi self-eval status` | `QuerySelfEvaluationJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
+| `nazhi honor types` | `GetHonorTypesJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
+| `nazhi honor list` | `GetHonorListJSON` | 是 | CLI 直接透传 SDK 拼装的 `{records,page}` JSON |
+| `nazhi file upload` | `UploadFile` | 是 | CLI 直接输出 SDK 返回对象 `{attachmentID}` |
+| `nazhi self-eval submit` | `SubmitSelfEvaluation` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
+| `nazhi honor add` | `AddHonor` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
+| `nazhi honor delete` | `DeleteHonor` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
+| `nazhi file download` | `DownloadFile` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
 
 ---
 
@@ -212,124 +179,89 @@ wg.Wait()
 
 ### `InitSession(ctx context.Context) error`
 
-访问 SSO 登录页，建立 `JSESSIONID` Cookie。
+访问 SSO 登录页，建立 JSESSIONID Cookie。`Login()` 内部已调用，一般无需手动调用。
+
+### `GetSchoolID(ctx context.Context, username string) (*types.SchoolInfo, error)`
+
+学号查学校 ID 和名称。这是一个公开 API，无需登录即可使用。
+
+请求示例：
 
 ```go
-if err := c.InitSession(ctx); err != nil { /* 网络错 */ }
+info, err := c.GetSchoolID(ctx, "G350181200912110035")
+if err != nil {
+	if errors.Is(err, client.ErrInvalidPayload) {
+		log.Fatal("school_id 字段缺失或非数字")
+	}
+	log.Fatalf("查学校 ID 失败：%v", err)
+}
+log.Printf("学校 ID：%s，名称：%s", info.SchoolID, info.SchoolName)
 ```
 
-正常情况下 `Login()` 内部会调一次，不需要手动调。这个方法公开是为了测试或自定义登录脚本。
+SDK 响应示例：
 
-### `GetSchoolID(ctx context.Context, username string) (schoolID, schoolName string, err error)`
-
-学号查学校 ID 和名称。无需登录——这是一个公开 API。
-
-```go
-sid, name, err := c.GetSchoolID(ctx, "2025001")
-// sid="10001", name="示例中学"
+```json
+{
+  "schoolID": "173",
+  "schoolName": "示例中学"
+}
 ```
 
-返回错误分支：
+真实平台原始响应（脱敏）：
 
-- `errors.Is(err, ErrInvalidPayload)` — `school_id` 字段缺失或非数字（防御性检查，防止静默传给 Login）
-- `errors.Is(err, ErrBusinessRejected)` — 服务端返回 code≠1
-- `errors.Is(err, ErrNetwork)` — 网络层失败
+```json
+{
+  "code": 1,
+  "msg": "成功",
+  "returnData": null,
+  "note": null,
+  "pageBean": null,
+  "dataList": [
+    {
+      "school_id": 173,
+      "student_number": "G350181200912110035",
+      "NAME": "示例中学"
+    }
+  ],
+  "dataMap": null,
+  "dataInt": 0,
+  "dataString": null,
+  "insertID": 0,
+  "updateCount": 0,
+  "isAttendance": 0
+}
+```
 
 ### `Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error)`
 
-完整 SSO 登录，自动处理 OCR 验证码。返回结构：
+完整 SSO 登录，自动处理 OCR 验证码。
 
-```go
-type LoginRequest struct {
-	SchoolID string // 可空——服务端自学号推断
-	Username string
-	Password string
-}
-
-type LoginResponse struct {
-	Token        string    // X-Auth-Token（JWT）
-	ExpiresAt    time.Time // 过期时间，绝对 time.Time
-	FallbackUsed bool      // 是否降级到备用 OCR（primary 失败后）
-}
-```
-
-请求例子：
+请求示例：
 
 ```go
 resp, err := c.Login(ctx, types.LoginRequest{
 	Username: os.Getenv("NAZHI_USERNAME"),
 	Password: os.Getenv("NAZHI_PASSWORD"),
 })
-// 成功响应（脱敏）：
-// resp.Token     = "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I..."
-// resp.ExpiresAt = time.Date(2026, 7, 24, 1, 26, 37, 0, time.FixedZone("CST", 8*3600))
-// resp.FallbackUsed = false
-```
-
-**内部流程**：
-
-```
-1. InitSession（串行前置，必须最先建 JSESSIONID）
-2. errgroup.WithContext 并发：
-   ├─ GetSchoolID（仅当 req.SchoolID 为空）
-   └─ ocrRecognizeWithRetry（最多 9 张图 × 1 次/图）
-3. 验证码预校验已在 OCR 循环内部完成
-4. POST /validate
-   ├─ 200 路径 → tokenparse.ExtractFromReturnData
-   └─ 302 fallback → tokenparse.ExtractFromLocation
-5. buildLoginResponse → syncCookieToken（X-Auth-Token）
-```
-
-**并发优化**：步骤 2 的 `GetSchoolID` 和 `ocrRecognizeWithRetry` **无数据依赖**，通过 `errgroup.WithContext` 并发跑。`InitSession` 仍串行前置（必须最先建立 JSESSIONID）。`validateCaptcha` 嵌入 OCR 循环内部，通过才返回文本，失败换图重试。
-
-**OCR 策略**：单图 OCR 1 次（ddddocr 对同图确定性，重试无意义），失败换新图，最多 9 张图。常量 `maxOCRImagesTotal=9`。
-
-**Token 解析**：200 与 302 两条路径都走 `pkg/tokenparse` 包，详情见 [tokenparse](#pkgtokenparse-单独使用)。
-
-**ExpiresAt 兜底**：服务端不带 `expires_in`/`exp` 字段时默认 `now+24h`，但 c.logger.Warn 会提示「server 可能未带 expires」。
-
-**错误分支**：
-
-| 场景 | 错误 |
-|---|---|
-| `c.ocr == nil`（`!ddddocr` 构建且未注入） | `errors.Is(err, ErrOCRNotConfigured)` |
-| 验证码 OCR 9 张全失败 | `errors.Is(err, ErrOCRNotConfigured)` 包装 + 原始错误 |
-| 验证码/凭据错误（code≠1 / 非预期状态码） | `errors.Is(err, ErrLoginRejected)` |
-| HTTP 超时 | `errors.Is(err, ErrTimeout)` |
-| 网络层失败 | `errors.Is(err, ErrNetwork)` |
-| OCR 识别器 panic 已被 `safeOCRRecognize` recover | `errors.Is(err, ErrOCRPanic)`，stderr 同时打 `debug.Stack()` |
-
-**典型用法**：
-
-```go
-resp, err := c.Login(ctx, types.LoginRequest{
-    Username: os.Getenv("NAZHI_USERNAME"),
-    Password: os.Getenv("NAZHI_PASSWORD"),
-})
 if err != nil {
-    if errors.Is(err, client.ErrOCRNotConfigured) {
-        log.Fatal("OCR 未配置，请用预编译 release 或注入自定义识别器")
-    }
-    if errors.Is(err, client.ErrLoginRejected) {
-        log.Fatal("学号/密码/验证码错误")
-    }
-    log.Fatalf("登录失败：%v", err)
+	if errors.Is(err, client.ErrLoginRejected) {
+		log.Fatal("学号/密码/验证码错误")
+	}
+	if errors.Is(err, client.ErrOCRNotConfigured) {
+		log.Fatal("OCR 未配置，请用预编译 release 或注入自定义识别器")
+	}
+	log.Fatalf("登录失败：%v", err)
 }
 token := resp.Token
 ```
 
-真实响应（脱敏）：
+SDK 响应示例：
 
 ```json
 {
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I...",
-    "expiresAt": "2026-07-24T01:26:37+08:00",
-    "fallbackUsed": false
-  }
+  "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I...",
+  "expiresAt": "2026-07-25T16:36:01+08:00",
+  "fallbackUsed": false
 }
 ```
 
@@ -339,84 +271,50 @@ token := resp.Token
 
 ### `ActivateSession(ctx context.Context, token string) (*types.UserInfo, error)`
 
-激活业务 Session。**HAR 抓包验证：必须按以下 4 步顺序**：
+激活业务 Session。必须按以下 4 步顺序执行（HAR 抓包验证）：
 
 ```
-1. GET /                                    (建后端 Session)
-2. GET /api/studentInfo/getMenu             (Referer: /homepage?token=xxx)
-3. GET /api/studentInfo/getMenu             (Referer: /home)
-4. GET /api/studentInfo/getMyInfo           (返回完整 UserInfo)
+1. GET /                                    （建后端 Session）
+2. GET /api/studentInfo/getMenu             （Referer: /homepage?token=xxx）
+3. GET /api/studentInfo/getMenu             （Referer: /home）
+4. GET /api/studentInfo/getMyInfo           （返回完整 UserInfo）
 ```
 
-跳过任何一步都会让后续接口返回空数据。
-
-**状态机**：由内部 `sessionManager` 状态机统一管理：
-
-- **DCL fast-path**：同 token 第二次调用直接返回缓存 `*UserInfo`，不发起 HTTP
-- **backoff 缓存**：失败后同 token 在 5 秒内重复调用返 `ErrSessionBackoff`，防止 thundering herd（可用 `WithSessionBackoff` 调窗口）
-- **token 隔离**：不同 token 的失败不互相污染（4 步激活改 token 后用户信息不会留旧值）
-
-**并发契约**：
+请求示例：
 
 ```go
-// 直接并发调本函数是安全的——sm.mu 只会序列化 4 步激活，
-// 约 200-500ms 内释放
-var wg sync.WaitGroup
-for i := 0; i < 10; i++ {
-    wg.Add(1)
-    go func() {
-        defer wg.Done()
-        info, err := c.ActivateSession(ctx, token) // 安全
-        _ = info
-    }()
+info, err := c.ActivateSession(ctx, token)
+if err != nil {
+	if errors.Is(err, client.ErrSessionBackoff) {
+		log.Println("Session 激活冷却中，请稍后重试")
+		return
+	}
+	if errors.Is(err, client.ErrEmptyUserInfo) {
+		log.Println("业务成功但无用户数据")
+		return
+	}
+	log.Fatalf("激活 Session 失败：%v", err)
 }
-wg.Wait()
-
-// 不要在外层持锁后再调本函数：sm.mu (sync.Mutex, 不可重入)
-// 与外层锁形成 ABBA 死锁。
+log.Printf("欢迎 %s，%s", info.Name, info.ClassName)
 ```
 
-**返回错误**：
-
-| 场景 | 错误 |
-|---|---|
-| 上次失败在 backoff 窗口内、同 token | `errors.Is(err, ErrSessionBackoff)`，含 `time.Since(lastAttempt)` |
-| 4 步任一 HTTP/网络错 | `errors.Is(err, ErrNetwork)` / `ErrTimeout` / `ErrRateLimited` / `ErrServiceUnavailable` |
-| 步骤 4 `getMyInfo` 业务错或返回空 | `errors.Is(err, ErrBusinessRejected)` / `ErrEmptyUserInfo` |
-| ctx 取消 | `errors.Is(err, context.Canceled)` 或 `context.DeadlineExceeded`（直接 propagate，不掩盖） |
-
-**重复调用安全**：
-
-```go
-// 同 token 第一次调：4 步 HTTP + 缓存
-info1, err := c.ActivateSession(ctx, token) // ~200-500ms
-
-// 第二次调：直接读缓存，不到 1ms
-info2, err := c.ActivateSession(ctx, token) // 0 HTTP
-```
-
-真实响应（脱敏）：
+SDK 响应示例：
 
 ```json
 {
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "id": 10086,
-    "name": "张三",
-    "studentNumber": "G123456789012345678",
-    "studentId": 20101,
-    "studyNumber": "2508010404",
-    "nationalStudentNumber": "G123456789012345678",
-    "schoolId": 10001,
-    "schoolName": "示例高中",
-    "gradeId": 100,
-    "gradeName": "高一",
-    "classId": 1001,
-    "className": "八班",
-    "seat": 29
-  }
+  "id": 327053,
+  "name": "张同学",
+  "studentNumber": "G350***********",
+  "studentId": 387020,
+  "studyNumber": "250801****",
+  "nationalStudentNumber": "G350***********",
+  "schoolId": 173,
+  "schoolName": "示例中学",
+  "gradeId": 27900,
+  "gradeName": "高一",
+  "classId": 162647,
+  "className": "某班",
+  "seat": 29
 }
 ```
 
@@ -426,63 +324,41 @@ info2, err := c.ActivateSession(ctx, token) // 0 HTTP
 
 ### `GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error)`
 
-获取用户个人资料。**会触发 ActivateSession**（复用其步骤 4 的 HTTP 请求），所以同 token 第一次调会做 4 步激活，第二次调则完全复用缓存，HTTP 0 次。
+获取用户资料。会触发 ActivateSession（复用其步骤 4 缓存），同 token 第一次调用做 4 步激活，第二次调用纯缓存零 HTTP。
 
-字段一览（13 字段，v1.0.0 精简版，详见 `pkg/types/user.go` `UserInfo`）：
-
-- 基础身份：`ID`、`Name`、`StudentNumber`、`StudentID`
-- 校内/全国学号：`StudyNumber`、`NationalStudentNumber`
-- 学校/班级/年级：`SchoolID`、`SchoolName`、`GradeID`、`GradeName`、`ClassID`、`ClassName`
-- 座号：`Seat`
-
-> v1.0.0 精简原则：只保留业务 API 实际消费的核心身份/学校/班级字段。联系方式、证件号、积分等敏感或运营字段已移除，避免不必要的 PII 暴露面。
+请求示例：
 
 ```go
 info, err := c.GetMyInfo(ctx, token)
 if err != nil {
-    if errors.Is(err, client.ErrEmptyUserInfo) {
-        log.Println("业务成功但暂无数据")
-        return
-    }
-    log.Fatalf("获取用户信息失败：%v", err)
+	if errors.Is(err, client.ErrEmptyUserInfo) {
+		log.Println("业务成功但暂无数据")
+		return
+	}
+	log.Fatalf("获取用户信息失败：%v", err)
 }
-log.Printf("欢迎 %s（%s）", info.Name, info.ClassName)
+log.Printf("欢迎 %s，%s", info.Name, info.ClassName)
 ```
 
-真实响应（脱敏）：
+SDK 响应示例：
 
 ```json
 {
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "id": 10086,
-    "name": "张三",
-    "studentNumber": "G123456789012345678",
-    "studentId": 20101,
-    "studyNumber": "2508010404",
-    "nationalStudentNumber": "G123456789012345678",
-    "schoolId": 10001,
-    "schoolName": "示例高中",
-    "gradeId": 100,
-    "gradeName": "高一",
-    "classId": 1001,
-    "className": "八班",
-    "seat": 29
-  }
+  "id": 327053,
+  "name": "张同学",
+  "studentNumber": "G350***********",
+  "studentId": 387020,
+  "studyNumber": "250801****",
+  "nationalStudentNumber": "G350***********",
+  "schoolId": 173,
+  "schoolName": "示例中学",
+  "gradeId": 27900,
+  "gradeName": "高一",
+  "classId": 162647,
+  "className": "某班",
+  "seat": 29
 }
 ```
-
-**返回错误**：
-
-| 场景 | 错误 |
-|---|---|
-| 业务 code≠1 | `errors.Is(err, ErrBusinessRejected)` |
-| 业务成功但 returnData + dataMap 都为空 | `errors.Is(err, ErrEmptyUserInfo)` |
-| 网络层失败 | `errors.Is(err, ErrNetwork)` / `ErrTimeout` |
-
-**历史**：早期版本曾返 `(nil, nil)` 表示空响应，CLI 输出误导性的 `null`；后改返 `ErrEmptyUserInfo` 让 cmd 层走统一的 status envelope。
 
 ---
 
@@ -490,218 +366,120 @@ log.Printf("欢迎 %s（%s）", info.Name, info.ClassName)
 
 ### `FetchTasks(ctx context.Context, token string) ([]types.Task, error)`
 
-拉全部维度的任务。流程：`ActivateSession` → `getDimensions` → 遍历维度并发拉 `getCircleStatistics` → 聚合。
+拉全部维度的任务。流程：ActivateSession → getDimensions → 遍历维度并发拉 getCircleStatistics → 聚合。
 
-> `Task.Submitted` 与 `Task.NeedPic` 是 SDK 分别从平台原始字段 `circleTaskStatus` 与 `upPic` 映射得到的语义字段。
-
-**并发控制**：`errgroup.SetLimit(min(len(dimensions), 8))`，20 维度约 3 RTT 完成。超过 50 维度考虑调整 `fetchTasksConcurrentLimit` 常量。
-
-请求例子：
+请求示例：
 
 ```go
 tasks, err := c.FetchTasks(ctx, token)
 if err != nil {
-    log.Printf("获取任务失败（部分成功 %d 个）：%v", len(tasks), err)
+	log.Printf("获取任务失败（部分成功 %d 个）：%v", len(tasks), err)
+}
+for _, t := range tasks {
+	fmt.Printf("任务：%s（%s，%.1f 学时）\n", t.Name, t.DimensionName, t.Hours)
 }
 ```
 
-真实响应（脱敏，仅展示 2 条）：
+SDK 响应示例（2 条）：
 
 ```json
-{
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": [
-    {
-      "id": 10001,
-      "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
-      "typeName": "参加的艺术活动项目",
-      "dimensionName": "艺术素养",
-      "hours": 4,
-      "score": 1,
-      "remark": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声4个小时",
-      "submitted": false,
-      "needPic": false,
-      "startDateStr": "2026-06-30",
-      "endDateStr": "2026-07-30",
-      "auditStartDateStr": "2026-07-31",
-      "auditEndDateStr": "2026-09-30",
-      "creatorName": "林老师",
-      "roleName": "班主任",
-      "creationTime": [2026, 6, 30, 11, 39, 19],
-      "creationTimeStr": "2026-06-30",
-      "termId": 18,
-      "pushNum": 1,
-      "scopeType": 2,
-      "scopeTypeName": "年段任务"
-    },
-    {
-      "id": 10002,
-      "name": "诚以立身，信以应考（诚信教育 励志教育）主题班会",
-      "typeName": "主题班会",
-      "dimensionName": "思想品德",
-      "hours": 0.5,
-      "score": 1,
-      "remark": "心得+照片",
-      "submitted": false,
-      "needPic": false,
-      "startDateStr": "2026-07-10",
-      "endDateStr": "2026-07-18",
-      "auditStartDateStr": "2026-07-19",
-      "auditEndDateStr": "2026-07-22",
-      "creatorName": "王老师",
-      "roleName": "班主任",
-      "creationTime": [2026, 7, 4, 9, 33, 53],
-      "creationTimeStr": "2026-07-04",
-      "termId": 18,
-      "pushNum": 0,
-      "scopeType": 1,
-      "scopeTypeName": "班级任务"
-    }
-  ]
-}
+[
+  {
+    "id": 18160,
+    "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
+    "typeName": "参加的艺术活动项目",
+    "dimensionName": "艺术素养",
+    "hours": 4,
+    "score": 1,
+    "remark": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声4个小时",
+    "submitted": false,
+    "needPic": true,
+    "startDateStr": "2026-06-30T00:00:00+08:00",
+    "endDateStr": "2026-07-30T00:00:00+08:00",
+    "auditStartDateStr": "2026-07-31T00:00:00+08:00",
+    "auditEndDateStr": "2026-09-30T00:00:00+08:00",
+    "creatorName": "管理员",
+    "roleName": "班主任",
+    "creationTime": [2026, 6, 30, 11, 39, 19],
+    "creationTimeStr": "2026-06-30T00:00:00+08:00",
+    "termId": 18,
+    "pushNum": 1,
+    "scopeType": 2,
+    "scopeTypeName": "年段任务"
+  },
+  {
+    "id": 18162,
+    "name": "2025-2026第二学期调查表8小时",
+    "typeName": "社会调查",
+    "dimensionName": "社会实践",
+    "hours": 8,
+    "score": 1,
+    "remark": "2025-2026第二学期调查表8小时",
+    "submitted": false,
+    "needPic": false,
+    "startDateStr": "2026-06-30T00:00:00+08:00",
+    "endDateStr": "2026-07-30T00:00:00+08:00",
+    "auditStartDateStr": "2026-07-31T00:00:00+08:00",
+    "auditEndDateStr": "2026-09-30T00:00:00+08:00",
+    "creatorName": "管理员",
+    "roleName": "班主任",
+    "creationTime": [2026, 6, 30, 11, 45, 22],
+    "creationTimeStr": "2026-06-30T00:00:00+08:00",
+    "termId": 18,
+    "pushNum": 1,
+    "scopeType": 2,
+    "scopeTypeName": "年段任务"
+  }
+]
 ```
 
-**部分失败语义**：
+### `SubmitTask(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskResult, error)`
+
+提交任务。公开输入只保留最少必要字段，SDK 内部自动完成：
+
+1. `getCircleTypeByTaskId(taskId)` 获取 `circleTypeId / dimensionId / hours`
+2. `GetMyInfo()` 获取 `schoolName`
+3. `UploadFile()` 上传 `imagePaths` 并转成 `pictureList`
+4. 组装完整 `addCircle` 请求体并提交
+
+请求示例：
 
 ```go
-tasks, err := c.FetchTasks(ctx, token)
-if err != nil {
-    // 重要：即便 err != nil，tasks 也可能非空！
-    // 部分维度成功、部分失败的场景下，
-    // FetchTasks 返回 (partialTasks, error)。
-    // 不要因为 err != nil 就丢掉 tasks。
-}
-```
-
-| 场景 | 返回 |
-|---|---|
-| 全部成功 | `(tasks, nil)` |
-| 部分维度失败（业务错或网络错） | `(partialTasks, error)`，错误包装 `ErrBusinessRejected` |
-| 部分维度因 ctx cancel 失败 | `(partialTasks, error)`，错误同时含 `ErrBusinessRejected` + `ErrRetryable`（F2.1 修复） |
-| 全部维度因 ctx cancel 失败 | `(nil, error)`，错误只包装 `ErrRetryable`，**不**包装 `ErrBusinessRejected` |
-| 全部维度业务拒绝 | `(nil, error)`，错误包装 `ErrBusinessRejected` |
-
-**SDK 用户判定语义**：
-
-```go
-tasks, err := c.FetchTasks(ctx, token)
-switch {
-case err == nil:
-    log.Printf("成功 %d 个任务", len(tasks))
-case errors.Is(err, client.ErrRetryable):
-    // 部分或全部失败因 ctx cancel——可重试
-    log.Printf("中途中断（部分任务：%d）：%v，可重试", len(tasks), err)
-case errors.Is(err, client.ErrBusinessRejected):
-    // 部分失败含业务错误——展示 partial tasks + 服务端错误
-    log.Printf("部分失败（%d 个成功）：%v", len(tasks), err)
-}
-```
-
-**单维度 panic 隔离**（F10.1）：某个维度的解析 panic 会被 `fetchTasksForDimensionSafe` 的 defer recover 捕获，写入 `dimErrs`，不影响其他维度的并发拉取。
-
-### `SubmitTask(ctx context.Context, token string, payload types.TaskSubmitPayload) (*types.TaskResult, error)`
-
-提交任务，payload 完整透传：
-
-```go
-type TaskSubmitPayload struct {
-    ID                  *int64
-    Name                string
-    HostName            string
-    CircleDate          string
-    Rank                string
-    Level               string
-    Content             string
-    PictureList         []int64
-    CircleTaskID        int64  // 必填，否则 ErrInvalidPayload
-    CircleTypeID        int64  // 必填，否则 ErrInvalidPayload
-    DimensionID         int64
-    Hours               float64
-    CircleBeginDate     string
-    CircleEndDate       string
-    CheckResult         string
-    PatentType          string
-    PatentNum           string
-    Address             string
-    TermName            string
-    ActivityName        string
-    SportsName          string
-    TeamName            string
-    OrgName             string
-    ResultsName         string
-    ObtainTime          string
-    SpecialtyTechnology string
-    PlayRole            string
-    LikeSpecialty1      string
-    LikeSpecialty2      string
-    LikeSpecialty3      string
-}
-```
-
-请求例子：
-
-```go
-result, err := c.SubmitTask(ctx, token, types.TaskSubmitPayload{
-    CircleTaskID: 18296,
-    CircleTypeID: 1,
-    Name:         "安全教育主题班会",
-    Content:      "通过案例分析和互动讨论，同学们掌握了防溺水、交通安全等实用技能。",
-    Hours:        0.5,
-    DimensionID:  53,
-    PlayRole:     "3",
-    CircleDate:   "2026-07-10",
+result, err := c.SubmitTask(ctx, token, types.TaskSubmitInput{
+	TaskID:     18155,
+	Content:    "手握扫帚净校园，春意盎然拂面来。每一次躬身劳动，都是对责任与成长的最好诠释。",
+	ImagePaths: []string{"./photo.jpg"},
+	Address:    "示例中学", // 可选；不传则默认 schoolName
+	Level:      "5",        // 可选；不传默认 5（校级）
+	PlayRole:   "",         // 可选；不传默认空串
 })
 if err != nil {
-    var bErr *types.BusinessError
-    if errors.As(err, &bErr) {
-        log.Printf("业务拒绝：code=%d msg=%s", bErr.Code, bErr.Msg)
-    }
-    log.Fatalf("提交失败：%v", err)
+	var bErr *types.BusinessError
+	if errors.As(err, &bErr) {
+		log.Printf("业务拒绝：code=%d msg=%s", bErr.Code, bErr.Msg)
+	}
+	log.Fatalf("提交失败：%v", err)
 }
 log.Printf("提交成功，result=%+v", result)
 ```
 
-真实响应（脱敏）：
+SDK 响应示例：
 
 ```json
 {
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "code": 1,
-    "msg": "保存成功"
-  }
+  "code": 1,
+  "msg": "成功"
 }
 ```
 
-30 字段全部透传，SDK 不裁剪不处理。不同任务类型的字段差异（HAR 验证）：
+失败示例（该任务仅允许提交 1 次）：
 
-| 字段 | 劳动 | 军训 | 班会 | 通用 |
-|---|---|---|---|---|
-| `name` | 任务原名 | `""` | `"班会"` | 任务原名 |
-| `level` | `"5"` | `""` | `""` | `""` |
-| `checkResult` | `""` | `"1"` | `""` | `""` |
-| `address` | 学校名 | 学校名 | 班级名 | `""` |
-| `orgName` | 学校名 | 学校名 | `""` | `""` |
-| `playRole` | `""` | `""` | `"3"` | `"3"` |
-| `hours` | `2.0` | `32.0` | `1.0` | `0.5` |
-
-**错误分支**：
-
-| 场景 | 错误 |
-|---|---|
-| `CircleTaskID==0` 或 `CircleTypeID==0` | `errors.Is(err, ErrInvalidPayload)` |
-| 业务拒绝（已提交、参数错） | `errors.Is(err, ErrBusinessRejected)` |
-| 网络层失败 | `errors.Is(err, ErrNetwork)` |
-
-**重要约定**：业务错误会同时返回 `(*TaskResult, error)`——`TaskResult.Code` 与 `Code` 字段会被填充，业务方可 `errors.As(err, &bErr)` 拿到数值 code 做精细分支（`code=2` 重试 / `code=500` 致命）。
-
-### `GetDimensions(ctx context.Context, token string) ([]types.Dimension, error)`
-
-拉任务维度列表（思想品德、学业水平、身心健康、艺术素养、社会实践）。**SDK 高级接口**——CLI 没暴露单独命令，如需通过 SDK 自定义 UI 可用。
+```json
+{
+  "code": -1,
+  "msg": "发表写实失败，限制本写实活动只能发表1次"
+}
+```
 
 ---
 
@@ -711,140 +489,71 @@ log.Printf("提交成功，result=%+v", result)
 
 提交自我评价文本。
 
+请求示例：
+
 ```go
-if err := c.SubmitSelfEvaluation(ctx, token, "很好的学期"); err != nil {
-    log.Fatal(err)
+err := c.SubmitSelfEvaluation(ctx, token, "这学期我尽量保持学习的专注，每天按时完成作业，课堂上也坚持记笔记。虽然有些科目像数学和物理理解起来有点吃力，但我已经试着提前预习并多问老师同学了。")
+if err != nil {
+	log.Fatalf("提交自我评价失败：%v", err)
 }
 ```
 
-错误：`ErrBusinessRejected` / `ErrNetwork` / `ErrTimeout`。
+SDK 响应示例：
+
+```json
+null
+```
 
 ### `QuerySelfEvaluation(ctx context.Context, token string) (*types.SelfEvalStatus, error)`
 
-查询自我评价 + 教师评语。返回结构（v1.0.0 精简版 3 字段）：
+查询自我评价 + 教师评语。
 
-```go
-type SelfEvalStatus struct {
-    ID             int64  `json:"id"`             // 自我评价 ID
-    StudentComment string `json:"studentComment"` // 学生自评
-    TeacherComment string `json:"teacherComment"` // 教师评语
-}
-```
-
-请求例子：
+请求示例：
 
 ```go
 status, err := c.QuerySelfEvaluation(ctx, token)
 if err != nil {
-    log.Fatalf("查询自我评价失败：%v", err)
+	if errors.Is(err, client.ErrEmptyUserInfo) {
+		log.Println("尚未提交自我评价")
+		return
+	}
+	log.Fatalf("查询自我评价失败：%v", err)
 }
 log.Printf("自评：%s", status.StudentComment)
 log.Printf("师评：%s", status.TeacherComment)
 ```
 
-真实响应（脱敏）：
+SDK 响应示例：
 
 ```json
 {
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "id": 50001,
-    "studentComment": "",
-    "teacherComment": ""
-  }
+  "id": 372235,
+  "studentComment": "这学期我尽量保持学习的专注，每天按时完成作业，课堂上也坚持记笔记...",
+  "teacherComment": "你开朗、乐观，在课上你认真听讲，积极发言，独立、分析问题的能力较强..."
 }
 ```
-
-`Status` 字段 fallback 链（`returnData` → `dataMap` → `dataList[0]`），服务端任一字段格式变更都能拿到数据。
-
-错误：`ErrBusinessRejected` / `ErrEmptyUserInfo` / `ErrNetwork`。
 
 ### `QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error)`
 
-查询学期评价。返回泛型 map（字段不固定，SDK 不假设 schema）。**SDK 高级接口**——CLI 没暴露，如需自建 UI 用。
+查询毕业相关评价状态。返回值保持平台原结构，不做字段裁剪，适合高级调用方直接探查原始键值。
 
----
-
-## 文件域（file.go）
-
-### `UploadFile(ctx context.Context, filePath string) (int64, error)`
-
-上传图片到文件服务器，返回图片 ID。
-
-**关键设计**：
-
-| 行为 | 原因 |
-|---|---|
-| **不发任何 Token/Cookie/Authorization 头** | 文件服务器 `doc.nazhisoft.com` 是独立公共服务，发送业务 token 反而触发风控 |
-| **使用独立 `newCleanClient`** | 内部 `http.Client` 无 cookie jar，杜绝 SSO Cookie 泄露 |
-| **禁用 HTTP 重定向** | `CheckRedirect = noRedirect`，防止 302 跳第三方时附带请求头 |
-| **共享 Transport 连接池** | 每张图 Clone 一次（O(1) struct copy + 重置 idle pool），批量上传 N 张只需 1 次 DNS+TCP+TLS 握手 |
-| **上传前自动预处理** | 任意格式 → JPG + 透明合成 + 缩放/质量级联 → ≤ 5MB |
-| **支持 BMP 转换提示** | stdlib 无 BMP 解码，会返回 `ErrUnsupportedFormat` 提示先用工具转 PNG/JPG |
-
-**支持格式**：JPEG / PNG / GIF（自动取首帧）/ WEBP。BMP 需先转换。
-
-**图片预处理**（F8.1 优化）：
-
-```
-1. sniff magic bytes（避免依赖扩展名）
-2. 解码 + 透明合成到白底（flattenOnWhite）
-3. jpeg.Encode(quality=92)
-4. 文件 ≤ 5MB？ → 返回
-5. 文件 > 2×5MB？ → 直接进缩放级联（省三次 encode）
-6. jpeg.Encode(quality=80)
-7. 文件 ≤ 5MB？ → 返回
-8. 缩放级联（resize 不 encode，7 次 ×0.7，最后统一 encode 一次）
-9. jpeg.Encode(quality=40)
-10. 文件 ≤ 5MB？ → 返回
-11. 兜底：缩小到极限仍超限 → ErrImageTooLarge
-```
-
-**错误分支**：
-
-| 场景 | 错误 |
-|---|---|
-| 文件不存在 / 读取失败 | `errors.Is(err, ErrNetwork)` 或 `os.PathError` |
-| 文件为空 | `errors.New("file is empty")` |
-| 不支持的格式（含 BMP） | `errors.Is(err, ErrUnsupportedFormat)`（在 `pkg/client/image_prep.go`） |
-| 压缩后仍 > 5MB | `errors.Is(err, ErrFileTooLarge)` + `ErrImageTooLarge` |
-| HTTP 429 | `errors.Is(err, ErrRateLimited)` |
-| HTTP 5xx | `errors.Is(err, ErrServiceUnavailable)` |
-| HTTP 4xx 其他 | `errors.Is(err, ErrUploadRejected)` |
-| 服务端业务拒绝（code≠1） | `errors.Is(err, ErrUploadRejected)` |
-| 响应体读取失败 | `errors.Is(err, ErrNetwork)` |
-
-**典型用法**：
+请求示例：
 
 ```go
-id, err := c.UploadFile(ctx, "./photo.jpg")
+grad, err := c.QuerySelfGradEvaluation(ctx, token)
 if err != nil {
-    if errors.Is(err, client.ErrFileTooLarge) {
-        log.Fatal("图片压缩后仍超 5MB")
-    }
-    if errors.Is(err, client.ErrUploadRejected) {
-        log.Fatalf("上传被拒：%v", err)
-    }
-    log.Fatalf("上传失败：%v", err)
+	log.Fatalf("查询毕业评价失败：%v", err)
 }
-log.Printf("上传成功，图片 ID：%d", id)
+if grad != nil {
+	log.Printf("原始结果：%v", *grad)
+}
 ```
 
-`id` 后续可用于 `SubmitTask(..., types.TaskSubmitPayload{PictureList: []int64{id}, ...})`。
-
-真实响应（脱敏，类比）：
+SDK 响应示例：
 
 ```json
 {
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "id": 6000001,
-    "path": "./photo.jpg"
-  }
+  "graduated": true
 }
 ```
 
@@ -854,221 +563,300 @@ log.Printf("上传成功，图片 ID：%d", id)
 
 ### `GetSubmittedCircles(ctx context.Context, token string) ([]types.CircleRecord, error)`
 
-获取当前用户已提交的全部写实记录。内部自动管理分页——先拉第一页获取总页数，超出一页时自动翻页合并。
+获取同班同学的全部已提交写实记录。内部自动翻页合并。
+
+请求示例：
 
 ```go
 records, err := c.GetSubmittedCircles(ctx, token)
 if err != nil {
-    var pb *types.PageBean
-    //  ...
+	log.Printf("获取写实记录失败（部分成功 %d 条）：%v", len(records), err)
 }
 for _, r := range records {
-    fmt.Printf("记录：%s（%s，%.1f 学时）\n", r.Name, r.TypeName, r.Hours)
+	fmt.Printf("记录：%s（%.1f 学时）\n", r.Name, r.Hours)
 }
 ```
 
-真实响应（脱敏，仅展示 1 条）：
+SDK 响应示例（1 条）：
 
 ```json
-{
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "total": 2,
-    "records": [
+[
+  {
+    "id": 5425144,
+    "name": "国旗下讲话",
+    "content": "听完这次国旗下讲话，我明白了爱护校园环境是每位同学的责任...（完整内容略）",
+    "typeName": "",
+    "approved": false,
+    "circleDate": "0001-01-01T00:00:00Z",
+    "hours": 0.5,
+    "imgList": [
       {
-        "id": 20001,
-        "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
-        "content": "当最后一个音符落下，掌声如潮水般涌来，我才真正理解了\"班班有歌声\"的意义。",
-        "typeName": "",
-        "approved": false,
-        "circleDate": "0001-01-01T00:00:00Z",
-        "hours": 4,
-        "imgList": [
-          {
-            "id": 30001,
-            "circle_id": 20001,
-            "class_id": 1001,
-            "task_id": 10001,
-            "attachment_id": 6000001,
-            "imgPath": ".jpg"
-          }
-        ],
-        "imgPreViewList": [
-          "http://www.nazhisoft.com/common/attachment/getImg?id=6000001"
-        ],
-        "remark": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声4个小时"
+        "id": 5025679,
+        "circle_id": 5425144,
+        "class_id": 162647,
+        "task_id": 18142,
+        "attachment_id": 5041653,
+        "imgPath": ".jpg"
       }
-    ]
+    ],
+    "imgPreViewList": [
+      "http://www.nazhisoft.com/common/attachment/getImg?id=5041653"
+    ],
+    "remark": "爱护校园环境，共创美丽校园"
   }
-}
+]
 ```
-
-**分页策略**：
-- 第一页同时获取 `PageBean`（TotalNum / TotalPage），判断是否需要翻页
-- 只有记录超过每页条数时才翻页，单页场景零开销
-- 翻页途中遇到 error 时返回已有数据 + 错误（不吞成功记录）
-- 翻页途中 context 取消时静默返回已有数据（可重试不丢数据）
-
-**每页条数**：默认 `100`（服务端上限约 `500`），调用方可通 `WithSubmittedPageSize(n)` Option 配置。
-
-**服务端特例**：`getStudentCircle` 接口要求 URL 带 `&key=` 参数（可空值），否则返回 HTTP 400。SDK 内部已自动处理，调用方无需关心。
-
-**错误**：`ErrBusinessRejected` / `ErrNetwork`。
-
-`GetSubmittedCircles` 内部自动管理分页。**没有原始分页 API**——SDK 统一自动翻页合并，调用方无需关心分页逻辑。
 
 ---
 
 ## 荣誉申报域（honor.go）
 
-荣誉申报域提供方法完成荣誉类型查询、级别查询、已申报记录拉取、荣誉申报和删除全流程。
-
 ### `GetHonorTypes(ctx context.Context, token string) ([]types.HonorType, error)`
 
 获取所有可申报的荣誉类型列表。
 
+请求示例：
+
 ```go
 types, err := c.GetHonorTypes(ctx, token)
-if err != nil { /* ... */ }
+if err != nil {
+	log.Fatalf("获取荣誉类型失败：%v", err)
+}
 for _, t := range types {
-    fmt.Printf("荣誉：%s（%s，%s）\n", t.Name, t.LevelName, t.DimensionName)
+	fmt.Printf("荣誉：%s（%s，%s）\n", t.Name, t.LevelName, t.DimensionName)
 }
 ```
 
-真实响应（脱敏，仅展示 3 条）：
+SDK 响应示例（前 5 条）：
 
 ```json
-{
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": [
-    {
-      "id": 1147,
-      "name": "校学生优秀干部",
-      "levelName": "",
-      "level": 5,
-      "dimensionName": ""
-    },
-    {
-      "id": 1148,
-      "name": "校三好学生",
-      "levelName": "",
-      "level": 5,
-      "dimensionName": ""
-    },
-    {
-      "id": 1150,
-      "name": "二级运动员",
-      "levelName": "",
-      "level": 1,
-      "dimensionName": ""
-    }
-  ]
-}
+[
+  {
+    "id": 1147,
+    "name": "校学生优秀干部",
+    "levelName": "",
+    "level": 5,
+    "dimensionName": ""
+  },
+  {
+    "id": 1148,
+    "name": "校三好学生",
+    "levelName": "",
+    "level": 5,
+    "dimensionName": ""
+  },
+  {
+    "id": 1150,
+    "name": "二级运动员",
+    "levelName": "",
+    "level": 1,
+    "dimensionName": ""
+  },
+  {
+    "id": 1151,
+    "name": "校优秀团干部",
+    "levelName": "",
+    "level": 5,
+    "dimensionName": ""
+  },
+  {
+    "id": 1251,
+    "name": "福清市\"三好学生\"",
+    "levelName": "",
+    "level": 4,
+    "dimensionName": ""
+  }
+]
 ```
-
-**双通道 fallback**：服务端同时支持 `dataList`（丰富字段）和 `returnData`（简化字段）两条路径，SDK 优先解析 `dataList`，`returnData` 兜底。
 
 ### `GetHonorTypeForSelect(ctx context.Context, token string) ([]types.HonorSelectOption, error)`
 
-获取荣誉类型下拉选项（标签/值对），适合前端下拉框绑定。
+获取荣誉类型下拉选项，返回 `label/value` 对。
+
+请求示例：
 
 ```go
 opts, err := c.GetHonorTypeForSelect(ctx, token)
-// opts = [{Label:"校", Value:5}, {Label:"区县", Value:4}, ...]
+if err != nil {
+	log.Fatalf("获取荣誉类型下拉失败：%v", err)
+}
+for _, opt := range opts {
+	fmt.Printf("%s => %d\n", opt.Label, opt.Value)
+}
+```
+
+SDK 响应示例：
+
+```json
+[
+  {"label": "校三好学生", "value": 1148},
+  {"label": "校学生优秀干部", "value": 1147}
+]
 ```
 
 ### `GetHonorLevel(ctx context.Context, token string, honorTypeID int64) ([]types.HonorSelectOption, error)`
 
-获取指定荣誉类型的可用级别。`honorTypeID` 来自 `GetHonorTypes` 返回的 `ID` 字段。
+获取某个荣誉类型可选的级别下拉选项。
+
+请求示例：
 
 ```go
-levels, err := c.GetHonorLevel(ctx, token, 1147)
-// levels = [{Label:"校", Value:5}, ...]
+levels, err := c.GetHonorLevel(ctx, token, 1148)
+if err != nil {
+	log.Fatalf("获取荣誉级别失败：%v", err)
+}
+for _, lv := range levels {
+	fmt.Printf("%s => %d\n", lv.Label, lv.Value)
+}
 ```
 
-### `GetHonorList(ctx context.Context, token string, pageNo, pageSize int) ([]types.HonorRecord, *types.PageBean, error)`
+SDK 响应示例：
 
-查询当前学生已申报的荣誉记录（分页）。同时返回记录列表和 `PageBean` 分页信息。
+```json
+[
+  {"label": "校", "value": 5},
+  {"label": "区/县/街道/社区", "value": 4}
+]
+```
+
+### `GetHonorList(ctx context.Context, token string, pageNo, pageSize int) (*types.HonorListResult, error)`
+
+获取已申报的荣誉记录。同时返回分页信息。
+
+请求示例：
 
 ```go
-records, pb, err := c.GetHonorList(ctx, token, 1, 20)
-if err != nil { /* ... */ }
-fmt.Printf("共 %d 条（第 %d/%d 页）\n", pb.TotalNum, pb.PageNo, pb.TotalPage)
+result, err := c.GetHonorList(ctx, token, 1, 20)
+if err != nil {
+	log.Fatalf("获取荣誉记录失败：%v", err)
+}
+fmt.Printf("共 %d 条（第 %d/%d 页）\n", result.Page.TotalNum, result.Page.PageNo, result.Page.TotalPage)
+for _, r := range result.Records {
+	fmt.Printf("荣誉：%s（%s，%s）\n", r.TypeName, r.LevelName, r.ApprovedName)
+}
 ```
 
-真实响应（脱敏）：
+SDK 响应示例：
 
 ```json
 {
-  "status": "success",
-  "code": 200,
-  "message": "",
-  "data": {
-    "total": 1,
-    "page": 1,
+  "records": [
+    {
+      "id": 56241,
+      "typeName": "阅读之星",
+      "levelName": "校",
+      "level": 5,
+      "dimensionName": "学业水平",
+      "approved": true,
+      "approvedName": "审核通过",
+      "getDate": "2025-11-21T00:00:00+08:00",
+      "evaluationAgency": "示例中学"
+    }
+  ],
+  "page": {
+    "pageNo": 1,
     "pageSize": 20,
-    "totalPage": 1,
-    "records": [
-      {
-        "id": 56241,
-        "typeName": "阅读之星",
-        "levelName": "",
-        "level": 5,
-        "dimensionName": "",
-        "approved": false,
-        "approvedName": "",
-        "getDate": "0001-01-01T00:00:00Z",
-        "evaluationAgency": ""
-      }
-    ]
+    "totalNum": 1,
+    "totalPage": 1
   }
 }
 ```
 
-**`&key=` 参数**：服务端要求 URL 带 `&key=` 参数（可空值），否则返回 HTTP 400。SDK 内部已自动拼接。
-
-错误：`ErrBusinessRejected` / `ErrNetwork`。
-
 ### `AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error`
 
-申报一条荣誉。请求体由 `types.AddHonorPayload` 定义。
+申报一条荣誉。
+
+请求示例：
 
 ```go
 err := c.AddHonor(ctx, token, types.AddHonorPayload{
-    Name:             "校学生优秀干部",
-    TypeID:           1147,
-    TypeName:         "校学生优秀干部",
-    Level:            5,
-    EvaluationAgency: "示例中学",
-    GetDate:          "2026-06-30",
+	Name:             "校三好学生",
+	TypeID:           1148,
+	TypeName:         "校三好学生",
+	Level:            5,
+	EvaluationAgency: "示例中学",
+	GetDate:          "2026-07-01",
 })
-if err != nil { /* 字段缺失或业务拒绝 */ }
+if err != nil {
+	log.Fatalf("申报荣誉失败：%v", err)
+}
 ```
 
-**必填字段**：Name / TypeID / TypeName / Level / EvaluationAgency / GetDate。
+SDK 响应示例：
 
-**选填字段**：CertImgAttachmentID（先通过 `UploadFile` 上传证书图片，用返回的 ID 关联）。
-
-**响应**：`AddHonor` 成功返回 nil，只确认 code=1。如需服务端 msg 文本，可配合 `errors.As(err, &types.BusinessError{})` 从 `ErrBusinessRejected` 中提取。
-
-错误：`ErrBusinessRejected`。
+```json
+null
+```
 
 ### `DeleteHonor(ctx context.Context, token string, honorID int64) error`
 
-删除一条已申报的荣誉记录。
+按 ID 删除一条已申报的荣誉记录。接口为 GET 请求，ID 通过查询参数传递。
+
+请求示例：
 
 ```go
-err := c.DeleteHonor(ctx, token, 62204)
-if err != nil { /* 删除失败 */ }
+err := c.DeleteHonor(ctx, token, 62702)
+if err != nil {
+	log.Fatalf("删除荣誉失败：%v", err)
+}
 ```
 
-**真实抓包验证**：接口为 `GET` 请求，ID 通过查询参数传递（`deleteHonorById?id=xxx`），非 `POST` 传 JSON body。
+SDK 响应示例：
 
-错误：`ErrBusinessRejected`。
+```json
+null
+```
+
+---
+
+## 文件域（file.go）
+
+### `UploadFile(ctx context.Context, filePath string) (*types.UploadFileResult, error)`
+
+上传图片到文件服务器，返回附件 ID。上传前自动预处理：任意格式 → JPG + 透明合成 + 缩放/质量级联 → ≤5MB。支持 JPEG / PNG / GIF（自动取首帧）/ WEBP；BMP 需先转换。
+
+请求示例：
+
+```go
+result, err := c.UploadFile(ctx, "./photo.jpg")
+if err != nil {
+	if errors.Is(err, client.ErrFileTooLarge) {
+		log.Fatal("图片压缩后仍超 5MB")
+	}
+	if errors.Is(err, client.ErrUploadRejected) {
+		log.Fatalf("上传被拒：%v", err)
+	}
+	log.Fatalf("上传失败：%v", err)
+}
+log.Printf("上传成功，图片 ID：%d", result.AttachmentID)
+```
+
+SDK 响应示例：
+
+```json
+{
+  "attachmentID": 5041963
+}
+```
+
+### `DownloadFile(ctx context.Context, attachmentID int64, dst string) error`
+
+按附件 ID 下载图片到本地。入口 `ssoBaseURL/common/attachment/getImg?id=X`，跟随 302 到 FastDFS 真实存储。不发鉴权头。
+
+请求示例：
+
+```go
+err := c.DownloadFile(ctx, 5041963, "./downloaded.jpg")
+if err != nil {
+	log.Fatalf("下载失败：%v", err)
+}
+```
+
+SDK 响应示例：
+
+```json
+null
+```
 
 ---
 
@@ -1078,23 +866,27 @@ if err != nil { /* 删除失败 */ }
 func (c *Client) Close() error
 ```
 
-释放 Client 持有的资源：
+释放 OCR session、fallback OCR、HTTP keep-alive 连接与 session backoff 状态。
 
-- OCR session（ONNX runtime + 临时目录）
-- HTTP Transport 空闲 keep-alive 连接
-
-**约定**：业务完成后 `defer c.Close()`。Windows 上尤其重要——未调 Close 的话进程退出时 DLL 句柄未释放，`%TEMP%/nazhi-cli-ocr-*/onnxruntime.dll` 会被 `LoadLibrary` 占用到下次启动才能扫掉（"启动清扫"是兜底）。
-
-**多 Client 场景**：
+请求示例：
 
 ```go
-c1, _ := client.New(client.WithToken(token1))
-c2, _ := client.New(client.WithToken(token2))
-defer c2.Close()  // LIFO
-defer c1.Close()
+c, err := client.New()
+if err != nil {
+	log.Fatalf("构造 Client 失败：%v", err)
+}
+defer func() {
+	if err := c.Close(); err != nil {
+		log.Printf("资源释放失败：%v", err)
+	}
+}()
 ```
 
-**错误聚合**：Close 可能返回多个清理错误 `errors.Join`，业务上可 `log 出来警告`，但不应阻塞退出。
+SDK 响应示例：
+
+```json
+null
+```
 
 ---
 
@@ -1106,682 +898,91 @@ defer c1.Close()
 _, err := c.Login(ctx, req)
 switch {
 case errors.Is(err, client.ErrLoginRejected):
-    // 学号/密码/验证码错误
+	// 账号/密码/验证码错误
 case errors.Is(err, client.ErrOCRNotConfigured):
-    // !ddddocr 构建且未注入 WithCustomOCR
+	// !ddddocr 构建且未注入 WithCustomOCR
 case errors.Is(err, client.ErrOCRPanic):
-    // OCR 识别器 panic 被 recover（极少，识别器实现 bug）
+	// OCR 识别器 panic 被 recover
 case errors.Is(err, client.ErrNetwork):
-    // 网络层失败
+	// 网络层失败
 case errors.Is(err, client.ErrTimeout):
-    // ctx deadline / net/http 超时
+	// 超时
 case errors.Is(err, client.ErrRateLimited):
-    // HTTP 429——退避后重试
+	// HTTP 429
 case errors.Is(err, client.ErrServiceUnavailable):
-    // HTTP 5xx——指数退避后重试
+	// HTTP 5xx
 case errors.Is(err, client.ErrInvalidResponse):
-    // HTTP 4xx（排除 429）——检查请求格式
+	// HTTP 4xx（排除 429）
 case errors.Is(err, client.ErrUploadRejected):
-    // 文件被服务器拒绝（仅 UploadFile）
+	// 文件被拒绝
 case errors.Is(err, client.ErrFileTooLarge):
-    // 图片 > 5MB（仅 UploadFile，含 ErrImageTooLarge 内嵌）
+	// 图片压缩后仍 > 5MB
 case errors.Is(err, client.ErrInvalidPayload):
-    // 任务 payload 字段缺失
+	// 任务 payload 字段缺失
 case errors.Is(err, client.ErrBusinessRejected):
-    // 业务请求被服务端拒绝（非登录）
+	// 业务请求被拒绝
 case errors.Is(err, client.ErrSessionBackoff):
-    // session 激活在冷却窗口内
+	// session 激活冷却中
 case errors.Is(err, client.ErrEmptyUserInfo):
-    // 业务成功但无数据
+	// 业务成功但无数据
 case errors.Is(err, client.ErrRetryable):
-    // ctx 取消触发，可重试（FetchTasks partial failure）
+	// ctx 取消导致的可重试错误
 }
 ```
-
-### 哨兵错误一览
-
-| 哨兵 | 触发场景 | 常用方法 |
-|---|---|---|
-| `ErrLoginRejected` | 登录请求被拒（code≠1 / 302 缺 token / 非预期状态码 / 验证码错） | `Login` |
-| `ErrNetwork` | 底层网络失败（连接拒绝 / DNS 错 / TLS 错 / 响应体读取断流） | 所有方法 |
-| `ErrTimeout` | ctx deadline 触发 / `*url.Error.Timeout()` / `net.OpError.Timeout()` | 所有方法 |
-| `ErrRateLimited` | HTTP 429 | 所有方法 |
-| `ErrServiceUnavailable` | HTTP 5xx | 所有方法 |
-| `ErrInvalidResponse` | HTTP 4xx（排除 429） | 所有方法 |
-| `ErrUploadRejected` | 上传文件域业务拒绝 / 响应 code≠1 / 4xx | `UploadFile` |
-| `ErrFileTooLarge` | 图片压缩后仍 > 5MB | `UploadFile` |
-| `ErrImageTooLarge` | 图片原始尺寸过大（嵌入 `ErrFileTooLarge` 错误链） | `UploadFile` |
-| `ErrUnsupportedFormat` | 图片格式不受支持（含 BMP，stdlib 无内置 BMP 解码） | `UploadFile` |
-| `ErrInvalidPayload` | task payload 缺字段 / GetSchoolID school_id 非数字 | `SubmitTask`、`GetSchoolID` |
-| `ErrBusinessRejected` | 业务请求被服务端拒绝（非登录） | `SubmitTask` / `GetMyInfo` / `FetchTasks` / `QuerySelfEvaluation` / `QuerySelfGradEvaluation` / `GetDimensions` / `GetSchoolID` / `ActivateSession` / `GetSubmittedCircles` / `GetHonorTypes` / `GetHonorTypeForSelect` / `GetHonorLevel` / `GetHonorList` / `AddHonor` / `DeleteHonor` / `SubmitSelfEvaluation` |
-| `ErrOCRNotConfigured` | `!ddddocr` 构建且未注入 OCR；fallback OCR 也未注入 | `Login` |
-| `ErrOCRPanic` | OCR 识别器 panic 被 `safeOCRRecognize` recover | `Login` |
-| `ErrSessionBackoff` | session 激活失败后同 token 在冷却窗口内 | `ActivateSession` |
-| `ErrEmptyUserInfo` | 业务成功但 `returnData` + `dataMap` 都为空 | `GetMyInfo` / `QuerySelfEvaluation` / `ActivateSession`（步骤 4 失败时） |
-| `ErrRetryable` | ctx 取消导致 fetch 失败，可重试 | `FetchTasks`（partial / full） |
-
-### 复合错误（errors.Join）
-
-很多场景是错误链 + 包装，例如：
-
-```go
-// SessionBackoff 同时携带 lastErr 供追溯
-return nil, errors.Join(
-    fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token",
-        ErrSessionBackoff, token, time.Since(sm.lastAttempt)),
-    sm.lastErr,
-)
-
-// FetchTasks 部分失败同时携带业务错 + ctx cancel 信号
-return partialTasks, fmt.Errorf("%w: FetchTasks context 取消后部分维度成功: %w",
-    ErrBusinessRejected,
-    fmt.Errorf("%w: %w", ErrRetryable, err))
-```
-
-`errors.Is` / `errors.As` 都能穿透多跳链命中根 sentinel。
-
-### 业务错误数值 code 精细分支
-
-`types.CheckCode` 返回的 `*BusinessError` 保留数值 code 供精细判定：
-
-```go
-resp, err := c.GetMyInfo(ctx, token)
-var bizErr *types.BusinessError
-if errors.As(err, &bizErr) {
-    switch bizErr.Code {
-    case 2:
-        // 业务约定重试
-    case 401, 403:
-        // token 过期或权限——重新登录
-    case 500:
-        // 服务端致命错
-    }
-}
-```
-
----
-
-## 高级用法
-
-### 替换 HTTP 客户端（自定义 Transport）
-
-```go
-c, _ := client.New(
-    client.WithHTTPClient(&http.Client{
-        Timeout: 30 * time.Second,
-        Transport: &http.Transport{
-            MaxIdleConns:        100,
-            MaxIdleConnsPerHost: 16,
-            IdleConnTimeout:     60 * time.Second,
-        },
-    }),
-)
-```
-
-警告：用自定义 client 时必须确保 `Jar` 字段是 `*cookiejar.Jar`，否则 `WithToken` 会让 `client.New()` 返回 error 提示手动修复。
-
-### 自定义 Logger
-
-```go
-logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-c, _ := client.New(
-    client.WithLogger(logger),
-    client.WithToken(token),
-)
-// 失败时可通过 logger.Debug 看到详细 HTTP 请求
-```
-
-SDK 内部只走 `c.logger.Warn/Debug/Error`，**不**走 cobra 或 stderr。这意味着：
-
-- 你可以在 logger 里加 hook 把 warn 上报到 Sentry / Datadog
-- 自定义 JSON handler 让日志进 ELK
-- 测试中用 `slog.New(slog.NewTextHandler(io.Discard, nil))` 静默所有 SDK 日志
-
-### 注入 Mock OCR（测试用 / CGO-free 构建）
-
-```go
-type mockOCR struct{ text string }
-
-func (m *mockOCR) Recognize(_ []byte) (string, error) { return m.text, nil }
-func (m *mockOCR) Close() error                       { return nil }
-
-c, _ := client.New(
-    client.WithCustomOCR(&mockOCR{text: "AB12"}),
-)
-```
-
-**`!ddddocr` 构建场景**：
-
-```bash
-CGO_ENABLED=0 go build -o nazhi-noocr ./cmd/nazhi
-```
-
-产出的二进制 `c.ocr=nil`，`Login()` 立即返回 `ErrOCRNotConfigured`。CGO-free 消费者（如嵌入式的固定 token 场景）用 `WithCustomOCR` 注入 AI/外部识别器。
-
-### 多账户并发
-
-每个账户一个 `*Client`，不要跨账户复用：
-
-```go
-type account struct {
-    username, password string
-    c                  *client.Client
-    token              string
-    info               *types.UserInfo
-}
-
-func bootstrap(ctx context.Context, username, password string) (*account, error) {
-    c, err := client.New()
-    if err != nil { return nil, err }
-    resp, err := c.Login(ctx, types.LoginRequest{
-        Username: username, Password: password,
-    })
-    if err != nil { c.Close(); return nil, err }
-    a := &account{username: username, password: password, c: c, token: resp.Token}
-    a.info, err = c.ActivateSession(ctx, a.token)
-    if err != nil { c.Close(); return nil, err }
-    return a, nil
-}
-
-func main() {
-    var wg sync.WaitGroup
-    accounts := []*account{ /* ... */ }
-    for _, a := range accounts {
-        wg.Add(1)
-        go func(a *account) {
-            defer wg.Done()
-            defer a.c.Close()
-            // 每个 account 各自的 c 可以并发 FetchTasks
-        }(a)
-    }
-    wg.Wait()
-}
-```
-
-### 错误注入与超时控制
-
-所有 SDK 方法都接 `ctx`：
-
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-defer cancel()
-
-tasks, err := c.FetchTasks(ctx, token)
-```
-
-`ctx.Done()` / `ctx.Err()` 会自动 propagate，不会被各方法吞掉（FetchTasks 内部做 `gctx.Err()` 检查 → 包装 `ErrRetryable` 走 errors.Is）。
 
 ---
 
 ## pkg/tokenparse 单独使用
 
-适用：你自己写 SSO 登录脚本、不想用 `pkg/client.Login`、但要复用 token 解析逻辑。
-
 ```go
 import "github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
 
-// 场景 A：从 302 Location 头提取
-//
-//   location := "https://www.nazhisoft.com/uiStudentLogin/login?token=eyJhbGc...&expires_in=3600"
+location := "https://www.nazhisoft.com/uiStudentLogin/login?token=eyJhbGc...&expires_in=3600"
 token, expiresAt, err := tokenparse.ExtractFromLocation(location)
-if err != nil { /* url.Parse 失败 */ }
-if expiresAt.Before(time.Now()) {
-    log.Fatal("token 已过期")
-}
 
-// 场景 B：从 ReturnData JSON 字节提取
-//
-//   raw := []byte(`{"code":1,"returnData":{"token":"xxx","expires_in":3600}}`)
+raw := []byte(`{"code":1,"returnData":{"token":"xxx","expires_in":3600}}`)
 token, expiresAt, err = tokenparse.ExtractFromReturnData(raw)
-if err != nil { /* 空 body / token 类型异常 */ }
 ```
-
-**过期时间解析规则**（`parseExpiresMap`）：
-
-| 字段 | 单位 | 来源 |
-|---|---|---|
-| `expires_in`（优先） | 秒，相对当前时间 | SSO query |
-| `exp` | Unix 秒，绝对时间 | SSO query |
-| **JWT payload exp（中间兜底）** | Unix 秒，绝对时间 | JWT token |
-| **兜底 `DefaultTokenTTL = 24h`** | 当三个字段都不存在 | `tokenparse.DefaultTokenTTL` |
-
-畸形 URL 直接返回 `url.Parse` 底层错误（已是可读 parse error）。**注意**：`ErrLocationParseFailed` sentinel **已删除**——曾定义但 `auth.go` 未用 `%w` 链入，导致 `errors.Is` 永不命中，纯死代码。
 
 ---
 
 ## pkg/types 类型索引
 
-| 类型 | 字段说明 |
-|---|---|
-| `LoginRequest` | SchoolID / Username / Password |
-| `LoginResponse` | Token / ExpiresAt / FallbackUsed（3 字段，v1.0.0 精简版） |
-| `BusinessError` | Code（数值）/ Msg（字符串）；`errors.As(err, &b)` 精细分支 |
-| `UserInfo` | 13 字段用户身份/学校/班级/学号资料（详见 `pkg/types/types.go`） |
-| `Task` | 任务条目（ID、Name、Hours、Score、DimensionName 等 21 字段） |
-| `TaskSubmitPayload` | 30 字段 addCircle 请求体透传 |
-| `HonorType` | 荣誉类型（_ID, Name, LevelName, Level, DimensionName_，5 字段） |
-| `HonorRecord` | 已申报荣誉记录（_ID, TypeName, LevelName, Level, DimensionName, Approved, ApprovedName, GetDate, EvaluationAgency_，9 字段） |
-| `AddHonorPayload` | 荣誉申报请求（_Name, TypeID, TypeName, Level, EvaluationAgency, GetDate, CertImgAttachmentID_） |
-| `HonorSelectOption` | 下拉选择（_Label / Value_ 对） |
-| `CircleRecord` | 已提交写实记录（_ID, Name, TypeName, Content, Approved, CircleDate, Hours, ImgList, ImgPreViewList, Remark_，10 字段） |
-| `CircleImage` | 写实记录关联图片（_ID, CircleID, ClassID, TaskID, AttachmentID, ImgPath_，6 字段） |
-| `TaskResult` | 任务提交结果（_Code, Msg_） |
+| 类型 | 字段数 | 文件 | 说明 |
+|---|---|---|---|
+| `LoginRequest` | 3 | `login.go` | SchoolID / Username / Password |
+| `LoginResponse` | 3 | `login.go` | Token / ExpiresAt / FallbackUsed |
+| `SchoolInfo` | 2 | `login.go` | SchoolID / SchoolName |
+| `UploadFileResult` | 1 | `login.go` | AttachmentID |
+| `BusinessError` | 2 | `response.go` | Code / Msg |
+| `UserInfo` | 13 | `user.go` | 用户身份/学校/班级/学号资料 |
+| `Task` | 21 | `task.go` | 任务条目（含 Submitted/NeedPic 计算字段） |
+| `TaskSubmitInput` | 6 | `task.go` | 最小任务提交输入（TaskID / Content / ImagePaths / PlayRole / Address / Level） |
+| `TaskAddCirclePayload` | 30 | `task.go` | SDK 内部组装的 addCircle 完整请求体 |
+| `TaskResult` | 2 | `task.go` | Code / Msg |
+| `HonorType` | 5 | `honor.go` | ID / Name / LevelName / Level / DimensionName |
+| `HonorRecord` | 9 | `honor.go` | 荣誉记录 |
+| `HonorListResult` | 2 | `honor.go` | Records / Page |
+| `AddHonorPayload` | 7 | `honor.go` | 荣誉申报请求体 |
+| `HonorSelectOption` | 2 | `honor.go` | Label / Value |
+| `CircleRecord` | 10 | `circle.go` | 已提交写实记录 |
+| `CircleImage` | 6 | `circle.go` | 写实图片附件 |
+| `PageBean` | 4 | `circle.go` | PageNo / PageSize / TotalNum / TotalPage |
+| `SelfEvalStatus` | 3 | `self_eval.go` | ID / StudentComment / TeacherComment |
+| `Dimension` | 2 | `dimension.go` | ID / Name |
 
-### pkg/types/response.go 泛型辅助
+---
+
+## pkg/types/response.go 泛型辅助
 
 ```go
-// 统一响应解码
-resp, err := types.DecodeResponse(bodyBytes)  // → UnifiedResponse
-if err := types.CheckCode(resp); err != nil { /* code≠1 → *BusinessError */ }
+resp, err := types.DecodeResponse(bodyBytes)
+if err := types.CheckCode(resp); err != nil {
+	// code != 1 -> *BusinessError
+}
 
-// 类型安全解码（任何解码错误都返回 error，含字段缺失）
 userInfo, err := types.DecodeReturnData[types.UserInfo](resp)
 tasks, err := types.DecodeDataList[types.Task](resp)
 selfEval, err := types.DecodeDataMap[types.SelfEvalStatus](resp)
-```
-
-- `DecodeReturnData[T]` 解析 `returnData` 字段（单个对象）
-- `DecodeDataList[T]` 解析 `dataList` 字段（数组）
-- `DecodeDataMap[T]` 解析 `dataMap` 字段（单对象）
-- `DecodePageBean[T]` 解析 `pageBean` 分页字段
-- `DecodeReturnDataSlice[T]` 解析 `returnData` 中的对象数组
-- `CheckCode` 检查 `code==1`，否则返 `*BusinessError`
-
-> **关键**：`DecodeResponse` **只做 JSON 解析，不做 code 检查**。取的数据是否有效，必须再调 `CheckCode`。这是有意设计——让调用方能先取 `PageBean` 再做 code 检查，或先 code 检查再按需解码具体字段。
-
-注：`pkg/types/deref.go` 提供 `DerefOr[T]` 安全解引用（用于 `*string` 等指针类型，转 `T` 零值兜底）。
-
----
-
-## 实战错误处理骨架
-
-```go
-package main
-
-import (
-	"context"
-	"errors"
-	"log"
-	"net"
-	"os"
-	"time"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/client"
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
-)
-
-func main() {
-	c, err := client.New()
-	if err != nil { log.Fatal(err) }
-	defer c.Close()
-
-	ctx := context.Background()
-
-	resp, err := c.Login(ctx, types.LoginRequest{
-		Username: os.Getenv("NAZHI_USERNAME"),
-		Password: os.Getenv("NAZHI_PASSWORD"),
-	})
-	if err != nil { handleLoginErr(err) }
-	token := resp.Token
-
-	tasks, err := c.FetchTasks(ctx, token)
-	if err != nil { handleFetchErr(err) }
-	_ = tasks
-}
-
-func handleLoginErr(err error) {
-	switch {
-	case errors.Is(err, client.ErrOCRNotConfigured):
-		log.Fatal("OCR 未配置，建议下载预编译 release")
-	case errors.Is(err, client.ErrLoginRejected):
-		log.Fatal("学号/密码/验证码错")
-	case errors.Is(err, client.ErrTimeout):
-		log.Fatal("登录超时，建议调大 NAZHI_TIMEOUT")
-	case errors.Is(err, client.ErrNetwork):
-		var netErr *net.OpError
-		if errors.As(err, &netErr) {
-			log.Fatalf("网络层失败：%v", netErr)
-		}
-		log.Fatalf("网络失败：%v", err)
-	default:
-		log.Fatalf("未分类错误：%v", err)
-	}
-}
-
-func handleFetchErr(err error) {
-	switch {
-	case errors.Is(err, client.ErrRetryable):
-		log.Printf("部分完成（cancel 重试可继续）：%v", err)
-	case errors.Is(err, client.ErrBusinessRejected):
-		log.Printf("业务拒绝：%v", err)
-	case errors.Is(err, client.ErrSessionBackoff):
-		time.Sleep(5 * time.Second) // 等 backoff 窗口
-	default:
-		log.Printf("未知错误：%v", err)
-	}
-}
-```
-
----
-
-## 调试技巧
-
-### 看完整 HTTP 请求 / 响应
-
-```go
-c, _ := client.New(
-    client.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-        Level: slog.LevelDebug,
-    }))),
-)
-```
-
-`pkg/client/request.go` 的 `logDebug` / `logRequestHeaders` 会在 debug 级别输出：
-
-```
-→ POST https://www.nazhisoft.com/teacher/auth/studentLogin/validate
-  Header: Accept: application/jso...
-  Header: User-Agent: Mozilla/5.0 ...
-  ← 200 (340 bytes)
-```
-
-请求头值超过 16 字符自动截断（脱敏 token 等敏感信息）。
-
-### 看 OCR 流程
-
-```go
-c, _ := client.New(
-    client.WithLogger(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-        Level: slog.LevelDebug,
-    }))),
-    client.WithCustomOCR(yourMock), // OCR mock 也输出日志
-)
-
-resp, err := c.Login(ctx, req)
-// 日志会输出：
-//   OCR 识别完成（4 字符）
-//   OCR 识别成功: img=1 result_len=4
-```
-
-### 客户端构造错误排查
-
-`client.New()` 返 error 几乎一定是 `WithHTTPClient` + `WithToken` 组合下自定义 client 的 `Jar` 不是 `*cookiejar.Jar`：
-
-```go
-jar, _ := cookiejar.New(nil)
-c, err := client.New(
-    client.WithHTTPClient(&http.Client{
-        Jar:       jar,  // ← 必传
-        Transport: http.DefaultTransport,
-    }),
-    client.WithToken("xxx"),
-)
-if err != nil { log.Fatal(err) }
-```
-
----
-
-## 版本契约
-
-`pkg/client` 的所有公开方法均保持向后兼容。新增字段不会破坏现有调用方（Go 的结构体序列化容忍未知字段）。
-
-**BREAKING 变更记录**：早期 `New()` 曾返回 `(*Client, error)` 而非 `(*Client, error)`；后续删除了孤儿字段/零引用的死错误；session 状态机下沉到 `sessionManager`、HTTP helper 改私有名（`httpDo` / `rawDoWithResp`）、token 解析拆 `pkg/tokenparse`。
-
-详见根目录 `CHANGELOG.md`。
-
----
-
-## 字段参考（pkg/types 完整表）
-
-> v1.0.0 后的精简版字段。完整定义见 `pkg/types/` 源码。
-
-### UnifiedResponse
-
-平台所有业务接口的通用响应包。`pkg/types/response.go`。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| Code | `int` | `code` | 是 | 业务 code：1=成功，其他=错误 |
-| Msg | `*string` | `msg` | 否 | 业务消息；nil 或空字符串时回落为 "未知错误" |
-| ReturnData | `*json.RawMessage` | `returnData` | 否 | 主业务数据（解码延迟） |
-| DataList | `*json.RawMessage` | `dataList` | 否 | 列表数据 |
-| DataMap | `*json.RawMessage` | `dataMap` | 否 | 字典数据 |
-| PageBean | `*json.RawMessage` | `pageBean` | 否 | 分页信息 |
-
-辅助方法：`DecodeResponse` / `CheckCode` / `DecodeReturnData[T]` / `DecodeDataList[T]` / `DecodeDataMap[T]` / `DecodePageBean`。
-
-### LoginResponse
-
-SSO 登录成功响应。`pkg/types/login.go`。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| Token | `string` | `token` | 是 | X-Auth-Token 凭证 |
-| ExpiresAt | `time.Time` | `expiresAt` | 是 | token 过期时间（ISO 8601 + 时区） |
-| FallbackUsed | `bool` | `fallbackUsed` | 是 | 本次登录是否降级到 ddddocr OCR |
-
-### UserInfo
-
-> v1.0.0 从 51 字段精简到 13 字段（10 核心 + 座号 + 双学号）。联系方式/证件号/积分已移除。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 用户 ID |
-| Name | `string` | `name` | 是 | 姓名 |
-| StudentNumber | `string` | `studentNumber` | 是 | 学号 |
-| StudentID | `int64` | `studentId` | 是 | 学生 ID（与 id 不同，服务端逻辑区分） |
-| StudyNumber | `string` | `studyNumber` | 否 | 校内短学号 |
-| NationalStudentNumber | `string` | `nationalStudentNumber` | 否 | 全国学号 |
-| SchoolID | `int64` | `schoolId` | 是 | 学校 ID |
-| SchoolName | `string` | `schoolName,omitempty` | 否 | 学校名（平台返回 null 时省略） |
-| GradeID | `int64` | `gradeId` | 是 | 年级 ID |
-| GradeName | `string` | `gradeName` | 是 | 年级名 |
-| ClassID | `int64` | `classId` | 是 | 班级 ID |
-| ClassName | `string` | `className` | 是 | 班级名 |
-| Seat | `int` | `seat` | 否 | 座号 |
-
-### Task
-
-> 共 21 字段。Score/AuditStartDate/AuditEndDate/CreatorName/RoleName 等业务高频字段已恢复。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 任务 ID（即 circleTaskId） |
-| Name | `string` | `name` | 是 | 任务名称 |
-| TypeName | `string` | `typeName` | 是 | 类型名称 |
-| DimensionName | `string` | `dimensionName` | 是 | 维度名称 |
-| Hours | `float64` | `hours` | 是 | 学时 |
-| Score | `float64` | `score` | 否 | 学分（与 hours 不同） |
-| Remark | `string` | `remark` | 否 | 任务说明（"照片加描述" 等） |
-| Submitted | `bool` | `submitted` | 是 | 是否已提交（来自 circleTaskStatus） |
-| NeedPic | `bool` | `needPic` | 是 | 是否需要图片（来自 upPic 0/1） |
-| StartDate | `DateOnly` | `startDateStr` | 是 | 开始日期（如 `2026-01-12`） |
-| EndDate | `DateOnly` | `endDateStr` | 是 | 结束日期 |
-| AuditStartDate | `DateOnly` | `auditStartDateStr` | 否 | 审核开始日期 |
-| AuditEndDate | `DateOnly` | `auditEndDateStr` | 否 | 审核截止日期 |
-| CreatorName | `string` | `creatorName` | 否 | 创建者（"许风华"/"管理员"） |
-| RoleName | `string` | `roleName` | 否 | 创建者角色（"班主任"） |
-| CreationTime | `[]int` | `creationTime` | 否 | 任务创建时间（`[y,m,d,h,m,s]` 数组） |
-| CreationTimeStr | `DateOnly` | `creationTimeStr` | 否 | 任务创建日期字符串 |
-| TermID | `int64` | `termId` | 否 | 学期 ID |
-| PushNum | `int` | `pushNum` | 否 | 推送次数 |
-| ScopeType | `int` | `scopeType` | 是 | 作用域类型（见 `ScopeClass/Grade/Stage` 常量） |
-| ScopeTypeName | `string` | `scopeTypeName` | 是 | 作用域名称 |
-
-**ScopeType 常量**：
-
-| 常量 | 值 | 说明 |
-|------|----|------|
-| `ScopeClass` | `1` | 班级任务 |
-| `ScopeGrade` | `2` | 年段任务 |
-| `ScopeStage` | `3` | 学段任务 |
-
-### TaskSubmitPayload
-
-addCircle 接口的完整请求体（30 字段透传）。`pkg/types/task.go`。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `*int64` | `id` | 否 | 记录 ID（新建时为空，更新时填） |
-| Name | `string` | `name` | 是 | 写实标题 |
-| HostName | `string` | `hostName` | 否 | 主办方 |
-| CircleDate | `string` | `circleDate` | 否 | 写实日期（YYYY-MM-DD） |
-| Rank | `string` | `rank` | 否 | 排名 |
-| Level | `string` | `level` | 否 | 级别 |
-| Content | `string` | `content` | 是 | 写实正文 |
-| PictureList | `[]int64` | `pictureList` | 否 | 图片附件 ID 列表 |
-| CircleTaskID | `int64` | `circleTaskId` | 是 | 关联任务 ID |
-| CircleTypeID | `int64` | `circleTypeId` | 是 | 写实类型 ID |
-| DimensionID | `int64` | `dimensionId` | 是 | 维度 ID |
-| Hours | `float64` | `hours` | 否 | 实践时长 |
-| CircleBeginDate | `string` | `circleBeginDate` | 否 | 开始日期 |
-| CircleEndDate | `string` | `circleEndDate` | 否 | 结束日期 |
-| CheckResult | `string` | `checkResult` | 否 | 检查结果（军训任务 `"1"` 等） |
-| PatentType | `string` | `patentType` | 否 | 专利类型 |
-| PatentNum | `string` | `patentNum` | 否 | 专利号 |
-| Address | `string` | `address` | 否 | 地址 |
-| TermName | `string` | `termName` | 否 | 学期名 |
-| ActivityName | `string` | `activityName` | 否 | 活动名 |
-| SportsName | `string` | `sportsName` | 否 | 体育项目名 |
-| TeamName | `string` | `teamName` | 否 | 团队名 |
-| OrgName | `string` | `orgName` | 否 | 组织名 |
-| ResultsName | `string` | `resultsName` | 否 | 成果名 |
-| ObtainTime | `string` | `obtainTime` | 否 | 获得时间 |
-| SpecialtyTechnology | `string` | `specialtyTechnology` | 否 | 特长技术 |
-| PlayRole | `string` | `playRole` | 否 | 承担角色（`"1"`=主持策划者 `"2"`=主要参与者 `"3"`=参与者，见 `PlayRole*` 常量） |
-| LikeSpecialty1/2/3 | `string` | `likeSpecialtyN` | 否 | 兴趣特长 1/2/3 |
-
-### TaskResult
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| Code | `int` | `code` | 是 | 业务 code（1=成功） |
-| Msg | `string` | `msg` | 是 | 结果描述 |
-
-### CircleRecord
-
-> 共 10 字段，含 ImgPreViewList 图片 URL 列表。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 写实记录主键 |
-| Name | `string` | `name` | 是 | 写实标题 |
-| Content | `string` | `content` | 是 | 写实正文 |
-| TypeName | `string` | `typeName` | 是 | 类型名 |
-| Approved | `bool` | `approved` | 是 | 是否已通过审核 |
-| CircleDate | `time.Time` | `circleDate` | 是 | 写实发生日期（ISO 8601 + 时区） |
-| Hours | `float64` | `hours` | 是 | 实践时长（小时） |
-| ImgList | `[]CircleImage` | `imgList` | 是 | 关联图片附件列表 |
-| ImgPreViewList | `[]string` | `imgPreViewList` | 否 | 图片预览 URL 列表（服务端返回的可访问链接） |
-| Remark | `string` | `remark` | 否 | 备注 |
-
-### CircleImage
-
-> v1.0.0 从 1 字段扩展到 6 字段（完整附件元数据）。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 图片记录主键 |
-| CircleID | `int64` | `circle_id` | 是 | 关联的写实记录 ID |
-| ClassID | `int64` | `class_id` | 是 | 班级 ID |
-| TaskID | `int64` | `task_id` | 是 | 关联的任务 ID |
-| AttachmentID | `int64` | `attachment_id` | 是 | 附件 ID（用于查询/下载） |
-| ImgPath | `string` | `imgPath` | 是 | 图片扩展名（如 `.jpg`） |
-
-### PageBean
-
-平台通用分页信息。`pkg/types/circle.go`。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| PageNo | `int` | `pageNo` | 是 | 当前页码（1-based） |
-| PageSize | `int` | `pageSize` | 是 | 每页条数 |
-| TotalNum | `int` | `totalNum` | 是 | 总条数 |
-| TotalPage | `int` | `totalPage` | 是 | 总页数 |
-
-### HonorType
-
-> v1.0.0 精简到 5 字段。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 荣誉类型 ID |
-| Name | `string` | `name` | 是 | 荣誉名称 |
-| LevelName | `string` | `levelName` | 是 | 级别名（校/区县/市/省/国家） |
-| Level | `int` | `level` | 是 | 级别代码（5=校, 4=区县, 3=市, 2=省, 1=国家） |
-| DimensionName | `string` | `dimensionName` | 是 | 维度名 |
-
-### HonorRecord
-
-> v1.0.0 精简到 9 字段。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 荣誉记录 ID |
-| TypeName | `string` | `typeName` | 是 | 荣誉类型名 |
-| LevelName | `string` | `levelName` | 是 | 级别名 |
-| Level | `int` | `level` | 是 | 级别代码 |
-| DimensionName | `string` | `dimensionName` | 是 | 维度名 |
-| Approved | `bool` | `approved` | 是 | 是否已通过审核 |
-| ApprovedName | `string` | `approvedName` | 是 | 审核状态名 |
-| GetDate | `time.Time` | `getDate` | 是 | 获得日期 |
-| EvaluationAgency | `string` | `evaluationAgency` | 是 | 颁发机构 |
-
-### AddHonorPayload
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| Name | `string` | `name` | 是 | 荣誉名称 |
-| TypeID | `int64` | `typeId` | 是 | 荣誉类型 ID |
-| TypeName | `string` | `typeName` | 是 | 荣誉类型名 |
-| Level | `int` | `level` | 是 | 级别代码 |
-| EvaluationAgency | `string` | `evaluationAgency` | 是 | 颁发机构 |
-| GetDate | `string` | `getDate` | 是 | 获得日期（YYYY-MM-DD） |
-| CertImgAttachmentID | `string` | `certImgAttachmentId` | 否 | 证书图片附件 ID 或空 |
-
-### HonorSelectOption
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| Label | `string` | `label` | 是 | 显示文本 |
-| Value | `int` | `value` | 是 | 选项值 |
-
-### SelfEvalStatus
-
-> v1.0.0 精简到 3 字段，仅保留 id + 双向评语。
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 自我评价 ID |
-| StudentComment | `string` | `studentComment` | 是 | 学生自评 |
-| TeacherComment | `string` | `teacherComment` | 是 | 教师评语 |
-
-### Dimension
-
-| 字段 | Go 类型 | JSON tag | 必选 | 说明 |
-|------|---------|----------|------|------|
-| ID | `int64` | `id` | 是 | 维度 ID（0=全部汇总，FetchTasks 会跳过） |
-| Name | `string` | `name` | 是 | 维度名 |
-
-### BusinessError
-
-业务错误，保留数值 code 供 `errors.As` 精细判别。`pkg/types/response.go`。
-
-| 字段 | Go 类型 | 必选 | 说明 |
-|------|---------|------|------|
-| Code | `int` | 是 | 业务 code（非 1） |
-| Msg | `string` | 是 | 错误描述 |
-
-调用方：
-
-```go
-var bizErr *types.BusinessError
-if errors.As(err, &bizErr) {
-    switch bizErr.Code {
-    case 2:
-        // 重试
-    case 500:
-        // 致命
-    }
-}
+pb, err := types.DecodePageBean(resp)
 ```

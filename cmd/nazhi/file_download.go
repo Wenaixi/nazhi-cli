@@ -62,10 +62,10 @@ URL 流程：
 			return
 		}
 
-		printEnvelope(envelope.Success(map[string]any{
-			"id":     id,
-			"output": output,
-		}))
+		// DownloadFile SDK 在成功路径不返回业务数据（仅 error）。
+		// 用 envelope.Empty (HTTP 204) 表达"成功但无业务负载"，与 SDK 语义一致——
+		// CLI 不伪造不存在的 SDK 字段（如 id/output 实际上是命令行参数，不是 SDK 返回）。
+		printEnvelope(envelope.Empty("下载成功"))
 	},
 }
 

@@ -488,6 +488,65 @@ func TestGetDimensions_BizError(t *testing.T) {
 	}
 }
 
+// TestGetCircleTypeByTaskID 验证 getCircleTypeByTaskId 返回的 dataMap 能正确解码。
+func TestGetCircleTypeByTaskID(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			if got := r.URL.Query().Get("taskId"); got != "18154" {
+				t.Errorf("期望 taskId=18154, 得到 %s", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null,"dataList":null,"dataMap":{"task_name":"3月生产劳动","circle_type_id":9274,"hours":2.0,"type_name":"生产劳动","dimension_id":14,"dimension_name":"劳动素养","task_id":18154,"remark":" 3月生产劳动","type":10},"pageBean":null}`))
+		default:
+			t.Errorf("未预期的请求: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	info, err := c.GetCircleTypeByTaskID(context.Background(), "test-token", 18154)
+	if err != nil {
+		t.Fatalf("GetCircleTypeByTaskID 失败: %v", err)
+	}
+	if info.CircleTypeID != 9274 {
+		t.Errorf("期望 CircleTypeID=9274, 得到 %d", info.CircleTypeID)
+	}
+	if info.DimensionID != 14 {
+		t.Errorf("期望 DimensionID=14, 得到 %d", info.DimensionID)
+	}
+	if info.Hours != 2 {
+		t.Errorf("期望 Hours=2, 得到 %v", info.Hours)
+	}
+	if info.TaskName != "3月生产劳动" {
+		t.Errorf("期望 TaskName=3月生产劳动, 得到 %s", info.TaskName)
+	}
+}
+
+// TestGetCircleTypeByTaskID_BizError 验证业务错误透传。
+func TestGetCircleTypeByTaskID_BizError(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(unifiedJSON(0, "任务不存在", nil, nil)))
+		default:
+			t.Errorf("未预期的请求: %s %s", r.Method, r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	_, err := c.GetCircleTypeByTaskID(context.Background(), "test-token", 18154)
+	if err == nil {
+		t.Fatal("期望业务错误，但得到 nil")
+	}
+}
+
 // ─── task_cancelled_count_test.go (group-B F1): 失败数不虚高 ───
 
 // TestFetchTasks_MixedBizAndCancel_FailedCountAccurate 验证混合场景下：

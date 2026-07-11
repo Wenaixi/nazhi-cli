@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
@@ -272,7 +273,6 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 	}
 
 	for i := range tasks {
-		tasks[i].RefreshSubmitted()
 		tasks[i].DimensionName = dim.Name
 	}
 	return tasks, nil
@@ -301,17 +301,100 @@ func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimen
 	return c.fetchTasksForDimension(ctx, dim, headers)
 }
 
+func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
+	if err := input.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrInvalidPayload, err)
+	}
+
+	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.TaskID)
+	if err != nil {
+		return nil, fmt.Errorf("SubmitTask 获取任务元数据失败: %w", err)
+	}
+
+	info, err := c.GetMyInfo(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("SubmitTask 获取用户信息失败: %w", err)
+	}
+
+	pictureList := make([]int64, 0, len(input.ImagePaths))
+	for _, path := range input.ImagePaths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		result, upErr := c.UploadFile(ctx, path)
+		if upErr != nil {
+			return nil, fmt.Errorf("SubmitTask 上传图片失败: %w", upErr)
+		}
+		pictureList = append(pictureList, result.AttachmentID)
+	}
+
+	if meta.Remark != "" && len(pictureList) == 0 {
+		lowerRemark := strings.ToLower(meta.Remark)
+		if strings.Contains(meta.Remark, "照片") || strings.Contains(meta.Remark, "图片") || strings.Contains(lowerRemark, "pdf") {
+			return nil, fmt.Errorf("%w: 该任务要求上传图片或附件", ErrInvalidPayload)
+		}
+	}
+
+	address := strings.TrimSpace(input.Address)
+	if address == "" {
+		address = strings.TrimSpace(info.SchoolName)
+	}
+
+	playRole := strings.TrimSpace(input.PlayRole)
+
+	level := strings.TrimSpace(input.Level)
+	if level == "" {
+		level = "5"
+	}
+
+	payload := &types.TaskAddCirclePayload{
+		ID:                  nil,
+		Name:                "",
+		HostName:            "",
+		CircleDate:          "",
+		Rank:                "",
+		Level:               level,
+		Content:             strings.TrimSpace(input.Content),
+		PictureList:         pictureList,
+		CircleTaskID:        meta.TaskID,
+		CircleTypeID:        meta.CircleTypeID,
+		DimensionID:         meta.DimensionID,
+		Hours:               meta.Hours,
+		CircleBeginDate:     "",
+		CircleEndDate:       "",
+		CheckResult:         "",
+		PatentType:          "",
+		PatentNum:           "",
+		Address:             address,
+		TermName:            "",
+		ActivityName:        "",
+		SportsName:          "",
+		TeamName:            "",
+		OrgName:             strings.TrimSpace(info.SchoolName),
+		ResultsName:         "",
+		ObtainTime:          "",
+		SpecialtyTechnology: "",
+		PlayRole:            playRole,
+		LikeSpecialty1:      "",
+		LikeSpecialty2:      "",
+		LikeSpecialty3:      "",
+	}
+
+	return payload, nil
+}
+
 // SubmitTask 提交一次任务。
-// payload 是完整的 addCircle 请求体（30 字段透传）。
-func (c *Client) SubmitTask(ctx context.Context, token string, payload types.TaskSubmitPayload) (*types.TaskResult, error) {
-	// 验证 payload
-	if payload.CircleTaskID == 0 || payload.CircleTypeID == 0 {
-		return nil, fmt.Errorf("%w: circleTaskId 和 circleTypeId 不能为空", ErrInvalidPayload)
+//
+// 公开接口仅接收最少必要输入，SDK 内部自动补齐真实网页提交流程所需字段：
+// getCircleTypeByTaskId → GetMyInfo → UploadFile → addCircle。
+func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskResult, error) {
+	payload, err := c.buildTaskSubmitPayload(ctx, token, input)
+	if err != nil {
+		return nil, err
 	}
 
 	resp, err := c.doBizAndDecode(ctx, token, "SubmitTask", "/api/studentCircleNew/addCircle", http.MethodPost, payload)
 	if err != nil {
-		// 保持原语义：业务错误返回 (result, error)，网络/解析错误返回 (nil, error)
 		var bizErr *types.BusinessError
 		if errors.As(err, &bizErr) {
 			return &types.TaskResult{Code: bizErr.Code, Msg: bizErr.Msg}, err
@@ -323,6 +406,17 @@ func (c *Client) SubmitTask(ctx context.Context, token string, payload types.Tas
 		Code: resp.Code,
 		Msg:  types.DerefOr(resp.Msg, ""),
 	}, nil
+}
+
+// GetCircleTypeByTaskID 获取任务提交前所需的 circleTypeId / dimensionId / hours 等元数据。
+//
+// 真实网页在打开任务提交通道前会先请求 getCircleTypeByTaskId，再用返回的 dataMap
+// 填充 addCircle 请求体。SDK 暴露该方法，避免调用方手工猜测 circleTypeId。
+func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*types.TaskCircleTypeInfo, error) {
+	path := "/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10)
+	return doBizGetDecode[types.TaskCircleTypeInfo](c, ctx, token, "GetCircleTypeByTaskID", path,
+		types.DecodeDataMap[types.TaskCircleTypeInfo],
+	)
 }
 
 // GetDimensions 获取任务维度列表。

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -32,16 +33,12 @@ var sessionActivateCmd = &cobra.Command{
 		}
 
 		printVerbose("激活 Session...")
-		info, err := c.ActivateSession(cmd.Context(), token)
+		raw, err := c.ActivateSessionJSON(cmd.Context(), token)
 		if err != nil {
-			// 用 errors.Is 精确匹配哨兵错误。
 			switch {
 			case errors.Is(err, client.ErrSessionBackoff):
-				// ErrSessionBackoff 在冷却窗口内被抑制
-				// 输出 partial envelope（友好 cooldown 提示），code=429（业务节流）
 				printEnvelope(envelope.Partial(429, "session 激活冷却中，上次激活失败请稍后重试", nil))
 			case errors.Is(err, client.ErrEmptyUserInfo):
-				// ErrEmptyUserInfo 是「业务成功但无数据」状态
 				printEnvelope(envelope.Empty("get_my_info_empty"))
 			default:
 				printError(fmt.Errorf("激活 Session 失败: %w", err))
@@ -49,12 +46,12 @@ var sessionActivateCmd = &cobra.Command{
 			return
 		}
 
-		if info == nil {
+		if len(raw) == 0 {
 			printEnvelope(envelope.Empty("get_my_info_nil"))
 			return
 		}
 
-		printEnvelope(envelope.Success(info))
+		printEnvelope(envelope.Success(json.RawMessage(raw)))
 	},
 }
 

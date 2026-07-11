@@ -91,14 +91,14 @@ func (c *Client) postProcessUserInfo(ctx context.Context, v *types.UserInfo) {
 	//
 	// 旧逻辑 (v1.0.0)：仅 schoolId==0 时触发，schoolName 空但 schoolId 非零时静默保留空名。
 	if v.StudentNumber != "" && (v.SchoolID == 0 || v.SchoolName == "") {
-		if sid, sname, sErr := c.GetSchoolID(ctx, v.StudentNumber); sErr == nil {
+		if info, sErr := c.GetSchoolID(ctx, v.StudentNumber); sErr == nil {
 			if v.SchoolID == 0 {
-				if parsed, pErr := strconv.ParseInt(sid, 10, 64); pErr == nil && parsed > 0 {
+				if parsed, pErr := strconv.ParseInt(info.SchoolID, 10, 64); pErr == nil && parsed > 0 {
 					v.SchoolID = parsed
 				}
 			}
-			if v.SchoolName == "" && sname != "" {
-				v.SchoolName = sname
+			if v.SchoolName == "" && info.SchoolName != "" {
+				v.SchoolName = info.SchoolName
 			}
 		} else {
 			c.logDebug("GetMyInfo school fallback 失败: %v", sErr)

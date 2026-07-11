@@ -35,6 +35,12 @@ type HonorRecord struct {
 	EvaluationAgency string    `json:"evaluationAgency"` // 颁发机构
 }
 
+// HonorListResult 是 GetHonorList 的统一返回对象。
+type HonorListResult struct {
+	Records []HonorRecord `json:"records"`
+	Page    *PageBean     `json:"page,omitempty"`
+}
+
 // AddHonorPayload 是 addHonor 接口的请求体。
 type AddHonorPayload struct {
 	Name                string `json:"name"`                // 荣誉名称

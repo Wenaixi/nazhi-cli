@@ -33,4 +33,9 @@ package version
 //	1.0.0 — BREAKING CHANGE: 全面重构 — 字段裁减 122→67、统一 camelCase JSON 命名、统一响应信封
 //	        （status/code/message/data）、状态字段 bool 化（submitted/approved/needPic）、
 //	        时间字段 ISO 8601 +08:00、HTTP 风格业务码、三重退出码、工程化规范（lint/CI/Makefile/迁移指南）
-var Version = "1.0.0"
+//	1.1.0 — 任务提交链路升级：最小输入模型 TaskSubmitInput，SDK 内部自动完成 getCircleTypeByTaskId
+//	        元数据预取 + UploadFile 图片上传 + 30 字段 addCircle 组装；CLI 同步支持 --address/--level
+//	        独立 flag；playRole 默认空串不猜 "3"；level 默认 "5" 不靠任务类型分支；
+//	        移除军训/班会/劳动等特殊类型逻辑；全链路真实环境成功验证（4月生产劳动）；
+//	        全面更新 docs/sdk/README.md + docs/cli/README.md + real-responses-reference.md
+var Version = "1.1.0"
