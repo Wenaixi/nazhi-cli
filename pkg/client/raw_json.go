@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
@@ -185,47 +186,43 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 
 	headers := c.bizHeaders(token)
 
-	// 拼接 buffer：跨维度合并所有 dataList（按 FetchTasksConcurrentLimit 守护并发）
-	limit := len(dimensions)
-	if limit > fetchTasksConcurrentLimit {
-		limit = fetchTasksConcurrentLimit
-	}
-	if limit == 0 {
-		limit = 1
-	}
-
-	type rawPage struct {
-		raw  []byte
-		size int
-	}
-	pages := make(chan rawPage, len(dimensions))
-	dimErrs := make([]error, 0, len(dimensions))
-
-	// 串行写入合并 buffer；并发只负责拉取 + 解析单维度 rawPage
-	buf := bytes.NewBuffer(nil)
-	buf.WriteByte('[')
-	first := true
-
+	activeDims := make([]types.Dimension, 0, len(dimensions))
 	for _, dim := range dimensions {
 		if dim.ID == 0 {
 			continue
 		}
-		dim := dim // capture
+		activeDims = append(activeDims, dim)
+	}
+	if len(activeDims) == 0 {
+		return []byte("[]"), nil
+	}
+
+	type rawPage struct {
+		raw []byte
+	}
+	pages := make(chan rawPage, len(activeDims))
+	dimErrs := make([]error, 0, len(activeDims))
+	var mu sync.Mutex
+
+	// ponytail: 这里只补 root cause，不重写整套并发模型；对齐旧版跳过 id=0 的语义即可。
+	for _, dim := range activeDims {
+		dim := dim
 		go func() {
 			raw, err := c.fetchTasksDimensionJSON(ctx, dim, headers)
 			if err != nil {
-				dimErrs = append(dimErrs, err)
+				appendLocked(&mu, &dimErrs, err)
 				pages <- rawPage{}
 				return
 			}
-			pages <- rawPage{raw: raw, size: len(raw)}
+			pages <- rawPage{raw: raw}
 		}()
 	}
 
-	// 收集并发结果（按维度顺序，保证稳定输出）
-	_ = limit // 简化：当前并发上限已通过 errgroup 处理在 FetchTasks，本方法保留语义而不强行 errgroup 化
+	buf := bytes.NewBuffer(nil)
+	buf.WriteByte('[')
+	first := true
 	totalPages := 0
-	for range dimensions {
+	for range activeDims {
 		p := <-pages
 		if len(p.raw) == 0 {
 			continue
@@ -235,8 +232,11 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 			buf.Write(trimArrayBrackets(p.raw))
 			first = false
 		} else {
-			buf.WriteByte(',')
-			buf.Write(trimArrayBrackets(p.raw))
+			trimmed := trimArrayBrackets(p.raw)
+			if len(trimmed) > 0 {
+				buf.WriteByte(',')
+				buf.Write(trimmed)
+			}
 		}
 		totalPages++
 	}
@@ -407,11 +407,6 @@ func (c *Client) GetHonorTypesJSON(ctx context.Context, token string) (json.RawM
 // 与 GetHonorList 1:1 等价（按页调用，不自动翻页），
 // 返回拼装后的完整 JSON 对象 `{"records":..., "page":...}`，
 // records 和 page 字段值都是平台原始字节。
-//
-// 返回值：
-//   - json.RawMessage：拼装后的 `{"records":..., "page":...}`；
-//     无记录时 records 为 `[]`，无分页上下文时不含 page 字段。
-//   - error：网络/解析/业务错误
 func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pageSize int) (json.RawMessage, error) {
 	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
 	resp, err := c.doBizAndDecode(ctx, token, "GetHonorListJSON", path, http.MethodGet, nil)
@@ -431,7 +426,6 @@ func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pag
 	if len(recordsRaw) == 0 {
 		recordsRaw = json.RawMessage("[]")
 	}
-	// 拼接 {"records":..., "page":...}
 	var buf bytes.Buffer
 	buf.WriteString(`{"records":`)
 	buf.Write(recordsRaw)
