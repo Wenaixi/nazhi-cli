@@ -443,19 +443,3 @@ func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pag
 	return buf.Bytes(), nil
 }
 
-// collectToBuf 把单页 dataList 字节收集进 buf，处理首项去括号、其余逗号分隔。
-// helper：给 *JSON 系列跨页/跨维度合并共用。
-//
-// 内部状态：buf 必须以 '[' 开头（caller 负责初始化），
-// 调用 collectToBuf 后 caller 需 buf.WriteByte(']') 闭合。
-func collectToBuf(buf *bytes.Buffer, raw []byte, first *bool) {
-	body := trimArrayBrackets(raw)
-	if len(body) == 0 {
-		return
-	}
-	if !*first {
-		buf.WriteByte(',')
-	}
-	buf.Write(body)
-	*first = false
-}
