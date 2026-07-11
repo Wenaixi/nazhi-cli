@@ -135,8 +135,8 @@ type TaskCircleTypeInfo struct {
 }
 
 var (
-	ErrTaskInputTaskIDRequired   = taskInputError("taskId 为必填且必须 > 0")
-	ErrTaskInputContentRequired  = taskInputError("content 为必填")
+	ErrTaskInputTaskIDRequired  = taskInputError("taskId 为必填且必须 > 0")
+	ErrTaskInputContentRequired = taskInputError("content 为必填")
 )
 
 type taskInputError string

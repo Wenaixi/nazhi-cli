@@ -442,4 +442,3 @@ func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pag
 	buf.WriteByte('}')
 	return buf.Bytes(), nil
 }
-

@@ -79,12 +79,12 @@ func TestSubmitTask_AutoActivatesSession(t *testing.T) {
 	}
 
 	expected := []string{
-		"GET /",                                          // 步骤 1
-		"GET /api/studentInfo/getMenu",                   // 步骤 2
-		"GET /api/studentInfo/getMenu",                   // 步骤 3
-		"GET /api/studentInfo/getMyInfo",                 // 步骤 4
+		"GET /",                                           // 步骤 1
+		"GET /api/studentInfo/getMenu",                    // 步骤 2
+		"GET /api/studentInfo/getMenu",                    // 步骤 3
+		"GET /api/studentInfo/getMyInfo",                  // 步骤 4
 		"GET /api/studentCircleNew/getCircleTypeByTaskId", // 提交前元数据预取
-		"POST /api/studentCircleNew/addCircle",           // SubmitTask 实际请求
+		"POST /api/studentCircleNew/addCircle",            // SubmitTask 实际请求
 	}
 	if !reflect.DeepEqual(callOrder, expected) {
 		t.Errorf("调用顺序错误（session 预热缺失或顺序错）\n实际: %v\n期望: %v", callOrder, expected)
