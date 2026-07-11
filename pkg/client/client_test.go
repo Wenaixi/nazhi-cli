@@ -616,6 +616,49 @@ func TestSubmitTask(t *testing.T) {
 	}
 }
 
+func TestSubmitTask_WithImageIDs(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null,"dataList":null,"dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"普通任务说明","type":10},"pageBean":null}`))
+		case "/api/studentCircleNew/addCircle":
+			var payload types.TaskAddCirclePayload
+			_ = json.NewDecoder(r.Body).Decode(&payload)
+			if len(payload.PictureList) != 2 {
+				t.Fatalf("期望 2 个 pictureList, 得到 %d", len(payload.PictureList))
+			}
+			if payload.PictureList[0] != 10001 || payload.PictureList[1] != 10002 {
+				t.Fatalf("期望 pictureList=[10001 10002], 得到 %v", payload.PictureList)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(unifiedJSON(1, "提交成功", map[string]any{
+				"insertID": 12345,
+			}, nil)))
+		default:
+			t.Fatalf("不应触发额外请求路径: %s", r.URL.Path)
+		}
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	result, err := c.SubmitTask(context.Background(), "test-token", types.TaskSubmitInput{
+		TaskID:   1001,
+		Content:  "测试内容",
+		Address:  "高一(8)班",
+		ImageIDs: []int64{0, 10001, -1, 10002},
+	})
+	if err != nil {
+		t.Fatalf("SubmitTask 失败: %v", err)
+	}
+	if result.Code != 1 {
+		t.Errorf("期望 Code=1, 得到 %d", result.Code)
+	}
+}
+
+
 // ─── 自我评价 ───
 
 func TestSubmitSelfEvaluation(t *testing.T) {

@@ -316,7 +316,13 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 		return nil, fmt.Errorf("SubmitTask 获取用户信息失败: %w", err)
 	}
 
-	pictureList := make([]int64, 0, len(input.ImagePaths))
+	pictureList := make([]int64, 0, len(input.ImageIDs)+len(input.ImagePaths))
+	for _, id := range input.ImageIDs {
+		if id <= 0 {
+			continue
+		}
+		pictureList = append(pictureList, id)
+	}
 	for _, path := range input.ImagePaths {
 		if strings.TrimSpace(path) == "" {
 			continue

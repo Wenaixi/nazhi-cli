@@ -439,7 +439,7 @@ SDK 响应示例（2 条）：
 
 1. `getCircleTypeByTaskId(taskId)` 获取 `circleTypeId / dimensionId / hours`
 2. `GetMyInfo()` 获取 `schoolName`
-3. `UploadFile()` 上传 `imagePaths` 并转成 `pictureList`
+3. 合并 `imageIds` 与 `UploadFile()` 上传 `imagePaths` 得到的附件 ID，组装成 `pictureList`
 4. 组装完整 `addCircle` 请求体并提交
 
 请求示例：
@@ -449,9 +449,10 @@ result, err := c.SubmitTask(ctx, token, types.TaskSubmitInput{
 	TaskID:     18155,
 	Content:    "手握扫帚净校园，春意盎然拂面来。每一次躬身劳动，都是对责任与成长的最好诠释。",
 	ImagePaths: []string{"./photo.jpg"},
-	Address:    "示例中学", // 可选；不传则默认 schoolName
-	Level:      "5",        // 可选；不传默认 5（校级）
-	PlayRole:   "",         // 可选；不传默认空串
+	ImageIDs:   []int64{123456}, // 可选；已上传过的附件 ID，可与 ImagePaths 混用
+	Address:    "示例中学",      // 可选；不传则默认 schoolName
+	Level:      "5",             // 可选；不传默认 5（校级）
+	PlayRole:   "",              // 可选；不传默认空串
 })
 if err != nil {
 	var bErr *types.BusinessError
@@ -957,7 +958,7 @@ token, expiresAt, err = tokenparse.ExtractFromReturnData(raw)
 | `BusinessError` | 2 | `response.go` | Code / Msg |
 | `UserInfo` | 13 | `user.go` | 用户身份/学校/班级/学号资料 |
 | `Task` | 21 | `task.go` | 任务条目（含 Submitted/NeedPic 计算字段） |
-| `TaskSubmitInput` | 6 | `task.go` | 最小任务提交输入（TaskID / Content / ImagePaths / PlayRole / Address / Level） |
+| `TaskSubmitInput` | 7 | `task.go` | 最小任务提交输入（TaskID / Content / ImagePaths / ImageIDs / PlayRole / Address / Level） |
 | `TaskAddCirclePayload` | 30 | `task.go` | SDK 内部组装的 addCircle 完整请求体 |
 | `TaskResult` | 2 | `task.go` | Code / Msg |
 | `HonorType` | 5 | `honor.go` | ID / Name / LevelName / Level / DimensionName |

@@ -56,6 +56,7 @@ type TaskSubmitInput struct {
 	TaskID     int64    // 必填：任务 ID
 	Content    string   // 必填：心得/感悟
 	ImagePaths []string // 可选：本地图片路径列表
+	ImageIDs   []int64  // 可选：已上传的附件 ID 列表，避免重复上传
 	PlayRole   string   // 可选：默认空串，显式传入时覆盖
 	Address    string   // 可选：为空时默认 schoolName，允许调用方覆盖
 	Level      string   // 可选：为空时默认校级（5），允许调用方覆盖
