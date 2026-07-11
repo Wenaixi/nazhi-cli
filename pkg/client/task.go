@@ -303,7 +303,7 @@ func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimen
 
 func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
 	if err := input.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %v", ErrInvalidPayload, err)
+		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
 	}
 
 	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.TaskID)

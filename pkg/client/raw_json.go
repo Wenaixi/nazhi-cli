@@ -21,29 +21,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
 	"strconv"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
-
-// rawJSON 返回 dataList（首选）→ returnData → dataMap 的第一份非空 JSON。
-// 多数业务接口 list 风格数据走 dataList，对象走 returnData，对象兜底走 dataMap。
-// 若都为空，返回 nil 字节 + nil error（调用方按 envelope.Empty 渲染）。
-//
-// 注意：json.RawMessage 是 []byte 别名，nil RawMessage 序列化为 null。
-func rawJSON(resp types.UnifiedResponse) json.RawMessage {
-	switch {
-	case resp.DataList != nil:
-		return *resp.DataList
-	case resp.ReturnData != nil:
-		return *resp.ReturnData
-	case resp.DataMap != nil:
-		return *resp.DataMap
-	}
-	return nil
-}
 
 // rawListBytes 返回 dataList 的原始字节。dataList 缺失时返回 nil。
 // 返回 []byte 而非 RawMessage 让 bytes.Buffer 直接 append，避免反复拷贝。
@@ -476,14 +458,4 @@ func collectToBuf(buf *bytes.Buffer, raw []byte, first *bool) {
 	}
 	buf.Write(body)
 	*first = false
-}
-
-// drainRawBody 把 http.Response body 全部读出，避免调用方忘记 Close。
-// *JSON 系列未来如果直接接 http.Response 可用，目前保留作为 helper。
-func drainRawBody(body io.ReadCloser) {
-	if body == nil {
-		return
-	}
-	_, _ = io.Copy(io.Discard, body)
-	_ = body.Close()
 }
