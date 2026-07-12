@@ -116,7 +116,7 @@ nazhi
 ├── task
 │   ├── list                     列出全维度任务
 │   ├── submit                   提交任务（支持 @payload.json）
-│   ├── submitted                获取已提交写实记录（自动翻页）
+│   ├── submitted                获取班级已提交写实记录（含同班同学姓名/学号）
 │   └── done                     同 task submitted（v1.0.0 新增别名）
 ├── self-eval
 │   ├── submit                   提交自我评价

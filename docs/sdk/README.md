@@ -142,7 +142,7 @@ func New(opts ...Option) (*Client, error)
 | `SubmitSelfEvaluation` | `(ctx, token, comment) error` | — |
 | `QuerySelfEvaluation` | `(ctx, token) (*SelfEvalStatus, error)` | ID + 双向评语 |
 | `QuerySelfGradEvaluation` | `(ctx, token) (*map[string]any, error)` | 泛型 map |
-| `GetSubmittedCircles` | `(ctx, token) ([]CircleRecord, error)` | 10 字段写实记录 |
+| `GetSubmittedCircles` | `(ctx, token) ([]CircleRecord, error)` | 原始 JSON 写实记录（含姓名学号） |
 | `GetSubmittedCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 原始 JSON 数组 + 分页信息 |
 | `GetHonorTypes` | `(ctx, token) ([]HonorType, error)` | 5 字段荣誉类型 |
 | `GetHonorTypeForSelect` | `(ctx, token) ([]HonorSelectOption, error)` | Label / Value |
@@ -565,7 +565,7 @@ SDK 响应示例：
 
 ### `GetSubmittedCircles(ctx context.Context, token string) ([]types.CircleRecord, error)`
 
-获取同班同学的全部已提交写实记录。内部自动翻页合并。
+获取同班同学的全部已提交写实记录（含姓名、学号、正文、图片、审核状态）。内部自动翻页合并。
 
 请求示例：
 
@@ -579,32 +579,61 @@ for _, r := range records {
 }
 ```
 
-SDK 响应示例（1 条）：
+SDK 响应示例（通过 `GetSubmittedCirclesJSON` 原始 JSON 路径获取，1 条）：
 
 ```json
 [
   {
-    "id": 5425144,
-    "name": "国旗下讲话",
-    "content": "听完这次国旗下讲话，我明白了爱护校园环境是每位同学的责任...（完整内容略）",
-    "typeName": "",
-    "approved": false,
-    "circleDate": "0001-01-01T00:00:00Z",
+    "id": 5400001,
+    "name": "20260309高一（8）班致敬\"她付出\"——从感恩到理解的深度对话（感恩教育）",
+    "content": "在2026年3月9日高一（8）班\"致敬'她付出'——从感恩到理解的深度对话\"主题班会中，我深受触动。通过老师的引导与同学们的分享，我深刻体会到母亲及身边女性长辈们日复一日的默默付出与无私奉献。",
+    "type": 1,
+    "type_name": "主题班会",
+    "circle_type_id": 9256,
+    "dimension_id": 9,
     "hours": 0.5,
+    "studentId": 380001,
+    "student_num": "G350181200X00000001",
+    "operator_id": 380001,
+    "operator_name": "赵明轩",
+    "creator": 380001,
+    "creator_name": "赵明轩",
+    "class_id": 162647,
+    "class_name": "八班",
+    "grade_id": 27900,
+    "grade_name": "高一",
+    "school_id": 173,
+    "term_id": 18,
+    "role_name": "班主任",
+    "status": 0,
+    "up_pic": 1,
+    "circle_date": "2026-07-12",
+    "creation_time": 1783862109000,
+    "creationTimeStr": "2026-07-12 21:15",
+    "circle_task_id": 18001,
+    "circle_task_name": "20260309高一（8）班致敬\"她付出\"——从感恩到理解的深度对话（感恩教育）",
+    "scope_type": 1,
+    "scope_type_name": "班级任务",
+    "state_type": 3,
+    "remark": "心得+照片",
+    "start_date": "2026-07-10",
+    "end_date": "2026-07-18",
+    "audit_start_date": "2026-07-19",
+    "audit_end_date": "2026-07-22",
+    "address": "班级",
     "imgList": [
       {
-        "id": 5025679,
-        "circle_id": 5425144,
+        "id": 5000001,
+        "circle_id": 5400001,
         "class_id": 162647,
-        "task_id": 18142,
-        "attachment_id": 5041653,
+        "task_id": 18001,
+        "attachment_id": 5000001,
         "imgPath": ".jpg"
       }
     ],
     "imgPreViewList": [
-      "http://www.nazhisoft.com/common/attachment/getImg?id=5041653"
-    ],
-    "remark": "爱护校园环境，共创美丽校园"
+      "http://www.nazhisoft.com/common/attachment/getImg?id=5000001"
+    ]
   }
 ]
 ```

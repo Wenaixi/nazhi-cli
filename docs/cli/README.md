@@ -24,7 +24,7 @@ nazhi
 ├── task
 │   ├── list                        列出全维度任务（8 路并发）
 │   ├── submit                      提交任务（最小输入模型 + SDK 自动补全）
-│   ├── submitted                   获取已提交写实记录（自动翻页）
+│   ├── submitted                   获取班级写实记录（含同班同学姓名学号）
 │   └── done                        同 task submitted（v1.0.0 新增别名；v1.1.2 支持 --limit/--offset/--count）
 ├── self-eval
 │   ├── submit                      提交自我评价（支持 stdin）
@@ -482,7 +482,7 @@ SDK 内部自动执行：
 
 ## nazhi task submitted / nazhi task done
 
-获取当前用户已提交的全部写实记录（含正文、图片、审核状态）。自动翻页合并，输出全量数据。`nazhi task done` 是完全等价的别名（v1.0.0 新增）。
+获取当前班级已提交的全部写实记录（含正文、图片、审核状态、同班同学的姓名和学号）。自动翻页合并，输出全量数据。`nazhi task done` 是完全等价的别名（v1.0.0 新增）。
 
 ```bash
 nazhi task submitted --token "eyJhbGciOiJIUzUxMiJ9.xxx"
@@ -501,41 +501,119 @@ nazhi task submitted --count                             # 只看总数
 | `--offset` | — | — | 跳过前 N 条后再取（配合 --limit，v1.1.2 新增） |
 | `--count` | — | — | 只输出记录总数，不拉列表（v1.1.2 新增） |
 
-`--limit`/`--offset` 模式下输出带 `total` + `records` 的结构；`--count` 模式输出 `{"total": N}`；不加参数时全量输出为原始数组（向后兼容）。
+`--limit`/`--offset` 模式下输出带 `total` + `records` 的结构；`--count` 模式输出 `{"total": N}`；不加参数时全量输出为平台原始 JSON 数组（向后兼容，含同班同学的完整写实记录）。
 
 ```json
 {
   "status": "success",
   "code": 200,
   "message": "",
-  "data": {
-    "total": 2,
-    "records": [
-      {
-        "id": 20001,
-        "name": "2026年\"青春唱响逐新章，美育涵养润芳华\"班班有歌声",
-        "content": "当最后一个音符落下，掌声如潮水般涌来，我才真正理解了\"班班有歌声\"的意义。",
-        "typeName": "",
-        "approved": false,
-        "circleDate": "0001-01-01T00:00:00Z",
-        "hours": 4,
-        "imgList": [
-          {
-            "id": 30001,
-            "circle_id": 20001,
-            "class_id": 1001,
-            "task_id": 10001,
-            "attachment_id": 6000001,
-            "imgPath": ".jpg"
-          }
-        ],
-        "imgPreViewList": [
-          "http://www.nazhisoft.com/common/attachment/getImg?id=6000001"
-        ],
-        "remark": "2026年"青春唱响逐新章，美育涵养润芳华"班班有歌声4个小时"
-      }
-    ]
-  }
+  "data": [
+    {
+      "id": 5400001,
+      "name": "20260309高一（8）班致敬\"她付出\"——从感恩到理解的深度对话（感恩教育）",
+      "content": "在2026年3月9日高一（8）班\"致敬'她付出'——从感恩到理解的深度对话\"主题班会中，我深受触动。通过老师的引导与同学们的分享，我深刻体会到母亲及身边女性长辈们日复一日的默默付出与无私奉献。",
+      "type": 1,
+      "type_name": "主题班会",
+      "circle_type_id": 9256,
+      "dimension_id": 9,
+      "hours": 0.5,
+      "studentId": 380001,
+      "student_num": "G350181200X00000001",
+      "operator_id": 380001,
+      "operator_name": "赵明轩",
+      "creator": 380001,
+      "creator_name": "赵明轩",
+      "class_id": 162647,
+      "class_name": "八班",
+      "grade_id": 27900,
+      "grade_name": "高一",
+      "school_id": 173,
+      "term_id": 18,
+      "role_name": "班主任",
+      "status": 0,
+      "up_pic": 1,
+      "circle_date": "2026-07-12",
+      "creation_time": 1783862109000,
+      "creationTimeStr": "2026-07-12 21:15",
+      "circle_task_id": 18001,
+      "circle_task_name": "20260309高一（8）班致敬\"她付出\"——从感恩到理解的深度对话（感恩教育）",
+      "scope_type": 1,
+      "scope_type_name": "班级任务",
+      "state_type": 3,
+      "remark": "心得+照片",
+      "start_date": "2026-07-10",
+      "end_date": "2026-07-18",
+      "audit_start_date": "2026-07-19",
+      "audit_end_date": "2026-07-22",
+      "address": "班级",
+      "imgList": [
+        {
+          "id": 5000001,
+          "circle_id": 5400001,
+          "class_id": 162647,
+          "task_id": 18001,
+          "attachment_id": 5000001,
+          "imgPath": ".jpg"
+        }
+      ],
+      "imgPreViewList": [
+        "http://www.nazhisoft.com/common/attachment/getImg?id=5000001"
+      ]
+    },
+    {
+      "id": 5400002,
+      "name": "国旗下讲话",
+      "content": "本次\"书香致远，德厚流光\"主题国旗下讲话让我深切感受到，世界读书日不仅是对阅读的礼赞，更是对心灵成长的深情召唤。作为高中生，读书不只是为了分数，更是为了在浮躁中寻得一方宁静，在有限中触摸无限。",
+      "type": 1,
+      "type_name": "爱党爱国教育",
+      "circle_type_id": 9255,
+      "dimension_id": 9,
+      "hours": 0.5,
+      "studentId": 380002,
+      "student_num": "G350181200X00000002",
+      "operator_id": 380002,
+      "operator_name": "林雨欣",
+      "creator": 380002,
+      "creator_name": "林雨欣",
+      "class_id": 162647,
+      "class_name": "八班",
+      "grade_id": 27900,
+      "grade_name": "高一",
+      "school_id": 173,
+      "term_id": 18,
+      "role_name": "班主任",
+      "status": 0,
+      "up_pic": 1,
+      "circle_date": "2026-07-12",
+      "creation_time": 1783862135000,
+      "creationTimeStr": "2026-07-12 21:15",
+      "circle_task_id": 18002,
+      "circle_task_name": "书香致远，德厚流光（世界读书日）",
+      "scope_type": 3,
+      "scope_type_name": "学段任务",
+      "state_type": 3,
+      "remark": "书香致远，德厚流光（世界读书日）",
+      "start_date": "2026-06-30",
+      "end_date": "2026-07-30",
+      "audit_start_date": "2026-07-31",
+      "audit_end_date": "2026-09-30",
+      "address": "操场",
+      "imgList": [
+        {
+          "id": 5000002,
+          "circle_id": 5400002,
+          "class_id": 162647,
+          "task_id": 18002,
+          "attachment_id": 5000002,
+          "imgPath": ".jpg"
+        }
+      ],
+      "imgPreViewList": [
+        "http://www.nazhisoft.com/common/attachment/getImg?id=5000002"
+      ]
+    }
+  ]
 }
 ```
 
