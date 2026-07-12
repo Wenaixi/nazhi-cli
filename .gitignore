@@ -67,6 +67,9 @@ $RECYCLE.BIN/
 # 意外创建的目录（git 展开环境变量导致的）
 %userprofile%/
 
+# 测试调试文件
+test_get_school_id.go
+
 # ─── 凭据与运行时配置 ─────────
 # token 输出文件（nazhi login 测试产生）
 token_output.json

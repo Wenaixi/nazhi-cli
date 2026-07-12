@@ -143,6 +143,7 @@ func New(opts ...Option) (*Client, error)
 | `QuerySelfEvaluation` | `(ctx, token) (*SelfEvalStatus, error)` | ID + 双向评语 |
 | `QuerySelfGradEvaluation` | `(ctx, token) (*map[string]any, error)` | 泛型 map |
 | `GetSubmittedCircles` | `(ctx, token) ([]CircleRecord, error)` | 10 字段写实记录 |
+| `GetSubmittedCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 原始 JSON 数组 + 分页信息 |
 | `GetHonorTypes` | `(ctx, token) ([]HonorType, error)` | 5 字段荣誉类型 |
 | `GetHonorTypeForSelect` | `(ctx, token) ([]HonorSelectOption, error)` | Label / Value |
 | `GetHonorLevel` | `(ctx, token, honorTypeID) ([]HonorSelectOption, error)` | Label / Value |
@@ -162,8 +163,8 @@ func New(opts ...Option) (*Client, error)
 |---|---|---|---|
 | `nazhi whoami` | `GetMyInfoJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi session activate` | `ActivateSessionJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
-| `nazhi task list` | `FetchTasksJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
-| `nazhi task submitted` / `task done` | `GetSubmittedCirclesJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
+| `nazhi task list` | `FetchTasks` | 否 | CLI 输出 SDK 业务模型的 `Task[]`（含 submitted/needPic） |
+| `nazhi task submitted` / `task done` | `GetSubmittedCirclesJSON` / `GetSubmittedCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
 | `nazhi self-eval status` | `QuerySelfEvaluationJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi honor types` | `GetHonorTypesJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
 | `nazhi honor list` | `GetHonorListJSON` | 是 | CLI 直接透传 SDK 拼装的 `{records,page}` JSON |
@@ -607,6 +608,14 @@ SDK 响应示例（1 条）：
   }
 ]
 ```
+
+### `GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error)`
+
+按偏移和条数限制拉取已提交写实记录（原始 JSON）。v1.1.1 新增。
+
+参数 `offset=0, limit=0` 时等于 `GetSubmittedCirclesJSON`（全量）。`offset`/`limit` 超出实际数据量时返回空数组，不报错。
+
+返回数据列表的原始 JSON 数组 + 分页信息（含 `TotalNum`，可用于获取总条数）。
 
 ---
 
