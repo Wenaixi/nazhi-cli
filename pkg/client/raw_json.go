@@ -129,6 +129,124 @@ func (c *Client) GetSubmittedCirclesJSON(ctx context.Context, token string) (jso
 	return buf.Bytes(), nil
 }
 
+// GetSubmittedCirclesLimitJSON 按偏移和条数限制拉取已提交写实记录（原始 JSON）。
+//
+// offset=0, limit=0 时全量（等于 GetSubmittedCirclesJSON）。
+// offset/limit 超出实际数据量时返回空数组，不报错。
+//
+// 返回值：
+//   - dataList 原始 JSON 数组（可能为 []）
+//   - 分页信息（含 TotalNum）
+//   - error
+func (c *Client) GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
+	pageSize := c.submittedPageSize
+	if pageSize <= 0 {
+		pageSize = defaultSubmittedPageSize
+	}
+
+	if limit <= 0 {
+		raw, err := c.GetSubmittedCirclesJSON(ctx, token)
+		return raw, nil, err
+	}
+
+	_, pb, raw1, err := c.fetchSubmittedPageJSON(ctx, token, 1, pageSize)
+	if err != nil {
+		return nil, nil, fmt.Errorf("GetSubmittedCirclesLimitJSON 失败: %w", err)
+	}
+	if pb == nil || pb.TotalNum == 0 {
+		return []byte("[]"), pb, nil
+	}
+	if offset >= pb.TotalNum {
+		return []byte("[]"), pb, nil
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, 2048))
+	buf.WriteByte('[')
+	first := true
+	taken := 0
+	skipped := 0
+
+	skipped, taken = appendPageRange(buf, raw1, &first, taken, offset, limit, skipped)
+	if taken >= limit {
+		buf.WriteByte(']')
+		return buf.Bytes(), pb, nil
+	}
+
+	if pb.TotalPage > 1 {
+		for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+			if cerr := ctx.Err(); cerr != nil {
+				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb, cerr
+			}
+			_, _, raw, err := c.fetchSubmittedPageJSON(ctx, token, pageNo, pageSize)
+			if err != nil {
+				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb,
+					fmt.Errorf("GetSubmittedCirclesLimitJSON 第 %d 页失败: %w", pageNo, err)
+			}
+			if len(raw) == 0 {
+				continue
+			}
+			skipped, taken = appendPageRange(buf, raw, &first, taken, offset, limit, skipped)
+			if taken >= limit {
+				break
+			}
+		}
+	}
+
+	buf.WriteByte(']')
+	return buf.Bytes(), pb, nil
+}
+
+// appendPageRange 从一页原始 JSON 数组中按 offset/limit 规则逐条取出写入 buf。
+//
+// pageRaw 是 "[{...},{...}]" 格式。用深度扫描分割 JSON 对象，不反序列化为 Go struct。
+func appendPageRange(buf *bytes.Buffer, pageRaw []byte, first *bool, taken, offset, limit, skipped int) (int, int) {
+	trimmed := trimArrayBrackets(pageRaw)
+	if len(trimmed) == 0 {
+		return skipped, taken
+	}
+	start := 0
+	depth := 0
+	for i := 0; i <= len(trimmed) && taken < limit; i++ {
+		if i < len(trimmed) {
+			switch trimmed[i] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			case ',':
+				if depth == 0 {
+					obj := bytes.TrimSpace(trimmed[start:i])
+					if len(obj) > 0 {
+						skipped, taken = emitJSONObject(buf, first, taken, offset, limit, skipped, obj)
+					}
+					start = i + 1
+				}
+			}
+		} else {
+			obj := bytes.TrimSpace(trimmed[start:])
+			if len(obj) > 0 {
+				skipped, taken = emitJSONObject(buf, first, taken, offset, limit, skipped, obj)
+			}
+		}
+	}
+	return skipped, taken
+}
+
+// emitJSONObject 决定是否将一段 JSON 对象写入 buf。
+func emitJSONObject(buf *bytes.Buffer, first *bool, taken, offset, limit, skipped int, obj []byte) (int, int) {
+	if skipped < offset {
+		return skipped + 1, taken
+	}
+	if *first {
+		buf.Write(obj)
+		*first = false
+	} else {
+		buf.WriteByte(',')
+		buf.Write(obj)
+	}
+	return skipped + 1, taken + 1
+}
+
 // trimArrayBrackets 去掉 JSON 数组的首尾方括号（用于多页拼接）。
 // 输入必须是合法的 JSON 数组；空数组返回空字节。
 func trimArrayBrackets(raw []byte) []byte {
