@@ -274,6 +274,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 
 	for i := range tasks {
 		tasks[i].DimensionName = dim.Name
+		tasks[i].SetSubmittedByStatus()
 	}
 	return tasks, nil
 }

@@ -379,7 +379,7 @@ func TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected(t *testing.T) {
 				case <-r.Context().Done():
 					w.WriteHeader(http.StatusInternalServerError)
 					return
-				case <-time.After(2 * time.Second):
+				case <-time.After(4 * time.Second):
 				}
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -396,10 +396,10 @@ func TestFetchTasks_ContextCancel_ReturnsErrBusinessRejected(t *testing.T) {
 
 	c := newTestClient(nil, biz, nil)
 
-	// 1.5s 超时：Windows 上 session 激活 4 步 + getDimensions + 维度 A/B 即时返回业务错误
-	// 偶发超过 1s，导致 getDimensions 自身被 cancel 而不是后 2 个 sleeping 维度。
-	// 1.5s 仍远小于 handler 的 2s 睡眠，后 2 个 getCircleStatistics 必被 ctx 取消。
-	ctx, cancel := context.WithTimeout(context.Background(), 1500*time.Millisecond)
+	// 3s 超时：session 激活 4 步（首页 → getMenu ×2 → getMyInfo）+ getDimensions 在 CI
+	// Linux runner 上可能超过 1.5s。3s 让 warmup + getDimensions 有足够余量完成，
+	// 同时远小于 handler 的 4s 睡眠，确保后 2 个维度必被 ctx 取消而非正常完成。
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
 	tasks, err := c.FetchTasks(ctx, "test-token")

@@ -18,34 +18,34 @@ const (
 
 // Task 是面向调用方的精简任务条目。
 //
-// 字段命名约定：原样的字段保持与服务端 JSON 字段名一致；需要后处理的字段使用更清晰的
-// 语义名称（Submitted/NeedPic/StartDate/EndDate），由 SDK 层在 FetchTasks 中完成映射。
+// v1.1.2 fix（submitted 判定）：
 //
-// v1.0.x 恢复：auditStartDate/auditEndDate（审核期判断）、score（学分）、remark（任务说明）、
-// creatorName/roleName（布置者 + 角色）、creationTime/creationTimeStr（任务创建时间）、
-// termId（学期 ID）、pushNum（推送次数）。
+//	服务端返回 circleTaskStatus 字符串，SDK 解码后根据规则映射为 submitted bool：
+//	  "未提交" 或 "上传期 未提交" → submitted = false
+//	  其他任意值（"已提交"/"审核中"/"已通过"/空串等）→ submitted = true
 type Task struct {
-	ID              int64    `json:"id"`                // 任务 ID（即 circleTaskId）
-	Name            string   `json:"name"`              // 任务名称
-	TypeName        string   `json:"typeName"`          // 类型名称
-	DimensionName   string   `json:"dimensionName"`     // 维度名称
-	Hours           float64  `json:"hours"`             // 学时
-	Score           float64  `json:"score"`             // 学分（与 hours 不同）
-	Remark          string   `json:"remark"`            // 任务说明（"照片加描述" 等）
-	Submitted       bool     `json:"submitted"`         // 是否已提交（来自服务端 circleTaskStatus）
-	NeedPic         bool     `json:"needPic"`           // 是否需要图片（来自服务端 upPic 0/1）
-	StartDate       DateOnly `json:"startDateStr"`      // 开始日期（来自服务端 startDateStr，如 2026-01-12）
-	EndDate         DateOnly `json:"endDateStr"`        // 结束日期（来自服务端 endDateStr，如 2026-02-10）
-	AuditStartDate  DateOnly `json:"auditStartDateStr"` // 审核开始日期
-	AuditEndDate    DateOnly `json:"auditEndDateStr"`   // 审核截止日期
-	CreatorName     string   `json:"creatorName"`       // 创建者（"许风华"/"管理员"）
-	RoleName        string   `json:"roleName"`          // 创建者角色（"班主任"）
-	CreationTime    []int    `json:"creationTime"`      // 任务创建时间（[y,m,d,h,m,s] 数组，Java LocalDateTime）
-	CreationTimeStr DateOnly `json:"creationTimeStr"`   // 任务创建日期字符串（YYYY-MM-DD）
-	TermID          int64    `json:"termId"`            // 学期 ID
-	PushNum         int      `json:"pushNum"`           // 推送次数
-	ScopeType       int      `json:"scopeType"`         // 作用域类型（参见 ScopeClass/ScopeGrade/ScopeStage）
-	ScopeTypeName   string   `json:"scopeTypeName"`     // 作用域名称
+	ID               int64    `json:"id"`                // 任务 ID（即 circleTaskId）
+	Name             string   `json:"name"`              // 任务名称
+	TypeName         string   `json:"typeName"`          // 类型名称
+	DimensionName    string   `json:"dimensionName"`     // 维度名称
+	Hours            float64  `json:"hours"`             // 学时
+	Score            float64  `json:"score"`             // 学分（与 hours 不同）
+	Remark           string   `json:"remark"`            // 任务说明（"照片加描述" 等）
+	CircleTaskStatus string   `json:"circleTaskStatus"`  // 服务端原始状态字符串
+	Submitted        bool     `json:"submitted"`         // 是否已提交（根据 circleTaskStatus 映射，见 SetSubmittedByStatus）
+	NeedPic          bool     `json:"needPic"`           // 是否需要图片（来自服务端 upPic 0/1）
+	StartDate        DateOnly `json:"startDateStr"`      // 开始日期（来自服务端 startDateStr，如 2026-01-12）
+	EndDate          DateOnly `json:"endDateStr"`        // 结束日期（来自服务端 endDateStr，如 2026-02-10）
+	AuditStartDate   DateOnly `json:"auditStartDateStr"` // 审核开始日期
+	AuditEndDate     DateOnly `json:"auditEndDateStr"`   // 审核截止日期
+	CreatorName      string   `json:"creatorName"`       // 创建者（"许风华"/"管理员"）
+	RoleName         string   `json:"roleName"`          // 创建者角色（"班主任"）
+	CreationTime     []int    `json:"creationTime"`      // 任务创建时间（[y,m,d,h,m,s] 数组，Java LocalDateTime）
+	CreationTimeStr  DateOnly `json:"creationTimeStr"`   // 任务创建日期字符串（YYYY-MM-DD）
+	TermID           int64    `json:"termId"`            // 学期 ID
+	PushNum          int      `json:"pushNum"`           // 推送次数
+	ScopeType        int      `json:"scopeType"`         // 作用域类型（参见 ScopeClass/ScopeGrade/ScopeStage）
+	ScopeTypeName    string   `json:"scopeTypeName"`     // 作用域名称
 }
 
 // TaskSubmitInput 是公开给 SDK 调用方的最小任务提交输入。
@@ -139,6 +139,21 @@ var (
 	ErrTaskInputTaskIDRequired  = taskInputError("taskId 为必填且必须 > 0")
 	ErrTaskInputContentRequired = taskInputError("content 为必填")
 )
+
+// submittedBlacklist 是 submitted=false 的 circleTaskStatus 值集合。
+// v1.1.2 fix：只有明确标记"未提交"（含带前缀的变体）才判定为未完成，
+// 其他任意值（"已提交"/"审核中"/"已通过"/空串等）均视为已完成。
+var submittedBlacklist = map[string]struct{}{
+	"未提交":     {},
+	"上传期 未提交": {},
+}
+
+// SetSubmittedByStatus 根据 circleTaskStatus 设置 submitted 字段。
+// 规则：仅当状态在黑名单中时为 false，其余均为 true。
+func (t *Task) SetSubmittedByStatus() {
+	_, ok := submittedBlacklist[t.CircleTaskStatus]
+	t.Submitted = !ok
+}
 
 type taskInputError string
 
