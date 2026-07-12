@@ -25,7 +25,7 @@ nazhi
 │   ├── list                        列出全维度任务（8 路并发）
 │   ├── submit                      提交任务（最小输入模型 + SDK 自动补全）
 │   ├── submitted                   获取已提交写实记录（自动翻页）
-│   └── done                        同 task submitted（v1.0.0 新增别名）
+│   └── done                        同 task submitted（v1.0.0 新增别名；v1.1.2 支持 --limit/--offset/--count）
 ├── self-eval
 │   ├── submit                      提交自我评价（支持 stdin）
 │   └── status                      查询评价 + 教师评语
@@ -158,7 +158,7 @@ $ nazhi version
   "code": 200,
   "message": "",
   "data": {
-    "version": "1.0.0"
+    "version": "1.1.4"
   }
 }
 ```
@@ -497,9 +497,9 @@ nazhi task submitted --count                             # 只看总数
 | `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
-| `--limit` | — | — | 只输出前 N 条（0=全量，v1.1.1 新增） |
-| `--offset` | — | — | 跳过前 N 条后再取（配合 --limit，v1.1.1 新增） |
-| `--count` | — | — | 只输出记录总数，不拉列表（v1.1.1 新增） |
+| `--limit` | — | — | 只输出前 N 条（0=全量，v1.1.2 新增） |
+| `--offset` | — | — | 跳过前 N 条后再取（配合 --limit，v1.1.2 新增） |
+| `--count` | — | — | 只输出记录总数，不拉列表（v1.1.2 新增） |
 
 `--limit`/`--offset` 模式下输出带 `total` + `records` 的结构；`--count` 模式输出 `{"total": N}`；不加参数时全量输出为原始数组（向后兼容）。
 

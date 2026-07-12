@@ -38,4 +38,9 @@ package version
 //	        独立 flag；playRole 默认空串不猜 "3"；level 默认 "5" 不靠任务类型分支；
 //	        移除军训/班会/劳动等特殊类型逻辑；全链路真实环境成功验证（4月生产劳动）；
 //	        全面更新 docs/sdk/README.md + docs/cli/README.md + real-responses-reference.md
-var Version = "1.1.0"
+//	1.1.1 — 修复 task list 输出 SDK 最终业务模型（FetchTasks）而非原始 JSON（FetchTasksJSON）；
+//	        修复 FetchTasksJSON 聚合时 dimErrs 并发写入 race + id=0 维度收发次数不一致卡死
+//	1.1.2 — task submitted 支持 --limit / --offset / --count 分页控制；
+//	        新增 GetSubmittedCirclesLimitJSON SDK 方法
+//	1.1.3 — 清理误跟踪 test_get_school_id.go；同步文档至最新（CLI/SDK README 对应表修正）
+var Version = "1.1.4"

@@ -611,7 +611,7 @@ SDK 响应示例（1 条）：
 
 ### `GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error)`
 
-按偏移和条数限制拉取已提交写实记录（原始 JSON）。v1.1.1 新增。
+按偏移和条数限制拉取已提交写实记录（原始 JSON）。v1.1.2 新增。
 
 参数 `offset=0, limit=0` 时等于 `GetSubmittedCirclesJSON`（全量）。`offset`/`limit` 超出实际数据量时返回空数组，不报错。
 

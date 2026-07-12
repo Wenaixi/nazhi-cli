@@ -5,6 +5,47 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.1.4] - 2026-07-12
+
+### 文档
+
+- 全量版本号同步至 v1.1.4（README.md / docs/README.md / docs/cli/README.md 版本表、徽章、命令概述）
+- docs/sdk/README.md CLI↔SDK 对应表修正：task list 改回 `FetchTasks`（非 `FetchTasksJSON`）
+- 方法速查表新增 `GetSubmittedCirclesLimitJSON`
+
+### 清理
+
+- 移除误跟踪的 `test_get_school_id.go`（`go:build ignore` 调试文件）
+- 补充 `.gitignore` 防止再次误跟踪
+
+## [1.1.3] - 2026-07-12
+
+版本号占位。未单独发布变更。
+
+## [1.1.2] - 2026-07-12
+
+### 特性
+
+- `task submitted` 新增 `--limit` / `--offset` / `--count` 分页控制
+- SDK 新增 `GetSubmittedCirclesLimitJSON(ctx, token, offset, limit)` 方法
+- `--limit` + `--offset` 超出实际数据量时返回空数组，不报错
+- `--count` 只拉第一页获取 TotalNum，不拉列表数据
+
+### SDK
+
+- 新增 `GetSubmittedCirclesLimitJSON` — 用深度扫描逐条分割 JSON 数组，不反序列化为 Go struct
+- 翻了够 offset+limit 就停，不等 totalPage 全部翻完
+
+## [1.1.1] - 2026-07-11
+
+### 修复
+
+- task list 恢复输出 SDK 最终业务模型（`FetchTasks`）而非原始 JSON（`FetchTasksJSON`），
+  字段重新包含 `submitted` / `needPic` / `dimensionName` 等业务语义字段
+- 修复 `FetchTasksJSON` 聚合时 `dimErrs` 的并发写入 data race
+- 修复 `FetchTasksJSON` 跳过 `id=0` 维度后收发次数不一致导致卡死
+- 修复 `FetchTasksJSON` raw JSON 拼接时多余逗号导致序列化失败
+
 ## [1.0.0] - 2026-07-10
 
 重大破坏性更新：types 全面精简 + JSON tag 统一 camelCase + CLI 输出 envelope 化。
