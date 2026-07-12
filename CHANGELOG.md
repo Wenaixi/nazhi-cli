@@ -5,6 +5,15 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.1.5] - 2026-07-12
+
+### 文档
+
+- task submitted / GetSubmittedCircles 示例更换为真实脱敏 JSON，注明含同班同学姓名/学号
+- CLI 描述改为"含同班同学的姓名和学号"
+- SDK 描述改为"含姓名、学号、正文、图片、审核状态"
+- docs/README.md 版本表同步
+
 ## [1.1.4] - 2026-07-12
 
 ### 文档
