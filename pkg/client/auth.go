@@ -95,7 +95,7 @@ const (
 
 // ocrTimeout 是 OCR 自动超时时长。
 // 定义为 var 而非 const，允许测试中覆写以加速测试。
-var ocrTimeout = 30 * time.Second
+var ocrTimeout = 120 * time.Second
 
 // Login 完成 SSO 登录并返回 Token。
 //
