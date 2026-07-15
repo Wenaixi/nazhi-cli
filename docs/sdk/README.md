@@ -1,4 +1,4 @@
-﻿# SDK 参考（pkg/client / pkg/types / pkg/tokenparse）
+# SDK 参考（pkg/client / pkg/types / pkg/tokenparse）
 
 nazhi-cli 的 Go SDK 完整开放为三个公开包，可以被任何 Go 项目 `go get` 后直接调用。
 
@@ -454,6 +454,9 @@ result, err := c.SubmitTask(ctx, token, types.TaskSubmitInput{
 	Address:    "示例中学",      // 可选；不传则默认 schoolName
 	Level:      "5",             // 可选；不传默认 5（校级）
 	PlayRole:   "",              // 可选；不传默认空串
+	// v1.2.0 新增可选字段（零值空串时保持原有 fallback 行为）
+	ActivityName: "校园劳动实践",  // 可选；活动名称
+	HostName:     "班主任",       // 可选；主持人
 })
 if err != nil {
 	var bErr *types.BusinessError

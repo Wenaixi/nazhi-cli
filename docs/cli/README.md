@@ -325,6 +325,12 @@ nazhi whoami --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 
 列出全维度的任务列表（思想品德 / 学业水平 / 身心健康 / 艺术素养 / 社会实践 / 劳动教育等）。
 
+> v1.2.0 新增：`task list` 现在透传服务端 `getCircleStatistics` 的全部返回字段（共 40 字段），
+> 补齐之前 ~18 个缺失字段。新字段均使用 `omitempty`，服务端返回零值/null 时不在输出中出现。
+> 新增字段清单：`schoolId`, `circleTypeId`, `creator`, `modifier`, `modifyTime`, `roleId`,
+> `auditorSubjectId`, `stateType`, `areaId`, `areaTaskId`, `upPic`, `evaluatedNumber`,
+> `unEvaluatedNumber`, `unsubmittedNumber`, `submitNumber`, `pictureList`, `classId`, `gradeId`。
+
 ```bash
 nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 ```
@@ -335,7 +341,7 @@ nazhi task list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
-输出：envelope 包裹的 `Task[]` 数组（21 字段，v1.0.0 精简版）。
+输出：envelope 包裹的 `Task[]` 数组（40 字段，v1.2.0 完整透传版，包含服务端全部返回字段）。
 
 ```json
 {

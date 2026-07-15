@@ -354,12 +354,34 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 		level = "5"
 	}
 
+	// v1.2.0：新增可选字段映射
+	name := strings.TrimSpace(input.Name)
+	hostName := strings.TrimSpace(input.HostName)
+	circleDate := strings.TrimSpace(input.CircleDate)
+	rank := strings.TrimSpace(input.Rank)
+	activityName := strings.TrimSpace(input.ActivityName)
+	sportsName := strings.TrimSpace(input.SportsName)
+	teamName := strings.TrimSpace(input.TeamName)
+
+	// OrgName：优先取输入，空串时 fallback 学校名
+	orgName := strings.TrimSpace(input.OrgName)
+	if orgName == "" {
+		orgName = strings.TrimSpace(info.SchoolName)
+	}
+
+	resultsName := strings.TrimSpace(input.ResultsName)
+	obtainTime := strings.TrimSpace(input.ObtainTime)
+	specialtyTechnology := strings.TrimSpace(input.SpecialtyTechnology)
+	likeSpecialty1 := strings.TrimSpace(input.LikeSpecialty1)
+	likeSpecialty2 := strings.TrimSpace(input.LikeSpecialty2)
+	likeSpecialty3 := strings.TrimSpace(input.LikeSpecialty3)
+
 	payload := &types.TaskAddCirclePayload{
 		ID:                  nil,
-		Name:                "",
-		HostName:            "",
-		CircleDate:          "",
-		Rank:                "",
+		Name:                name,
+		HostName:            hostName,
+		CircleDate:          circleDate,
+		Rank:                rank,
 		Level:               level,
 		Content:             strings.TrimSpace(input.Content),
 		PictureList:         pictureList,
@@ -374,17 +396,17 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 		PatentNum:           "",
 		Address:             address,
 		TermName:            "",
-		ActivityName:        "",
-		SportsName:          "",
-		TeamName:            "",
-		OrgName:             strings.TrimSpace(info.SchoolName),
-		ResultsName:         "",
-		ObtainTime:          "",
-		SpecialtyTechnology: "",
+		ActivityName:        activityName,
+		SportsName:          sportsName,
+		TeamName:            teamName,
+		OrgName:             orgName,
+		ResultsName:         resultsName,
+		ObtainTime:          obtainTime,
+		SpecialtyTechnology: specialtyTechnology,
 		PlayRole:            playRole,
-		LikeSpecialty1:      "",
-		LikeSpecialty2:      "",
-		LikeSpecialty3:      "",
+		LikeSpecialty1:      likeSpecialty1,
+		LikeSpecialty2:      likeSpecialty2,
+		LikeSpecialty3:      likeSpecialty3,
 	}
 
 	return payload, nil

@@ -5,6 +5,24 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-07-15
+
+### 特性
+
+- `task list` 输出扩展：Task 结构体新增 18 个服务端原始字段（全部 omitempty，完美兼容已有输出）
+- `TaskSubmitInput` 新增 14 个可选字段，暴露前端 addCircle 请求体全部参数（零值空串时保持原有 fallback 行为）
+
+### SDK
+
+- `Task` 新增字段：`schoolId`, `circleTypeId`, `creator`, `modifier`, `modifyTime`, `roleId`, `auditorSubjectId`, `stateType`, `areaId`, `areaTaskId`, `upPic`, `evaluatedNumber`, `unEvaluatedNumber`, `unsubmittedNumber`, `submitNumber`, `pictureList`, `classId`, `gradeId`
+- `TaskSubmitInput` 新增字段：`Name`, `HostName`, `CircleDate`, `Rank`, `ActivityName`, `SportsName`, `TeamName`, `OrgName`, `ResultsName`, `ObtainTime`, `SpecialtyTechnology`, `LikeSpecialty1~3`
+- `buildTaskSubmitPayload` 将新输入字段映射到 `TaskAddCirclePayload`，`OrgName` 空串时 fallback 学校名
+
+### 文档
+
+- docs/cli/README.md：task list 字段计数更新为 40 字段，新增 v1.2.0 变更说明段落
+- docs/sdk/README.md：TaskSubmitInput 代码示例补充新字段展示
+
 ## [1.1.5] - 2026-07-12
 
 ### 文档

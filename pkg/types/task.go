@@ -23,6 +23,10 @@ const (
 //	服务端返回 circleTaskStatus 字符串，SDK 解码后根据规则映射为 submitted bool：
 //	  "未提交" 或 "上传期 未提交" → submitted = false
 //	  其他任意值（"已提交"/"审核中"/"已通过"/空串等）→ submitted = true
+//
+// v1.2.0 扩展：新增服务端 getCircleStatistics 返回的全部原始字段（共 40 字段），
+// 补齐之前 ~18 个缺失字段。新字段均使用 omitempty，零值/null 时不在输出中出现，
+// 完美兼容已有输出版本。
 type Task struct {
 	ID               int64    `json:"id"`                // 任务 ID（即 circleTaskId）
 	Name             string   `json:"name"`              // 任务名称
@@ -46,12 +50,36 @@ type Task struct {
 	PushNum          int      `json:"pushNum"`           // 推送次数
 	ScopeType        int      `json:"scopeType"`         // 作用域类型（参见 ScopeClass/ScopeGrade/ScopeStage）
 	ScopeTypeName    string   `json:"scopeTypeName"`     // 作用域名称
+
+	// v1.2.0 新增：服务端 getCircleStatistics 返回的全部原始字段
+	// 所有新字段使用 omitempty，零值/null 时不在 JSON 输出中出现。
+	SchoolID           int64    `json:"schoolId,omitempty"`           // 学校 ID
+	CircleTypeID       int64    `json:"circleTypeId,omitempty"`       // 写实类型 ID
+	Creator            int64    `json:"creator,omitempty"`            // 创建者用户 ID
+	Modifier           *int64   `json:"modifier,omitempty"`           // 最后修改者 ID（可为 null）
+	ModifyTime         []int    `json:"modifyTime,omitempty"`         // 最后修改时间 [y,m,d,h,m,s]（可为 null）
+	RoleID             int64    `json:"roleId,omitempty"`             // 角色 ID
+	AuditorSubjectID   *int64   `json:"auditorSubjectId,omitempty"`   // 审核学科 ID（可为 null）
+	StateType          int      `json:"stateType,omitempty"`          // 状态类型（3=正常）
+	AreaID             int64    `json:"areaId,omitempty"`             // 区域 ID
+	AreaTaskID         int64    `json:"areaTaskId,omitempty"`         // 区域任务 ID
+	UpPic              int      `json:"upPic,omitempty"`              // 需上传图片原始值 0/1（needPic 的 int 源）
+	EvaluatedNumber    *int     `json:"evaluatedNumber,omitempty"`    // 已评价人数（可为 null）
+	UnEvaluatedNumber  *int     `json:"unEvaluatedNumber,omitempty"`  // 未评价人数（可为 null）
+	UnsubmittedNumber  *int     `json:"unsubmittedNumber,omitempty"`  // 未提交人数（可为 null）
+	SubmitNumber       int      `json:"submitNumber,omitempty"`       // 提交人数
+	PictureList        []int64  `json:"pictureList,omitempty"`        // 图片附件 ID 列表（可为 null）
+	ClassID            *int64   `json:"classId,omitempty"`            // 班级 ID（可为 null，学段任务无）
+	GradeID            *int64   `json:"gradeId,omitempty"`            // 年级 ID（可为 null）
 }
 
 // TaskSubmitInput 是公开给 SDK 调用方的最小任务提交输入。
 //
 // 设计目标：调用方只提供真正需要人工决策的字段；其余 30 字段 payload 由 SDK
 // 内部根据 taskId 元数据、用户资料和上传结果自动组装。
+//
+// v1.2.0 新增 14 个可选字段，暴露前端 addCircle 请求体全部参数。
+// 所有新增字段为零值空串时维持原有 fallback 行为，不影响现有调用方。
 type TaskSubmitInput struct {
 	TaskID     int64    // 必填：任务 ID
 	Content    string   // 必填：心得/感悟
@@ -60,6 +88,23 @@ type TaskSubmitInput struct {
 	PlayRole   string   // 可选：默认空串，显式传入时覆盖
 	Address    string   // 可选：为空时默认 schoolName，允许调用方覆盖
 	Level      string   // 可选：为空时默认校级（5），允许调用方覆盖
+
+	// v1.2.0 新增：addCircle 请求体全部可选参数
+	// 零值空串时 buildTaskSubmitPayload 保持原行为（HAR 确认前端传空串）
+	Name                string // addCircle.name — 任务/活动名称（通常与任务名相同，允许自定义）
+	HostName            string // addCircle.hostName — 主持人
+	CircleDate          string // addCircle.circleDate — 写实日期
+	Rank                string // addCircle.rank — 排名/等第
+	ActivityName        string // addCircle.activityName — 活动名称
+	SportsName          string // addCircle.sportsName — 体育项目名称
+	TeamName            string // addCircle.teamName — 团队名称
+	OrgName             string // addCircle.orgName — 组织单位名称（为空时默认学校名）
+	ResultsName         string // addCircle.resultsName — 成果名称
+	ObtainTime          string // addCircle.obtainTime — 获得时间
+	SpecialtyTechnology string // addCircle.specialtyTechnology — 特长/技术
+	LikeSpecialty1      string // addCircle.likeSpecialty1 — 爱好特长 1
+	LikeSpecialty2      string // addCircle.likeSpecialty2 — 爱好特长 2
+	LikeSpecialty3      string // addCircle.likeSpecialty3 — 爱好特长 3
 }
 
 // Validate 校验最小任务提交输入。
