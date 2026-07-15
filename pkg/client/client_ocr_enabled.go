@@ -78,5 +78,11 @@ func WithOCRConcurrency(n int) Option {
 			return
 		}
 		c.ocr = ocr.NewPool(n)
+		// 如果已有外部模型目录设置，传播到新的 OCR Pool
+		if c.ocrModelDir != "" {
+			if pool, ok := c.ocr.(*ocr.Pool); ok {
+				pool.SetModelDir(c.ocrModelDir)
+			}
+		}
 	}
 }

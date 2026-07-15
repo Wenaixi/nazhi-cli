@@ -54,6 +54,7 @@ type Client struct {
 	ocr           CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
 	fallbackOCR   CaptchaRecognizer // 降级验证码识别器（ddddocr），primary 失败时自动 fallback
 	fallbackConc  int               // fallback ddddocr 池大小，默认 1，由 WithFallbackConcurrency 配置
+	ocrModelDir   string            // 外部 ddddocr 模型目录，非空时 OCR 从该目录加载模型/库文件
 	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// submittedPageSize 是 GetSubmittedCircles 每页请求条数。
@@ -348,6 +349,37 @@ func WithFallbackConcurrency(n int) Option {
 	}
 }
 
+// WithOCRModelDir 设置外部 ddddocr 模型目录。
+//
+// 非空时，内置 ddddocr OCR 初始化时从该目录加载模型文件和 ONNX Runtime
+// 原生库（.dll/.so/.dylib），而非使用 //go:embed 嵌入的数据。
+//
+// 适用场景：
+//   - 嵌入的模型文件被移除以减小二进制体积
+//   - 运行时替换/升级模型版本
+//
+// 行为约定：
+//   - dir 为空字符串：拒绝设置并 warn，保持当前值
+//   - dir 非空：存储路径，延迟到 OCR 首次 Recognize 时生效
+func WithOCRModelDir(dir string) Option {
+	return func(c *Client) {
+		if strings.TrimSpace(dir) == "" {
+			c.logger.Warn("WithOCRModelDir: 空字符串被拒绝，保持当前值")
+			return
+		}
+		c.ocrModelDir = dir
+
+		// 如果 c.ocr 已经是 ddddocr Pool，且当前没有外部目录设置，则注入
+		if pool, ok := c.ocr.(interface{ SetModelDir(string) }); ok {
+			pool.SetModelDir(dir)
+		}
+		// fallback 同理
+		if fbPool, ok := c.fallbackOCR.(interface{ SetModelDir(string) }); ok {
+			fbPool.SetModelDir(dir)
+		}
+	}
+}
+
 // ─── 构造 ───
 
 // New 创建 Client。使用 Option 模式配置：
@@ -381,6 +413,16 @@ func New(opts ...Option) (*Client, error) {
 	}
 	for _, opt := range opts {
 		opt(c)
+	}
+	// 所有 Options 跑完后传入 OCR 模型目录到 default OCR（如果在 WithOCRModelDir
+	// 之后 defaultOCR 才被构造的情况，如 WithOCRModelDir 先于 WithCustomOCR 调用）
+	if c.ocrModelDir != "" {
+		if pool, ok := c.ocr.(interface{ SetModelDir(string) }); ok {
+			pool.SetModelDir(c.ocrModelDir)
+		}
+		if fbPool, ok := c.fallbackOCR.(interface{ SetModelDir(string) }); ok {
+			fbPool.SetModelDir(c.ocrModelDir)
+		}
 	}
 	// 所有 Options 跑完后预解析 baseURL（F6）并统一注入 cookie
 	// 预解析必须在 syncCookieToken 之前，以免 syncCookieToken 懒解析报错

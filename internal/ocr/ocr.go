@@ -200,6 +200,9 @@ type OCR struct {
 	ocr         *ddddocr.DdddOcr
 	tempDir     string
 	mu          sync.Mutex // 保护 Classification 调用，支持单例并发安全
+	// modelDir 是外部模型文件目录。非空时 extractModels 优先从该目录复制
+	// 原生库 + ONNX 模型 + 字符集；空字符串时回退到 //go:embed 嵌入数据。
+	modelDir string
 	// testPanicHook 仅供内部测试触发 initOnce 内的 panic，
 	// 生产代码中始终为 nil，对运行路径零影响。
 	testPanicHook func()
@@ -209,6 +212,14 @@ type OCR struct {
 // 业务代码一般用 Pool 实例共享单例引擎；测试可以用 New() 创建隔离实例。
 func New() *OCR {
 	return &OCR{}
+}
+
+// WithModelDir 设置 OCR 实例的外部模型目录。
+// 调用在第一次 Recognize 前，否则 extractModels 不会感知到此变更。
+func WithModelDir(dir string) func(*OCR) {
+	return func(o *OCR) {
+		o.modelDir = dir
+	}
 }
 
 // Pool 是多个 OCR 实例的池，允许并发识别（默认 1 实例，兼容单例行为）。
@@ -240,11 +251,12 @@ func New() *OCR {
 //	closeMu 在 Close 内现在只保护临界区入口（进/出 closeMu），与 closeOnce 配合。
 type Pool struct {
 	pool      sync.Pool
-	inits     sync.Map // key=*OCR, value=struct{}：跟踪所有完成过惰性初始化的实例
+	inits     sync.Map // key=*OCR, value:struct{}：跟踪所有完成过惰性初始化的实例
 	closeMu   sync.Mutex
 	closeOnce sync.Once
 	closed    bool
 	panicked  atomic.Int32 // Recognize 内部 panic 被 recover 的实例计数，Close 时报告
+	modelDir  string       // 外部模型目录，新创建的 OCR 实例会继承此值
 }
 
 // NewPool 创建 OCR 实例池。
@@ -255,6 +267,12 @@ func NewPool(preload int) *Pool {
 	return &Pool{
 		pool: sync.Pool{New: func() any { return &OCR{} }},
 	}
+}
+
+// SetModelDir 设置 Pool 的外部模型目录，新创建的 OCR 实例会继承此值。
+// 已在池中的实例不受影响（它们已拥有自己的 tempDir）。
+func (p *Pool) SetModelDir(dir string) {
+	p.modelDir = dir
 }
 
 // trackInit 记录首次完成惰性初始化的 OCR 实例。
@@ -296,6 +314,10 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 		o, _ = p.pool.Get().(*OCR)
 		if o == nil {
 			o = &OCR{}
+		}
+		// 从 Pool 的 modelDir 传播到新 OCR 实例
+		if p.modelDir != "" && o.modelDir == "" {
+			o.modelDir = p.modelDir
 		}
 		p.trackInit(o)
 	}
@@ -582,8 +604,13 @@ func (o *OCR) Close() error {
 
 // ─── 模型文件提取 ───
 
-// extractModels 将内嵌的模型文件解压到系统临时目录。
-// 这样做是因为 onnxruntime_go 需要从文件系统路径加载 DLL 和 ONNX 模型。
+// extractModels 将模型文件提取到系统临时目录。
+// 优先从 modelDir（外部目录）复制，回退到 //go:embed 嵌入数据。
+//
+// 外部目录优先策略：
+//  1. o.modelDir 非空且目录中存在所需文件 → 从该目录复制到临时目录
+//  2. 有 embed 嵌入数据 → 从 embed 写盘
+//  3. 两者都不可用 → 返回明确错误
 func (o *OCR) extractModels() (string, error) {
 	// 在 OS 临时目录下创建 nazhi-cli 专属子目录
 	dir, err := os.MkdirTemp("", "nazhi-cli-ocr-*")
@@ -591,27 +618,56 @@ func (o *OCR) extractModels() (string, error) {
 		return "", fmt.Errorf("创建临时目录失败: %w", err)
 	}
 
-	// 写入原生库（按当前平台命名）
+	// 策略 1：从外部目录复制（modelDir 优先）
+	if o.modelDir != "" {
+		if err := copyModelsFromDir(o.modelDir, dir); err != nil {
+			_ = cleanupTempDir(dir)
+			return "", err
+		}
+		// 顺手 best-effort 清扫 %TEMP% 下历史进程遗留的 nazhi-cli-ocr-* 目录。
+		_ = sweepFn(dir)
+		return dir, nil
+	}
+
+	// 策略 2：从嵌入数据写入（//go:embed）
 	libName := platformLibName()
 	if err := writeModelFile(dir, libName, OnnxRuntimeDLL); err != nil {
 		return "", err
 	}
-
-	// 写入 ONNX 模型
 	if err := writeModelFile(dir, "common_old.onnx", modelOnnx); err != nil {
 		return "", err
 	}
-
-	// 写入字符集
 	if err := writeModelFile(dir, "charsets_old.json", charsetJSON); err != nil {
 		return "", err
 	}
 
 	// 顺手 best-effort 清扫 %TEMP% 下历史进程遗留的 nazhi-cli-ocr-* 目录。
-	// 本次新建的 dir 会被显式跳过；sweep 失败不影响本次初始化。
 	_ = sweepFn(dir)
 
 	return dir, nil
+}
+
+// copyModelsFromDir 从外部目录复制模型文件到临时目录。
+// 所需文件：原生运行库（onnxruntime.dll/.so/.dylib）、ONNX 模型、字符集。
+func copyModelsFromDir(srcDir, dstDir string) error {
+	// 需要校验的文件列表——这些文件不完整时初始化会失败
+	files := []string{
+		"common_old.onnx",
+		"charsets_old.json",
+		platformLibName(),
+	}
+	for _, f := range files {
+		src := filepath.Join(srcDir, f)
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("从外部模型目录读取 %s 失败: %w", f, err)
+		}
+		if err := os.WriteFile(filepath.Join(dstDir, f), data, 0644); err != nil {
+			_ = cleanupTempDir(dstDir)
+			return fmt.Errorf("写入 %s 到临时目录失败: %w", f, err)
+		}
+	}
+	return nil
 }
 
 // writeModelFile 写入模型文件并设置 0644 权限。
