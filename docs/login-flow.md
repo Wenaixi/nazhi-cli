@@ -211,11 +211,11 @@ c.syncCookieToken(token)  // 走 c.warnSyncCookieToken，失败仅 warn 不中�
 type LoginResponse struct {
     Token        string    `json:"token"`        // JWT
     ExpiresAt    time.Time `json:"expiresAt"`    // 绝对时间
-    FallbackUsed bool      `json:"fallbackUsed"` // 是否降级到备用 OCR
 }
 ```
 
 **历史字段清理**：
+- 之前曾带 `FallbackUsed bool`(v1.2.0 移除) —— 不再有 primary/fallback 级联，单一 OCR 通道无降级语义
 - 之前曾带 `RefreshAfter time.Time`（推荐刷新时间）—— 全仓 0 引用，删除
 - 之前曾带 `UserInfo *UserInfo`（用户基本信息）—— Login 两条路径都不填充，删除
 

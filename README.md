@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
-[![Version](https://img.shields.io/badge/version-1.1.5-blue)](https://github.com/Wenaixi/nazhi-cli/releases)
+[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/Wenaixi/nazhi-cli/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 

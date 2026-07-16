@@ -23,6 +23,26 @@
 - docs/cli/README.md：task list 字段计数更新为 40 字段，新增 v1.2.0 变更说明段落
 - docs/sdk/README.md：TaskSubmitInput 代码示例补充新字段展示
 
+### 重构（BREAKING）
+
+- **OCR 移除 primary/fallback 级联退避**：`c.ocr` 作为唯一识别通道，不再分 primary 降级两道循环。`ocrRecognizeWithRetry` 从 3 返回值改为 2（移除 `fallbackUsed`）。`LoginResponse` 移除 `FallbackUsed` 字段。`buildLoginResponse` 移除 `fallbackUsed` 参数。
+
+### 移除
+
+- `WithFallbackOCR` / `WithFallbackConcurrency` Option — 不再有两阶段 cascade
+- `Client.fallbackOCR` / `Client.fallbackConc` 字段 — `Client` 结构体减负
+- `defaultFallbackOCR` / `safeFallbackRecognize` — 死代码删除
+- `ocr_fallback_test.go` — 5 个 cascade 测试全部删除
+- `LoginResponse.FallbackUsed` 字段 — `LoginResponse` 精简到 2 字段
+
+### 文档
+
+- 全量文档同步 v1.2.0：architecture.md 架构决策 #5 移除 fallback 级联描述；Option 表删除 fallback 两行；Login 流程示例更新（移除 fallbackUsed）；login-flow.md LoginResponse 结构体同步；CLI/SDK 参考的登录响应示例更新；版本号全量同步至 v1.2.0。
+
+### 构建
+
+- 版本号：`1.2.0`
+
 ## [1.1.5] - 2026-07-12
 
 ### 文档

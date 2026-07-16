@@ -70,8 +70,6 @@ func New(opts ...Option) (*Client, error)
 | `WithOCRConcurrency` | int | `min(4, NumCPU)`（含 OCR） | `<=0` 拒绝 |
 | `WithSessionBackoff` | time.Duration | `5s` | `<=0` 拒绝 |
 | `WithSubmittedPageSize` | int | `100` | `<=0` 拒绝；调整 GetSubmittedCircles 分页大小 |
-| `WithFallbackOCR` | bool | `false` | 启用 ddddocr 降级兜底；primary 全失败后自动降级 |
-| `WithFallbackConcurrency` | int | `1` | `<=0` 拒绝；降级 OCR 池并发度 |
 
 `withDurationGuard` 是 Option 构造工厂（拒绝 `<0` / `=0` 后调 setter），消除 WithTimeout / WithSessionBackoff 中重复的守卫逻辑。
 
@@ -297,7 +295,7 @@ defer func() {
          ├─ 200 JSON 优先 → tokenparse.ExtractFromReturnData
          └─ 302 Location fallback → tokenparse.ExtractFromLocation
      → buildLoginResponse → syncCookieToken
-     → 返回 LoginResponse { Token, ExpiresAt, FallbackUsed }
+     → 返回 LoginResponse { Token, ExpiresAt }
 ```
 
 ### Session 激活流（HAR 4 步）

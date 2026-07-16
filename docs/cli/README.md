@@ -158,7 +158,7 @@ $ nazhi version
   "code": 200,
   "message": "",
   "data": {
-    "version": "1.1.5"
+    "version": "1.2.0"
   }
 }
 ```
@@ -225,7 +225,6 @@ nazhi login -u 学号 -p 密码
   "data": {
     "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I...",
     "expiresAt": "2026-07-24T01:26:37+08:00",
-    "fallbackUsed": false
   }
 }
 ```

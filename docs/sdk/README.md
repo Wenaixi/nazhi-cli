@@ -122,8 +122,6 @@ func New(opts ...Option) (*Client, error)
 | `WithOCRConcurrency(n)` | `int` | `min(4, NumCPU)` | `n<=0` 拒绝 |
 | `WithSessionBackoff(d)` | `time.Duration` | `5s` | `d<=0` 拒绝 |
 | `WithSubmittedPageSize(n)` | `int` | `100` | `n<=0` 拒绝；服务端上限 500 |
-| `WithFallbackOCR(ok)` | `bool` | `false` | 启用 ddddocr 降级兜底 |
-| `WithFallbackConcurrency(n)` | `int` | `1` | `n<=0` 拒绝 |
 
 ---
 
@@ -133,7 +131,7 @@ func New(opts ...Option) (*Client, error)
 |---|---|---|
 | `InitSession` | `(ctx) error` | — |
 | `GetSchoolID` | `(ctx, username) (*SchoolInfo, error)` | `schoolID` + `schoolName` |
-| `Login` | `(ctx, req) (*LoginResponse, error)` | Token / ExpiresAt / FallbackUsed |
+| `Login` | `(ctx, req) (*LoginResponse, error)` | Token / ExpiresAt |
 | `ActivateSession` | `(ctx, token) (*UserInfo, error)` | 13 字段用户资料 |
 | `GetMyInfo` | `(ctx, token) (*UserInfo, error)` | 13 字段用户资料 |
 | `FetchTasks` | `(ctx, token) ([]Task, error)` | 21 字段任务条目 |
@@ -262,7 +260,6 @@ SDK 响应示例：
 {
   "token": "eyJhbGciOiJIUzUxMiJ9.eyJzdWIiOiJHMzUwMTgxMjAwOTEyMTEwMDM1I...",
   "expiresAt": "2026-07-25T16:36:01+08:00",
-  "fallbackUsed": false
 }
 ```
 
@@ -908,7 +905,7 @@ null
 func (c *Client) Close() error
 ```
 
-释放 OCR session、fallback OCR、HTTP keep-alive 连接与 session backoff 状态。
+释放 OCR session、HTTP keep-alive 连接与 session backoff 状态。
 
 请求示例：
 
