@@ -187,10 +187,11 @@ jobs:
           CXX: ${{ matrix.cross == 'zig' && 'zig c++ -target aarch64-windows-gnu' || (matrix.cross != '' && format('{0}g++', matrix.cross) || '') }}
         run: |
           mkdir -p bin
-          # v0.3.5+ OCR 可选构建：默认 release 必须带 -tags ddddocr，
+          # v0.3.5+ OCR 可选构建：默认 release 必须带 -tags ddddocr,ddddocr_embed，
           # 否则 defaultOCR() 返回 nil，CLI 调 Login() 会立即返回 ErrOCRNotConfigured。
           # CGO-free 用户（Nazhi-auto 等）需自行用 -tags !ddddocr 显式构建纯 Go 二进制。
-          go build -tags=ddddocr -ldflags="-s -w" \
+          # ddddocr_embed 控制模型文件嵌入，单独 ddddocr 需 WithOCRModelDir 提供外部模型目录。
+          go build -tags="ddddocr,ddddocr_embed" -ldflags="-s -w" \
             -o "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
             ./cmd/nazhi
 

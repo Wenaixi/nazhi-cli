@@ -1,4 +1,4 @@
-//go:build darwin && arm64
+//go:build darwin && arm64 && ddddocr_embed
 
 package ocr
 

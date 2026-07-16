@@ -115,7 +115,9 @@ pool := ocr.NewPool(4)  // 预热 4 个实例
 
 > **历史说明**：早期曾提供 `ocr.GetDefault()` 进程级单例，但生产代码无调用方，已删除。
 
-## OCR 可选构建
+## OCR 可选构建（双层 build tag）
+
+### 第一层：`ddddocr` — 启用 OCR 引擎
 
 ```go
 // client_ocr_enabled.go  //go:build ddddocr
@@ -129,15 +131,53 @@ func defaultOCR() CaptchaRecognizer {
 }
 ```
 
-| 构建方式 | 命令 | OCR 行为 |
-|---|---|---|
-| **含 OCR（默认 release）** | `go build -tags ddddocr -o nazhi.exe ./cmd/nazhi` | 内嵌 ddddocr 引擎，开箱即用 |
-| **纯 Go 无 OCR** | `go build -o nazhi-noocr.exe ./cmd/nazhi` | CGO-free，`Login()` 立即返 `ErrOCRNotConfigured` |
+### 第二层：`ddddocr_embed` — 嵌入模型文件
 
-**设计动机**：Nazhi-auto 等嵌入式消费者需要 `CGO_ENABLED=0` 构建（无法引入 ddddocr 的 CGO 依赖）。
-- `!ddddocr` 构建下 `defaultOCR()` 返 nil
-- `Login()` 立即返 `ErrOCRNotConfigured`，错误消息明确给出 actionable 指引（用预编译 release 或 `WithCustomOCR` 注入）
-- `WithOCRConcurrency` 在 `!ddddocr` 构建下为 no-op warn（不会 panic 也不会替换已有 ocr）
+```go
+// ocr_embed.go  //go:build ddddocr_embed
+var modelOnnx []byte  // //go:embed models/common_old.onnx
+var charsetJSON []byte // //go:embed models/charsets_old.json
+
+// ocr_noembed.go  //go:build !ddddocr_embed
+var modelOnnx []byte       // nil
+var charsetJSON []byte     // nil
+var OnnxRuntimeDLL []byte  // nil
+```
+
+5 个 `onnx_*.go` 已从 `//go:build linux && amd64` 改为 `//go:build linux && amd64 && ddddocr_embed`，
+确保原生库只在 `ddddocr_embed` tag 下嵌入。
+
+| 构建方式 | `ddddocr` | `ddddocr_embed` | OCR 行为 | 适用场景 |
+|---|---|---|---|---|
+| `go build` | ❌ | ❌ | CGO-free，`c.ocr=nil`，需 `WithCustomOCR` | 嵌入式 / 禁 CGO |
+| `go build -tags=ddddocr` | ✅ | ❌ | OCR 启用，无内嵌模型，需 `WithOCRModelDir` 外部目录 | 共享模型 / 瘦二进制 |
+| `go build -tags=ddddocr,ddddocr_embed` | ✅ | ✅ | 完整 OCR 开箱即用 | CLI release / 服务端 |
+
+**设计动机**：
+- Nazhi-auto 等嵌入式消费者需要 `CGO_ENABLED=0` 构建（无法引入 ddddocr 的 CGO 依赖）。
+- `WithOCRModelDir` 允许用户把大模型文件放在外部目录共享，二进制可省 ~150MB 原生库 + ONNX 模型。
+- build tag 纯 Go 语义：`!ddddocr` / `!ddddocr_embed` 不影响编译速度。
+
+**行为约束**：
+- `!ddddocr` 构建下 `defaultOCR()` 返 nil，`Login()` 立即返 `ErrOCRNotConfigured`，错误消息明确给出 actionable 指引（用预编译 release 或 `WithCustomOCR` 注入）。
+- `!ddddocr_embed` 构建下 `extractModels()` 走 `modelDir` 分支：若 `o.modelDir` 为空则返回明确错误，不会静默退化为无 OCR。
+- `WithOCRConcurrency` 在 `!ddddocr` 构建下为 no-op warn（不会 panic 也不会替换已有 ocr）。
+- CI 与 Makefile release 构建必须 `-tags=ddddocr,ddddocr_embed`，否则发布的二进制无内嵌模型。
+
+### modelDir 外部目录加载
+
+`internal/ocr/ocr.go` 的 `extractModels` 优先从 `o.modelDir`（外部目录）复制所需文件：
+原生库（`onnxruntime.dll`/`.so`/`.dylib`）+ ONNX 模型（`common_old.onnx`）+ 字符集（`charsets_old.json`）。
+客户端通过 `WithOCRModelDir(dir)` 注入，典型用法：
+
+```go
+c, err := client.New(
+    client.WithOCRModelDir("/opt/nazhi/models"),
+)
+```
+
+Pool 级别通过 `Pool.SetModelDir(dir)` 设置，新 OCR 实例自动继承。
+缺文件时返回具体错误（如"从外部模型目录读取 common_old.onnx 失败"），方便排查。
 
 ## Windows OCR 三轮修复
 

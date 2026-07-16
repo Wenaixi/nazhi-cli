@@ -165,21 +165,27 @@ Microsoft onnxruntime v1.25.0 已停发 macOS x86_64，**不支持**。
 
 每轮都加了单元测试 + 集成测试。详见 [cross-platform-ocr.md](cross-platform-ocr.md)。
 
-### 7. OCR 可选构建（build tag 二选一）
+### 7. OCR 可选构建（双层 build tag）
 
-`internal/ocr` 依赖 `onnxruntime_go` **强制 CGO**。为兼顾 CLI 开箱即用与 CGO-free 消费者：
+`internal/ocr` 依赖 `onnxruntime_go` **强制 CGO**。为兼顾 CLI 开箱即用与 CGO-free 消费者，引入两层 build tag 解耦：
 
-| 构建 | 命令 | OCR 行为 | 场景 |
-|---|---|---|---|
-| 含 OCR（默认 release） | `go build -tags ddddocr` | 内嵌 ddddocr + onnxruntime | CLI / 服务端 Go |
-| CGO-free 纯 Go | `go build`（无 tag） | `c.ocr=nil`，需 `WithCustomOCR` 注入 | 嵌入式 / 禁 CGO |
+#### 第一层：`ddddocr` — 启用 OCR 引擎
+- `client_ocr_enabled.go`（`//go:build ddddocr`）：导入 `internal/ocr`，`defaultOCR()` 返回 `ocr.NewPool(n)`
+- `client_ocr_disabled.go`（`//go:build !ddddocr`）：零依赖纯 Go，`defaultOCR()` 返 nil，`Login()` 立即 `ErrOCRNotConfigured`
 
-`client_ocr_enabled.go`（`//go:build ddddocr`）与 `client_ocr_disabled.go`（`//go:build !ddddocr`）分别提供 `defaultOCR()`：
-- ddddocr build：`ocr.NewPool(0)`（懒加载 1 实例 + `sync.Mutex` 串行化）
-- !ddddocr build：`nil`，`Login()` 立即返 `ErrOCRNotConfigured`
+#### 第二层：`ddddocr_embed` — 嵌入模型文件
+- `ocr_embed.go`（`//go:build ddddocr_embed`）：`//go:embed` 嵌入 ONNX 模型 + 字符集，开箱即用
+- `ocr_noembed.go`（`//go:build !ddddocr_embed`）：所有嵌入变量为 nil，必须 `WithOCRModelDir` 提供外部模型目录
+- 5 个 `onnx_*.go`（`//go:build ... && ddddocr_embed`）：各平台原生库仅在 `ddddocr_embed` 下嵌入
 
-> **重要** **CI 与 Makefile `build` 必须显式 `-tags=ddddocr`**，否则 release 的二进制 `c.ocr=nil`，
-> 用户 `nazhi login` 立即失败（历史事故）。
+| 构建命令 | `ddddocr` | `ddddocr_embed` | 行为 | 场景 |
+|---|---|---|---|---|
+| `go build` | ❌ | ❌ | CGO-free，`c.ocr=nil`，需 `WithCustomOCR` | 嵌入式 / 禁 CGO 消费者 |
+| `go build -tags=ddddocr` | ✅ | ❌ | OCR 启用，但无内嵌模型，需 `WithOCRModelDir` 外部目录 | 共享模型文件 / 瘦二进制 |
+| `go build -tags=ddddocr,ddddocr_embed` | ✅ | ✅ | 完整 OCR，开箱即用 | CLI release / 服务端 |
+
+> **重要** CI 与 Makefile 的 release 构建必须 `-tags=ddddocr,ddddocr_embed`，否则发布的二进制无内嵌模型，
+> 用户需额外提供模型目录才能使用。（v0.3.5 同类事故的延续。）
 
 ### 8. 统一响应体解析（泛型）
 

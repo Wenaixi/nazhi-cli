@@ -12,19 +12,19 @@ build: clean-bin
 	@echo "构建完成: bin/nazhi.exe"
 
 build-ocr:
-	go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-ocr.exe ./cmd/nazhi
+	go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-ocr.exe ./cmd/nazhi
 	@echo "OCR 构建完成: bin/nazhi-ocr.exe (含 ddddocr)"
 
 build-linux:
-	GOOS=linux GOARCH=amd64 go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
+	GOOS=linux GOARCH=amd64 go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
 	@echo "Linux amd64: bin/nazhi-linux-amd64"
 
 build-darwin:
-	GOOS=darwin GOARCH=arm64 go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
+	GOOS=darwin GOARCH=arm64 go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
 	@echo "macOS arm64: bin/nazhi-darwin-arm64"
 
 build-windows:
-	GOOS=windows GOARCH=amd64 go build -tags=ddddocr $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
+	GOOS=windows GOARCH=amd64 go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
 	@echo "Windows amd64: bin/nazhi-windows-amd64.exe"
 
 # ─── 测试 ───

@@ -1,4 +1,4 @@
-//go:build windows && arm64
+//go:build windows && arm64 && ddddocr_embed
 
 package ocr
 

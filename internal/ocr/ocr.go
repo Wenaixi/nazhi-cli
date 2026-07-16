@@ -8,7 +8,6 @@
 package ocr
 
 import (
-	_ "embed"
 	"errors"
 	"fmt"
 	"os"
@@ -177,12 +176,9 @@ var (
 )
 
 // ─── 跨平台模型文件 ───
-
-//go:embed models/common_old.onnx
-var modelOnnx []byte
-
-//go:embed models/charsets_old.json
-var charsetJSON []byte
+// modelOnnx/charsetJSON 由 ddddocr_embed/!ddddocr_embed 构建标记决定，
+// 默认构建（无 tag）下均为 nil。OnnxRuntimeDLL 同理。
+// 见 ocr_embed.go / ocr_noembed.go / onnx_*.go。
 
 // OnnxRuntimeDLL 由 build-tag 隔离的 5 个文件之一提供（见 onnx_*.go）。
 // 这里不能用 //go:embed 单一文件，因为各平台的原生库二进制完全不同。

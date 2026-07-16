@@ -238,7 +238,7 @@ Token 有效期：14 天（JWT `exp` 字段），存到环境变量复用直到�
 
 | 错误 | 原因 |
 |---|---|
-| `OCR 识别器未配置或出错` | 当前构建未启用 `-tags ddddocr`，且没用 `WithCustomOCR` 注入（CLI 路径下用预编译 release 即可） |
+| `OCR 识别器未配置或出错` | 当前构建未启用 `-tags ddddocr`，或仅启用了 `ddddocr` 但未 `WithOCRModelDir` 提供模型目录。CLI 路径下用预编译 release（含 `-tags ddddocr,ddddocr_embed`）即可 |
 | `登录失败: 学号或密码错误` | 凭据错 |
 | `登录失败: 验证码校验失败` | 9 张图都识别不出来（极少见，可能是服务端 captcha 服务挂） |
 | `登录失败: timeout` | 网络慢，调大 `NAZHI_TIMEOUT=30` |
