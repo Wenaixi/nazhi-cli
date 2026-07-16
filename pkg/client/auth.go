@@ -117,7 +117,6 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	// 步骤 2&3: GetSchoolID + OCR 识别并发进行（F5 无数据依赖）
 	schoolID := req.SchoolID
 	var captcha string
-	var ocrFallback bool
 
 	g, gctx := errgroup.WithContext(ctx)
 
@@ -134,11 +133,11 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	g.Go(func() error {
 		var err error
-		captcha, ocrFallback, err = c.ocrRecognizeWithRetry(gctx)
+		captcha, err = c.ocrRecognizeWithRetry(gctx)
 		if err != nil {
 			return fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
 		}
-		c.logDebug("OCR 识别完成（%d 字符，fallback=%v）", len(captcha), ocrFallback)
+		c.logDebug("OCR 识别完成（%d 字符）", len(captcha))
 		return nil
 	})
 
@@ -187,7 +186,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err)
 		}
 		c.warnIfExpiresAtFallback(expiresAt, "200")
-		return c.buildLoginResponse(token, expiresAt, bodyBytes, "200", ocrFallback), nil
+		return c.buildLoginResponse(token, expiresAt, bodyBytes, "200"), nil
 	}
 
 	if httpResp.StatusCode == http.StatusFound {
@@ -204,7 +203,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
 		}
 		c.warnIfExpiresAtFallback(expiresAt, "302 fallback")
-		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback", ocrFallback), nil
+		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback"), nil
 	}
 
 	errResp, err := types.DecodeResponse(bodyBytes)
@@ -291,46 +290,20 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 
 // ocrRecognizeWithRetry 多图多试策略识别验证码。
 //
-// 返回三个值：
-//   - text: 识别成功的验证码文本
-//   - fallbackUsed: 是否降级到了 ddddocr（primary 失败后 fallback 成功则为 true）
-//   - err: 全部失败时返回错误
-func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (text string, fallbackUsed bool, err error) {
+// 单通道 OCR：直接用 c.ocr 识别，不分 primary/fallback 级联。
+// 最多尝试 maxOCRImagesTotal 张图，每张图 OCR 一次后立即 validateCaptcha 预校验。
+func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
 	if _, ok := ctx.Deadline(); !ok {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, ocrTimeout)
 		defer cancel()
 	}
 
-	// ── 第一阶段：primary OCR ──
-	text, err = c.ocrRetryLoop(ctx, c.safeOCRRecognize)
-	if err == nil {
-		return text, false, nil
-	}
-
-	// primary 全失败，看看有没有 fallback
-	if c.fallbackOCR == nil {
-		return "", false, err
-	}
-
-	c.logger.Warn("OCR primary 识别全部失败，降级到 fallback ddddocr",
-		"primary_err", err)
-
-	// ── 第二阶段：fallback OCR（重新拉 9 张新图）──
-	fallbackText, fbErr := c.ocrRetryLoop(ctx, c.safeFallbackRecognize)
-	if fbErr == nil {
-		c.logger.Info("OCR fallback 识别成功，使用 ddddocr 结果")
-		return fallbackText, true, nil
-	}
-
-	// fallback 也失败，返回 primary 的错误（更有信息量）
-	c.logger.Warn("OCR fallback 也全部失败",
-		"fallback_err", fbErr)
-	return "", false, err
+	return c.ocrRetryLoop(ctx, c.safeOCRRecognize)
 }
 
 // ocrRetryLoop 执行一轮 OCR 重试循环（最多 maxOCRImagesTotal 张图）。
-// recognizeFn 是实际的识别函数（primary 或 fallback）。
+// recognizeFn 是实际的识别函数。
 func (c *Client) ocrRetryLoop(ctx context.Context, recognizeFn func([]byte) (string, error)) (string, error) {
 	var lastErr error
 	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {

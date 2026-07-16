@@ -14,12 +14,11 @@ type LoginRequest struct {
 
 // LoginResponse 是 SSO 登录成功后的响应。
 //
-// 字段约定（v1.0.0 精简版）：仅保留登录 token + 过期时间 + OCR 降级标记。
+// 字段约定（v1.0.0 精简版）：仅保留登录 token + 过期时间。
 // 用户基本信息请通过 Client.GetMyInfo() 单独获取。
 type LoginResponse struct {
-	Token        string    `json:"token"        example:"eyJhbGciOiJIUzUxMiJ9..." description:"X-Auth-Token 凭证（后续业务接口必带）"`
-	ExpiresAt    time.Time `json:"expiresAt"    example:"2026-07-23T18:38:00+08:00"  description:"token 过期时间（ISO 8601 + 时区）"`
-	FallbackUsed bool      `json:"fallbackUsed" example:"false"                       description:"本次登录是否降级到 ddddocr OCR（primary 失败后）"`
+	Token     string    `json:"token"     example:"eyJhbGciOiJIUzUxMiJ9..." description:"X-Auth-Token 凭证（后续业务接口必带）"`
+	ExpiresAt time.Time `json:"expiresAt" example:"2026-07-23T18:38:00+08:00"  description:"token 过期时间（ISO 8601 + 时区）"`
 }
 
 // SchoolInfo 是 GetSchoolID 的统一返回对象。

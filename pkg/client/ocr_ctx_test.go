@@ -96,7 +96,7 @@ func TestOCRRetry_RespectsContextCancel(t *testing.T) {
 	defer cancel()
 
 	start := time.Now()
-	_, _, err := c.ocrRecognizeWithRetry(ctx)
+	_, err := c.ocrRecognizeWithRetry(ctx)
 	elapsed := time.Since(start)
 
 	t.Logf("F11 debug: serverHits=%d ocrCalls=%d elapsed=%v err=%v",

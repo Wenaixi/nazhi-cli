@@ -109,7 +109,7 @@ func TestWarnSyncCookieToken_NoPanicOnBadJar(t *testing.T) {
 // ─── buildLoginResponse 测试 ───
 //
 // v1.0.0 精简：LoginResponse 删除 RawData 字段（json:"-" 不参与序列化但消耗内存）。
-// 下游不再需要 rawData，全部依赖 token + expiresAt + fallbackUsed 三件套。
+// 下游不再需要 rawData，全部依赖 token + expiresAt 两件套。
 // 原 RawData 相关测试（InvalidJsonBody/EmptyBody/PartialDecode）已废弃。
 
 // TestBuildLoginResponse_NoPanicOnInvalidJson 验证 body 非法 JSON 时不 panic。
@@ -120,7 +120,7 @@ func TestBuildLoginResponse_NoPanicOnInvalidJson(t *testing.T) {
 		uploadURL:  "https://up.example.com",
 		http:       newHTTPClient(),
 	}
-	resp := c.buildLoginResponse("test-token", time.Now(), []byte("{invalid}"), "200", false)
+	resp := c.buildLoginResponse("test-token", time.Now(), []byte("{invalid}"), "200")
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}
@@ -137,7 +137,7 @@ func TestBuildLoginResponse_NoPanicOnEmptyBody(t *testing.T) {
 		uploadURL:  "https://up.example.com",
 		http:       newHTTPClient(),
 	}
-	resp := c.buildLoginResponse("test-token", time.Now(), nil, "200", false)
+	resp := c.buildLoginResponse("test-token", time.Now(), nil, "200")
 	if resp == nil {
 		t.Fatal("buildLoginResponse 不应返回 nil")
 	}

@@ -78,7 +78,7 @@ func TestOCRRetry_SucceedsOnFirstImage(t *testing.T) {
 	c := newClientForOCRTest(sso.URL, mock)
 	c.ocr = mock
 
-	got, _, err := c.ocrRecognizeWithRetry(context.Background())
+	got, err := c.ocrRecognizeWithRetry(context.Background())
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestOCRRetry_FailsAcrossImages(t *testing.T) {
 	c := newClientForOCRTest(sso.URL, mock)
 	c.ocr = mock
 
-	got, _, err := c.ocrRecognizeWithRetry(context.Background())
+	got, err := c.ocrRecognizeWithRetry(context.Background())
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestOCRRetry_Fails2ThenSucceedsAfter2Images(t *testing.T) {
 	c := newClientForOCRTest(sso.URL, mock)
 	c.ocr = mock
 
-	got, _, err := c.ocrRecognizeWithRetry(context.Background())
+	got, err := c.ocrRecognizeWithRetry(context.Background())
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -196,7 +196,7 @@ func TestOCRRetry_AllImagesFail(t *testing.T) {
 	c := newClientForOCRTest(sso.URL, mock)
 	c.ocr = mock
 
-	got, _, err := c.ocrRecognizeWithRetry(context.Background())
+	got, err := c.ocrRecognizeWithRetry(context.Background())
 	if err == nil {
 		t.Fatalf("expected error after all retries, got text %q", got)
 	}
@@ -236,7 +236,7 @@ func TestOCRRetry_BlankResultRetried(t *testing.T) {
 	c := newClientForOCRTest(sso.URL, blankMock)
 	c.ocr = blankMock
 
-	got, _, err := c.ocrRecognizeWithRetry(context.Background())
+	got, err := c.ocrRecognizeWithRetry(context.Background())
 	if err != nil {
 		t.Fatalf("expected success, got error: %v", err)
 	}
@@ -289,7 +289,7 @@ func TestOCRRetry_ImageFetchFails(t *testing.T) {
 	c := newClientForOCRTest(sso.URL, mock)
 	c.ocr = mock
 
-	_, _, err := c.ocrRecognizeWithRetry(context.Background())
+	_, err := c.ocrRecognizeWithRetry(context.Background())
 	if err == nil {
 		t.Fatalf("expected error when all image fetches fail")
 	}
