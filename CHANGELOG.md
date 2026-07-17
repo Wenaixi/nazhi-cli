@@ -5,6 +5,25 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.2.2] - 2026-07-17
+
+### 新增
+
+- SDK `PeekSubmittedTotal` — 轻量获取已提交写实记录总数（内部 `pageNo=1&pageSize=1`，只拉 1 条）
+- CLI `task submitted --count` / `task done --count` 改用 `PeekSubmittedTotal`，不再经过 `GetSubmittedCirclesLimitJSON`
+
+### 文档
+
+- `docs/sdk/README.md` 方法表 + 完整文档小节 + 代码示例
+
+### 测试
+
+- 4 个单元测试覆盖正常/零数据/业务错误/请求参数验证
+
+### 构建
+
+- 版本号：`1.2.2`
+
 ## [1.2.1] - 2026-07-17
 
 ### 新增

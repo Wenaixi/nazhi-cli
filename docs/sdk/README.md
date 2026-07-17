@@ -655,7 +655,7 @@ SDK 响应示例（通过 `GetSubmittedCirclesJSON` 原始 JSON 路径获取，1
 
 ### `PeekSubmittedTotal(ctx context.Context, token string) (int, error)`
 
-轻量获取已提交写实记录总数。v1.1.2 新增。
+轻量获取已提交写实记录总数。v1.2.2 新增。
 
 内部调用 `getStudentCircle?type=1&pageNo=1&pageSize=1`，只提取 `PageBean.TotalNum`。
 只拉 1 条记录获取分页信息，不拉全量列表。
