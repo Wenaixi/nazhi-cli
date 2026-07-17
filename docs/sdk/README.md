@@ -142,12 +142,16 @@ func New(opts ...Option) (*Client, error)
 | `QuerySelfGradEvaluation` | `(ctx, token) (*map[string]any, error)` | 泛型 map |
 | `GetSubmittedCircles` | `(ctx, token) ([]CircleRecord, error)` | 原始 JSON 写实记录（含姓名学号） |
 | `GetSubmittedCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 原始 JSON 数组 + 分页信息 |
+| `PeekSubmittedTotal` | `(ctx, token) (int, error)` | 总记录数（轻量，只拉 1 条） |
 | `GetHonorTypes` | `(ctx, token) ([]HonorType, error)` | 5 字段荣誉类型 |
 | `GetHonorTypeForSelect` | `(ctx, token) ([]HonorSelectOption, error)` | Label / Value |
 | `GetHonorLevel` | `(ctx, token, honorTypeID) ([]HonorSelectOption, error)` | Label / Value |
 | `GetHonorList` | `(ctx, token, pageNo, pageSize) (*HonorListResult, error)` | `records` + `page` |
 | `AddHonor` | `(ctx, token, payload) error` | — |
 | `DeleteHonor` | `(ctx, token, honorID) error` | — |
+| `AddTypicalCase` | `(ctx, token, payload) error` | — |
+| `GetTypicalCaseList` | `(ctx, token, pageNo, pageSize) (*types.TypicalCaseListResult, error)` | `records` + `page` |
+| `GetTypicalCaseListJSON` | `(ctx, token, pageNo, pageSize) (json.RawMessage, error)` | 原始 JSON `{records, page}` |
 | `UploadFile` | `(ctx, filePath) (*UploadFileResult, error)` | `attachmentID` |
 | `DownloadFile` | `(ctx, attachmentID, dst) error` | — |
 
@@ -169,7 +173,10 @@ func New(opts ...Option) (*Client, error)
 | `nazhi file upload` | `UploadFile` | 是 | CLI 直接输出 SDK 返回对象 `{attachmentID}` |
 | `nazhi self-eval submit` | `SubmitSelfEvaluation` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
 | `nazhi honor add` | `AddHonor` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
+| `nazhi honor add` | `AddHonor` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
 | `nazhi honor delete` | `DeleteHonor` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
+| `nazhi typical-case submit` | `AddTypicalCase` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
+| `nazhi typical-case list` | `GetTypicalCaseListJSON` | 是 | CLI 直接透传 SDK 拼装的 `{records,page}` JSON |
 | `nazhi file download` | `DownloadFile` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
 
 ---
@@ -646,6 +653,29 @@ SDK 响应示例（通过 `GetSubmittedCirclesJSON` 原始 JSON 路径获取，1
 
 返回数据列表的原始 JSON 数组 + 分页信息（含 `TotalNum`，可用于获取总条数）。
 
+### `PeekSubmittedTotal(ctx context.Context, token string) (int, error)`
+
+轻量获取已提交写实记录总数。v1.1.2 新增。
+
+内部调用 `getStudentCircle?type=1&pageNo=1&pageSize=1`，只提取 `PageBean.TotalNum`。
+只拉 1 条记录获取分页信息，不拉全量列表。
+
+请求示例：
+
+```go
+total, err := c.PeekSubmittedTotal(ctx, token)
+if err != nil {
+	log.Fatalf("获取记录总数失败：%v", err)
+}
+fmt.Printf("共有 %d 条写实记录\n", total)
+```
+
+SDK 响应示例：
+
+```json
+{"total": 23}
+```
+
 ---
 
 ## 荣誉申报域（honor.go）
@@ -848,6 +878,125 @@ null
 
 ---
 
+## 典型案例域（typical_case.go）
+
+### `AddTypicalCase(ctx context.Context, token string, payload types.AddTypicalCasePayload) error`
+
+提交一条典型案例。
+
+请求示例：
+
+```go
+err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
+    Title:          "论国内外各领域AI大模型能力对比",
+    Type:           "1",
+    TypeName:       "研究性学习报告",
+    TeacherName:    "王老师",
+    PartnerName:    "庄同学等",
+    Role:           "1",
+    RoleName:       "负责人",
+    Remark:         "基于2026年前沿大语言模型全栈实测数据的深度解析",
+    Content:        "经过本课题组数周的协作攻坚...",
+    Level:          "5",
+    LevelName:      "学校",
+    AttachmentID:   5139876,
+    AttachmentName: "example.jpg",
+})
+if err != nil {
+    log.Fatalf("提交典型案例失败：%v", err)
+}
+```
+
+payload 字段说明：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `title` | string | ✅ | 标题 |
+| `type` | string | ✅ | 材料类别代码（`"1"`=研究性学习报告, `"2"`=社会调查报告, `"3"`=艺术创作作品, `"4"`=其他） |
+| `typeName` | string | ✅ | 材料类别名称 |
+| `teacherName` | string | — | 指导教师 |
+| `partnerName` | string | — | 合作者 |
+| `role` | string | ✅ | 角色代码（`"1"`=负责人, `"2"`=参与者） |
+| `roleName` | string | ✅ | 角色名称 |
+| `remark` | string | — | 备注 |
+| `content` | string | ✅ | 正文 |
+| `level` | string | ✅ | 级别代码（`"5"`=学校, `"4"`=区县, `"3"`=市, `"2"`=省, `"1"`=国家） |
+| `levelName` | string | ✅ | 级别名称 |
+| `attachmentId` | int64 | — | 附件 ID（先通过 `UploadFile` 上传图片获得） |
+| `attachmentName` | string | — | 附件文件名 |
+
+SDK 响应示例：
+
+```json
+null
+```
+
+失败示例：
+
+```json
+{
+  "code": -1,
+  "msg": "标题不能为空"
+}
+```
+
+### `GetTypicalCaseList(ctx context.Context, token string, pageNo, pageSize int) (*types.TypicalCaseListResult, error)`
+
+查询已提交典型案例列表（分页）。`status=3` 固定查询已提交状态的记录。
+
+请求示例：
+
+```go
+result, err := c.GetTypicalCaseList(ctx, token, 1, 20)
+if err != nil {
+    log.Fatalf("获取典型案例列表失败：%v", err)
+}
+fmt.Printf("共 %d 条（第 %d/%d 页）\n", result.Page.TotalNum, result.Page.PageNo, result.Page.TotalPage)
+for _, r := range result.Records {
+    fmt.Printf("案例：%s（%s，%s）\n", r.Title, r.TypeName, r.StatusName)
+}
+```
+
+SDK 响应示例：
+
+```json
+{
+  "records": [
+    {
+      "id": 20034,
+      "title": "论国内外各领域AI大模型能力对比",
+      "typeName": "研究性学习报告",
+      "teacherName": "王老师",
+      "partnerName": "庄同学等",
+      "roleName": "负责人",
+      "remark": "基于2026年前沿大语言模型全栈实测数据的深度解析",
+      "content": "经过本课题组数周的协作攻坚...",
+      "attachmentId": 5139876,
+      "attachmentName": "example.jpg",
+      "status": 0,
+      "statusName": "未审核",
+      "termId": 18,
+      "termName": "2025-2026学年下学期",
+      "gradeName": "高一",
+      "className": "某班",
+      "studentName": "陈同学"
+    }
+  ],
+  "page": {
+    "pageNo": 1,
+    "pageSize": 20,
+    "totalNum": 1,
+    "totalPage": 1
+  }
+}
+```
+
+### `GetTypicalCaseListJSON(ctx context.Context, token string, pageNo, pageSize int) (json.RawMessage, error)`
+
+返回已提交典型案例列表的原始 JSON，CLI 1:1 对齐用途。返回拼装后的完整 JSON 对象 `{"records":..., "page":...}`，records 和 page 字段值都是平台原始字节。
+
+---
+
 ## 文件域（file.go）
 
 ### `UploadFile(ctx context.Context, filePath string) (*types.UploadFileResult, error)`
@@ -1009,6 +1158,9 @@ token, expiresAt, err = tokenparse.ExtractFromReturnData(raw)
 | `PageBean` | 4 | `circle.go` | PageNo / PageSize / TotalNum / TotalPage |
 | `SelfEvalStatus` | 3 | `self_eval.go` | ID / StudentComment / TeacherComment |
 | `Dimension` | 2 | `dimension.go` | ID / Name |
+| `AddTypicalCasePayload` | 13 | `typical_case.go` | 典型案例提交请求体 |
+| `TypicalCaseRecord` | 16 | `typical_case.go` | 典型案例列表记录 |
+| `TypicalCaseListResult` | 2 | `typical_case.go` | Records / Page |
 
 ---
 

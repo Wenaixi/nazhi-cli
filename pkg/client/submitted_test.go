@@ -459,3 +459,108 @@ func TestSubmittedDecodeCircleImg(t *testing.T) {
 		t.Errorf("字段匹配失败: %+v", img)
 	}
 }
+
+// ─── PeekSubmittedTotal 测试 ───
+
+// TestPeekSubmittedTotal_Normal 验证正常返回总记录数。
+func TestPeekSubmittedTotal_Normal(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, 1, 23, 23)),
+				"dataList": []map[string]any{submittedRecord(1, "国旗下讲话", 0)},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	total, err := c.PeekSubmittedTotal(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("PeekSubmittedTotal 失败: %v", err)
+	}
+	if total != 23 {
+		t.Errorf("期望 total=23，实际 %d", total)
+	}
+}
+
+// TestPeekSubmittedTotal_Zero 验证无记录时返回 0 不报错。
+func TestPeekSubmittedTotal_Zero(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, 1, 0, 0)),
+				"dataList": []map[string]any{},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	total, err := c.PeekSubmittedTotal(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("PeekSubmittedTotal 不应报错: %v", err)
+	}
+	if total != 0 {
+		t.Errorf("期望 total=0，实际 %d", total)
+	}
+}
+
+// TestPeekSubmittedTotal_BizError 验证业务错误被正确包装。
+func TestPeekSubmittedTotal_BizError(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":500,"msg":"服务器错误"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	_, err := c.PeekSubmittedTotal(context.Background(), "test-token")
+	if err == nil {
+		t.Fatal("期望业务错误，实际 nil")
+	}
+	if !strings.Contains(err.Error(), "服务器错误") {
+		t.Errorf("错误消息应含业务错误描述: %v", err)
+	}
+}
+
+// TestPeekSubmittedTotal_VerifyQuery 验证请求参数 pageNo=1&pageSize=1。
+func TestPeekSubmittedTotal_VerifyQuery(t *testing.T) {
+	var gotQuery string
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			gotQuery = r.URL.RawQuery
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(submittedPageBean(1, 1, 5, 5)),
+				"dataList": []map[string]any{submittedRecord(1, "国旗下讲话", 0)},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	_, _ = c.PeekSubmittedTotal(context.Background(), "test-token")
+	wantQuery := "type=1&pageNo=1&pageSize=1&key="
+	if gotQuery != wantQuery {
+		t.Errorf("期望 query=%q，实际 %q", wantQuery, gotQuery)
+	}
+}

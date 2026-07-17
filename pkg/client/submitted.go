@@ -77,3 +77,20 @@ func (c *Client) fetchSubmittedPage(ctx context.Context, token string, pageNo, p
 
 	return records, pb, nil
 }
+
+// PeekSubmittedTotal 快速获取已提交写实记录总数。
+//
+// 内部调用 getStudentCircle?type=1&pageNo=1&pageSize=1，只提取 PageBean.TotalNum。
+// 只拉 1 条记录获取分页信息，不拉全量列表，比 GetSubmittedCirclesLimitJSON(0,1) 更轻量。
+//
+// 返回总记录数；出错时返回 0 和 error。
+func (c *Client) PeekSubmittedTotal(ctx context.Context, token string) (int, error) {
+	_, pb, err := c.fetchSubmittedPage(ctx, token, 1, 1)
+	if err != nil {
+		return 0, fmt.Errorf("PeekSubmittedTotal 失败: %w", err)
+	}
+	if pb == nil {
+		return 0, nil
+	}
+	return pb.TotalNum, nil
+}
