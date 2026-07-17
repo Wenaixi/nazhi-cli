@@ -140,4 +140,7 @@ func init() {
 
 	// completion
 	rootCmd.AddCommand(completionCmd)
+
+	// typical-case
+	rootCmd.AddCommand(typicalCaseCmd)
 }
