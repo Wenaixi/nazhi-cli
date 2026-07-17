@@ -37,6 +37,9 @@ nazhi
 ├── file
 │   ├── upload                      上传图片（不接受 --token）
 │   └── download                    下载附件图片（不接受 --token）
+├── typical-case
+│   ├── submit                      提交典型案例（--payload JSON）
+│   └── list                        获取已提交典型案例（分页）
 ├── version                         显示版本信息
 └── completion                      生成 shell 自动补全
 ```
@@ -158,7 +161,7 @@ $ nazhi version
   "code": 200,
   "message": "",
   "data": {
-    "version": "1.2.0"
+    "version": "1.2.2"
   }
 }
 ```
@@ -990,6 +993,129 @@ nazhi honor delete --token "eyJhbGciOiJIUzUxMiJ9.xxx" --id 123
   "code": 204,
   "message": "荣誉记录已删除",
   "data": null
+}
+```
+
+---
+
+## nazhi typical-case submit
+
+提交一条典型案例。payload 是 addTypicalCase 请求体 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。
+
+```bash
+# 方式 1：--payload 字符串
+nazhi typical-case submit --token "xxx" --payload '{"title":"论国内外各领域AI大模型能力对比","type":"1","typeName":"研究性学习报告","teacherName":"王老师","partnerName":"庄同学等","role":"1","roleName":"负责人","content":"经过本课题组数周的协作攻坚...","level":"5","levelName":"学校"}'
+
+# 方式 2：附带附件 ID（先用 file upload 上传图片）
+nazhi typical-case submit --token "xxx" --payload '{"title":"...","type":"1","typeName":"研究性学习报告","content":"...","role":"1","roleName":"负责人","level":"5","levelName":"学校","attachmentId":5139876,"attachmentName":"example.jpg"}'
+
+# 方式 3：从文件读取
+nazhi typical-case submit --token "xxx" --payload @case.json
+
+# 方式 4：从 stdin 读取
+echo '{"title":"..."}' | nazhi typical-case submit --token "xxx" --payload -
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--payload` | ✅ | — | 典型案例 JSON 字符串、`@file.json` 路径，或 `-` 从 stdin 读取 |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+
+payload 字段：
+
+| 字段 | 类型 | 必填 | 说明 |
+|---|---|---|---|
+| `title` | string | ✅ | 标题 |
+| `type` | string | ✅ | 材料类别代码（`"1"`=研究性学习报告, `"2"`=社会调查报告, `"3"`=艺术创作作品, `"4"`=其他） |
+| `typeName` | string | ✅ | 材料类别名称 |
+| `teacherName` | string | — | 指导教师 |
+| `partnerName` | string | — | 合作者 |
+| `role` | string | ✅ | 角色代码（`"1"`=负责人, `"2"`=参与者） |
+| `roleName` | string | ✅ | 角色名称 |
+| `remark` | string | — | 备注 |
+| `content` | string | ✅ | 正文 |
+| `level` | string | ✅ | 级别代码（`"5"`=学校, `"4"`=区县, `"3"`=市, `"2"`=省, `"1"`=国家） |
+| `levelName` | string | ✅ | 级别名称 |
+| `attachmentId` | int64 | — | 附件 ID（先通过 file upload 上传图片获得） |
+| `attachmentName` | string | — | 附件文件名 |
+
+成功输出：
+
+```json
+{
+  "status": "success",
+  "code": 204,
+  "message": "典型案例提交成功",
+  "data": null
+}
+```
+
+失败输出：
+
+```json
+{
+  "status": "error",
+  "code": 500,
+  "message": "提交典型案例失败: AddTypicalCase 失败: 业务错误 (code=-1): 标题不能为空",
+  "data": null
+}
+```
+
+---
+
+## nazhi typical-case list
+
+获取当前用户已提交的典型案例记录（分页）。
+
+```bash
+nazhi typical-case list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+nazhi typical-case list --token "xxx" --page 1 --page-size 20
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--page` | — | — | 页码（从 1 开始），默认 `1` |
+| `--page-size` | — | — | 每页条数，默认 `20` |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+
+输出：envelope 包裹的典型案例记录列表（含 records + page）。
+
+```json
+{
+  "status": "success",
+  "code": 200,
+  "message": "",
+  "data": {
+    "records": [
+      {
+        "id": 20034,
+        "title": "论国内外各领域AI大模型能力对比",
+        "typeName": "研究性学习报告",
+        "teacherName": "王老师",
+        "partnerName": "庄同学等",
+        "roleName": "负责人",
+        "content": "经过本课题组数周的协作攻坚...",
+        "attachmentId": 5139876,
+        "attachmentName": "example.jpg",
+        "status": 0,
+        "statusName": "未审核",
+        "termName": "2025-2026学年下学期",
+        "gradeName": "高一",
+        "className": "某班",
+        "studentName": "陈同学"
+      }
+    ],
+    "page": {
+      "pageNo": 1,
+      "pageSize": 20,
+      "totalNum": 1,
+      "totalPage": 1
+    }
+  }
 }
 ```
 
