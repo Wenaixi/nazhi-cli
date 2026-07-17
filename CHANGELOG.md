@@ -5,6 +5,26 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.2.1] - 2026-07-17
+
+### 新增
+
+- `typical-case submit` CLI 命令 — 提交一条典型案例，payload 支持 `@file.json` 和 `-`（stdin）两种来源
+- `typical-case list` CLI 命令 — 获取当前用户已提交的典型案例记录（分页），CLI 透传 SDK 原始 JSON 1:1 对齐
+- SDK `AddTypicalCase` — 调用 `/api/studentCircleNew/addTypicalCase` 提交典型案例
+- SDK `GetTypicalCaseList` / `GetTypicalCaseListJSON` — 调用 `/api/studentCircleNew/getTypicalCase` 获取已提交列表
+
+### 类型
+
+- `AddTypicalCasePayload` — 13 字段提交请求体（HAR 确认 type/role/level 为 JSON 字符串）
+- `TypicalCaseRecord` — 16 字段列表记录（与提交 payload 不同的 Go 类型，列表响应中 type/role/level 为整数）
+- `TypicalCaseListResult` — 列表统一返回对象（Records + Page）
+- `TypicalCaseRoleHost` / `TypicalCaseRoleParticipant` 角色常量
+
+### 构建
+
+- 版本号：`1.2.1`
+
 ## [1.2.0] - 2026-07-15
 
 ### 特性

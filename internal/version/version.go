@@ -45,4 +45,5 @@ package version
 //	1.1.3 — 清理误跟踪 test_get_school_id.go；同步文档至最新（CLI/SDK README 对应表修正）
 //	1.1.4 — 版本号同步 + CHANGELOG 补充 + 文档同步（task submitted --limit/--offset/--count）
 //	1.1.5 — 文档 task submitted 示例更换为真实脱敏 JSON，注明含同班同学姓名/学号
-var Version = "1.2.0"
+//	1.2.1 — 新增典型案例提交功能（SDK + CLI + 单元测试）
+var Version = "1.2.1"
