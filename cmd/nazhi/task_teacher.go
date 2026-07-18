@@ -13,11 +13,14 @@ import (
 //	nazhi task teacher --token <token> [--base-url <url>] [--timeout <秒>]
 //	nazhi task teacher --limit 20 --offset 10
 //	nazhi task teacher --count
+// type=2：教师写实记录。
 var taskTeacherCmd = &cobra.Command{
 	Use:   "teacher",
 	Short: "获取教师代写的写实记录",
 	Long: `调用 getStudentCircle 接口(type=2)，获取教师代写的全部写实记录。
-自动翻页合并，输出全量数据。`,
+自动翻页合并，输出全量数据。
+
+支持 --limit / --offset 分批拉取，--count 只看总数。`,
 	Example: `  nazhi task teacher --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi task teacher --limit 5                          # 前 5 条
   nazhi task teacher --offset 5 --limit 5               # 第 6~10 条

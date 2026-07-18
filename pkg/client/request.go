@@ -58,9 +58,9 @@ const defaultBaseURL = "http://139.159.205.146:8280"
 const defaultUploadURL = "http://doc.nazhisoft.com"
 
 // defaultSubmittedPageSize 是 GetSubmittedCircles 每页条数默认值。
-// 实测 pageSize=10000 被服务端截断为 500，提太大无意义。
-// 默认 100 绝大多数学期单页覆盖，>100 时自动翻页。
-const defaultSubmittedPageSize = 100
+// 实测 pageSize 服务端上限 500，设为 500 后 ≤500 条场景无需翻页。
+// 超过 500 条时自动并发翻页（见 submitted.go）。
+const defaultSubmittedPageSize = 500
 
 // defaultUserAgent 是所有 HTTP 请求的 User-Agent 默认值。
 const defaultUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"

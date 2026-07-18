@@ -38,9 +38,9 @@ type UserInfo struct {
 	GenderName        string `json:"genderName,omitempty"`        // 性别名称
 	BirthdayStr       string `json:"birthdayStr,omitempty"`       // 生日字符串
 	YouthLeagueFlag   int    `json:"youthLeagueFlag,omitempty"`   // 团员标志
-	Nation            string `json:"nation,omitempty"`            // 民族
+	Nation            int    `json:"nation,omitempty"`            // 民族（数字 1=汉族 等）
 	FamilyAddress     string `json:"familyAddress,omitempty"`     // 家庭地址
 	Hobbies           string `json:"hobbies,omitempty"`           // 爱好
 	IDCard            string `json:"idCard,omitempty"`              // 身份证号
-	IDType            string `json:"idType,omitempty"`            // 证件类型
+	IDType            int    `json:"idType,omitempty"`            // 证件类型（数字）
 }

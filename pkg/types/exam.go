@@ -1,7 +1,5 @@
 package types
 
-import "time"
-
 // ExamResult 学生成绩记录（来自 queryStudentExam 接口）。
 type ExamResult struct {
 	ID          int64     `json:"id"`          // 成绩记录 ID
@@ -14,7 +12,7 @@ type ExamResult struct {
 	Score       float64   `json:"score"`       // 分数
 	TermID      int64     `json:"termId"`      // 学期 ID
 	TermName    string    `json:"termName"`    // 学期名称
-	CreateTime  time.Time `json:"createTime"`  // 创建时间
+	CreateTime  string `json:"createTime"`  // 创建时间（原始字符串）
 }
 
 // TermInfo 学期信息（来自 getInitInfo / pageQueryTermBySchoolId 接口）。

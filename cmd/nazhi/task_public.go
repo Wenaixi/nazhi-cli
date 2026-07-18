@@ -13,11 +13,14 @@ import (
 //	nazhi task public --token <token> [--base-url <url>] [--timeout <秒>]
 //	nazhi task public --limit 20 --offset 10
 //	nazhi task public --count
+// type=1：公示/全部（全班所有记录）。
 var taskPublicCmd = &cobra.Command{
 	Use:   "public",
-	Short: "获取公示的写实记录（全班）",
-	Long: `调用 getStudentCircle 接口(type=4)，获取全班公示的全部写实记录。
-自动翻页合并，输出全量数据。`,
+	Short: "获取公示的全部写实记录（全班所有记录）",
+	Long: `调用 getStudentCircle 接口(type=1)，获取全班公示/全部写实记录。
+自动翻页合并，输出全量数据。
+
+支持 --limit / --offset 分批拉取，--count 只看总数。`,
 	Example: `  nazhi task public --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi task public --limit 5                          # 前 5 条
   nazhi task public --offset 5 --limit 5               # 第 6~10 条

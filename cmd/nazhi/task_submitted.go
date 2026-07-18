@@ -15,10 +15,11 @@ import (
 //	nazhi task submitted --count
 //
 // 同时作为 `task done` 别名注册（语义更直白）。
+// type=3：我发布的写实（仅当前用户自己发布的内容）。
 var taskSubmittedCmd = &cobra.Command{
 	Use:   "submitted",
-	Short: "获取已提交写实记录",
-	Long: `调用 getStudentCircle 接口，获取当前用户已提交的全部写实记录（含正文、图片、审核状态）。
+	Short: "查看我发布的写实记录",
+	Long: `调用 getStudentCircle 接口(type=3)，获取当前用户自己发布的全部写实记录。
 自动翻页合并，输出全量数据。
 
 支持 --limit / --offset 分批拉取，--count 只看总数。`,
@@ -50,10 +51,10 @@ var taskSubmittedCmd = &cobra.Command{
 		}
 
 		if offset > 0 || limit > 0 {
-			printVerbose("正在获取已提交写实记录（limit=%d, offset=%d）...", limit, offset)
+			printVerbose("正在获取我发布的写实记录（limit=%d, offset=%d）...", limit, offset)
 			raw, pb, err := c.GetSubmittedCirclesLimitJSON(cmd.Context(), token, offset, limit)
 			if err != nil {
-				printError(fmt.Errorf("获取已提交写实记录失败: %w", err))
+				printError(fmt.Errorf("获取我发布的写实记录失败: %w", err))
 				return
 			}
 			total := 0
@@ -67,10 +68,10 @@ var taskSubmittedCmd = &cobra.Command{
 			return
 		}
 
-		printVerbose("正在获取已提交写实记录...")
+		printVerbose("正在获取我发布的写实记录...")
 		raw, err := c.GetSubmittedCirclesJSON(cmd.Context(), token)
 		if err != nil {
-			printError(fmt.Errorf("获取已提交写实记录失败: %w", err))
+			printError(fmt.Errorf("获取我发布的写实记录失败: %w", err))
 			return
 		}
 		if len(raw) == 0 {
@@ -86,7 +87,7 @@ var taskSubmittedCmd = &cobra.Command{
 // 共用 taskSubmittedCmd.Run 回调，避免逻辑重复。
 var taskDoneCmd = &cobra.Command{
 	Use:   "done",
-	Short: "查看已提交的写实记录 (task submitted 别名)",
+	Short: "查看我发布的写实记录 (task submitted 别名)",
 	Run:   taskSubmittedCmd.Run,
 }
 

@@ -13,11 +13,14 @@ import (
 //	nazhi task withdrawn --token <token> [--base-url <url>] [--timeout <秒>]
 //	nazhi task withdrawn --limit 20 --offset 10
 //	nazhi task withdrawn --count
+// type=4：被撤回的写实记录。
 var taskWithdrawnCmd = &cobra.Command{
 	Use:   "withdrawn",
 	Short: "获取被撤回的写实记录",
-	Long: `调用 getStudentCircle 接口(type=3)，获取被审核撤回的全部写实记录。
-自动翻页合并，输出全量数据。`,
+	Long: `调用 getStudentCircle 接口(type=4)，获取被审核撤回的全部写实记录。
+自动翻页合并，输出全量数据。
+
+支持 --limit / --offset 分批拉取，--count 只看总数。`,
 	Example: `  nazhi task withdrawn --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi task withdrawn --limit 5                          # 前 5 条
   nazhi task withdrawn --offset 5 --limit 5               # 第 6~10 条

@@ -1,7 +1,5 @@
 package types
 
-import "time"
-
 // Notification 通知消息（来自 queryUnreadNotificationByTeacher / queryAllNotificationByTeacher 接口）。
 type Notification struct {
 	ID          int64     `json:"id"`          // 通知 ID
@@ -9,7 +7,7 @@ type Notification struct {
 	Content     string    `json:"content"`     // 通知内容
 	Type        int       `json:"type"`        // 通知类型
 	Status      int       `json:"status"`      // 阅读状态（0=未读, 1=已读）
-	CreateTime  time.Time `json:"createTime"`  // 创建时间
+	CreateTime  string `json:"createTime"`  // 创建时间（原始字符串）
 	CreatorName string    `json:"creatorName"` // 创建人
 }
 

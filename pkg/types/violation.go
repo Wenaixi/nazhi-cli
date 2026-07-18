@@ -1,7 +1,5 @@
 package types
 
-import "time"
-
 // ViolationRecord 违规违纪记录（来自 getViolation 接口）。
 type ViolationRecord struct {
 	ID             int64     `json:"id"`             // 记录 ID
@@ -16,7 +14,7 @@ type ViolationRecord struct {
 	GetDateStr     string    `json:"getDateStr"`     // 获得时间
 	CreatorName    string    `json:"creatorName"`    // 操作人
 	IfShow         string    `json:"ifshow"`         // 是否报告单展示
-	CreateTime     time.Time `json:"createTime"`     // 创建时间
+	CreateTime     string `json:"createTime"`     // 创建时间（原始字符串）
 }
 
 // ViolationType 违规违纪类型（来自 getViolationType 接口）。

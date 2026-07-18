@@ -1,7 +1,5 @@
 package types
 
-import "time"
-
 // DemocraticActivity 民主评价活动（来自 getActivity 接口）。
 type DemocraticActivity struct {
 	ID          int64     `json:"id"`          // 活动 ID
@@ -10,7 +8,7 @@ type DemocraticActivity struct {
 	EndDate     string    `json:"endDate"`     // 结束日期
 	StartDate   string    `json:"startDate"`   // 开始日期
 	Status      int       `json:"status"`      // 活动状态
-	CreateTime  time.Time `json:"createTime"`  // 创建时间
+	CreateTime  string `json:"createTime"`  // 创建时间（原始字符串）
 }
 
 // SelfEvaluationItem 自评项目（来自 getSelfEvaluation 接口）。
