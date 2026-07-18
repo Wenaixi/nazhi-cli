@@ -224,8 +224,9 @@ func (w *bytesBufferWriter) Write(p []byte) {
 	w.buf = append(w.buf, p...)
 }
 
-func (w *bytesBufferWriter) WriteByte(b byte) {
+func (w *bytesBufferWriter) WriteByte(b byte) error {
 	w.buf = append(w.buf, b)
+	return nil
 }
 
 func (w *bytesBufferWriter) Bytes() []byte {

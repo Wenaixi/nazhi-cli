@@ -110,10 +110,11 @@ func (c *Client) DeleteTypicalCase(ctx context.Context, token string, id int64) 
 
 // DeleteBatchTypicalCase 批量删除典型案例。
 // POST /api/studentCircleNew/deleteBatchTypicalCase
+//
+// 请求体是纯 JSON 数组 [1, 2, 3]（前端源码确认）。
 func (c *Client) DeleteBatchTypicalCase(ctx context.Context, token string, ids []int64) error {
-	payload := map[string]any{"ids": ids}
 	_, err := c.doBizAndDecode(ctx, token, "DeleteBatchTypicalCase",
-		"/api/studentCircleNew/deleteBatchTypicalCase", http.MethodPost, payload)
+		"/api/studentCircleNew/deleteBatchTypicalCase", http.MethodPost, ids)
 	if err != nil {
 		return fmt.Errorf("DeleteBatchTypicalCase 失败: %w", err)
 	}

@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -25,20 +26,23 @@ var democraticListCmd = &cobra.Command{
 			return
 		}
 
+		pageNo, _ := cmd.Flags().GetInt("page")
+		pageSize, _ := cmd.Flags().GetInt("page-size")
+
 		printVerbose("正在获取民主评价活动列表...")
-		activities, err := c.GetDemocraticActivities(cmd.Context(), token)
+		result, err := c.GetDemocraticActivities(cmd.Context(), token, pageNo, pageSize)
 		if err != nil {
 			printError(fmt.Errorf("获取活动列表失败: %w", err))
 			return
 		}
-		printEnvelope(envelope.Success(activities))
+		printEnvelope(envelope.Success(result))
 	},
 }
 
 // democraticSelfEvalCmd 表示 nazhi democratic self-eval 命令
 var democraticSelfEvalCmd = &cobra.Command{
 	Use:   "self-eval",
-	Short: "提交或查看自评",
+	Short: "查看或提交自评",
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -52,10 +56,16 @@ var democraticSelfEvalCmd = &cobra.Command{
 			return
 		}
 
+		subPlanID, _ := cmd.Flags().GetInt64("sub-plan-id")
+
 		content, _ := cmd.Flags().GetString("content")
 		if content != "" {
 			printVerbose("正在提交自评...")
-			if err := c.AddOrUpdateSelfEvaluation(cmd.Context(), token, activityID, content); err != nil {
+			// 前端发送的是 JSON 数组，简单场景暂用单条提交
+			items := []types.SelfEvaluationInput{
+				{ActivityID: activityID},
+			}
+			if err := c.AddOrUpdateSelfEvaluation(cmd.Context(), token, items); err != nil {
 				printError(fmt.Errorf("提交自评失败: %w", err))
 				return
 			}
@@ -64,7 +74,7 @@ var democraticSelfEvalCmd = &cobra.Command{
 		}
 
 		printVerbose("正在获取自评数据...")
-		evaluations, err := c.GetSelfEvaluation(cmd.Context(), token, activityID)
+		evaluations, err := c.GetSelfEvaluation(cmd.Context(), token, activityID, subPlanID)
 		if err != nil {
 			printError(fmt.Errorf("获取自评失败: %w", err))
 			return
@@ -90,12 +100,16 @@ var democraticMutualCmd = &cobra.Command{
 			return
 		}
 
+		subPlanID, _ := cmd.Flags().GetInt64("sub-plan-id")
 		studentID, _ := cmd.Flags().GetInt64("student-id")
 		result, _ := cmd.Flags().GetString("result")
 
 		if studentID > 0 && result != "" {
 			printVerbose("正在提交互评...")
-			if err := c.AddOrUpdateMutualEvaluation(cmd.Context(), token, activityID, studentID, result); err != nil {
+			items := []types.MutualEvaluationInput{
+				{StudentID: studentID, StudentName: ""},
+			}
+			if err := c.AddOrUpdateMutualEvaluation(cmd.Context(), token, items); err != nil {
 				printError(fmt.Errorf("提交互评失败: %w", err))
 				return
 			}
@@ -105,7 +119,10 @@ var democraticMutualCmd = &cobra.Command{
 
 		if studentID > 0 {
 			printVerbose("正在获取互评详情...")
-			details, err := c.GetMutualEvaluationDetail(cmd.Context(), token, activityID, studentID)
+			students := []map[string]any{
+				{"student_id": studentID},
+			}
+			details, err := c.GetMutualEvaluationDetail(cmd.Context(), token, activityID, subPlanID, students)
 			if err != nil {
 				printError(fmt.Errorf("获取互评详情失败: %w", err))
 				return
@@ -158,13 +175,17 @@ func init() {
 	democraticCmd.AddCommand(democraticMutualCmd)
 	democraticCmd.AddCommand(democraticResultCmd)
 
+	democraticListCmd.Flags().Int("page", 1, "页码")
+	democraticListCmd.Flags().Int("page-size", 10, "每页条数")
 	registerBizFlags(democraticListCmd)
 
 	democraticSelfEvalCmd.Flags().Int64("activity-id", 0, "活动 ID（必填）")
+	democraticSelfEvalCmd.Flags().Int64("sub-plan-id", 0, "子计划 ID")
 	democraticSelfEvalCmd.Flags().String("content", "", "自评内容（不填则查询）")
 	registerBizFlags(democraticSelfEvalCmd)
 
 	democraticMutualCmd.Flags().Int64("activity-id", 0, "活动 ID（必填）")
+	democraticMutualCmd.Flags().Int64("sub-plan-id", 0, "子计划 ID")
 	democraticMutualCmd.Flags().Int64("student-id", 0, "学生 ID（不填查人员列表，填+result 则提交）")
 	democraticMutualCmd.Flags().String("result", "", "互评结果（与 --student-id 一起使用提交）")
 	registerBizFlags(democraticMutualCmd)

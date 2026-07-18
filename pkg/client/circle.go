@@ -88,9 +88,10 @@ func (c *Client) GetCircleTasks(ctx context.Context, token string, typeID int64)
 }
 
 // GetCircleImages 获取当前用户上传的写实图片列表。
-// GET /api/studentCircleNew/getCircleImg
-func (c *Client) GetCircleImages(ctx context.Context, token string) ([]map[string]any, error) {
-	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleImages", "/api/studentCircleNew/getCircleImg",
+// GET /api/studentCircleNew/getCircleImg?pageNo=&pageSize=
+func (c *Client) GetCircleImages(ctx context.Context, token string, pageNo, pageSize int) ([]map[string]any, error) {
+	path := "/api/studentCircleNew/getCircleImg?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize)
+	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleImages", path,
 		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
 			data, err := types.DecodeDataList[map[string]any](resp)
 			if err != nil {

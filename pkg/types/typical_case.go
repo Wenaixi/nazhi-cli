@@ -29,16 +29,20 @@ type AddTypicalCasePayload struct {
 // TypicalCaseRecord 是已提交的典型案例记录（来自 getTypicalCase 列表接口）。
 //
 // 与 AddTypicalCasePayload 不同的 Go 类型：列表响应中的 type/role/level 是整数，
-// 而提交请求体中是字符串。记录类型不包含原始数值代码，仅保留可读名称。
+// 而提交请求体中是字符串。包含数字代码字段供编辑场景使用。
 type TypicalCaseRecord struct {
 	ID             int64  `json:"id"`             // 记录 ID
 	Title          string `json:"title"`          // 标题
+	Type           int    `json:"type"`           // 材料类别代码（列表返回为整数）
 	TypeName       string `json:"typeName"`       // 材料类别名称
 	TeacherName    string `json:"teacherName"`    // 指导教师
 	PartnerName    string `json:"partnerName"`    // 合作者
+	Role           int    `json:"role"`           // 角色代码（列表返回为整数）
 	RoleName       string `json:"roleName"`       // 角色名称
 	Remark         string `json:"remark"`         // 备注
 	Content        string `json:"content"`        // 正文
+	Level          int    `json:"level"`          // 级别代码（列表返回为整数）
+	LevelName      string `json:"levelName"`      // 级别名称
 	AttachmentID   int64  `json:"attachmentId"`   // 附件 ID
 	AttachmentName string `json:"attachmentName"` // 附件文件名
 	Status         int    `json:"status"`         // 审核状态（0=未审核）
