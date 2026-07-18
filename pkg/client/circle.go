@@ -10,9 +10,7 @@ import (
 )
 
 // DeleteCircle 删除一条写实记录。
-//
-// 对应前端：managementRightBottom.vue → open2(circleId)
-// API: GET /api/studentCircleNew/deleteCircle?id={id}
+// GET /api/studentCircleNew/deleteCircle?id=
 func (c *Client) DeleteCircle(ctx context.Context, token string, circleID int64) error {
 	path := "/api/studentCircleNew/deleteCircle?id=" + strconv.FormatInt(circleID, 10)
 	_, err := c.doBizAndDecode(ctx, token, "DeleteCircle", path, http.MethodGet, nil)
@@ -22,26 +20,25 @@ func (c *Client) DeleteCircle(ctx context.Context, token string, circleID int64)
 	return nil
 }
 
-// AddCircleComment 添加写实评论。
-//
-// 对应前端：managementRightBottom.vue / mainMidSearch.vue → addComment
-// API: POST /api/studentCircleNew/addCircleComment
+// AddCircleComment 给写实记录添加评论。
+// POST /api/studentCircleNew/addCircleComment
+// 请求体: {"circleId": circleID, "content": content}
 func (c *Client) AddCircleComment(ctx context.Context, token string, circleID int64, content string) error {
-	payload := map[string]string{
-		"circleId": strconv.FormatInt(circleID, 10),
+	payload := map[string]any{
+		"circleId": circleID,
 		"content":  content,
 	}
-	_, err := c.doBizAndDecode(ctx, token, "AddCircleComment", "/api/studentCircleNew/addCircleComment", http.MethodPost, payload)
+	_, err := c.doBizAndDecode(ctx, token, "AddCircleComment",
+		"/api/studentCircleNew/addCircleComment", http.MethodPost, payload)
 	if err != nil {
 		return fmt.Errorf("AddCircleComment 失败: %w", err)
 	}
 	return nil
 }
 
-// SetCircleLike 点赞/取消点赞写实记录。
-//
-// 对应前端：managementRightBottom.vue → likeIt
-// API: GET /api/studentCircleNew/setCircleLikeById?circleId={id}
+// SetCircleLike 点赞或取消点赞写实记录。
+// GET /api/studentCircleNew/setCircleLikeById?circleId=
+// 服务端自动切换点赞/取消状态。
 func (c *Client) SetCircleLike(ctx context.Context, token string, circleID int64) error {
 	path := "/api/studentCircleNew/setCircleLikeById?circleId=" + strconv.FormatInt(circleID, 10)
 	_, err := c.doBizAndDecode(ctx, token, "SetCircleLike", path, http.MethodGet, nil)
@@ -51,102 +48,78 @@ func (c *Client) SetCircleLike(ctx context.Context, token string, circleID int64
 	return nil
 }
 
-// GetCircleImages 查询上传的图片列表。
-//
-// 对应前端：managementLeftBottom.vue → queryCircleImg
-// API: GET /api/studentCircleNew/getCircleImg?pageNo={pageNo}&pageSize={pageSize}
-func (c *Client) GetCircleImages(ctx context.Context, token string, pageNo, pageSize int) ([]types.CircleImage, *types.PageBean, error) {
-	path := "/api/studentCircleNew/getCircleImg?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize)
-	resp, err := c.doBizAndDecode(ctx, token, "GetCircleImages", path, http.MethodGet, nil)
+// GetCircleTypes 获取指定维度下的写实类别。
+// GET /api/studentCircleNew/getCircleType?dimensionId=&pid=
+// pid 可为空字符串。
+func (c *Client) GetCircleTypes(ctx context.Context, token string, dimensionID int64, pid string) ([]map[string]any, error) {
+	path := "/api/studentCircleNew/getCircleType?dimensionId=" + strconv.FormatInt(dimensionID, 10) + "&pid=" + pid
+	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleTypes", path,
+		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
+			data, err := types.DecodeDataList[map[string]any](resp)
+			if err != nil {
+				return nil, err
+			}
+			return &data, nil
+		},
+	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("GetCircleImages 失败: %w", err)
+		return nil, err
 	}
-
-	pb, err := types.DecodePageBean(*resp)
-	if err != nil {
-		return nil, nil, fmt.Errorf("GetCircleImages 解析分页信息失败: %w", err)
-	}
-
-	images, err := types.DecodeDataList[types.CircleImage](*resp)
-	if err != nil {
-		return nil, nil, fmt.Errorf("GetCircleImages 解析图片列表失败: %w", err)
-	}
-
-	return images, pb, nil
+	return *v, nil
 }
 
-// GetCircleTasks 根据类别获取任务列表。
-//
-// 对应前端：managementRightTop.vue → changeCircleTask
-// API: GET /api/studentCircleNew/getCircleTask?typeId={typeId}
-func (c *Client) GetCircleTasks(ctx context.Context, token string, typeID int64) ([]types.Task, error) {
+// GetCircleTasks 获取指定类别下的写实任务。
+// GET /api/studentCircleNew/getCircleTask?typeId=
+func (c *Client) GetCircleTasks(ctx context.Context, token string, typeID int64) ([]map[string]any, error) {
 	path := "/api/studentCircleNew/getCircleTask?typeId=" + strconv.FormatInt(typeID, 10)
-	resp, err := c.doBizAndDecode(ctx, token, "GetCircleTasks", path, http.MethodGet, nil)
+	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleTasks", path,
+		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
+			data, err := types.DecodeDataList[map[string]any](resp)
+			if err != nil {
+				return nil, err
+			}
+			return &data, nil
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("GetCircleTasks 失败: %w", err)
+		return nil, err
 	}
-
-	tasks, err := types.DecodeDataList[types.Task](*resp)
-	if err != nil {
-		return nil, fmt.Errorf("GetCircleTasks 解析任务列表失败: %w", err)
-	}
-
-	return tasks, nil
+	return *v, nil
 }
 
-// GetCircleTypes 根据维度获取类别列表。
-//
-// 对应前端：managementRightTop.vue → changeCircleType
-// API: GET /api/studentCircleNew/getCircleType?dimensionId={dimensionId}
-func (c *Client) GetCircleTypes(ctx context.Context, token string, dimensionID int64) ([]types.Dimension, error) {
-	path := "/api/studentCircleNew/getCircleType?dimensionId=" + strconv.FormatInt(dimensionID, 10)
-	resp, err := c.doBizAndDecode(ctx, token, "GetCircleTypes", path, http.MethodGet, nil)
+// GetCircleImages 获取当前用户上传的写实图片列表。
+// GET /api/studentCircleNew/getCircleImg
+func (c *Client) GetCircleImages(ctx context.Context, token string) ([]map[string]any, error) {
+	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleImages", "/api/studentCircleNew/getCircleImg",
+		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
+			data, err := types.DecodeDataList[map[string]any](resp)
+			if err != nil {
+				return nil, err
+			}
+			return &data, nil
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypes 失败: %w", err)
+		return nil, err
 	}
-
-	dims, err := types.DecodeDataList[types.Dimension](*resp)
-	if err != nil {
-		return nil, fmt.Errorf("GetCircleTypes 解析类别列表失败: %w", err)
-	}
-
-	return dims, nil
+	return *v, nil
 }
 
-// GetDimensionsBySchool 获取学校维度配置。
-//
-// 对应前端：managementRightTop.vue → queryDimension
-// API: GET /api/teacher/circle/circleType/queryDimensionBySchoolIdAndStateType?stateType=0
-func (c *Client) GetDimensionsBySchool(ctx context.Context, token string) ([]types.Dimension, error) {
-	path := "/api/teacher/circle/circleType/queryDimensionBySchoolIdAndStateType?stateType=0"
-	resp, err := c.doBizAndDecode(ctx, token, "GetDimensionsBySchool", path, http.MethodGet, nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetDimensionsBySchool 失败: %w", err)
-	}
-
-	dims, err := types.DecodeDataList[types.Dimension](*resp)
-	if err != nil {
-		return nil, fmt.Errorf("GetDimensionsBySchool 解析维度列表失败: %w", err)
-	}
-
-	return dims, nil
-}
-
-// GetDictList 获取等级字典。
-//
-// 对应前端：managementRightTop.vue / managementRightBottom.vue → getLevel
-// API: GET /api/common/sys/dict/list?cateCode=23
-func (c *Client) GetDictList(ctx context.Context, token string, cateCode int) ([]types.HonorSelectOption, error) {
+// GetDictList 获取系统字典列表。
+// GET /api/common/sys/dict/list?cateCode=
+func (c *Client) GetDictList(ctx context.Context, token string, cateCode int) ([]map[string]any, error) {
 	path := "/api/common/sys/dict/list?cateCode=" + strconv.Itoa(cateCode)
-	resp, err := c.doBizAndDecode(ctx, token, "GetDictList", path, http.MethodGet, nil)
+	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetDictList", path,
+		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
+			data, err := types.DecodeDataList[map[string]any](resp)
+			if err != nil {
+				return nil, err
+			}
+			return &data, nil
+		},
+	)
 	if err != nil {
-		return nil, fmt.Errorf("GetDictList 失败: %w", err)
+		return nil, err
 	}
-
-	opts, err := types.DecodeDataList[types.HonorSelectOption](*resp)
-	if err != nil {
-		return nil, fmt.Errorf("GetDictList 解析字典列表失败: %w", err)
-	}
-
-	return opts, nil
+	return *v, nil
 }

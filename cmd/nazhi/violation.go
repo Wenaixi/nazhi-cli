@@ -15,14 +15,12 @@ var violationCmd = &cobra.Command{
 }
 
 // violationListCmd 表示 nazhi violation list 命令
-//
-//	nazhi violation list --token <token> [--page <页>] [--page-size <条>] [--base-url <url>] [--timeout <秒>]
 var violationListCmd = &cobra.Command{
-	Use:   "list",
-	Short: "获取违规记录列表",
-	Long:  `获取当前用户的违规记录列表（分页）。`,
-	Example: `  nazhi violation list --token eyJhbGciOiJIUzI1NiJ9.xxx
-		  nazhi violation list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
+	Use:     "list",
+	Short:   "获取违规记录列表",
+	Long:    `获取当前用户的违规记录列表（分页）。`,
+	Example: "  nazhi violation list --page 1 --size 20 --token xxx",
+	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -31,31 +29,30 @@ var violationListCmd = &cobra.Command{
 		}
 
 		pageNo, _ := cmd.Flags().GetInt("page")
-		pageSize, _ := cmd.Flags().GetInt("page-size")
+		pageSize, _ := cmd.Flags().GetInt("size")
+		key, _ := cmd.Flags().GetString("key")
 
 		printVerbose("正在获取违规记录...")
-		records, pb, err := c.GetViolationList(cmd.Context(), token, pageNo, pageSize, "")
+		result, err := c.GetViolationList(cmd.Context(), token, pageNo, pageSize, key)
 		if err != nil {
 			printError(fmt.Errorf("获取违规记录失败: %w", err))
 			return
 		}
 
 		printEnvelope(envelope.Success(map[string]any{
-			"records": records,
-			"page":    pb,
+			"records": result.Records,
+			"page":    result.Page,
 		}))
 	},
 }
 
 // violationTypesCmd 表示 nazhi violation types 命令
-//
-//	nazhi violation types --token <token> [--base-url <url>] [--timeout <秒>]
 var violationTypesCmd = &cobra.Command{
-	Use:   "types",
-	Short: "获取违规类型",
-	Long:  `获取所有违规类型列表。`,
-	Example: `  nazhi violation types --token eyJhbGciOiJIUzI1NiJ9.xxx
-		  nazhi violation types --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+	Use:     "types",
+	Short:   "获取违规类型",
+	Long:    `获取所有违规类型列表。`,
+	Example: "  nazhi violation types --token xxx",
+	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -75,16 +72,15 @@ var violationTypesCmd = &cobra.Command{
 }
 
 func init() {
-	// violation 父命令
 	rootCmd.AddCommand(violationCmd)
-
-	// violation list
 	violationCmd.AddCommand(violationListCmd)
+	violationCmd.AddCommand(violationTypesCmd)
+
 	violationListCmd.Flags().Int("page", 1, "页码（从 1 开始）")
-	violationListCmd.Flags().Int("page-size", 20, "每页条数")
+	violationListCmd.Flags().Int("size", 20, "每页条数")
+	violationListCmd.Flags().String("key", "", "搜索关键字")
 	registerBizFlags(violationListCmd)
 
-	// violation types
-	violationCmd.AddCommand(violationTypesCmd)
+	violationTypesCmd.Flags().String("page", "1", "页码（从 1 开始）")
 	registerBizFlags(violationTypesCmd)
 }

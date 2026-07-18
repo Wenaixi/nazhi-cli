@@ -129,3 +129,14 @@ func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHo
 	}
 	return nil
 }
+
+// UpdateHonor 更新一条荣誉记录。
+// POST /api/studentMoralEduNew/updateHonor
+func (c *Client) UpdateHonor(ctx context.Context, token string, payload map[string]any) error {
+	_, err := c.doBizAndDecode(ctx, token, "UpdateHonor",
+		"/api/studentMoralEduNew/updateHonor", http.MethodPost, payload)
+	if err != nil {
+		return fmt.Errorf("UpdateHonor 失败: %w", err)
+	}
+	return nil
+}

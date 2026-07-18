@@ -147,4 +147,7 @@ func init() {
 
 	// typical-case
 	rootCmd.AddCommand(typicalCaseCmd)
+
+	// circle
+	rootCmd.AddCommand(circleCmd)
 }

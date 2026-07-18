@@ -42,3 +42,10 @@ type Course struct {
 	CourseID   int64  `json:"course_id"`   // 课程 ID
 	CourseName string `json:"courseName"`  // 课程名称
 }
+
+// QueryExamParams 成绩查询参数。
+type QueryExamParams struct {
+	TermID     int64       `json:"termId"`
+	CourseList []Course    `json:"courseList"`
+	ExamList   []ExamType  `json:"examList"`
+}

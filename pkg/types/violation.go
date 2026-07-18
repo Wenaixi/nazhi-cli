@@ -22,3 +22,9 @@ type ViolationType struct {
 	ID   int64  `json:"id"`   // 类型 ID
 	Name string `json:"name"` // 类型名称
 }
+
+// ViolationListResult 违规记录分页结果。
+type ViolationListResult struct {
+	Records []ViolationRecord `json:"records"`
+	Page    *PageBean         `json:"page,omitempty"`
+}

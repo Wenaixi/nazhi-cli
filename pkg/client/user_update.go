@@ -4,16 +4,18 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// UpdateMyInfo 更新个人信息。
+// UpdateMyInfo 更新当前用户个人信息。
+// POST /api/studentInfo/updateMyInfo
+// updates 是 map，只传需要修改的字段，如：
 //
-// 对应前端：modifyBox.vue → submit
-// API: POST /api/studentInfo/updateMyInfo
-func (c *Client) UpdateMyInfo(ctx context.Context, token string, userInfo types.UserInfo) error {
-	_, err := c.doBizAndDecode(ctx, token, "UpdateMyInfo", "/api/studentInfo/updateMyInfo", http.MethodPost, userInfo)
+//	{"telephone": "138xxx", "familyAddress": "福建省福州市", "hobbies": "阅读"}
+//
+// 可用字段参考 types.UserInfo 中的 json tag 名。
+func (c *Client) UpdateMyInfo(ctx context.Context, token string, updates map[string]any) error {
+	_, err := c.doBizAndDecode(ctx, token, "UpdateMyInfo",
+		"/api/studentInfo/updateMyInfo", http.MethodPost, updates)
 	if err != nil {
 		return fmt.Errorf("UpdateMyInfo 失败: %w", err)
 	}

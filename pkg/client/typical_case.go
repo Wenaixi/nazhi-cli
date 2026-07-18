@@ -85,3 +85,37 @@ func (c *Client) GetTypicalCaseListJSON(ctx context.Context, token string, pageN
 	buf.WriteByte('}')
 	return buf.Bytes(), nil
 }
+
+// UpdateTypicalCase 更新一条典型案例。
+// POST /api/studentCircleNew/updateTypicalCase
+func (c *Client) UpdateTypicalCase(ctx context.Context, token string, payload map[string]any) error {
+	_, err := c.doBizAndDecode(ctx, token, "UpdateTypicalCase",
+		"/api/studentCircleNew/updateTypicalCase", http.MethodPost, payload)
+	if err != nil {
+		return fmt.Errorf("UpdateTypicalCase 失败: %w", err)
+	}
+	return nil
+}
+
+// DeleteTypicalCase 删除一条典型案例。
+// GET /api/studentCircleNew/deleteTypicalCase?id=
+func (c *Client) DeleteTypicalCase(ctx context.Context, token string, id int64) error {
+	path := "/api/studentCircleNew/deleteTypicalCase?id=" + strconv.FormatInt(id, 10)
+	_, err := c.doBizAndDecode(ctx, token, "DeleteTypicalCase", path, http.MethodGet, nil)
+	if err != nil {
+		return fmt.Errorf("DeleteTypicalCase 失败: %w", err)
+	}
+	return nil
+}
+
+// DeleteBatchTypicalCase 批量删除典型案例。
+// POST /api/studentCircleNew/deleteBatchTypicalCase
+func (c *Client) DeleteBatchTypicalCase(ctx context.Context, token string, ids []int64) error {
+	payload := map[string]any{"ids": ids}
+	_, err := c.doBizAndDecode(ctx, token, "DeleteBatchTypicalCase",
+		"/api/studentCircleNew/deleteBatchTypicalCase", http.MethodPost, payload)
+	if err != nil {
+		return fmt.Errorf("DeleteBatchTypicalCase 失败: %w", err)
+	}
+	return nil
+}

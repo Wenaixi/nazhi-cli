@@ -26,6 +26,10 @@ type CircleRecord struct {
 	ImgPreViewList []string      `json:"imgPreViewList"`
 	Remark         string        `json:"remark"`
 
+	// 类型与状态编号
+	Type   int `json:"type,omitempty"`
+	Status int `json:"status,omitempty"`
+
 	// 活动/竞赛相关字段
 	HostName            string `json:"hostName,omitempty"`
 	Rank                string `json:"rank,omitempty"`
@@ -54,6 +58,43 @@ type CircleRecord struct {
 	CreationTimeStr string `json:"creationTimeStr,omitempty"`
 	CircleTaskName string `json:"circleTaskName,omitempty"`
 	ShowName       string `json:"showName,omitempty"`
+
+	// 学生/创建者信息
+	Creator     int64  `json:"creator,omitempty"`
+	StudentId   int64  `json:"studentId,omitempty"`
+	StudentNum  string `json:"student_num,omitempty"`
+	ClassName   string `json:"class_name,omitempty"`
+	GradeName   string `json:"grade_name,omitempty"`
+	CreatorName string `json:"creator_name,omitempty"`
+	CreationTime int64 `json:"creation_time,omitempty"`
+
+	// 范围/状态信息
+	ScopeType     int    `json:"scope_type,omitempty"`
+	ScopeTypeName string `json:"scope_type_name,omitempty"`
+	StateType     int    `json:"state_type,omitempty"`
+	CircleTypeId  int64  `json:"circle_type_id,omitempty"`
+	CircleTaskId  int64  `json:"circle_task_id,omitempty"`
+	RoleId        int64  `json:"role_id,omitempty"`
+	RoleName      string `json:"role_name,omitempty"`
+	PushStatus    int    `json:"push_status,omitempty"`
+	PushNum       int    `json:"push_num,omitempty"`
+	OperatorId    int64  `json:"operator_id,omitempty"`
+	ClassID       int64  `json:"class_id,omitempty"`
+	SchoolID      int64  `json:"school_id,omitempty"`
+	GradeID       int64  `json:"grade_id,omitempty"`
+	StartDate     string `json:"start_date,omitempty"`
+	EndDate       string `json:"end_date,omitempty"`
+	AuditStartDate string `json:"audit_start_date,omitempty"`
+	AuditEndDate  string `json:"audit_end_date,omitempty"`
+	AreaId        int64  `json:"area_id,omitempty"`
+	AreaTaskId    int64  `json:"area_task_id,omitempty"`
+	DimensionId   int64  `json:"dimension_id,omitempty"`
+	ShowType      int    `json:"show_type,omitempty"`
+	ScoreNum      int    `json:"score_num,omitempty"`
+	UpPic         int    `json:"up_pic,omitempty"`
+
+	// 点赞信息
+	LikeList []any `json:"likeList,omitempty"`
 
 	// 状态字段
 	IsMySelf   bool   `json:"isMySelf,omitempty"`
