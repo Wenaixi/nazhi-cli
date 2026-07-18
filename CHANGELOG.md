@@ -5,6 +5,57 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.3.0] - 2026-07-18
+
+### 新增
+
+#### 类型定义扩充
+
+- `CircleRecord` 扩充 30+ 字段：补齐前端 getStudentCircle 所有原始字段（hostName、rank、level、checkResult、patentType、activityName、sportsName、teamName、orgName、resultsName、obtainTime、specialtyTechnology、playRole、likeSpecialty1-3、operatorName、creationTimeStr、circleTaskName、showName、isMySelf、auditRemark、likeStatus、commentList 等）
+- `CircleComment` — 新增写实评论类型
+- `UserInfo` 扩充 8 字段：telephone、genderName、birthdayStr、youthLeagueFlag、nation、familyAddress、hobbies、idCard、idType
+- `ExamResult`、`TermInfo`、`ExamInitInfo`、`ExamType`、`Course` — 新增成绩管理类型
+- `ViolationRecord`、`ViolationType` — 新增违规记录类型
+- `Notification`、`NotificationListResult` — 新增通知消息类型
+- `BonusInfo`、`BonusRank`、`BonusDetail` — 新增积分商城类型
+- `DemocraticActivity`、`SelfEvaluationItem`、`MutualEvaluation`、`DemocraticResult`、`MutualPersonInfo`、`ClassStudent` — 新增民主评价类型
+
+#### 新增 SDK 方法（8 个新文件）
+
+- `circle.go` — 写实管理扩展：DeleteCircle、AddCircleComment、SetCircleLike、GetCircleImages、GetCircleTasks、GetCircleTypes、GetDimensionsBySchool、GetDictList
+- `exam.go` — 成绩管理：GetExamInitInfo、QueryStudentExam
+- `democratic.go` — 民主评价：GetDemocraticActivities、GetDemocraticActivityByID、GetSelfEvaluationData、GetMutualPersonInfo、GetDemocraticResult、GetMutualEvaluationDetail、AddOrUpdateSelfEvaluation、AddOrUpdateMutualEvaluation
+- `violation.go` — 违规记录：GetViolationList、GetViolationTypes、UpdateHonor
+- `notification.go` — 通知管理：GetUnreadNotifications、GetNotificationByID、ReadNotification、GetAllNotifications
+- `bonus.go` — 积分商城：GetMonthBonus、GetHistoryBonus、GetBonusRank、GetBonusDetail
+- `file_bag.go` — 档案查看：GetTermList、GetStudentInfoForTerm
+- `user_update.go` — 个人信息更新：UpdateMyInfo
+
+#### 新增 CLI 命令（6 个父命令）
+
+- `nazhi circle` — 写实管理（delete、comment、like）
+- `nazhi exam` — 成绩管理（query）
+- `nazhi violation` — 违规记录（list、types）
+- `nazhi notification` — 通知管理（unread、read）
+- `nazhi bonus` — 积分管理（month、rank）
+- `nazhi user` — 用户管理（update）
+
+### 构建
+
+- 版本号：`1.3.0`
+
+## [1.2.4] - 2026-07-18
+
+### 新增
+
+- SDK `EditCircle` — 修改已提交的写实记录
+- CLI `nazhi task edit` — 修改已提交的写实记录
+- SDK `TaskEditInput` — 修改写实记录的最小输入（与 TaskSubmitInput 对齐，新增 id 字段）
+
+### 构建
+
+- 版本号：`1.2.4`
+
 ## [1.2.3] - 2026-07-18
 
 ### 新增
@@ -16,6 +67,8 @@
 - CLI `nazhi task teacher` — 获取教师代写的写实记录
 - CLI `nazhi task withdrawn` — 获取被撤回的写实记录
 - CLI `nazhi task public` — 获取公示的写实记录（全班）
+- SDK `EditCircle` — 修改已提交的写实记录
+- CLI `nazhi task edit` — 修改已提交的写实记录
 
 ### 重构
 

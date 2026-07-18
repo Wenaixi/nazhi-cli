@@ -180,7 +180,51 @@ type TaskCircleTypeInfo struct {
 	Type          int     `json:"type"`
 }
 
+// TaskEditInput 是修改写实记录的最小输入。
+//
+// 与 TaskSubmitInput 字段完全对齐，新增 id 字段（必填，写实记录主键）。
+// 其余字段语义与 TaskSubmitInput 一致。
+type TaskEditInput struct {
+	ID                  int64    // 必填：写实记录 ID（来自 getStudentCircle 列表中的 id 字段）
+	TaskID              int64    // 必填：任务 ID（circle_task_id）
+	Content             string   // 必填：心得/感悟
+	ImagePaths          []string // 可选：本地图片路径列表
+	ImageIDs            []int64  // 可选：已上传的附件 ID 列表，避免重复上传
+	PlayRole            string   // 可选：承担角色
+	Address             string   // 可选：地点
+	Level               string   // 可选：级别
+	Name                string   // 可选：任务/活动名称
+	HostName            string   // 可选：主持人
+	CircleDate          string   // 可选：写实日期
+	Rank                string   // 可选：排名/等第
+	ActivityName        string   // 可选：活动名称
+	SportsName          string   // 可选：体育项目名称
+	TeamName            string   // 可选：团队名称
+	OrgName             string   // 可选：组织单位名称
+	ResultsName         string   // 可选：成果名称
+	ObtainTime          string   // 可选：获得时间
+	SpecialtyTechnology string   // 可选：特长/技术
+	LikeSpecialty1      string   // 可选：爱好特长 1
+	LikeSpecialty2      string   // 可选：爱好特长 2
+	LikeSpecialty3      string   // 可选：爱好特长 3
+}
+
+// Validate 校验修改写实记录的输入。
+func (in TaskEditInput) Validate() error {
+	if in.ID <= 0 {
+		return ErrTaskInputIDRequired
+	}
+	if in.TaskID <= 0 {
+		return ErrTaskInputTaskIDRequired
+	}
+	if strings.TrimSpace(in.Content) == "" {
+		return ErrTaskInputContentRequired
+	}
+	return nil
+}
+
 var (
+	ErrTaskInputIDRequired      = taskInputError("id 为必填且必须 > 0")
 	ErrTaskInputTaskIDRequired  = taskInputError("taskId 为必填且必须 > 0")
 	ErrTaskInputContentRequired = taskInputError("content 为必填")
 )

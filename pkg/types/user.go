@@ -7,8 +7,7 @@ package types
 //   - 联系方式、证件号、积分等敏感或运营字段已移除，避免不必要的 PII 暴露面
 //   - 生日/爱好/状态码等历史字段已移除
 //
-// 后续按需恢复（v1.0.x+）：座号 seat、学号双轨 studyNumber/nationalStudentNumber
-// 等业务侧高频字段已补回。
+// v1.3.0 扩展：补齐前端 getMyInfo 响应的全部原始字段，新增字段使用 omitempty。
 type UserInfo struct {
 	// 基础身份
 	ID                    int64  `json:"id"`
@@ -28,4 +27,20 @@ type UserInfo struct {
 
 	// 座号（恢复：班级场景高频需要）
 	Seat int `json:"seat"`
+
+	// v1.3.0 新增：前端 getMyInfo 响应的完整字段
+	// 所有新字段使用 omitempty，零值/null 时不在 JSON 输出中出现。
+
+	// 联系方式
+	Telephone string `json:"telephone,omitempty"` // 电话号码
+
+	// 个人信息
+	GenderName        string `json:"genderName,omitempty"`        // 性别名称
+	BirthdayStr       string `json:"birthdayStr,omitempty"`       // 生日字符串
+	YouthLeagueFlag   int    `json:"youthLeagueFlag,omitempty"`   // 团员标志
+	Nation            string `json:"nation,omitempty"`            // 民族
+	FamilyAddress     string `json:"familyAddress,omitempty"`     // 家庭地址
+	Hobbies           string `json:"hobbies,omitempty"`           // 爱好
+	IDCard            string `json:"idCard,omitempty"`              // 身份证号
+	IDType            string `json:"idType,omitempty"`            // 证件类型
 }

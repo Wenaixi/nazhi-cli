@@ -28,7 +28,8 @@ nazhi
 │   ├── done                        同 task submitted（v1.0.0 新增别名；v1.1.2 支持 --limit/--offset/--count）
 │   ├── teacher                     获取教师代写的写实记录（v1.2.3 新增）
 │   ├── withdrawn                   获取被撤回的写实记录（v1.2.3 新增）
-│   └── public                      获取公示的写实记录（全班）（v1.2.3 新增）
+│   ├── public                      获取公示的写实记录（全班）（v1.2.3 新增）
+│   └── edit                        修改已提交的写实记录（v1.2.3 新增）
 ├── self-eval
 │   ├── submit                      提交自我评价（支持 stdin）
 │   └── status                      查询评价 + 教师评语
@@ -43,6 +44,23 @@ nazhi
 ├── typical-case
 │   ├── submit                      提交典型案例（--payload JSON）
 │   └── list                        获取已提交典型案例（分页）
+├── circle                          写实管理扩展（v1.3.0 新增）
+│   ├── delete                      删除写实记录（--id）
+│   ├── comment                     添加写实评论（--id --content）
+│   └── like                        点赞写实记录（--id）
+├── exam                            成绩管理（v1.3.0 新增）
+│   └── query                       查询学生成绩
+├── violation                       违规记录管理（v1.3.0 新增）
+│   ├── list                        获取违规记录列表（分页）
+│   └── types                       获取违规类型
+├── notification                    通知管理（v1.3.0 新增）
+│   ├── unread                      获取未读通知
+│   └── read                        标记通知为已读（--id）
+├── bonus                           积分管理（v1.3.0 新增）
+│   ├── month                       获取月积分
+│   └── rank                        获取班级积分排名（--limit）
+├── user                            用户管理（v1.3.0 新增）
+│   └── update                      更新个人信息（--payload）
 ├── version                         显示版本信息
 └── completion                      生成 shell 自动补全
 ```

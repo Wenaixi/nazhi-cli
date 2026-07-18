@@ -124,6 +124,7 @@ func init() {
 	taskCmd.AddCommand(taskTeacherCmd)
 	taskCmd.AddCommand(taskWithdrawnCmd)
 	taskCmd.AddCommand(taskPublicCmd)
+	taskCmd.AddCommand(taskEditCmd)
 
 	// self-eval
 	rootCmd.AddCommand(selfEvalCmd) // self-eval parent

@@ -47,4 +47,13 @@ package version
 //	1.1.5 — 文档 task submitted 示例更换为真实脱敏 JSON，注明含同班同学姓名/学号
 //	1.2.1 — 新增典型案例提交功能（SDK + CLI + 单元测试）
 //	1.2.3 — 新增教师写实/被撤回写实/公示查看三个接口（SDK + CLI），重构 submitted.go 提取通用 fetchCirclePage
-var Version = "1.2.3"
+//	1.2.4 — 新增 task edit 命令（修改已提交的写实记录）+ EditCircle SDK 方法
+//	1.3.0 — 深度修复：根据前端源码全面补齐 SDK 字段和 API
+//	        - 类型定义：扩展 CircleRecord（30+ 字段）、UserInfo（10+ 字段）
+//	        - 新增类型：ExamResult、ViolationRecord、Notification、BonusInfo、DemocraticActivity 等
+//	        - 新增 SDK 方法（8 个文件）：
+//	          circle.go（删除写实、添加评论、点赞、获取图片/任务/类别/维度/字典）
+//	          exam.go（成绩查询）、democratic.go（民主评价）、violation.go（违规记录）
+//	          notification.go（通知消息）、bonus.go（积分商城）、file_bag.go（档案查看）、user_update.go（用户信息更新）
+//	        - 新增 CLI 命令（6 个父命令）：circle、exam、violation、notification、bonus、user
+var Version = "1.3.0"

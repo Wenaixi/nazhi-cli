@@ -152,6 +152,7 @@ func New(opts ...Option) (*Client, error)
 | `GetPublicCircles` | `(ctx, token) ([]CircleRecord, error)` | 公示写实记录（全班） |
 | `GetPublicCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 公示原始 JSON 数组 + 分页 |
 | `PeekPublicTotal` | `(ctx, token) (int, error)` | 公示记录总数 |
+| `EditCircle` | `(ctx, token, input) (*TaskResult, error)` | 修改已提交的写实记录 |
 | `GetHonorTypes` | `(ctx, token) ([]HonorType, error)` | 5 字段荣誉类型 |
 | `GetHonorTypeForSelect` | `(ctx, token) ([]HonorSelectOption, error)` | Label / Value |
 | `GetHonorLevel` | `(ctx, token, honorTypeID) ([]HonorSelectOption, error)` | Label / Value |
@@ -163,6 +164,38 @@ func New(opts ...Option) (*Client, error)
 | `GetTypicalCaseListJSON` | `(ctx, token, pageNo, pageSize) (json.RawMessage, error)` | 原始 JSON `{records, page}` |
 | `UploadFile` | `(ctx, filePath) (*UploadFileResult, error)` | `attachmentID` |
 | `DownloadFile` | `(ctx, attachmentID, dst) error` | — |
+| `DeleteCircle` | `(ctx, token, circleID) error` | — |
+| `AddCircleComment` | `(ctx, token, circleID, content) error` | — |
+| `SetCircleLike` | `(ctx, token, circleID) error` | — |
+| `GetCircleImages` | `(ctx, token, pageNo, pageSize) ([]CircleImage, *PageBean, error)` | 图片列表+分页 |
+| `GetCircleTasks` | `(ctx, token, typeID) ([]Task, error)` | 任务列表 |
+| `GetCircleTypes` | `(ctx, token, dimensionID) ([]Dimension, error)` | 类别列表 |
+| `GetDimensionsBySchool` | `(ctx, token) ([]Dimension, error)` | 学校维度 |
+| `GetDictList` | `(ctx, token, cateCode) ([]HonorSelectOption, error)` | 字典选项 |
+| `GetExamInitInfo` | `(ctx, token, termID) (*ExamInitInfo, error)` | 学期/考试/课程 |
+| `QueryStudentExam` | `(ctx, token, termID, courseList, examList) ([]ExamResult, error)` | 成绩列表 |
+| `GetDemocraticActivities` | `(ctx, token, pageNo, pageSize) ([]DemocraticActivity, *PageBean, error)` | 活动列表+分页 |
+| `GetDemocraticActivityByID` | `(ctx, token, activityID) (*DemocraticActivity, error)` | 活动详情 |
+| `GetSelfEvaluationData` | `(ctx, token, activityID, subPlanID) ([]SelfEvaluationItem, error)` | 自评数据 |
+| `GetMutualPersonInfo` | `(ctx, token, activityID) (*MutualPersonInfo, error)` | 互评人员 |
+| `GetDemocraticResult` | `(ctx, token, activityID) (*DemocraticResult, error)` | 评价结果 |
+| `GetMutualEvaluationDetail` | `(ctx, token, activityID, subPlanID) ([]MutualEvaluation, error)` | 互评详情 |
+| `AddOrUpdateSelfEvaluation` | `(ctx, token, evaluations) error` | — |
+| `AddOrUpdateMutualEvaluation` | `(ctx, token, evaluations) error` | — |
+| `GetViolationList` | `(ctx, token, pageNo, pageSize, key) ([]ViolationRecord, *PageBean, error)` | 违规列表+分页 |
+| `GetViolationTypes` | `(ctx, token) ([]ViolationType, error)` | 违规类型 |
+| `UpdateHonor` | `(ctx, token, payload) error` | — |
+| `GetUnreadNotifications` | `(ctx, token) ([]Notification, error)` | 未读通知 |
+| `GetNotificationByID` | `(ctx, token, notificationID) (*Notification, error)` | 通知详情 |
+| `ReadNotification` | `(ctx, token, notificationID) error` | — |
+| `GetAllNotifications` | `(ctx, token, pageNo, pageSize) ([]Notification, *PageBean, error)` | 通知列表+分页 |
+| `GetMonthBonus` | `(ctx, token) ([]BonusInfo, error)` | 月积分 |
+| `GetHistoryBonus` | `(ctx, token, termID, month) ([]BonusInfo, error)` | 历史积分 |
+| `GetBonusRank` | `(ctx, token, limitNum) ([]BonusRank, error)` | 积分排名 |
+| `GetBonusDetail` | `(ctx, token, limitNum) ([]BonusDetail, error)` | 积分明细 |
+| `GetTermList` | `(ctx, token) ([]TermInfo, error)` | 学期列表 |
+| `GetStudentInfoForTerm` | `(ctx, token, termID) (map[string]any, error)` | 档案信息 |
+| `UpdateMyInfo` | `(ctx, token, userInfo) error` | — |
 
 ---
 
@@ -179,6 +212,7 @@ func New(opts ...Option) (*Client, error)
 | `nazhi task teacher` | `GetTeacherCirclesJSON` / `GetTeacherCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
 | `nazhi task withdrawn` | `GetWithdrawnCirclesJSON` / `GetWithdrawnCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
 | `nazhi task public` | `GetPublicCirclesJSON` / `GetPublicCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task edit` | `EditCircle` | 否 | SDK 成功返回 `(*TaskResult, error)`，CLI 用 envelope.Success 表达成功 |
 | `nazhi self-eval status` | `QuerySelfEvaluationJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi honor types` | `GetHonorTypesJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
 | `nazhi honor list` | `GetHonorListJSON` | 是 | CLI 直接透传 SDK 拼装的 `{records,page}` JSON |

@@ -412,7 +412,151 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 	return payload, nil
 }
 
-// SubmitTask 提交一次任务。
+// EditCircle 修改一条已提交的写实记录。
+//
+// 与 SubmitTask 对称：内部自动完成 getCircleTypeByTaskId → GetMyInfo → 组装 editCircle payload。
+// 区别：
+//   - SubmitTask 调用 addCircle（无 id 字段，新增记录）
+//   - EditCircle 调用 editCircle（必须传 id 字段，修改已有记录）
+//
+// 调用方只需提供最少必要字段（id / taskId / content / imagePaths / imageIDs），
+// 其余字段由 SDK 根据 taskId 元数据和用户资料自动补齐。
+func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskResult, error) {
+	payload, err := c.buildTaskEditPayload(ctx, token, input)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := c.doBizAndDecode(ctx, token, "EditCircle", "/api/studentCircleNew/editCircle", http.MethodPost, payload)
+	if err != nil {
+		var bizErr *types.BusinessError
+		if errors.As(err, &bizErr) {
+			return &types.TaskResult{Code: bizErr.Code, Msg: bizErr.Msg}, err
+		}
+		return nil, err
+	}
+
+	return &types.TaskResult{
+		Code: resp.Code,
+		Msg:  types.DerefOr(resp.Msg, ""),
+	}, nil
+}
+
+// buildTaskEditPayload 构建 editCircle 的完整请求体。
+//
+// 与 buildTaskSubmitPayload 共享核心逻辑，区别仅在于 ID 字段的处理：
+//   - buildTaskSubmitPayload: ID = nil（新增记录）
+//   - buildTaskEditPayload: ID = input.ID（修改已有记录）
+func (c *Client) buildTaskEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
+	if err := input.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
+	}
+
+	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.TaskID)
+	if err != nil {
+		return nil, fmt.Errorf("EditCircle 获取任务元数据失败: %w", err)
+	}
+
+	info, err := c.GetMyInfo(ctx, token)
+	if err != nil {
+		return nil, fmt.Errorf("EditCircle 获取用户信息失败: %w", err)
+	}
+
+	pictureList := make([]int64, 0, len(input.ImageIDs)+len(input.ImagePaths))
+	for _, id := range input.ImageIDs {
+		if id <= 0 {
+			continue
+		}
+		pictureList = append(pictureList, id)
+	}
+	for _, path := range input.ImagePaths {
+		if strings.TrimSpace(path) == "" {
+			continue
+		}
+		result, upErr := c.UploadFile(ctx, path)
+		if upErr != nil {
+			return nil, fmt.Errorf("EditCircle 上传图片失败: %w", upErr)
+		}
+		pictureList = append(pictureList, result.AttachmentID)
+	}
+
+	if meta.Remark != "" && len(pictureList) == 0 {
+		lowerRemark := strings.ToLower(meta.Remark)
+		if strings.Contains(meta.Remark, "照片") || strings.Contains(meta.Remark, "图片") || strings.Contains(lowerRemark, "pdf") {
+			return nil, fmt.Errorf("%w: 该任务要求上传图片或附件", ErrInvalidPayload)
+		}
+	}
+
+	address := strings.TrimSpace(input.Address)
+	if address == "" {
+		address = strings.TrimSpace(info.SchoolName)
+	}
+
+	playRole := strings.TrimSpace(input.PlayRole)
+
+	level := strings.TrimSpace(input.Level)
+	if level == "" {
+		level = "5"
+	}
+
+	// v1.2.0：新增可选字段映射
+	name := strings.TrimSpace(input.Name)
+	hostName := strings.TrimSpace(input.HostName)
+	circleDate := strings.TrimSpace(input.CircleDate)
+	rank := strings.TrimSpace(input.Rank)
+	activityName := strings.TrimSpace(input.ActivityName)
+	sportsName := strings.TrimSpace(input.SportsName)
+	teamName := strings.TrimSpace(input.TeamName)
+
+	// OrgName：优先取输入，空串时 fallback 学校名
+	orgName := strings.TrimSpace(input.OrgName)
+	if orgName == "" {
+		orgName = strings.TrimSpace(info.SchoolName)
+	}
+
+	resultsName := strings.TrimSpace(input.ResultsName)
+	obtainTime := strings.TrimSpace(input.ObtainTime)
+	specialtyTechnology := strings.TrimSpace(input.SpecialtyTechnology)
+	likeSpecialty1 := strings.TrimSpace(input.LikeSpecialty1)
+	likeSpecialty2 := strings.TrimSpace(input.LikeSpecialty2)
+	likeSpecialty3 := strings.TrimSpace(input.LikeSpecialty3)
+
+	payload := &types.TaskAddCirclePayload{
+		ID:                  &input.ID,
+		Name:                name,
+		HostName:            hostName,
+		CircleDate:          circleDate,
+		Rank:                rank,
+		Level:               level,
+		Content:             strings.TrimSpace(input.Content),
+		PictureList:         pictureList,
+		CircleTaskID:        meta.TaskID,
+		CircleTypeID:        meta.CircleTypeID,
+		DimensionID:         meta.DimensionID,
+		Hours:               meta.Hours,
+		CircleBeginDate:     "",
+		CircleEndDate:       "",
+		CheckResult:         "",
+		PatentType:          "",
+		PatentNum:           "",
+		Address:             address,
+		TermName:            "",
+		ActivityName:        activityName,
+		SportsName:          sportsName,
+		TeamName:            teamName,
+		OrgName:             orgName,
+		ResultsName:         resultsName,
+		ObtainTime:          obtainTime,
+		SpecialtyTechnology: specialtyTechnology,
+		PlayRole:            playRole,
+		LikeSpecialty1:      likeSpecialty1,
+		LikeSpecialty2:      likeSpecialty2,
+		LikeSpecialty3:      likeSpecialty3,
+	}
+
+	return payload, nil
+}
+
 //
 // 公开接口仅接收最少必要输入，SDK 内部自动补齐真实网页提交流程所需字段：
 // getCircleTypeByTaskId → GetMyInfo → UploadFile → addCircle。

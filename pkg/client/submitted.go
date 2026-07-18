@@ -122,13 +122,6 @@ func (c *Client) PeekSubmittedTotal(ctx context.Context, token string) (int, err
 	return pb.TotalNum, nil
 }
 
-// fetchSubmittedPage 拉取一页已提交写实记录，同时返回分页信息。
-//
-// 已弃用：请使用 fetchCirclePage。
-func (c *Client) fetchSubmittedPage(ctx context.Context, token string, pageNo, pageSize int) ([]types.CircleRecord, *types.PageBean, error) {
-	return c.fetchCirclePage(ctx, token, pageNo, pageSize, 1)
-}
-
 // fetchSubmittedPageJSON 拉取一页已提交写实记录，返回原始 dataList 字节。
 //
 // 已弃用：请使用 fetchCirclePageJSON。
