@@ -143,6 +143,15 @@ func New(opts ...Option) (*Client, error)
 | `GetSubmittedCircles` | `(ctx, token) ([]CircleRecord, error)` | 原始 JSON 写实记录（含姓名学号） |
 | `GetSubmittedCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 原始 JSON 数组 + 分页信息 |
 | `PeekSubmittedTotal` | `(ctx, token) (int, error)` | 总记录数（轻量，只拉 1 条） |
+| `GetTeacherCircles` | `(ctx, token) ([]CircleRecord, error)` | 教师代写写实记录 |
+| `GetTeacherCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 教师代写原始 JSON 数组 + 分页 |
+| `PeekTeacherTotal` | `(ctx, token) (int, error)` | 教师代写记录总数 |
+| `GetWithdrawnCircles` | `(ctx, token) ([]CircleRecord, error)` | 被撤回写实记录 |
+| `GetWithdrawnCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 被撤回原始 JSON 数组 + 分页 |
+| `PeekWithdrawnTotal` | `(ctx, token) (int, error)` | 被撤回记录总数 |
+| `GetPublicCircles` | `(ctx, token) ([]CircleRecord, error)` | 公示写实记录（全班） |
+| `GetPublicCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 公示原始 JSON 数组 + 分页 |
+| `PeekPublicTotal` | `(ctx, token) (int, error)` | 公示记录总数 |
 | `GetHonorTypes` | `(ctx, token) ([]HonorType, error)` | 5 字段荣誉类型 |
 | `GetHonorTypeForSelect` | `(ctx, token) ([]HonorSelectOption, error)` | Label / Value |
 | `GetHonorLevel` | `(ctx, token, honorTypeID) ([]HonorSelectOption, error)` | Label / Value |
@@ -167,6 +176,9 @@ func New(opts ...Option) (*Client, error)
 | `nazhi session activate` | `ActivateSessionJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi task list` | `FetchTasks` | 否 | CLI 输出 SDK 业务模型的 `Task[]`（含 submitted/needPic） |
 | `nazhi task submitted` / `task done` | `GetSubmittedCirclesJSON` / `GetSubmittedCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task teacher` | `GetTeacherCirclesJSON` / `GetTeacherCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task withdrawn` | `GetWithdrawnCirclesJSON` / `GetWithdrawnCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task public` | `GetPublicCirclesJSON` / `GetPublicCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
 | `nazhi self-eval status` | `QuerySelfEvaluationJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi honor types` | `GetHonorTypesJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
 | `nazhi honor list` | `GetHonorListJSON` | 是 | CLI 直接透传 SDK 拼装的 `{records,page}` JSON |

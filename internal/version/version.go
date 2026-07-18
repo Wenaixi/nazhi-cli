@@ -46,5 +46,5 @@ package version
 //	1.1.4 — 版本号同步 + CHANGELOG 补充 + 文档同步（task submitted --limit/--offset/--count）
 //	1.1.5 — 文档 task submitted 示例更换为真实脱敏 JSON，注明含同班同学姓名/学号
 //	1.2.1 — 新增典型案例提交功能（SDK + CLI + 单元测试）
-//	1.2.2 — 新增 PeekSubmittedTotal SDK 方法 + CLI --count 改用新方法
-var Version = "1.2.2"
+//	1.2.3 — 新增教师写实/被撤回写实/公示查看三个接口（SDK + CLI），重构 submitted.go 提取通用 fetchCirclePage
+var Version = "1.2.3"

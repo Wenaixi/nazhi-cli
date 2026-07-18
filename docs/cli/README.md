@@ -24,8 +24,11 @@ nazhi
 ├── task
 │   ├── list                        列出全维度任务（8 路并发）
 │   ├── submit                      提交任务（最小输入模型 + SDK 自动补全）
-│   ├── submitted                   获取班级写实记录（含同班同学姓名学号）
-│   └── done                        同 task submitted（v1.0.0 新增别名；v1.1.2 支持 --limit/--offset/--count）
+│   ├── submitted                   获取已提交写实记录
+│   ├── done                        同 task submitted（v1.0.0 新增别名；v1.1.2 支持 --limit/--offset/--count）
+│   ├── teacher                     获取教师代写的写实记录（v1.2.3 新增）
+│   ├── withdrawn                   获取被撤回的写实记录（v1.2.3 新增）
+│   └── public                      获取公示的写实记录（全班）（v1.2.3 新增）
 ├── self-eval
 │   ├── submit                      提交自我评价（支持 stdin）
 │   └── status                      查询评价 + 教师评语
@@ -626,6 +629,72 @@ nazhi task submitted --count                             # 只看总数
 ```
 
 自动翻页：单页就能覆盖绝大多数场景（默认每页 100 条，服务端上限约 500），只有记录超出一页时才自动翻页合并。翻页途中遇到错误时返回已有数据 + 错误信号。
+
+---
+
+## nazhi task teacher
+
+获取教师代写的全部写实记录。自动翻页合并，输出全量数据。
+
+```bash
+nazhi task teacher --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+nazhi task teacher --limit 5                           # 只取前 5 条
+nazhi task teacher --offset 5 --limit 5                # 跳过 5 条取 5 条
+nazhi task teacher --count                             # 只看总数
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+| `--limit` | — | — | 只输出前 N 条（0=全量） |
+| `--offset` | — | — | 跳过前 N 条后再取（配合 --limit） |
+| `--count` | — | — | 只输出记录总数，不拉列表 |
+
+---
+
+## nazhi task withdrawn
+
+获取被审核撤回的全部写实记录。自动翻页合并，输出全量数据。
+
+```bash
+nazhi task withdrawn --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+nazhi task withdrawn --limit 5                           # 只取前 5 条
+nazhi task withdrawn --offset 5 --limit 5                # 跳过 5 条取 5 条
+nazhi task withdrawn --count                             # 只看总数
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+| `--limit` | — | — | 只输出前 N 条（0=全量） |
+| `--offset` | — | — | 跳过前 N 条后再取（配合 --limit） |
+| `--count` | — | — | 只输出记录总数，不拉列表 |
+
+---
+
+## nazhi task public
+
+获取全班公示的全部写实记录。自动翻页合并，输出全量数据。
+
+```bash
+nazhi task public --token "eyJhbGciOiJIUzUxMiJ9.xxx"
+nazhi task public --limit 5                           # 只取前 5 条
+nazhi task public --offset 5 --limit 5              # 跳过 5 条取 5 条
+nazhi task public --count                             # 只看总数
+```
+
+| 标志 | 必填 | 环境变量 | 说明 |
+|---|---|---|---|
+| `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
+| `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
+| `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
+| `--limit` | — | — | 只输出前 N 条（0=全量） |
+| `--offset` | — | — | 跳过前 N 条后再取（配合 --limit） |
+| `--count` | — | — | 只输出记录总数，不拉列表 |
 
 ---
 

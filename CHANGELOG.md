@@ -5,6 +5,32 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [1.2.3] - 2026-07-18
+
+### 新增
+
+- SDK `GetTeacherCircles` / `GetTeacherCirclesJSON` / `GetTeacherCirclesLimitJSON` — 获取教师代写的写实记录（type=2）
+- SDK `GetWithdrawnCircles` / `GetWithdrawnCirclesJSON` / `GetWithdrawnCirclesLimitJSON` — 获取被撤回的写实记录（type=3）
+- SDK `GetPublicCircles` / `GetPublicCirclesJSON` / `GetPublicCirclesLimitJSON` — 获取公示的写实记录（type=4，全班）
+- SDK `PeekTeacherTotal` / `PeekWithdrawnTotal` / `PeekPublicTotal` — 轻量获取对应类型记录总数
+- CLI `nazhi task teacher` — 获取教师代写的写实记录
+- CLI `nazhi task withdrawn` — 获取被撤回的写实记录
+- CLI `nazhi task public` — 获取公示的写实记录（全班）
+
+### 重构
+
+- `pkg/client/submitted.go` 提取通用 `fetchCirclePage` / `fetchCirclePageJSON` 辅助函数，支持按 `type` 参数查询不同类别的写实记录
+- 原有 `GetSubmittedCircles` / `PeekSubmittedTotal` / `GetSubmittedCirclesJSON` / `GetSubmittedCirclesLimitJSON` 保持向后兼容
+
+### 文档
+
+- `docs/cli/README.md` 命令树 + 新增命令详细文档
+- `docs/sdk/README.md` 方法签名表 + CLI 输出对照表更新
+
+### 构建
+
+- 版本号：`1.2.3`
+
 ## [1.2.2] - 2026-07-17
 
 ### 新增

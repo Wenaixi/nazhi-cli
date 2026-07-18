@@ -91,7 +91,7 @@ func (c *Client) GetSubmittedCirclesJSON(ctx context.Context, token string) (jso
 		pageSize = defaultSubmittedPageSize
 	}
 
-	page1, pb, raw1, err := c.fetchSubmittedPageJSON(ctx, token, 1, pageSize)
+	page1, pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, 1)
 	if err != nil {
 		return nil, fmt.Errorf("GetSubmittedCirclesJSON 失败: %w", err)
 	}
@@ -149,7 +149,7 @@ func (c *Client) GetSubmittedCirclesLimitJSON(ctx context.Context, token string,
 		return raw, nil, err
 	}
 
-	_, pb, raw1, err := c.fetchSubmittedPageJSON(ctx, token, 1, pageSize)
+	_, pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, 1)
 	if err != nil {
 		return nil, nil, fmt.Errorf("GetSubmittedCirclesLimitJSON 失败: %w", err)
 	}
@@ -177,7 +177,7 @@ func (c *Client) GetSubmittedCirclesLimitJSON(ctx context.Context, token string,
 			if cerr := ctx.Err(); cerr != nil {
 				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb, cerr
 			}
-			_, _, raw, err := c.fetchSubmittedPageJSON(ctx, token, pageNo, pageSize)
+			_, _, raw, err := c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, 1)
 			if err != nil {
 				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb,
 					fmt.Errorf("GetSubmittedCirclesLimitJSON 第 %d 页失败: %w", pageNo, err)
@@ -267,24 +267,134 @@ func trimArrayToCurrent(buf []byte) []byte {
 	return trimmed
 }
 
-// fetchSubmittedPageJSON 拉取一页已提交写实记录，返回原始 dataList 字节。
-func (c *Client) fetchSubmittedPageJSON(ctx context.Context, token string, pageNo, pageSize int) ([]types.CircleRecord, *types.PageBean, []byte, error) {
-	path := "/api/studentCircleNew/getStudentCircle?type=1&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
+// GetTeacherCirclesJSON 获取教师代写的全部写实记录，返回平台原始 JSON 数组。
+func (c *Client) GetTeacherCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
+	return c.getCirclesJSON(ctx, token, 2, "GetTeacherCirclesJSON")
+}
 
-	resp, err := c.doBizAndDecode(ctx, token, "GetSubmittedCirclesJSON", path, http.MethodGet, nil)
-	if err != nil {
-		return nil, nil, nil, err
+// GetTeacherCirclesLimitJSON 按偏移和条数限制拉取教师写实记录（原始 JSON）。
+func (c *Client) GetTeacherCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
+	return c.getCirclesLimitJSON(ctx, token, offset, limit, 2, "GetTeacherCirclesLimitJSON")
+}
+
+// GetWithdrawnCirclesJSON 获取被撤回的全部写实记录，返回平台原始 JSON 数组。
+func (c *Client) GetWithdrawnCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
+	return c.getCirclesJSON(ctx, token, 3, "GetWithdrawnCirclesJSON")
+}
+
+// GetWithdrawnCirclesLimitJSON 按偏移和条数限制拉取被撤回写实记录（原始 JSON）。
+func (c *Client) GetWithdrawnCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
+	return c.getCirclesLimitJSON(ctx, token, offset, limit, 3, "GetWithdrawnCirclesLimitJSON")
+}
+
+// GetPublicCirclesJSON 获取公示的全部写实记录（全班），返回平台原始 JSON 数组。
+func (c *Client) GetPublicCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
+	return c.getCirclesJSON(ctx, token, 4, "GetPublicCirclesJSON")
+}
+
+// GetPublicCirclesLimitJSON 按偏移和条数限制拉取公示写实记录（原始 JSON）。
+func (c *Client) GetPublicCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
+	return c.getCirclesLimitJSON(ctx, token, offset, limit, 4, "GetPublicCirclesLimitJSON")
+}
+
+// getCirclesJSON 是各类型写实记录全量拉取的通用实现。
+func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType int, methodName string) (json.RawMessage, error) {
+	pageSize := c.submittedPageSize
+	if pageSize <= 0 {
+		pageSize = defaultSubmittedPageSize
 	}
 
-	pb, err := types.DecodePageBean(*resp)
+	page1, pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("GetSubmittedCirclesJSON 解析分页信息失败: %w", err)
+		return nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
-	records, err := types.DecodeDataList[types.CircleRecord](*resp)
+
+	if pb == nil || pb.TotalPage <= 1 || pb.TotalNum <= pageSize {
+		if len(raw1) == 0 {
+			return []byte("[]"), nil
+		}
+		return raw1, nil
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, len(page1)*pb.TotalPage))
+	buf.WriteByte('[')
+	buf.Write(trimArrayBrackets(raw1))
+	for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+		if cerr := ctx.Err(); cerr != nil {
+			return json.RawMessage(trimArrayToCurrent(buf.Bytes())), cerr
+		}
+		_, _, raw, err := c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, circleType)
+		if err != nil {
+			return json.RawMessage(trimArrayToCurrent(buf.Bytes())),
+				fmt.Errorf("%s 第 %d 页失败: %w", methodName, pageNo, err)
+		}
+		if len(raw) == 0 {
+			continue
+		}
+		buf.WriteByte(',')
+		buf.Write(trimArrayBrackets(raw))
+	}
+	buf.WriteByte(']')
+	return buf.Bytes(), nil
+}
+
+// getCirclesLimitJSON 是各类型写实记录按偏移/条数限制拉取的通用实现。
+func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, limit int, circleType int, methodName string) (json.RawMessage, *types.PageBean, error) {
+	pageSize := c.submittedPageSize
+	if pageSize <= 0 {
+		pageSize = defaultSubmittedPageSize
+	}
+
+	if limit <= 0 {
+		raw, err := c.getCirclesJSON(ctx, token, circleType, methodName)
+		return raw, nil, err
+	}
+
+	_, pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("GetSubmittedCirclesJSON 解析写实记录失败: %w", err)
+		return nil, nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
-	return records, pb, rawListBytes(*resp), nil
+	if pb == nil || pb.TotalNum == 0 {
+		return []byte("[]"), pb, nil
+	}
+	if offset >= pb.TotalNum {
+		return []byte("[]"), pb, nil
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, 2048))
+	buf.WriteByte('[')
+	first := true
+	taken := 0
+	skipped := 0
+
+	skipped, taken = appendPageRange(buf, raw1, &first, taken, offset, limit, skipped)
+	if taken >= limit {
+		buf.WriteByte(']')
+		return buf.Bytes(), pb, nil
+	}
+
+	if pb.TotalPage > 1 {
+		for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+			if cerr := ctx.Err(); cerr != nil {
+				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb, cerr
+			}
+			_, _, raw, err := c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, circleType)
+			if err != nil {
+				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb,
+					fmt.Errorf("%s 第 %d 页失败: %w", methodName, pageNo, err)
+			}
+			if len(raw) == 0 {
+				continue
+			}
+			skipped, taken = appendPageRange(buf, raw, &first, taken, offset, limit, skipped)
+			if taken >= limit {
+				break
+			}
+		}
+	}
+
+	buf.WriteByte(']')
+	return buf.Bytes(), pb, nil
 }
 
 // FetchTasksJSON 拉取全维度任务列表，返回平台原始 JSON 数组（跨维度合并）。
