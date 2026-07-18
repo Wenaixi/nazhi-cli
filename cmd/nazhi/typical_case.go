@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -108,4 +109,81 @@ func init() {
 	typicalCaseListCmd.Flags().Int("page", 1, "页码（从 1 开始）")
 	typicalCaseListCmd.Flags().Int("page-size", 20, "每页条数")
 	registerBizFlags(typicalCaseListCmd)
+
+	// typical-case update
+	typicalCaseCmd.AddCommand(typicalCaseUpdateCmd)
+	typicalCaseUpdateCmd.Flags().String("payload", "", "典型案例 JSON（必填，可用 @file.json）")
+	registerBizFlags(typicalCaseUpdateCmd)
+
+	// typical-case delete
+	typicalCaseCmd.AddCommand(typicalCaseDeleteCmd)
+	typicalCaseDeleteCmd.Flags().String("id", "", "案例 ID（必填）")
+	registerBizFlags(typicalCaseDeleteCmd)
+}
+
+// typicalCaseUpdateCmd 表示 nazhi typical-case update 命令
+var typicalCaseUpdateCmd = &cobra.Command{
+	Use:   "update",
+	Short: "更新典型案例",
+	Run: func(cmd *cobra.Command, args []string) {
+		payloadRaw, _ := cmd.Flags().GetString("payload")
+		if payloadRaw == "" {
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
+			return
+		}
+		payloadBytes, err := parsePayloadFromArg(payloadRaw)
+		if err != nil {
+			printError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			printError(fmt.Errorf("解析 payload JSON 失败: %w", err))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printError(err)
+			return
+		}
+
+		printVerbose("正在更新典型案例...")
+		if err := c.UpdateTypicalCase(cmd.Context(), token, payload); err != nil {
+			printError(fmt.Errorf("更新典型案例失败: %w", err))
+			return
+		}
+		printEnvelope(envelope.Empty("典型案例更新成功"))
+	},
+}
+
+// typicalCaseDeleteCmd 表示 nazhi typical-case delete 命令
+var typicalCaseDeleteCmd = &cobra.Command{
+	Use:   "delete",
+	Short: "删除典型案例",
+	Run: func(cmd *cobra.Command, args []string) {
+		idStr, _ := cmd.Flags().GetString("id")
+		if idStr == "" {
+			printEnvelope(envelope.Error(400, "--id 为必填"))
+			return
+		}
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			printEnvelope(envelope.Error(400, "--id 必须为正整数"))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printError(err)
+			return
+		}
+
+		printVerbose("正在删除典型案例...")
+		if err := c.DeleteTypicalCase(cmd.Context(), token, id); err != nil {
+			printError(fmt.Errorf("删除典型案例失败: %w", err))
+			return
+		}
+		printEnvelope(envelope.Empty("典型案例已删除"))
+	},
 }
