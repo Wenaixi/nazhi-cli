@@ -130,5 +130,5 @@ func TestPool_SetModelDir(t *testing.T) {
 
 	// 从 Pool 取一个 OCR 实例验证 modelDir 传播
 	o := &OCR{} // 模拟 pool.Get 的行为
-	_ = o // 不在 Pool 上实际调用 Recognize（需要 CGO 和 ddddocr），只验证字段
+	_ = o       // 不在 Pool 上实际调用 Recognize（需要 CGO 和 ddddocr），只验证字段
 }
