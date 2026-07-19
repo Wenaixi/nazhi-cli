@@ -10,7 +10,8 @@
 // 设计要点：
 //   - 自动分页/跨维度合并仍在 SDK 内部完成，调用方仍只需传 token
 //   - 自动 fallback：dataList → returnData / dataMap（按方法实际通道）
-//   - 不做 postProcess（如 user.go 的学校/班级名清理），由调用方负责
+//   - GetMyInfoJSON / ActivateSessionJSON 内部调用 GetMyInfo() 并 Marshal，
+//     共享学校信息 SSO 降级补全 + 班级名清理等后处理
 //   - 失败/取消语义与原方法一致，错误链不变
 
 package client
@@ -420,15 +421,15 @@ func (c *Client) fetchTasksDimensionJSON(ctx context.Context, dim types.Dimensio
 	return *resp.DataList, nil
 }
 
-// ActivateSessionJSON 激活业务 session，返回 /api/studentInfo/getMyInfo 的原始 JSON。
+// ActivateSessionJSON 激活业务 session，返回 /api/studentInfo/getMyInfo 的 JSON（经 SDK 后处理）。
 //
-// 与 ActivateSession 等价但保留平台原始字段（如 ScoreRole / Photo 等未在 UserInfo 中的字段）。
+// 内部调用 GetMyInfo() 获取已后处理的 UserInfo struct，再 Marshal 回 JSON。
+// 包含 GetMyInfo 的全部后处理：学校信息 SSO 降级补全、班级名年级前缀清理。
 // 同时附带 4 步 HAR 激活所需的 HTTP 请求（首页 → getMenu ×2 → getMyInfo），
 // 即使下游不消费返回的 UserInfo 也必须执行完这 4 步。
 //
 // 返回值：
-//   - json.RawMessage：getMyInfo 响应的 returnData / dataMap 原始字节；
-//     当两者都为 null 时返回 nil。
+//   - json.RawMessage：处理后的 UserInfo JSON 字节；数据为空时返回 nil。
 //   - error：网络/解析/业务错误（含 ErrEmptyUserInfo / ErrSessionBackoff）
 func (c *Client) ActivateSessionJSON(ctx context.Context, token string) (json.RawMessage, error) {
 	info, err := c.sm.Activate(ctx, token, c.activateSessionLocked)
@@ -438,65 +439,30 @@ func (c *Client) ActivateSessionJSON(ctx context.Context, token string) (json.Ra
 	if info == nil {
 		return nil, nil
 	}
-	return rawGetMyInfo(ctx, token, c)
-}
-
-// rawGetMyInfo 拉取 /api/studentInfo/getMyInfo 一次，返回原始对象字节。
-// 与 user.go 的 getMyInfoRaw 语义相同，但跳过 struct 解码与 postProcess。
-func rawGetMyInfo(ctx context.Context, token string, c *Client) (json.RawMessage, error) {
-	if _, err := c.ActivateSession(ctx, token); err != nil {
-		return nil, fmt.Errorf("ActivateSessionJSON 预热失败: %w", err)
-	}
-	headers := c.bizHeaders(token)
-	headers["Referer"] = c.bizURL("/modify")
-
-	bodyBytes, err := c.httpDo(ctx, http.MethodGet, c.bizURL("/api/studentInfo/getMyInfo"), nil, headers, "")
+	raw, err := json.Marshal(info)
 	if err != nil {
-		return nil, fmt.Errorf("getMyInfo 请求失败: %w", err)
-	}
-	resp, err := types.DecodeResponse(bodyBytes)
-	if err != nil {
-		return nil, fmt.Errorf("getMyInfo 响应解析失败: %w", err)
-	}
-	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("%w: 获取用户信息业务错误: %w", ErrBusinessRejected, err)
-	}
-	raw := rawObjectBytes(resp)
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("%w: getMyInfo returnData 与 dataMap 都为空", ErrEmptyUserInfo)
+		return nil, fmt.Errorf("ActivateSessionJSON 序列化失败: %w", err)
 	}
 	return raw, nil
 }
 
-// GetMyInfoJSON 获取当前用户完整个人资料的原始 JSON。
+// GetMyInfoJSON 获取当前用户完整个人资料的 JSON（经 SDK 后处理）。
 //
-// 等价 GetMyInfo 的语义（ActivateSession 4 步 HAR + getMyInfo 复用缓存），
-// 但直接返回平台原始 JSON，保留所有未在 UserInfo 中建模的字段。
+// 内部调用 GetMyInfo() 获取已后处理的 UserInfo struct，再 Marshal 回 JSON。
+// 包含 GetMyInfo 的全部后处理：学校信息 SSO 降级补全、班级名年级前缀清理。
 //
 // 返回值：
-//   - json.RawMessage：getMyInfo 响应的 returnData / dataMap 原始字节；
-//     当两者都为 null 时返回 (nil, ErrEmptyUserInfo)。
+//   - json.RawMessage：处理后的 UserInfo JSON 字节；
+//     当数据为空时返回 (nil, ErrEmptyUserInfo)。
 //   - error：网络/解析/业务错误
 func (c *Client) GetMyInfoJSON(ctx context.Context, token string) (json.RawMessage, error) {
-	if _, err := c.ActivateSession(ctx, token); err != nil {
-		return nil, fmt.Errorf("GetMyInfoJSON 预热 session 失败: %w", err)
-	}
-	headers := c.bizHeaders(token)
-	headers["Referer"] = c.bizURL("/modify")
-	bodyBytes, err := c.httpDo(ctx, http.MethodGet, c.bizURL("/api/studentInfo/getMyInfo"), nil, headers, "")
+	info, err := c.GetMyInfo(ctx, token)
 	if err != nil {
-		return nil, fmt.Errorf("GetMyInfoJSON 请求失败: %w", err)
+		return nil, err
 	}
-	resp, err := types.DecodeResponse(bodyBytes)
+	raw, err := json.Marshal(info)
 	if err != nil {
-		return nil, fmt.Errorf("GetMyInfoJSON 响应解析失败: %w", err)
-	}
-	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("%w: 获取用户信息业务错误: %w", ErrBusinessRejected, err)
-	}
-	raw := rawObjectBytes(resp)
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("%w: returnData 和 dataMap 都为空", ErrEmptyUserInfo)
+		return nil, fmt.Errorf("GetMyInfoJSON 序列化失败: %w", err)
 	}
 	return raw, nil
 }
