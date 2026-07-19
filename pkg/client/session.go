@@ -177,10 +177,18 @@ func (sm *sessionManager) LoadToken() string {
 }
 
 // clearBackoff 清除 backoff 状态（lastErr + lastFailedToken）。
-// 内部 helper，仅 tryActivate 持锁路径内调用。
+// 内部 helper，仅在 sm.mu 持锁路径内调用。
 func (sm *sessionManager) clearBackoff() {
 	sm.lastErr = nil
 	sm.lastFailedToken = ""
+}
+
+// Reset 清除 sessionManager 的 backoff 状态，供 Client.Close() 调用。
+// 与 clearBackoff 的区别：本方法自行持锁，调用方无需关心并发安全。
+func (sm *sessionManager) Reset() {
+	sm.mu.Lock()
+	sm.clearBackoff()
+	sm.mu.Unlock()
 }
 
 // StoreToken 持锁写 token，并清除 backoff 状态。

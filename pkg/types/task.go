@@ -64,6 +64,33 @@ type Task struct {
 	GradeID           *int64  `json:"gradeId,omitempty"`
 }
 
+// TaskInput 定义任务提交/编辑输入的公共接口，用于提取公共 payload 构建逻辑。
+type TaskInput interface {
+	Validate() error
+	GetID() *int64
+	GetTaskID() int64
+	GetContent() string
+	GetImagePaths() []string
+	GetImageIDs() []int64
+	GetPlayRole() string
+	GetAddress() string
+	GetLevel() string
+	GetName() string
+	GetHostName() string
+	GetCircleDate() string
+	GetRank() string
+	GetActivityName() string
+	GetSportsName() string
+	GetTeamName() string
+	GetOrgName() string
+	GetResultsName() string
+	GetObtainTime() string
+	GetSpecialtyTechnology() string
+	GetLikeSpecialty1() string
+	GetLikeSpecialty2() string
+	GetLikeSpecialty3() string
+}
+
 // TaskSubmitInput 是公开给 SDK 调用方的最小任务提交输入。
 type TaskSubmitInput struct {
 	TaskID     int64
@@ -99,6 +126,30 @@ func (in TaskSubmitInput) Validate() error {
 	}
 	return nil
 }
+
+// TaskInput 接口实现：TaskSubmitInput 没有 ID 字段，新增记录时 ID 为 nil。
+func (in TaskSubmitInput) GetID() *int64                  { return nil }
+func (in TaskSubmitInput) GetTaskID() int64               { return in.TaskID }
+func (in TaskSubmitInput) GetContent() string             { return in.Content }
+func (in TaskSubmitInput) GetImagePaths() []string        { return in.ImagePaths }
+func (in TaskSubmitInput) GetImageIDs() []int64           { return in.ImageIDs }
+func (in TaskSubmitInput) GetPlayRole() string            { return in.PlayRole }
+func (in TaskSubmitInput) GetAddress() string             { return in.Address }
+func (in TaskSubmitInput) GetLevel() string               { return in.Level }
+func (in TaskSubmitInput) GetName() string                { return in.Name }
+func (in TaskSubmitInput) GetHostName() string            { return in.HostName }
+func (in TaskSubmitInput) GetCircleDate() string          { return in.CircleDate }
+func (in TaskSubmitInput) GetRank() string                { return in.Rank }
+func (in TaskSubmitInput) GetActivityName() string        { return in.ActivityName }
+func (in TaskSubmitInput) GetSportsName() string          { return in.SportsName }
+func (in TaskSubmitInput) GetTeamName() string            { return in.TeamName }
+func (in TaskSubmitInput) GetOrgName() string             { return in.OrgName }
+func (in TaskSubmitInput) GetResultsName() string         { return in.ResultsName }
+func (in TaskSubmitInput) GetObtainTime() string          { return in.ObtainTime }
+func (in TaskSubmitInput) GetSpecialtyTechnology() string { return in.SpecialtyTechnology }
+func (in TaskSubmitInput) GetLikeSpecialty1() string      { return in.LikeSpecialty1 }
+func (in TaskSubmitInput) GetLikeSpecialty2() string      { return in.LikeSpecialty2 }
+func (in TaskSubmitInput) GetLikeSpecialty3() string      { return in.LikeSpecialty3 }
 
 // TaskAddCirclePayload 是 SDK 内部使用的 addCircle 完整请求体。
 type TaskAddCirclePayload struct {
@@ -194,6 +245,30 @@ func (in TaskEditInput) Validate() error {
 	}
 	return nil
 }
+
+// TaskInput 接口实现：TaskEditInput 的 ID 字段用于修改已有记录。
+func (in TaskEditInput) GetID() *int64                  { return &in.ID }
+func (in TaskEditInput) GetTaskID() int64               { return in.TaskID }
+func (in TaskEditInput) GetContent() string             { return in.Content }
+func (in TaskEditInput) GetImagePaths() []string        { return in.ImagePaths }
+func (in TaskEditInput) GetImageIDs() []int64           { return in.ImageIDs }
+func (in TaskEditInput) GetPlayRole() string            { return in.PlayRole }
+func (in TaskEditInput) GetAddress() string             { return in.Address }
+func (in TaskEditInput) GetLevel() string               { return in.Level }
+func (in TaskEditInput) GetName() string                { return in.Name }
+func (in TaskEditInput) GetHostName() string            { return in.HostName }
+func (in TaskEditInput) GetCircleDate() string          { return in.CircleDate }
+func (in TaskEditInput) GetRank() string                { return in.Rank }
+func (in TaskEditInput) GetActivityName() string        { return in.ActivityName }
+func (in TaskEditInput) GetSportsName() string          { return in.SportsName }
+func (in TaskEditInput) GetTeamName() string            { return in.TeamName }
+func (in TaskEditInput) GetOrgName() string             { return in.OrgName }
+func (in TaskEditInput) GetResultsName() string         { return in.ResultsName }
+func (in TaskEditInput) GetObtainTime() string          { return in.ObtainTime }
+func (in TaskEditInput) GetSpecialtyTechnology() string { return in.SpecialtyTechnology }
+func (in TaskEditInput) GetLikeSpecialty1() string      { return in.LikeSpecialty1 }
+func (in TaskEditInput) GetLikeSpecialty2() string      { return in.LikeSpecialty2 }
+func (in TaskEditInput) GetLikeSpecialty3() string      { return in.LikeSpecialty3 }
 
 var (
 	ErrTaskInputIDRequired      = taskInputError("id 为必填且必须 > 0")

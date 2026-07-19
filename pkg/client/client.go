@@ -438,9 +438,7 @@ func (c *Client) Close() error {
 		}
 	}
 	if c.sm != nil {
-		c.sm.mu.Lock()
-		c.sm.clearBackoff()
-		c.sm.mu.Unlock()
+		c.sm.Reset()
 	}
 	if len(errs) > 0 {
 		return errors.Join(errs...)
