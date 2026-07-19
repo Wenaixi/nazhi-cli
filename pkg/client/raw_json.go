@@ -27,6 +27,7 @@ import (
 	"sync"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
+	"golang.org/x/sync/errgroup"
 )
 
 // rawListBytes 返回 dataList 的原始字节。dataList 缺失时返回 nil。
@@ -245,6 +246,7 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 // appendPageRange 从一页原始 JSON 数组中按 offset/limit 规则逐条取出写入 buf。
 //
 // pageRaw 是 "[{...},{...}]" 格式。用深度扫描分割 JSON 对象，不反序列化为 Go struct。
+// 注意：深度扫描感知 JSON 字符串边界，避免字符串内的花括号被误计为对象边界。
 func appendPageRange(buf *bytes.Buffer, pageRaw []byte, first *bool, taken, offset, limit, skipped int) (int, int) {
 	trimmed := trimArrayBrackets(pageRaw)
 	if len(trimmed) == 0 {
@@ -252,9 +254,22 @@ func appendPageRange(buf *bytes.Buffer, pageRaw []byte, first *bool, taken, offs
 	}
 	start := 0
 	depth := 0
+	inString := false
 	for i := 0; i <= len(trimmed) && taken < limit; i++ {
 		if i < len(trimmed) {
-			switch trimmed[i] {
+			ch := trimmed[i]
+			// JSON 字符串边界感知：在字符串内时，跳过转义字符，只在非转义的 " 处切换状态
+			if inString {
+				if ch == '\\' && i+1 < len(trimmed) {
+					i++ // 跳过转义字符（如 \"、\\、\n 等）
+				} else if ch == '"' {
+					inString = false
+				}
+				continue
+			}
+			switch ch {
+			case '"':
+				inString = true
 			case '{':
 				depth++
 			case '}':
@@ -348,25 +363,40 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 	dimErrs := make([]error, 0, len(activeDims))
 	var mu sync.Mutex
 
+	// 使用 errgroup 控制并发，限制最多 8 路并发，与 FetchTasks 保持一致
+	g, gctx := errgroup.WithContext(ctx)
+	limit := len(activeDims)
+	if limit > fetchTasksConcurrentLimit {
+		limit = fetchTasksConcurrentLimit
+	}
+	g.SetLimit(limit)
+
 	for _, dim := range activeDims {
 		dim := dim
-		go func() {
-			raw, err := c.fetchTasksDimensionJSON(ctx, dim, headers)
+		g.Go(func() error {
+			raw, err := c.fetchTasksDimensionJSON(gctx, dim, headers)
 			if err != nil {
 				appendLocked(&mu, &dimErrs, err)
 				pages <- rawPage{}
-				return
+				return nil // 错误已记录到 dimErrs，不传播给 errgroup
 			}
 			pages <- rawPage{raw: raw}
-		}()
+			return nil
+		})
 	}
+
+	// 等待所有 goroutine 完成，然后关闭 channel
+	go func() {
+		_ = g.Wait()
+		close(pages)
+	}()
 
 	buf := bytes.NewBuffer(nil)
 	buf.WriteByte('[')
 	first := true
 	totalPages := 0
-	for range activeDims {
-		p := <-pages
+	// 从 channel 收集结果（goroutine 完成后会 close(pages)）
+	for p := range pages {
 		if len(p.raw) == 0 {
 			continue
 		}
