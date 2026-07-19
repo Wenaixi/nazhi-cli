@@ -114,11 +114,7 @@ func (c *Client) GetHonorList(ctx context.Context, token string, pageNo, pageSiz
 // 真实抓包确认：接口为 GET 请求，ID 通过查询参数传递。
 func (c *Client) DeleteHonor(ctx context.Context, token string, honorID int64) error {
 	path := "/api/studentMoralEduNew/deleteHonorById?id=" + strconv.FormatInt(honorID, 10)
-	_, err := c.doBizAndDecode(ctx, token, "DeleteHonor", path, http.MethodGet, nil)
-	if err != nil {
-		return fmt.Errorf("DeleteHonor 失败: %w", err)
-	}
-	return nil
+	return c.doBizVoid(ctx, token, "DeleteHonor", path, http.MethodGet, nil)
 }
 
 // AddHonor 申报一条荣誉。
@@ -149,20 +145,12 @@ func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHo
 		}
 	}
 
-	_, err := c.doBizAndDecode(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
-	if err != nil {
-		return fmt.Errorf("AddHonor 失败: %w", err)
-	}
-	return nil
+	return c.doBizVoid(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
 }
 
 // UpdateHonor 更新一条荣誉记录。
 // POST /api/studentMoralEduNew/updateHonor
 func (c *Client) UpdateHonor(ctx context.Context, token string, payload map[string]any) error {
-	_, err := c.doBizAndDecode(ctx, token, "UpdateHonor",
+	return c.doBizVoid(ctx, token, "UpdateHonor",
 		"/api/studentMoralEduNew/updateHonor", http.MethodPost, payload)
-	if err != nil {
-		return fmt.Errorf("UpdateHonor 失败: %w", err)
-	}
-	return nil
 }
