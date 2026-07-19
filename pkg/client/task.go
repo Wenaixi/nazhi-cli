@@ -356,6 +356,9 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		}
 		result, upErr := c.UploadFile(ctx, path)
 		if upErr != nil {
+			if len(pictureList) > 0 {
+				return nil, fmt.Errorf("%s 上传图片失败（已上传的 attachmentID: %v）: %w", callerName, pictureList, upErr)
+			}
 			return nil, fmt.Errorf("%s 上传图片失败: %w", callerName, upErr)
 		}
 		pictureList = append(pictureList, result.AttachmentID)
