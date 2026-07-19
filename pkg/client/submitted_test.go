@@ -559,7 +559,7 @@ func TestPeekSubmittedTotal_VerifyQuery(t *testing.T) {
 
 	c := newTestClient(nil, biz, nil)
 	_, _ = c.PeekSubmittedTotal(context.Background(), "test-token")
-	wantQuery := "type=1&pageNo=1&pageSize=1&key="
+	wantQuery := "type=3&pageNo=1&pageSize=1&key="
 	if gotQuery != wantQuery {
 		t.Errorf("期望 query=%q，实际 %q", wantQuery, gotQuery)
 	}
