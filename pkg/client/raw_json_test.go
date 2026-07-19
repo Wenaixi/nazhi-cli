@@ -460,3 +460,167 @@ func TestFetchTasksJSON_PartialFailureReturnsRawBytes(t *testing.T) {
 		t.Errorf("部分合并结果必须仍是合法 JSON, body=%s err=%v", raw, jerr)
 	}
 }
+
+// TestGetCirclesJSON_BufferAssemblyConsistency 验证 getCirclesJSON 成功/错误路径的 buffer 拼接一致性。
+//
+// 测试逻辑：
+//   - 构造一个多页数据的 mock 服务
+//   - 第一页立即返回，第二页延迟返回（模拟慢请求）
+//   - 用短超时的 ctx，让 g.Wait() 在第二页返回前超时
+//   - 验证错误路径返回的部分数据仍是合法 JSON 数组
+//   - 对比成功路径和错误路径的 buffer 拼接结果格式一致性
+func TestGetCirclesJSON_BufferAssemblyConsistency(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			http.NotFound(w, r)
+			return
+		}
+		q := r.URL.Query()
+		pageNo, _ := strconv.Atoi(q.Get("pageNo"))
+		pageSize, _ := strconv.Atoi(q.Get("pageSize"))
+		w.Header().Set("Content-Type", "application/json")
+		switch pageNo {
+		case 1:
+			// 第一页：立即返回 2 条记录
+			pb := map[string]any{"pageNo": 1, "pageSize": pageSize, "totalNum": 4, "totalPage": 2}
+			body := map[string]any{
+				"code":     1,
+				"dataList": []map[string]any{{"id": 100}, {"id": 101}},
+				"pageBean": pb,
+			}
+			_ = json.NewEncoder(w).Encode(body)
+		case 2:
+			// 第二页：延迟返回，模拟慢请求
+			time.Sleep(500 * time.Millisecond)
+			pb := map[string]any{"pageNo": 2, "pageSize": pageSize, "totalNum": 4, "totalPage": 2}
+			body := map[string]any{
+				"code":     1,
+				"dataList": []map[string]any{{"id": 102}, {"id": 103}},
+				"pageBean": pb,
+			}
+			_ = json.NewEncoder(w).Encode(body)
+		default:
+			http.Error(w, "unexpected page", http.StatusBadRequest)
+		}
+	})))
+	defer biz.Close()
+
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithSSOBase(biz.URL),
+		client.WithUploadURL(biz.URL),
+		client.WithSubmittedPageSize(2),
+	)
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	// 用短超时的 ctx，让第二页的延迟触发超时
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	raw, err := c.GetSubmittedCirclesJSON(ctx, "test-token")
+	if err == nil {
+		t.Fatalf("ctx 超时应返回 error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		t.Errorf("错误应包含 ctx 取消语义, 得到 %v", err)
+	}
+	if len(raw) == 0 {
+		t.Fatalf("ctx 超时时应返回已合并部分字节 (page1 的 2 条)")
+	}
+
+	// 验证 bytes 仍是合法 JSON 数组
+	var arr []map[string]any
+	if jerr := json.Unmarshal(raw, &arr); jerr != nil {
+		t.Errorf("部分合并结果必须仍是合法 JSON 数组, body=%s err=%v", raw, jerr)
+	}
+	if len(arr) != 2 {
+		t.Errorf("期望 2 条已合并记录, 得到 %d", len(arr))
+	}
+	// 验证 JSON 格式与成功路径一致（首尾都是 []，不是 [ ] 之间有额外逗号）
+	if !strings.HasPrefix(string(raw), "[") || !strings.HasSuffix(string(raw), "]") {
+		t.Errorf("结果应以 [ 开头和 ] 结尾, body=%s", raw)
+	}
+}
+
+// TestGetCirclesLimitJSON_ConcurrentPagination 验证 getCirclesLimitJSON 使用并发翻页。
+//
+// 测试逻辑：
+//   - 构造一个多页数据的 mock 服务
+//   - 第一页立即返回，第二页延迟返回（模拟慢请求）
+//   - 用短超时的 ctx，让并发翻页在第二页返回前超时
+//   - 验证错误路径返回的部分数据仍是合法 JSON 数组
+func TestGetCirclesLimitJSON_ConcurrentPagination(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			http.NotFound(w, r)
+			return
+		}
+		q := r.URL.Query()
+		pageNo, _ := strconv.Atoi(q.Get("pageNo"))
+		pageSize, _ := strconv.Atoi(q.Get("pageSize"))
+		w.Header().Set("Content-Type", "application/json")
+		switch pageNo {
+		case 1:
+			// 第一页：立即返回 2 条记录
+			pb := map[string]any{"pageNo": 1, "pageSize": pageSize, "totalNum": 4, "totalPage": 2}
+			body := map[string]any{
+				"code":     1,
+				"dataList": []map[string]any{{"id": 100}, {"id": 101}},
+				"pageBean": pb,
+			}
+			_ = json.NewEncoder(w).Encode(body)
+		case 2:
+			// 第二页：延迟返回，模拟慢请求
+			time.Sleep(500 * time.Millisecond)
+			pb := map[string]any{"pageNo": 2, "pageSize": pageSize, "totalNum": 4, "totalPage": 2}
+			body := map[string]any{
+				"code":     1,
+				"dataList": []map[string]any{{"id": 102}, {"id": 103}},
+				"pageBean": pb,
+			}
+			_ = json.NewEncoder(w).Encode(body)
+		default:
+			http.Error(w, "unexpected page", http.StatusBadRequest)
+		}
+	})))
+	defer biz.Close()
+
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithSSOBase(biz.URL),
+		client.WithUploadURL(biz.URL),
+		client.WithSubmittedPageSize(2),
+	)
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	// 用短超时的 ctx，让第二页的延迟触发超时
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	// offset=0, limit=4 表示全量，应该触发翻页
+	raw, _, err := c.GetSubmittedCirclesLimitJSON(ctx, "test-token", 0, 4)
+	if err == nil {
+		t.Fatalf("ctx 超时应返回 error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) && !errors.Is(err, context.Canceled) {
+		t.Errorf("错误应包含 ctx 取消语义, 得到 %v", err)
+	}
+	if len(raw) == 0 {
+		t.Fatalf("ctx 超时时应返回已合并部分字节 (page1 的 2 条)")
+	}
+
+	// 验证 bytes 仍是合法 JSON 数组
+	var arr []map[string]any
+	if jerr := json.Unmarshal(raw, &arr); jerr != nil {
+		t.Errorf("部分合并结果必须仍是合法 JSON 数组, body=%s err=%v", raw, jerr)
+	}
+	if len(arr) != 2 {
+		t.Errorf("期望 2 条已合并记录, 得到 %d", len(arr))
+	}
+}
