@@ -120,7 +120,15 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 	if err != nil {
 		return fmt.Errorf("ActivateSession %s（getMenu）失败: %w", stepLabel, err)
 	}
-	drainAndClose(resp.Body)
+	defer drainAndClose(resp.Body)
+
+	if resp.StatusCode != http.StatusOK {
+		// 按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过
+		// errors.Is 精确识别原因（限流 / 服务端异常 / HTTP 层错误）。
+		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
+		return fmt.Errorf("%w: ActivateSession %s getMenu 返回状态码 %d",
+			sentinel, stepLabel, resp.StatusCode)
+	}
 	return nil
 }
 
