@@ -113,10 +113,13 @@ func normalizeSelfEvalStatus(m map[string]any) *types.SelfEvalStatus {
 	if len(m) == 0 {
 		return nil
 	}
+	// 字段名兜底：优先使用 struct tag 定义的标准 key（id/studentComment/teacherComment），
+	// 同时兼容 API 可能返回的 snake_case 或语义变体。
+	// 如果服务端改了字段名，应在 types 层处理而非在此猜测。
 	status := &types.SelfEvalStatus{
 		ID:             firstInt64(m, "id", "platformId", "selfEvalId"),
-		StudentComment: firstString(m, "studentComment", "student_comment", "comment", "content", "selfEvaluation", "evaluationContent", "studentEvaluation"),
-		TeacherComment: firstString(m, "teacherComment", "teacher_comment", "teacherRemark", "remark", "teacherAdvice"),
+		StudentComment: firstString(m, "studentComment", "student_comment", "selfEvaluation", "evaluationContent"),
+		TeacherComment: firstString(m, "teacherComment", "teacher_comment", "teacherRemark"),
 	}
 	if status.ID == 0 && status.StudentComment == "" && status.TeacherComment == "" {
 		return nil
