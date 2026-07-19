@@ -316,14 +316,30 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
 	}
 
-	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
-	if err != nil {
-		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
-	}
-
-	info, err := c.GetMyInfo(ctx, token)
-	if err != nil {
-		return nil, fmt.Errorf("%s 获取用户信息失败: %w", callerName, err)
+	// GetCircleTypeByTaskID 和 GetMyInfo 无数据依赖，并发执行减少一个 RTT 延迟。
+	var (
+		meta *types.TaskCircleTypeInfo
+		info *types.UserInfo
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var err error
+		meta, err = c.GetCircleTypeByTaskID(gctx, token, input.GetTaskID())
+		if err != nil {
+			return fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var err error
+		info, err = c.GetMyInfo(gctx, token)
+		if err != nil {
+			return fmt.Errorf("%s 获取用户信息失败: %w", callerName, err)
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return nil, err
 	}
 
 	// 处理图片：合并 ImageIDs + ImagePaths
@@ -340,6 +356,9 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		}
 		result, upErr := c.UploadFile(ctx, path)
 		if upErr != nil {
+			if len(pictureList) > 0 {
+				return nil, fmt.Errorf("%s 上传图片失败（已上传的 attachmentID: %v）: %w", callerName, pictureList, upErr)
+			}
 			return nil, fmt.Errorf("%s 上传图片失败: %w", callerName, upErr)
 		}
 		pictureList = append(pictureList, result.AttachmentID)
