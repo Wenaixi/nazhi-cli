@@ -33,16 +33,16 @@ func registerBizFlags(cmd *cobra.Command) {
 // buildClient 从 cobra 命令标志构建通用 Client，处理 sso-base / base-url /
 // upload-url / timeout 的 env fallback 与 opts 拼接。**不**做 token 必填校验——
 // token 必填是业务 API 命令（whoami/task/self-eval/session activate）的
-// 约束，SSO 命令（login/school）不需要（组 E 拆分）。
-// login/school 等 SSO 命令直接调用。
+// 约束，SSO 命令（login）不需要。
+// login 等 SSO 命令直接调用。
 // 业务命令应调 buildBizClient（基于 buildClientOpts + token 必填校验）。
 // 新增 urlType 参数让调用方指定 URL 来源——
-//   - urlType="sso": 从 cmd 读 --sso-base flag + NAZHI_SSO_BASE env（login/school）
+//   - urlType="sso": 从 cmd 读 --sso-base flag + NAZHI_SSO_BASE env（login）
 //   - urlType="base": 从 cmd 读 --base-url flag + NAZHI_BASE_URL env（业务 API 命令）
 //   - urlType="upload": 从 cmd 读 --upload-url flag + NAZHI_UPLOAD_URL env（file upload）
 //
 // urlKey 是 timeout env key（默认 NAZHI_TIMEOUT），不同命令可覆盖默认值。
-// school 用默认 15s，file upload 用 30s——通过 urlKey 注入对应 env。
+// login 用默认 15s，file upload 用 30s——通过 urlKey 注入对应 env。
 func buildClient(cmd *cobra.Command, urlType string, timeoutEnv string) (*client.Client, error) {
 	opts, _, err := buildClientOpts(cmd, urlType, timeoutEnv, false)
 	if err != nil {
