@@ -40,23 +40,19 @@ func (c *Client) fetchCirclePage(ctx context.Context, token string, pageNo, page
 }
 
 // fetchCirclePageJSON 拉取一页写实记录，返回原始 dataList 字节。
-func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, pageSize int, circleType int) ([]types.CircleRecord, *types.PageBean, []byte, error) {
+func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, pageSize int, circleType int) (*types.PageBean, []byte, error) {
 	path := "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
 
 	resp, err := c.doBizAndDecode(ctx, token, "fetchCirclePageJSON", path, http.MethodGet, nil)
 	if err != nil {
-		return nil, nil, nil, err
+		return nil, nil, err
 	}
 
 	pb, err := types.DecodePageBean(*resp)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("fetchCirclePageJSON 解析分页信息失败: %w", err)
+		return nil, nil, fmt.Errorf("fetchCirclePageJSON 解析分页信息失败: %w", err)
 	}
-	records, err := types.DecodeDataList[types.CircleRecord](*resp)
-	if err != nil {
-		return nil, nil, nil, fmt.Errorf("fetchCirclePageJSON 解析写实记录失败: %w", err)
-	}
-	return records, pb, rawListBytes(*resp), nil
+	return pb, rawListBytes(*resp), nil
 }
 
 // concurrentPageLimit 是翻页并发的上限，避免打爆服务端。
@@ -193,7 +189,7 @@ func (c *Client) PeekSubmittedTotal(ctx context.Context, token string) (int, err
 // fetchSubmittedPageJSON 拉取一页已提交写实记录，返回原始 dataList 字节。
 //
 // 已弃用：请使用 fetchCirclePageJSON。
-func (c *Client) fetchSubmittedPageJSON(ctx context.Context, token string, pageNo, pageSize int) ([]types.CircleRecord, *types.PageBean, []byte, error) {
+func (c *Client) fetchSubmittedPageJSON(ctx context.Context, token string, pageNo, pageSize int) (*types.PageBean, []byte, error) {
 	return c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, 3)
 }
 
