@@ -32,6 +32,9 @@ func markError() {
 // printEnvelope 序列化 envelope 到 stdout 并按 ExitCode 标记退出码。
 // 这是 CLI 所有 Run 回调的统一出口。
 func printEnvelope(e *envelope.Envelope) {
+	if e == nil {
+		return
+	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(e); err != nil {
@@ -39,9 +42,6 @@ func printEnvelope(e *envelope.Envelope) {
 		if !quiet {
 			printError(fmt.Errorf("序列化 envelope 失败: %w", err))
 		}
-		return
-	}
-	if e == nil {
 		return
 	}
 	if code := e.ExitCode(); code != 0 {
