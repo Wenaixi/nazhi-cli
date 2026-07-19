@@ -183,7 +183,7 @@ var jpegBufPool = sync.Pool{
 // 5MB 图片多次 encode 共享同一个 buffer 实例。
 func encodeJPEG(img image.Image, quality int) ([]byte, error) {
 	buf, ok := jpegBufPool.Get().(*bytes.Buffer)
-	if !ok {
+	if !ok || buf == nil {
 		buf = &bytes.Buffer{}
 	}
 	buf.Reset()

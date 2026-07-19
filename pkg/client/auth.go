@@ -49,7 +49,7 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 	}
 
 	if err := types.CheckCode(resp); err != nil {
-		return nil, fmt.Errorf("GetSchoolID 业务错误: %w", errors.Join(ErrBusinessRejected, err))
+		return nil, errors.Join(ErrBusinessRejected, fmt.Errorf("GetSchoolID 业务错误: %w", err))
 	}
 
 	schools, err := types.DecodeDataList[map[string]any](resp)
