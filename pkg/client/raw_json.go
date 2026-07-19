@@ -92,11 +92,6 @@ func rawSingleObjectBytes(resp types.UnifiedResponse) []byte {
 //
 // 取消语义：ctx 取消时返回 (已有合并数据, ctx.Err())，调用方按 partial envelope 处理。
 func (c *Client) GetSubmittedCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
-	pageSize := c.submittedPageSize
-	if pageSize <= 0 {
-		pageSize = defaultSubmittedPageSize
-	}
-
 	return c.getCirclesJSON(ctx, token, 3, "GetSubmittedCirclesJSON")
 }
 
@@ -144,13 +139,16 @@ func (c *Client) GetPublicCirclesLimitJSON(ctx context.Context, token string, of
 }
 
 // getCirclesJSON 是各类型写实记录全量拉取的通用实现。
+//
+// 多页时使用 errgroup 并发翻页（与 fetchAllCirclePages 对齐），
+// 避免串行循环在数据量大时慢 2-5 倍。
 func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType int, methodName string) (json.RawMessage, error) {
 	pageSize := c.submittedPageSize
 	if pageSize <= 0 {
 		pageSize = defaultSubmittedPageSize
 	}
 
-	page1, pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
+	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
 	if err != nil {
 		return nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
@@ -162,23 +160,57 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 		return raw1, nil
 	}
 
-	buf := bytes.NewBuffer(make([]byte, 0, len(page1)*pb.TotalPage))
+	// 多页：预分配索引切片 + errgroup 并发翻页，保持页号顺序
+	type rawResult struct {
+		raw []byte
+	}
+	results := make([]rawResult, pb.TotalPage+1)
+	results[1] = rawResult{raw: raw1}
+
+	g, gctx := errgroup.WithContext(ctx)
+	g.SetLimit(concurrentPageLimit)
+
+	for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+		pn := pageNo
+		g.Go(func() error {
+			if err := gctx.Err(); err != nil {
+				return err
+			}
+			_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType)
+			if err != nil {
+				return fmt.Errorf("第 %d 页失败: %w", pn, err)
+			}
+			results[pn] = rawResult{raw: raw}
+			return nil
+		})
+	}
+
+	if err := g.Wait(); err != nil {
+		// 部分失败时，已成功的页仍有效；按已有页顺序拼接
+		buf := bytes.NewBuffer(make([]byte, 0, len(raw1)*pb.TotalPage))
+		buf.WriteByte('[')
+		buf.Write(trimArrayBrackets(raw1))
+		for pn := 2; pn <= pb.TotalPage; pn++ {
+			if len(results[pn].raw) == 0 {
+				continue
+			}
+			buf.WriteByte(',')
+			buf.Write(trimArrayBrackets(results[pn].raw))
+		}
+		buf.WriteByte(']')
+		return json.RawMessage(trimArrayToCurrent(buf.Bytes())),
+			fmt.Errorf("%s 部分页失败: %w", methodName, err)
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, len(raw1)*pb.TotalPage))
 	buf.WriteByte('[')
 	buf.Write(trimArrayBrackets(raw1))
-	for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
-		if cerr := ctx.Err(); cerr != nil {
-			return json.RawMessage(trimArrayToCurrent(buf.Bytes())), cerr
-		}
-		_, _, raw, err := c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, circleType)
-		if err != nil {
-			return json.RawMessage(trimArrayToCurrent(buf.Bytes())),
-				fmt.Errorf("%s 第 %d 页失败: %w", methodName, pageNo, err)
-		}
-		if len(raw) == 0 {
+	for pn := 2; pn <= pb.TotalPage; pn++ {
+		if len(results[pn].raw) == 0 {
 			continue
 		}
 		buf.WriteByte(',')
-		buf.Write(trimArrayBrackets(raw))
+		buf.Write(trimArrayBrackets(results[pn].raw))
 	}
 	buf.WriteByte(']')
 	return buf.Bytes(), nil
@@ -196,7 +228,7 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 		return raw, nil, err
 	}
 
-	_, pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
+	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
@@ -224,7 +256,7 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 			if cerr := ctx.Err(); cerr != nil {
 				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb, cerr
 			}
-			_, _, raw, err := c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, circleType)
+			_, raw, err := c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, circleType)
 			if err != nil {
 				return json.RawMessage(trimArrayToCurrent(buf.Bytes())), pb,
 					fmt.Errorf("%s 第 %d 页失败: %w", methodName, pageNo, err)
