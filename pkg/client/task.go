@@ -303,38 +303,49 @@ func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimen
 }
 
 func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
+	return c.buildTaskPayload(ctx, token, input, "SubmitTask")
+}
+
+// buildTaskPayload 是 payload 构建的公共逻辑，供 SubmitTask 和 EditCircle 共用。
+//
+// 参数说明：
+//   - input: 实现 TaskInput 接口的输入（TaskSubmitInput 或 TaskEditInput）
+//   - callerName: 调用方名称，用于错误信息前缀
+func (c *Client) buildTaskPayload(ctx context.Context, token string, input types.TaskInput, callerName string) (*types.TaskAddCirclePayload, error) {
 	if err := input.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
 	}
 
-	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.TaskID)
+	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
 	if err != nil {
-		return nil, fmt.Errorf("SubmitTask 获取任务元数据失败: %w", err)
+		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
 	}
 
 	info, err := c.GetMyInfo(ctx, token)
 	if err != nil {
-		return nil, fmt.Errorf("SubmitTask 获取用户信息失败: %w", err)
+		return nil, fmt.Errorf("%s 获取用户信息失败: %w", callerName, err)
 	}
 
-	pictureList := make([]int64, 0, len(input.ImageIDs)+len(input.ImagePaths))
-	for _, id := range input.ImageIDs {
+	// 处理图片：合并 ImageIDs + ImagePaths
+	pictureList := make([]int64, 0, len(input.GetImageIDs())+len(input.GetImagePaths()))
+	for _, id := range input.GetImageIDs() {
 		if id <= 0 {
 			continue
 		}
 		pictureList = append(pictureList, id)
 	}
-	for _, path := range input.ImagePaths {
+	for _, path := range input.GetImagePaths() {
 		if strings.TrimSpace(path) == "" {
 			continue
 		}
 		result, upErr := c.UploadFile(ctx, path)
 		if upErr != nil {
-			return nil, fmt.Errorf("SubmitTask 上传图片失败: %w", upErr)
+			return nil, fmt.Errorf("%s 上传图片失败: %w", callerName, upErr)
 		}
 		pictureList = append(pictureList, result.AttachmentID)
 	}
 
+	// 验证任务元数据中的图片要求
 	if meta.Remark != "" && len(pictureList) == 0 {
 		lowerRemark := strings.ToLower(meta.Remark)
 		if strings.Contains(meta.Remark, "照片") || strings.Contains(meta.Remark, "图片") || strings.Contains(lowerRemark, "pdf") {
@@ -342,48 +353,50 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 		}
 	}
 
-	address := strings.TrimSpace(input.Address)
+	// 地址处理：优先取输入，空串时 fallback 学校名
+	address := strings.TrimSpace(input.GetAddress())
 	if address == "" {
 		address = strings.TrimSpace(info.SchoolName)
 	}
 
-	playRole := strings.TrimSpace(input.PlayRole)
+	playRole := strings.TrimSpace(input.GetPlayRole())
 
-	level := strings.TrimSpace(input.Level)
+	// 等级处理：空串时默认 "5"
+	level := strings.TrimSpace(input.GetLevel())
 	if level == "" {
 		level = "5"
 	}
 
-	// v1.2.0：新增可选字段映射
-	name := strings.TrimSpace(input.Name)
-	hostName := strings.TrimSpace(input.HostName)
-	circleDate := strings.TrimSpace(input.CircleDate)
-	rank := strings.TrimSpace(input.Rank)
-	activityName := strings.TrimSpace(input.ActivityName)
-	sportsName := strings.TrimSpace(input.SportsName)
-	teamName := strings.TrimSpace(input.TeamName)
+	// v1.2.0：可选字段映射
+	name := strings.TrimSpace(input.GetName())
+	hostName := strings.TrimSpace(input.GetHostName())
+	circleDate := strings.TrimSpace(input.GetCircleDate())
+	rank := strings.TrimSpace(input.GetRank())
+	activityName := strings.TrimSpace(input.GetActivityName())
+	sportsName := strings.TrimSpace(input.GetSportsName())
+	teamName := strings.TrimSpace(input.GetTeamName())
 
 	// OrgName：优先取输入，空串时 fallback 学校名
-	orgName := strings.TrimSpace(input.OrgName)
+	orgName := strings.TrimSpace(input.GetOrgName())
 	if orgName == "" {
 		orgName = strings.TrimSpace(info.SchoolName)
 	}
 
-	resultsName := strings.TrimSpace(input.ResultsName)
-	obtainTime := strings.TrimSpace(input.ObtainTime)
-	specialtyTechnology := strings.TrimSpace(input.SpecialtyTechnology)
-	likeSpecialty1 := strings.TrimSpace(input.LikeSpecialty1)
-	likeSpecialty2 := strings.TrimSpace(input.LikeSpecialty2)
-	likeSpecialty3 := strings.TrimSpace(input.LikeSpecialty3)
+	resultsName := strings.TrimSpace(input.GetResultsName())
+	obtainTime := strings.TrimSpace(input.GetObtainTime())
+	specialtyTechnology := strings.TrimSpace(input.GetSpecialtyTechnology())
+	likeSpecialty1 := strings.TrimSpace(input.GetLikeSpecialty1())
+	likeSpecialty2 := strings.TrimSpace(input.GetLikeSpecialty2())
+	likeSpecialty3 := strings.TrimSpace(input.GetLikeSpecialty3())
 
 	payload := &types.TaskAddCirclePayload{
-		ID:                  nil,
+		ID:                  input.GetID(),
 		Name:                name,
 		HostName:            hostName,
 		CircleDate:          circleDate,
 		Rank:                rank,
 		Level:               level,
-		Content:             strings.TrimSpace(input.Content),
+		Content:             strings.TrimSpace(input.GetContent()),
 		PictureList:         pictureList,
 		CircleTaskID:        meta.TaskID,
 		CircleTypeID:        meta.CircleTypeID,
@@ -448,113 +461,7 @@ func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskE
 //   - buildTaskSubmitPayload: ID = nil（新增记录）
 //   - buildTaskEditPayload: ID = input.ID（修改已有记录）
 func (c *Client) buildTaskEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
-	if err := input.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
-	}
-
-	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.TaskID)
-	if err != nil {
-		return nil, fmt.Errorf("EditCircle 获取任务元数据失败: %w", err)
-	}
-
-	info, err := c.GetMyInfo(ctx, token)
-	if err != nil {
-		return nil, fmt.Errorf("EditCircle 获取用户信息失败: %w", err)
-	}
-
-	pictureList := make([]int64, 0, len(input.ImageIDs)+len(input.ImagePaths))
-	for _, id := range input.ImageIDs {
-		if id <= 0 {
-			continue
-		}
-		pictureList = append(pictureList, id)
-	}
-	for _, path := range input.ImagePaths {
-		if strings.TrimSpace(path) == "" {
-			continue
-		}
-		result, upErr := c.UploadFile(ctx, path)
-		if upErr != nil {
-			return nil, fmt.Errorf("EditCircle 上传图片失败: %w", upErr)
-		}
-		pictureList = append(pictureList, result.AttachmentID)
-	}
-
-	if meta.Remark != "" && len(pictureList) == 0 {
-		lowerRemark := strings.ToLower(meta.Remark)
-		if strings.Contains(meta.Remark, "照片") || strings.Contains(meta.Remark, "图片") || strings.Contains(lowerRemark, "pdf") {
-			return nil, fmt.Errorf("%w: 该任务要求上传图片或附件", ErrInvalidPayload)
-		}
-	}
-
-	address := strings.TrimSpace(input.Address)
-	if address == "" {
-		address = strings.TrimSpace(info.SchoolName)
-	}
-
-	playRole := strings.TrimSpace(input.PlayRole)
-
-	level := strings.TrimSpace(input.Level)
-	if level == "" {
-		level = "5"
-	}
-
-	// v1.2.0：新增可选字段映射
-	name := strings.TrimSpace(input.Name)
-	hostName := strings.TrimSpace(input.HostName)
-	circleDate := strings.TrimSpace(input.CircleDate)
-	rank := strings.TrimSpace(input.Rank)
-	activityName := strings.TrimSpace(input.ActivityName)
-	sportsName := strings.TrimSpace(input.SportsName)
-	teamName := strings.TrimSpace(input.TeamName)
-
-	// OrgName：优先取输入，空串时 fallback 学校名
-	orgName := strings.TrimSpace(input.OrgName)
-	if orgName == "" {
-		orgName = strings.TrimSpace(info.SchoolName)
-	}
-
-	resultsName := strings.TrimSpace(input.ResultsName)
-	obtainTime := strings.TrimSpace(input.ObtainTime)
-	specialtyTechnology := strings.TrimSpace(input.SpecialtyTechnology)
-	likeSpecialty1 := strings.TrimSpace(input.LikeSpecialty1)
-	likeSpecialty2 := strings.TrimSpace(input.LikeSpecialty2)
-	likeSpecialty3 := strings.TrimSpace(input.LikeSpecialty3)
-
-	payload := &types.TaskAddCirclePayload{
-		ID:                  &input.ID,
-		Name:                name,
-		HostName:            hostName,
-		CircleDate:          circleDate,
-		Rank:                rank,
-		Level:               level,
-		Content:             strings.TrimSpace(input.Content),
-		PictureList:         pictureList,
-		CircleTaskID:        meta.TaskID,
-		CircleTypeID:        meta.CircleTypeID,
-		DimensionID:         meta.DimensionID,
-		Hours:               meta.Hours,
-		CircleBeginDate:     "",
-		CircleEndDate:       "",
-		CheckResult:         "",
-		PatentType:          "",
-		PatentNum:           "",
-		Address:             address,
-		TermName:            "",
-		ActivityName:        activityName,
-		SportsName:          sportsName,
-		TeamName:            teamName,
-		OrgName:             orgName,
-		ResultsName:         resultsName,
-		ObtainTime:          obtainTime,
-		SpecialtyTechnology: specialtyTechnology,
-		PlayRole:            playRole,
-		LikeSpecialty1:      likeSpecialty1,
-		LikeSpecialty2:      likeSpecialty2,
-		LikeSpecialty3:      likeSpecialty3,
-	}
-
-	return payload, nil
+	return c.buildTaskPayload(ctx, token, input, "EditCircle")
 }
 
 // 公开接口仅接收最少必要输入，SDK 内部自动补齐真实网页提交流程所需字段：
