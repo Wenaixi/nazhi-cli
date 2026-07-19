@@ -131,15 +131,21 @@ func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHo
 	if payload.TypeName == "" && payload.TypeID > 0 {
 		opts, err := c.GetHonorTypeForSelect(ctx, token)
 		if err != nil {
-			c.logDebug("AddHonor 自动反查 typeName 失败: %v", err)
-		} else {
-			for _, opt := range opts {
-				if opt.Value == int(payload.TypeID) {
-					payload.TypeName = opt.Label
-					c.logDebug("AddHonor 自动补全 typeName: typeId=%d → %q", payload.TypeID, opt.Label)
-					break
-				}
+			return fmt.Errorf("AddHonor 自动反查 typeName 失败: %w", err)
+		}
+
+		found := false
+		for _, opt := range opts {
+			if opt.Value == int(payload.TypeID) {
+				payload.TypeName = opt.Label
+				c.logDebug("AddHonor 自动补全 typeName: typeId=%d → %q", payload.TypeID, opt.Label)
+				found = true
+				break
 			}
+		}
+
+		if !found {
+			return fmt.Errorf("%w: typeId=%d 未找到对应的荣誉类型", ErrInvalidPayload, payload.TypeID)
 		}
 	}
 
