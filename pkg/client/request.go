@@ -244,16 +244,22 @@ func doBizGetDecode[T any](c *Client, ctx context.Context, token, opName, path s
 	if err != nil {
 		return nil, err
 	}
+	var lastErr error
 	for _, decode := range decoders {
 		v, err := decode(*resp)
 		if err == nil && v != nil {
 			return v, nil
 		}
 		if err != nil {
+			lastErr = err
 			c.logDebug("%s doBizGetDecode fallback: %v", opName, err)
 		}
 	}
-	return nil, fmt.Errorf("%s: 所有解码器均失败", opName)
+	// 用 errors.Join 收集最后一个解码器错误，让调用方能 errors.Is 穿透获取有用信息
+	return nil, errors.Join(
+		fmt.Errorf("%s: 所有解码器均失败", opName),
+		lastErr,
+	)
 }
 
 // logRequestHeaders 在 debug 级别输出请求头，值长度 > 16 字符时自动截断脱敏。
