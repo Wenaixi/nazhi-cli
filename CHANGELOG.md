@@ -23,21 +23,21 @@
 #### 新增 SDK 方法（8 个新文件）
 
 - `circle.go` — 写实管理扩展：DeleteCircle、AddCircleComment、SetCircleLike、GetCircleImages、GetCircleTasks、GetCircleTypes、GetDimensionsBySchool、GetDictList
-- `exam.go` — 成绩管理：GetExamInitInfo、QueryStudentExam
-- `democratic.go` — 民主评价：GetDemocraticActivities、GetDemocraticActivityByID、GetSelfEvaluationData、GetMutualPersonInfo、GetDemocraticResult、GetMutualEvaluationDetail、AddOrUpdateSelfEvaluation、AddOrUpdateMutualEvaluation
-- `violation.go` — 违规记录：GetViolationList、GetViolationTypes、UpdateHonor
-- `notification.go` — 通知管理：GetUnreadNotifications、GetNotificationByID、ReadNotification、GetAllNotifications
-- `bonus.go` — 积分商城：GetMonthBonus、GetHistoryBonus、GetBonusRank、GetBonusDetail
-- `file_bag.go` — 档案查看：GetTermList、GetStudentInfoForTerm
+- `exam.go` — 成绩管理：GetExamInitInfo、QueryStudentExam（**v1.3.0 已删除，不再维护**）
+- `democratic.go` — 民主评价：GetDemocraticActivities、GetDemocraticActivityByID、GetSelfEvaluationData、GetMutualPersonInfo、GetDemocraticResult、GetMutualEvaluationDetail、AddOrUpdateSelfEvaluation、AddOrUpdateMutualEvaluation（**v1.3.0 已删除，不再维护**）
+- `violation.go` — 违规记录：GetViolationList、GetViolationTypes、UpdateHonor（**v1.3.0 已删除，不再维护**）
+- `notification.go` — 通知管理：GetUnreadNotifications、GetNotificationByID、ReadNotification、GetAllNotifications（**v1.3.0 已删除，不再维护**）
+- `bonus.go` — 积分商城：GetMonthBonus、GetHistoryBonus、GetBonusRank、GetBonusDetail（**v1.3.0 已删除，不再维护**）
+- `file_bag.go` — 档案查看：GetTermList、GetStudentInfoForTerm（**v1.3.0 已删除，不再维护**）
 - `user_update.go` — 个人信息更新：UpdateMyInfo
 
 #### 新增 CLI 命令（6 个父命令）
 
 - `nazhi circle` — 写实管理（delete、comment、like）
-- `nazhi exam` — 成绩管理（query）
-- `nazhi violation` — 违规记录（list、types）
-- `nazhi notification` — 通知管理（unread、read）
-- `nazhi bonus` — 积分管理（month、rank）
+- `nazhi exam` — 成绩管理（query）（**v1.3.0 已删除，不再维护**）
+- `nazhi violation` — 违规记录（list、types）（**v1.3.0 已删除，不再维护**）
+- `nazhi notification` — 通知管理（unread、read）（**v1.3.0 已删除，不再维护**）
+- `nazhi bonus` — 积分管理（month、rank）（**v1.3.0 已删除，不再维护**）
 - `nazhi user` — 用户管理（update）
 
 ### 构建

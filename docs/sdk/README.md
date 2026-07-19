@@ -172,29 +172,7 @@ func New(opts ...Option) (*Client, error)
 | `GetCircleTypes` | `(ctx, token, dimensionID) ([]Dimension, error)` | 类别列表 |
 | `GetDimensionsBySchool` | `(ctx, token) ([]Dimension, error)` | 学校维度 |
 | `GetDictList` | `(ctx, token, cateCode) ([]HonorSelectOption, error)` | 字典选项 |
-| `GetExamInitInfo` | `(ctx, token, termID) (*ExamInitInfo, error)` | 学期/考试/课程 |
-| `QueryStudentExam` | `(ctx, token, termID, courseList, examList) ([]ExamResult, error)` | 成绩列表 |
-| `GetDemocraticActivities` | `(ctx, token, pageNo, pageSize) ([]DemocraticActivity, *PageBean, error)` | 活动列表+分页 |
-| `GetDemocraticActivityByID` | `(ctx, token, activityID) (*DemocraticActivity, error)` | 活动详情 |
-| `GetSelfEvaluationData` | `(ctx, token, activityID, subPlanID) ([]SelfEvaluationItem, error)` | 自评数据 |
-| `GetMutualPersonInfo` | `(ctx, token, activityID) (*MutualPersonInfo, error)` | 互评人员 |
-| `GetDemocraticResult` | `(ctx, token, activityID) (*DemocraticResult, error)` | 评价结果 |
-| `GetMutualEvaluationDetail` | `(ctx, token, activityID, subPlanID) ([]MutualEvaluation, error)` | 互评详情 |
-| `AddOrUpdateSelfEvaluation` | `(ctx, token, evaluations) error` | — |
-| `AddOrUpdateMutualEvaluation` | `(ctx, token, evaluations) error` | — |
-| `GetViolationList` | `(ctx, token, pageNo, pageSize, key) ([]ViolationRecord, *PageBean, error)` | 违规列表+分页 |
-| `GetViolationTypes` | `(ctx, token) ([]ViolationType, error)` | 违规类型 |
 | `UpdateHonor` | `(ctx, token, payload) error` | — |
-| `GetUnreadNotifications` | `(ctx, token) ([]Notification, error)` | 未读通知 |
-| `GetNotificationByID` | `(ctx, token, notificationID) (*Notification, error)` | 通知详情 |
-| `ReadNotification` | `(ctx, token, notificationID) error` | — |
-| `GetAllNotifications` | `(ctx, token, pageNo, pageSize) ([]Notification, *PageBean, error)` | 通知列表+分页 |
-| `GetMonthBonus` | `(ctx, token) ([]BonusInfo, error)` | 月积分 |
-| `GetHistoryBonus` | `(ctx, token, termID, month) ([]BonusInfo, error)` | 历史积分 |
-| `GetBonusRank` | `(ctx, token, limitNum) ([]BonusRank, error)` | 积分排名 |
-| `GetBonusDetail` | `(ctx, token, limitNum) ([]BonusDetail, error)` | 积分明细 |
-| `GetTermList` | `(ctx, token) ([]TermInfo, error)` | 学期列表 |
-| `GetStudentInfoForTerm` | `(ctx, token, termID) (map[string]any, error)` | 档案信息 |
 | `UpdateMyInfo` | `(ctx, token, userInfo) error` | — |
 
 ---

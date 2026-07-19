@@ -372,11 +372,11 @@ if info.SchoolID == 0 || info.SchoolName == "" {
 | `pkg/types/circle.go` | `CircleDate` string、`Approved bool`→`Status int`、`IsMySelf bool`→`IfMySelf int`、`LikeStatus bool`→`LikeStatus int`、JSON tag 全量 snake_case |
 | `pkg/types/task.go` | `StartDate/EndDate` string、删除 `DateOnly`、`NeedPic`→新增 `UpPic int`、`Submitted` 保留+保留 `CircleTaskStatus` |
 | `pkg/types/honor.go` | `GetDate` string、`Approved bool`→保留 `Status int` |
-| `pkg/types/notification.go` | `CreateTime` string |
-| `pkg/types/exam.go` | `CreateTime` string |
-| `pkg/types/bonus.go` | `CreateTime` string |
-| `pkg/types/violation.go` | `CreateTime` string |
-| `pkg/types/democratic.go` | `CreateTime` string |
+| `pkg/types/notification.go` | `CreateTime` string |（v1.3.0 已删除，不再维护）
+| `pkg/types/exam.go` | `CreateTime` string |（v1.3.0 已删除，不再维护）
+| `pkg/types/bonus.go` | `CreateTime` string |（v1.3.0 已删除，不再维护）
+| `pkg/types/violation.go` | `CreateTime` string |（v1.3.0 已删除，不再维护）
+| `pkg/types/democratic.go` | `CreateTime` string |（v1.3.0 已删除，不再维护）
 | `pkg/types/deref.go` | 可能不再需要（DateOnly 场景） |
 | `pkg/client/user.go` | 删除 `postProcessUserInfo` |
 | `pkg/client/task.go` | 删除 `DimensionName` 注入、图片要求检测建议放到 CLI 层 |

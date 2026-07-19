@@ -50,10 +50,8 @@ package version
 //	1.2.4 — 新增 task edit 命令（修改已提交的写实记录）+ EditCircle SDK 方法
 //	1.3.0 — 深度修复：根据前端源码全面补齐 SDK 字段和 API
 //	        - 类型定义：扩展 CircleRecord（30+ 字段）、UserInfo（10+ 字段）
-//	        - 新增类型：ExamResult、ViolationRecord、Notification、BonusInfo、DemocraticActivity 等
-//	        - 新增 SDK 方法（8 个文件）：
-//	          circle.go（删除写实、添加评论、点赞、获取图片/任务/类别/维度/字典）
-//	          exam.go（成绩查询）、democratic.go（民主评价）、violation.go（违规记录）
-//	          notification.go（通知消息）、bonus.go（积分商城）、file_bag.go（档案查看）、user_update.go（用户信息更新）
-//	        - 新增 CLI 命令（6 个父命令）：circle、exam、violation、notification、bonus、user
+//	        - 新增 SDK 方法：circle.go（删除写实/添加评论/点赞/获取图片等）
+//	        - 新增 CLI 命令：circle、user
+//	        - 删除模块（源码清理，不再维护）：exam、democratic、violation、
+//	          notification、bonus、file_bag（含对应 CLI 命令、SDK 方法、类型定义）
 var Version = "1.3.0"

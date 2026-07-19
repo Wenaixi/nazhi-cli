@@ -117,15 +117,31 @@ nazhi
 │   ├── list                     列出全维度任务
 │   ├── submit                   提交任务（支持 @payload.json）
 │   ├── submitted                获取班级已提交写实记录（含同班同学姓名/学号）
-│   └── done                     同 task submitted（v1.0.0 新增别名）
+│   ├── done                     同 task submitted（v1.0.0 新增别名）
+│   ├── teacher                  获取教师代写的写实记录
+│   ├── public                   获取公示的全部写实记录
+│   ├── withdrawn                获取被撤回的写实记录
+│   └── edit                     修改已提交的写实记录
 ├── self-eval
 │   ├── submit                   提交自我评价
 │   └── status                   查询评价状态 + 教师评语
+├── circle
+│   ├── delete                   删除写实记录
+│   ├── comment                  添加写实评论
+│   └── like                     点赞/取消点赞
 ├── honor
 │   ├── types                    获取荣誉类型列表
 │   ├── list                     获取已申报荣誉记录
 │   ├── add                      申报荣誉（支持 @payload.json）
 │   └── delete                   删除荣誉记录
+├── typical-case
+│   ├── submit                   提交典型案例
+│   ├── list                     获取已提交典型案例
+│   ├── update                   更新典型案例
+│   └── delete                   删除典型案例
+├── user
+│   ├── info                     查看个人信息（whoami 别名）
+│   └── update                   更新个人信息
 ├── file
 │   ├── upload                   上传图片（独立公共服务，不接受 --token）
 │   └── download                 下载附件图片（不接受 --token）
