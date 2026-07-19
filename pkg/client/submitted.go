@@ -216,7 +216,3 @@ func (c *Client) PeekWithdrawnTotal(ctx context.Context, token string) (int, err
 	return pb.TotalNum, nil
 }
 
-func init() {
-	// 确保 concurrentPageLimit 不超过合理的并发上限
-	// 服务端 pageSize 上限 500，6 页以内 4 路并发即可一次完成
-}
