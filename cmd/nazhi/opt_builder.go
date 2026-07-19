@@ -13,10 +13,10 @@ import (
 // ─── 环境变量约定 ───────────────────────────────────────────
 // 所有 nazhi CLI 命令支持以下环境变量作为标志的默认值
 // （命令行标志始终优先于环境变量）
-//   NAZHI_USERNAME     — 学号（login、school）
+//   NAZHI_USERNAME     — 学号（login）
 //   NAZHI_PASSWORD     — 密码（login）
 //   NAZHI_TOKEN        — X-Auth-Token（session/whoami/task/self-eval）
-//   NAZHI_SSO_BASE     — SSO 根地址（login、school）
+//   NAZHI_SSO_BASE     — SSO 根地址（login）
 //   NAZHI_BASE_URL     — 业务 API 根地址（session/whoami/task/self-eval）
 //   NAZHI_TIMEOUT      — HTTP 超时（秒，所有命令）
 //   NAZHI_UPLOAD_URL   — 文件上传 API 根地址（file upload）
