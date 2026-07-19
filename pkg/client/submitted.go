@@ -215,4 +215,3 @@ func (c *Client) PeekWithdrawnTotal(ctx context.Context, token string) (int, err
 	}
 	return pb.TotalNum, nil
 }
-
