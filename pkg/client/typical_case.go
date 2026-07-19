@@ -13,14 +13,10 @@ import (
 
 // AddTypicalCase 提交一条典型案例。
 //
-// 遵循 AddHonor 模式：doBizAndDecode POST → 成功返回 nil。
+// 遵循 AddHonor 模式：doBizVoid POST → 成功返回 nil。
 func (c *Client) AddTypicalCase(ctx context.Context, token string, payload types.AddTypicalCasePayload) error {
-	_, err := c.doBizAndDecode(ctx, token, "AddTypicalCase",
+	return c.doBizVoid(ctx, token, "AddTypicalCase",
 		"/api/studentCircleNew/addTypicalCase", http.MethodPost, payload)
-	if err != nil {
-		return fmt.Errorf("AddTypicalCase 失败: %w", err)
-	}
-	return nil
 }
 
 // GetTypicalCaseList 查询已提交典型案例列表（分页）。
@@ -89,23 +85,15 @@ func (c *Client) GetTypicalCaseListJSON(ctx context.Context, token string, pageN
 // UpdateTypicalCase 更新一条典型案例。
 // POST /api/studentCircleNew/updateTypicalCase
 func (c *Client) UpdateTypicalCase(ctx context.Context, token string, payload map[string]any) error {
-	_, err := c.doBizAndDecode(ctx, token, "UpdateTypicalCase",
+	return c.doBizVoid(ctx, token, "UpdateTypicalCase",
 		"/api/studentCircleNew/updateTypicalCase", http.MethodPost, payload)
-	if err != nil {
-		return fmt.Errorf("UpdateTypicalCase 失败: %w", err)
-	}
-	return nil
 }
 
 // DeleteTypicalCase 删除一条典型案例。
 // GET /api/studentCircleNew/deleteTypicalCase?id=
 func (c *Client) DeleteTypicalCase(ctx context.Context, token string, id int64) error {
 	path := "/api/studentCircleNew/deleteTypicalCase?id=" + strconv.FormatInt(id, 10)
-	_, err := c.doBizAndDecode(ctx, token, "DeleteTypicalCase", path, http.MethodGet, nil)
-	if err != nil {
-		return fmt.Errorf("DeleteTypicalCase 失败: %w", err)
-	}
-	return nil
+	return c.doBizVoid(ctx, token, "DeleteTypicalCase", path, http.MethodGet, nil)
 }
 
 // DeleteBatchTypicalCase 批量删除典型案例。
@@ -113,10 +101,6 @@ func (c *Client) DeleteTypicalCase(ctx context.Context, token string, id int64) 
 //
 // 请求体是纯 JSON 数组 [1, 2, 3]（前端源码确认）。
 func (c *Client) DeleteBatchTypicalCase(ctx context.Context, token string, ids []int64) error {
-	_, err := c.doBizAndDecode(ctx, token, "DeleteBatchTypicalCase",
+	return c.doBizVoid(ctx, token, "DeleteBatchTypicalCase",
 		"/api/studentCircleNew/deleteBatchTypicalCase", http.MethodPost, ids)
-	if err != nil {
-		return fmt.Errorf("DeleteBatchTypicalCase 失败: %w", err)
-	}
-	return nil
 }

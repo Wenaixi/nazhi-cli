@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strconv"
 
@@ -13,11 +12,7 @@ import (
 // GET /api/studentCircleNew/deleteCircle?id=
 func (c *Client) DeleteCircle(ctx context.Context, token string, circleID int64) error {
 	path := "/api/studentCircleNew/deleteCircle?id=" + strconv.FormatInt(circleID, 10)
-	_, err := c.doBizAndDecode(ctx, token, "DeleteCircle", path, http.MethodGet, nil)
-	if err != nil {
-		return fmt.Errorf("DeleteCircle 失败: %w", err)
-	}
-	return nil
+	return c.doBizVoid(ctx, token, "DeleteCircle", path, http.MethodGet, nil)
 }
 
 // AddCircleComment 给写实记录添加评论。
@@ -28,12 +23,8 @@ func (c *Client) AddCircleComment(ctx context.Context, token string, circleID in
 		"circleId": circleID,
 		"content":  content,
 	}
-	_, err := c.doBizAndDecode(ctx, token, "AddCircleComment",
+	return c.doBizVoid(ctx, token, "AddCircleComment",
 		"/api/studentCircleNew/addCircleComment", http.MethodPost, payload)
-	if err != nil {
-		return fmt.Errorf("AddCircleComment 失败: %w", err)
-	}
-	return nil
 }
 
 // SetCircleLike 点赞或取消点赞写实记录。
@@ -41,11 +32,7 @@ func (c *Client) AddCircleComment(ctx context.Context, token string, circleID in
 // 服务端自动切换点赞/取消状态。
 func (c *Client) SetCircleLike(ctx context.Context, token string, circleID int64) error {
 	path := "/api/studentCircleNew/setCircleLikeById?circleId=" + strconv.FormatInt(circleID, 10)
-	_, err := c.doBizAndDecode(ctx, token, "SetCircleLike", path, http.MethodGet, nil)
-	if err != nil {
-		return fmt.Errorf("SetCircleLike 失败: %w", err)
-	}
-	return nil
+	return c.doBizVoid(ctx, token, "SetCircleLike", path, http.MethodGet, nil)
 }
 
 // GetCircleTypes 获取指定维度下的写实类别。

@@ -54,12 +54,8 @@ var idCardTypeMap = map[string]int{
 //
 // 可用字段参考 types.UserInfo 中的 json tag 名。
 func (c *Client) UpdateMyInfo(ctx context.Context, token string, updates map[string]any) error {
-	_, err := c.doBizAndDecode(ctx, token, "UpdateMyInfo",
+	return c.doBizVoid(ctx, token, "UpdateMyInfo",
 		"/api/studentInfo/updateMyInfo", http.MethodPost, updates)
-	if err != nil {
-		return fmt.Errorf("UpdateMyInfo 失败: %w", err)
-	}
-	return nil
 }
 
 // UpdateMyInfoStructured 使用面向用户的字段名更新个人信息（v1.4.0 新增）。
