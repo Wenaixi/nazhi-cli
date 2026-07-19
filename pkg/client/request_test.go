@@ -199,7 +199,69 @@ func TestLogRequestHeaders_NilLogger_NoPanic(t *testing.T) {
 	c.logRequestHeaders(req)
 }
 
-// ─── request_log_redact_test.go: token 不泄漏到日志 ───
+// ─── do_biz_void_test.go: doBizVoid helper 单元测试 ───
+
+// doBizVoidWarmupMock 返回能处理 session 4步预热 + 业务请求的 mock server handler。
+func doBizVoidWarmupMock(bizHandler http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001"}}`))
+		default:
+			bizHandler(w, r)
+		}
+	}
+}
+
+// TestDoBizVoid_Success 验证 doBizVoid 在成功场景下返回 nil。
+func TestDoBizVoid_Success(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(doBizVoidWarmupMock(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":1,"msg":"success"}`))
+	})))
+	defer srv.Close()
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		logger:     slog.New(slog.DiscardHandler),
+		ocr:        nil,
+		sm:         &sessionManager{},
+	}
+	err := c.doBizVoid(context.Background(), "test-token", "TestOp", "/api/test", http.MethodPost, nil)
+	if err != nil {
+		t.Fatalf("doBizVoid 应返回 nil，实际: %v", err)
+	}
+}
+
+// TestDoBizVoid_BizError 验证 doBizVoid 在业务错误时正确包装。
+func TestDoBizVoid_BizError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(doBizVoidWarmupMock(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = w.Write([]byte(`{"code":-1,"msg":"业务错误"}`))
+	})))
+	defer srv.Close()
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		logger:     slog.New(slog.DiscardHandler),
+		ocr:        nil,
+		sm:         &sessionManager{},
+	}
+	err := c.doBizVoid(context.Background(), "test-token", "TestOp", "/api/test", http.MethodPost, nil)
+	if err == nil {
+		t.Fatal("期望业务错误，实际 nil")
+	}
+	if !strings.Contains(err.Error(), "业务错误") {
+		t.Errorf("错误消息不匹配: %v", err)
+	}
+}
 
 // TestRequest_NoTokenLeakInDebugLog 回归测试：logDebug 不得把完整 token
 // 写入日志，包括嵌入 Referer / Cookie / Authorization 等 header 的 token。

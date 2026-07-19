@@ -178,6 +178,16 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 	return req, nil
 }
 
+// doBizVoid 执行 fire-and-forget mutation 请求（不需要响应数据）。
+// 与 doBizAndDecode 对称，消除 11 处 doBizAndDecode → discard → return nil 样板。
+func (c *Client) doBizVoid(ctx context.Context, token, opName, path string, method string, body any) error {
+	_, err := c.doBizAndDecode(ctx, token, opName, path, method, body)
+	if err != nil {
+		return fmt.Errorf("%s 失败: %w", opName, err)
+	}
+	return nil
+}
+
 // doBizAndDecode 封装业务请求的"预热 session → httpDo → DecodeResponse → CheckCode"公共管线。
 //
 // 参数：
