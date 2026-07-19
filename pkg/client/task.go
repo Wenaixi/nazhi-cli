@@ -557,7 +557,6 @@ func (c *Client) buildTaskEditPayload(ctx context.Context, token string, input t
 	return payload, nil
 }
 
-//
 // 公开接口仅接收最少必要输入，SDK 内部自动补齐真实网页提交流程所需字段：
 // getCircleTypeByTaskId → GetMyInfo → UploadFile → addCircle。
 func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskResult, error) {

@@ -13,6 +13,7 @@ import (
 //	nazhi task withdrawn --token <token> [--base-url <url>] [--timeout <秒>]
 //	nazhi task withdrawn --limit 20 --offset 10
 //	nazhi task withdrawn --count
+//
 // type=4：被撤回的写实记录。
 var taskWithdrawnCmd = &cobra.Command{
 	Use:   "withdrawn",

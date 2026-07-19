@@ -1,5 +1,33 @@
 package types
 
+// UserUpdateInput 是用户信息更新的结构化输入（v1.4.0 新增）。
+//
+// 接收面向用户的友好字段名（如 GenderName="男"），
+// SDK 内部自动转换为 API 数字代码（如 gender=1）。
+// 零值/空串的字段在转换时会跳过，避免覆盖服务端已有值。
+type UserUpdateInput struct {
+	// 基础身份
+	Name                  string `json:"name,omitempty"`                  // 姓名
+	StudentNumber         string `json:"studentNumber,omitempty"`         // 学号
+	NationalStudentNumber string `json:"nationalStudentNumber,omitempty"` // 全国学号
+
+	// 联系方式
+	Telephone     string `json:"telephone,omitempty"`     // 电话号码
+	FamilyAddress string `json:"familyAddress,omitempty"` // 家庭地址
+	Hobbies       string `json:"hobbies,omitempty"`       // 爱好
+
+	// 个人信息（SDK 自动转换中文→API 代码）
+	GenderName  string `json:"genderName,omitempty"`  // 性别名称："男" / "女"
+	YouthLeague string `json:"youthLeague,omitempty"` // 团员："是" / "否"
+	NationName  string `json:"nationName,omitempty"`  // 民族名称："汉族" / "满族" / ...
+	IdCardType  string `json:"idCardType,omitempty"`  // 证件类型名："中国居民身份证" / "护照" / ...
+	IDCard      string `json:"idCard,omitempty"`      // 身份证号
+	BirthdayStr string `json:"birthdayStr,omitempty"` // 生日字符串（YYYY-MM-DD）
+
+	// 座号（整数，0 表示跳过）
+	Seat int `json:"seat,omitempty"`
+}
+
 // UserInfo 是用户个人资料的精简核心视图。
 //
 // 字段裁剪原则（v1.0.0 起）：
@@ -35,12 +63,12 @@ type UserInfo struct {
 	Telephone string `json:"telephone,omitempty"` // 电话号码
 
 	// 个人信息
-	GenderName        string `json:"genderName,omitempty"`        // 性别名称
-	BirthdayStr       string `json:"birthdayStr,omitempty"`       // 生日字符串
-	YouthLeagueFlag   int    `json:"youthLeagueFlag,omitempty"`   // 团员标志
-	Nation            int    `json:"nation,omitempty"`            // 民族（数字 1=汉族 等）
-	FamilyAddress     string `json:"familyAddress,omitempty"`     // 家庭地址
-	Hobbies           string `json:"hobbies,omitempty"`           // 爱好
-	IDCard            string `json:"idCard,omitempty"`              // 身份证号
-	IDType            int    `json:"idType,omitempty"`            // 证件类型（数字）
+	GenderName      string `json:"genderName,omitempty"`      // 性别名称
+	BirthdayStr     string `json:"birthdayStr,omitempty"`     // 生日字符串
+	YouthLeagueFlag int    `json:"youthLeagueFlag,omitempty"` // 团员标志
+	Nation          int    `json:"nation,omitempty"`          // 民族（数字 1=汉族 等）
+	FamilyAddress   string `json:"familyAddress,omitempty"`   // 家庭地址
+	Hobbies         string `json:"hobbies,omitempty"`         // 爱好
+	IDCard          string `json:"idCard,omitempty"`          // 身份证号
+	IDType          int    `json:"idType,omitempty"`          // 证件类型（数字）
 }

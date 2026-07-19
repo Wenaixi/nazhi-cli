@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -14,12 +15,18 @@ import (
 // selfEvalSubmitCmd 表示 nazhi self-eval submit 命令
 //
 //	nazhi self-eval submit --token <token> --comment "<评价>" [--base-url <url>] [--timeout <秒>]
+//	nazhi self-eval submit --token <token> --payload '<json>'    # 结构化提交
 var selfEvalSubmitCmd = &cobra.Command{
 	Use:   "submit",
 	Short: "提交自我评价",
-	Long:  `提交自我评价文本。如果 --comment 为空或为 "-"，则从 stdin 读取评价内容。`,
+	Long: `提交自我评价文本。支持两种模式：
+
+  1. 纯文本模式：--comment 参数（默认）。如果 --comment 为空或为 "-"，则从 stdin 读取。
+  2. 结构化模式：--payload 参数，接收 JSON 对象（对应前端"诉得失"页面的完整结构化评价）。
+     SDK 内部自动做双层 JSON 包装后提交。`,
 	Example: `  nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "很好的学期"
-	  nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "-"`,
+  nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "-"
+  nazhi self-eval submit --token xxx --payload '{"bxqhzr":"会做人目标","bxqbx":"表现","bxqys":"优势"}'`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -27,16 +34,36 @@ var selfEvalSubmitCmd = &cobra.Command{
 			return
 		}
 
+		payloadRaw, _ := cmd.Flags().GetString("payload")
 		comment, _ := cmd.Flags().GetString("comment")
 
-		// 从 stdin 读取评论（非 TTY 环境如 CI 直接读取，不阻塞）
+		// 结构化模式：--payload 优先
+		if payloadRaw != "" {
+			payloadBytes, err := parsePayloadFromArg(payloadRaw)
+			if err != nil {
+				printError(fmt.Errorf("读取 payload 失败: %w", err))
+				return
+			}
+			var form map[string]any
+			if err := json.Unmarshal(payloadBytes, &form); err != nil {
+				printError(fmt.Errorf("解析 payload JSON 失败: %w", err))
+				return
+			}
+
+			printVerbose("正在提交结构化自我评价...")
+			if err := c.SubmitSelfEvaluationStructured(cmd.Context(), token, form); err != nil {
+				printError(fmt.Errorf("提交结构化自我评价失败: %w", err))
+				return
+			}
+			printEnvelope(envelope.Empty("结构化自我评价提交成功"))
+			return
+		}
+
+		// 纯文本模式：--comment
 		if comment == "" || comment == "-" {
-			// CI 环境下 stdin 不是字符设备，直接读取而不等待用户输入
-			// fmt.Fprint(os.Stderr,...) 改走 printPrompt
-			// 统一交互提示通道（仅 isTerminalStdin 时输出，受 quiet 守卫）。
 			printPrompt("请输入自我评价内容（Ctrl+D 结束）: ")
 			reader := bufio.NewReader(os.Stdin)
-			input, err := reader.ReadString(0) // 0 = null terminator，读到 EOF 为止
+			input, err := reader.ReadString(0)
 			if err != nil && err != io.EOF {
 				printError(fmt.Errorf("读取 stdin 评价内容失败: %w", err))
 				return
@@ -55,8 +82,6 @@ var selfEvalSubmitCmd = &cobra.Command{
 			return
 		}
 
-		// SubmitSelfEvaluation SDK 成功路径返回 nil —— envelope.Empty (HTTP 204) 表达
-		// "成功无业务负载"，与 SDK 语义 1:1。
 		printEnvelope(envelope.Empty("自我评价提交成功"))
 	},
 }
@@ -64,4 +89,5 @@ var selfEvalSubmitCmd = &cobra.Command{
 func init() {
 	registerBizFlags(selfEvalSubmitCmd)
 	selfEvalSubmitCmd.Flags().String("comment", "", "评价文本（空或 - 则从 stdin 读取）")
+	selfEvalSubmitCmd.Flags().String("payload", "", "结构化评价 JSON（与 --comment 互斥，可用 @file.json 或 - 读取）")
 }

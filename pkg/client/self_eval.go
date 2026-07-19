@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strconv"
 	"strings"
@@ -14,6 +15,41 @@ import (
 func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment string) error {
 	_, err := c.doBizAndDecode(ctx, token, "SubmitSelfEvaluation", "/api/studentMoralEduNew/addSelfEvaluation",
 		http.MethodPost, map[string]string{"studentComment": comment})
+	return err
+}
+
+// SubmitSelfEvaluationStructured 提交结构化自我评价（v1.4.0 新增）。
+//
+// 对应前端 selfgaintloss.vue 的"诉得失"页面：会做人/会求知/会生活/会创造/表现/优势/劣势 + 下学期目标。
+// SDK 内部将 form 对象 JSON 序列化后，再包装为 {"studentComment": "<json>"} 提交。
+//
+// 典型字段：
+//
+//	bxqhzr — 本学期会做人目标
+//	bxqhqz — 本学期会求知目标
+//	bxqhsh — 本学期会生活目标
+//	bxqhcz — 本学期会创造目标
+//	bxqbx  — 本学期表现
+//	bxqys  — 本学期优势
+//	bxqls  — 本学期劣势
+//	sxqhzr — 下学期会做人目标
+//	sxqhqz — 下学期会求知目标
+//	sxqhsh — 下学期会生活目标
+//	sxqhcz — 下学期会创造目标
+func (c *Client) SubmitSelfEvaluationStructured(ctx context.Context, token string, form map[string]any) error {
+	// JSON 序列化 form 对象
+	formJSON, err := json.Marshal(form)
+	if err != nil {
+		return fmt.Errorf("SubmitSelfEvaluationStructured 序列化失败: %w", err)
+	}
+
+	// 双层包装：{studentComment: JSON.stringify(form)}
+	payload := map[string]string{
+		"studentComment": string(formJSON),
+	}
+
+	_, err = c.doBizAndDecode(ctx, token, "SubmitSelfEvaluationStructured",
+		"/api/studentMoralEduNew/addSelfEvaluation", http.MethodPost, payload)
 	return err
 }
 

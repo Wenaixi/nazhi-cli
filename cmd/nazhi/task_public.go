@@ -13,6 +13,7 @@ import (
 //	nazhi task public --token <token> [--base-url <url>] [--timeout <秒>]
 //	nazhi task public --limit 20 --offset 10
 //	nazhi task public --count
+//
 // type=1：公示/全部（全班所有记录）。
 var taskPublicCmd = &cobra.Command{
 	Use:   "public",

@@ -122,7 +122,27 @@ func (c *Client) DeleteHonor(ctx context.Context, token string, honorID int64) e
 }
 
 // AddHonor 申报一条荣誉。
+//
+// v1.4.0 增强：当 payload.TypeName 为空但 payload.TypeID > 0 时，
+// 自动调用 GetHonorTypeForSelect 反查 typeId 对应的 label 补全 typeName，
+// 避免因缺少 typeName 被 API 拒绝。调用方只需传 typeId 即可。
 func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error {
+	// 自动补全 typeName：有 typeId 无 typeName 时自动反查
+	if payload.TypeName == "" && payload.TypeID > 0 {
+		opts, err := c.GetHonorTypeForSelect(ctx, token)
+		if err != nil {
+			c.logDebug("AddHonor 自动反查 typeName 失败: %v", err)
+		} else {
+			for _, opt := range opts {
+				if opt.Value == int(payload.TypeID) {
+					payload.TypeName = opt.Label
+					c.logDebug("AddHonor 自动补全 typeName: typeId=%d → %q", payload.TypeID, opt.Label)
+					break
+				}
+			}
+		}
+	}
+
 	_, err := c.doBizAndDecode(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
 	if err != nil {
 		return fmt.Errorf("AddHonor 失败: %w", err)

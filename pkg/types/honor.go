@@ -12,16 +12,25 @@ type HonorType struct {
 // HonorRecord 一条已申报的荣誉记录（来自 getHonorByStudentId 接口）。
 //
 // v2.0.0 变更：GetDate 改为 string，保留服务端原始日期格式。
+//
+// v1.4.0 修复：JSON tag 修正为 snake_case 以匹配 API 实际返回的字段名，
+// 补充 honor_list 中前端用到的 type_id / cert_img_attachment_id / score / score_name 字段。
 type HonorRecord struct {
 	ID               int64  `json:"id"`
-	TypeName         string `json:"typeName"`
-	LevelName        string `json:"levelName"`
+	TypeName         string `json:"type_name"`
+	LevelName        string `json:"level_name"`
 	Level            int    `json:"level"`
-	DimensionName    string `json:"dimensionName"`
+	DimensionName    string `json:"dimension_name"`
 	Approved         bool   `json:"approved"`
-	ApprovedName     string `json:"approvedName"`
-	GetDate          string `json:"getDate"`          // 原始字符串
-	EvaluationAgency string `json:"evaluationAgency"`
+	ApprovedName     string `json:"approved_name"`
+	GetDate          string `json:"get_date"` // 原始日期字符串
+	EvaluationAgency string `json:"evaluation_agency"`
+
+	// v1.4.0 新增：前端 performanceM.vue 中实际使用的字段
+	TypeID              int64  `json:"type_id,omitempty"`                // 荣誉类型 ID
+	CertImgAttachmentID string `json:"cert_img_attachment_id,omitempty"` // 证书图片附件 ID
+	Score               int    `json:"score,omitempty"`                  // 分数
+	ScoreName           string `json:"score_name,omitempty"`             // 分数描述
 }
 
 // HonorListResult 是 GetHonorList 的统一返回对象。

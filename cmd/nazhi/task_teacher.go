@@ -13,6 +13,7 @@ import (
 //	nazhi task teacher --token <token> [--base-url <url>] [--timeout <秒>]
 //	nazhi task teacher --limit 20 --offset 10
 //	nazhi task teacher --count
+//
 // type=2：教师写实记录。
 var taskTeacherCmd = &cobra.Command{
 	Use:   "teacher",

@@ -14,18 +14,18 @@ import (
 
 // ─── 辅助 ───
 
-// honorRecordJSON 生成一条荣誉记录（v1.0.0 精简版 camelCase 字段）。
+// honorRecordJSON 生成一条荣誉记录（v1.4.0 snake_case 字段名对齐 API）。
 func honorRecordJSON(id int64, name, statusName string) map[string]any {
 	return map[string]any{
-		"id":               id,
-		"typeName":         name,
-		"levelName":        "校",
-		"level":            5,
-		"dimensionName":    "思想品德",
-		"approved":         true,
-		"approvedName":     statusName,
-		"getDate":          "2026-06-30T00:00:00+08:00",
-		"evaluationAgency": "示例中学",
+		"id":                id,
+		"type_name":         name,
+		"level_name":        "校",
+		"level":             5,
+		"dimension_name":    "思想品德",
+		"approved":          true,
+		"approved_name":     statusName,
+		"get_date":          "2026-06-30T00:00:00+08:00",
+		"evaluation_agency": "示例中学",
 	}
 }
 

@@ -20,48 +20,48 @@ const (
 //
 // v2.0.0 变更：时间字段改为 string，保留服务端原始日期格式（如 "2026-01-12"）。
 type Task struct {
-	ID               int64    `json:"id"`
-	Name             string   `json:"name"`
-	TypeName         string   `json:"typeName"`
-	DimensionName    string   `json:"dimensionName"`
-	Hours            float64  `json:"hours"`
-	Score            float64  `json:"score"`
-	Remark           string   `json:"remark"`
-	CircleTaskStatus string   `json:"circleTaskStatus"`
-	Submitted        bool     `json:"submitted"`
-	NeedPic          bool     `json:"needPic"`
-	StartDate        string   `json:"startDateStr"`      // 字符串，如 "2026-01-12"
-	EndDate          string   `json:"endDateStr"`        // 字符串，如 "2026-02-10"
-	AuditStartDate   string   `json:"auditStartDateStr"`
-	AuditEndDate     string   `json:"auditEndDateStr"`
-	CreatorName      string   `json:"creatorName"`
-	RoleName         string   `json:"roleName"`
-	CreationTime     []int    `json:"creationTime"`
-	CreationTimeStr  string   `json:"creationTimeStr"`   // 字符串
-	TermID           int64    `json:"termId"`
-	PushNum          int      `json:"pushNum"`
-	ScopeType        int      `json:"scopeType"`
-	ScopeTypeName    string   `json:"scopeTypeName"`
+	ID               int64   `json:"id"`
+	Name             string  `json:"name"`
+	TypeName         string  `json:"typeName"`
+	DimensionName    string  `json:"dimensionName"`
+	Hours            float64 `json:"hours"`
+	Score            float64 `json:"score"`
+	Remark           string  `json:"remark"`
+	CircleTaskStatus string  `json:"circleTaskStatus"`
+	Submitted        bool    `json:"submitted"`
+	NeedPic          bool    `json:"needPic"`
+	StartDate        string  `json:"startDateStr"` // 字符串，如 "2026-01-12"
+	EndDate          string  `json:"endDateStr"`   // 字符串，如 "2026-02-10"
+	AuditStartDate   string  `json:"auditStartDateStr"`
+	AuditEndDate     string  `json:"auditEndDateStr"`
+	CreatorName      string  `json:"creatorName"`
+	RoleName         string  `json:"roleName"`
+	CreationTime     []int   `json:"creationTime"`
+	CreationTimeStr  string  `json:"creationTimeStr"` // 字符串
+	TermID           int64   `json:"termId"`
+	PushNum          int     `json:"pushNum"`
+	ScopeType        int     `json:"scopeType"`
+	ScopeTypeName    string  `json:"scopeTypeName"`
 
 	// 扩展字段
-	SchoolID           int64    `json:"schoolId,omitempty"`
-	CircleTypeID       int64    `json:"circleTypeId,omitempty"`
-	Creator            int64    `json:"creator,omitempty"`
-	Modifier           *int64   `json:"modifier,omitempty"`
-	ModifyTime         []int    `json:"modifyTime,omitempty"`
-	RoleID             int64    `json:"roleId,omitempty"`
-	AuditorSubjectID   *int64   `json:"auditorSubjectId,omitempty"`
-	StateType          int      `json:"stateType,omitempty"`
-	AreaID             int64    `json:"areaId,omitempty"`
-	AreaTaskID         int64    `json:"areaTaskId,omitempty"`
-	UpPic              int      `json:"upPic,omitempty"`
-	EvaluatedNumber    *int     `json:"evaluatedNumber,omitempty"`
-	UnEvaluatedNumber  *int     `json:"unEvaluatedNumber,omitempty"`
-	UnsubmittedNumber  *int     `json:"unsubmittedNumber,omitempty"`
-	SubmitNumber       int      `json:"submitNumber,omitempty"`
-	PictureList        []int64  `json:"pictureList,omitempty"`
-	ClassID            *int64   `json:"classId,omitempty"`
-	GradeID            *int64   `json:"gradeId,omitempty"`
+	SchoolID          int64   `json:"schoolId,omitempty"`
+	CircleTypeID      int64   `json:"circleTypeId,omitempty"`
+	Creator           int64   `json:"creator,omitempty"`
+	Modifier          *int64  `json:"modifier,omitempty"`
+	ModifyTime        []int   `json:"modifyTime,omitempty"`
+	RoleID            int64   `json:"roleId,omitempty"`
+	AuditorSubjectID  *int64  `json:"auditorSubjectId,omitempty"`
+	StateType         int     `json:"stateType,omitempty"`
+	AreaID            int64   `json:"areaId,omitempty"`
+	AreaTaskID        int64   `json:"areaTaskId,omitempty"`
+	UpPic             int     `json:"upPic,omitempty"`
+	EvaluatedNumber   *int    `json:"evaluatedNumber,omitempty"`
+	UnEvaluatedNumber *int    `json:"unEvaluatedNumber,omitempty"`
+	UnsubmittedNumber *int    `json:"unsubmittedNumber,omitempty"`
+	SubmitNumber      int     `json:"submitNumber,omitempty"`
+	PictureList       []int64 `json:"pictureList,omitempty"`
+	ClassID           *int64  `json:"classId,omitempty"`
+	GradeID           *int64  `json:"gradeId,omitempty"`
 }
 
 // TaskSubmitInput 是公开给 SDK 调用方的最小任务提交输入。
