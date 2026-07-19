@@ -307,8 +307,9 @@ func (p *Pool) Recognize(imageData []byte) (result string, err error) {
 	var o *OCR
 	p.closeMu.Lock()
 	if !p.closed {
-		o, _ = p.pool.Get().(*OCR)
-		if o == nil {
+		var ok bool
+		o, ok = p.pool.Get().(*OCR)
+		if !ok || o == nil {
 			o = &OCR{}
 		}
 		// 从 Pool 的 modelDir 传播到新 OCR 实例
