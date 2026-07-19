@@ -49,7 +49,7 @@ func submittedRecord(id int64, name string, status int) map[string]any {
 		"studentId":      387020,
 		"class_name":     "八班",
 		"ifMySelf":       1,
-		"imgList":        []map[string]any{},
+		"img_list":       []map[string]any{},
 		"remark":         name,
 	}
 }
@@ -345,7 +345,7 @@ func TestSubmittedDecodePageBean_Nil(t *testing.T) {
 
 // TestSubmittedDecodeCircleRecord 验证 CircleRecord 解码。
 func TestSubmittedDecodeCircleRecord(t *testing.T) {
-	jsonData := `{"id":1,"name":"国旗下讲话","content":"写实内容","typeName":"爱党爱国教育","approved":false,"circleDate":"2026-02-06T00:00:00Z","hours":0.5,"imgList":[],"remark":"国旗下讲话"}`
+	jsonData := `{"id":1,"name":"国旗下讲话","content":"写实内容","type_name":"爱党爱国教育","approved":false,"circle_date":"2026-02-06T00:00:00Z","hours":0.5,"img_list":[],"remark":"国旗下讲话"}`
 	var rec types.CircleRecord
 	if err := json.Unmarshal([]byte(jsonData), &rec); err != nil {
 		t.Fatalf("Unmarshal CircleRecord 失败: %v", err)
@@ -450,7 +450,7 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 
 // TestSubmittedDecodeCircleImg 验证 CircleImage 解码。
 func TestSubmittedDecodeCircleImg(t *testing.T) {
-	jsonData := `{"id":4987641,"circle_id":5389265,"class_id":162647,"task_id":18296,"attachment_id":5005765,"imgPath":".jpg"}`
+	jsonData := `{"id":4987641,"circle_id":5389265,"class_id":162647,"task_id":18296,"attachment_id":5005765,"img_path":".jpg"}`
 	var img types.CircleImage
 	if err := json.Unmarshal([]byte(jsonData), &img); err != nil {
 		t.Fatalf("Unmarshal CircleImage 失败: %v", err)
