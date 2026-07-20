@@ -180,12 +180,11 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 
 // doBizVoid 执行 fire-and-forget mutation 请求（不需要响应数据）。
 // 与 doBizAndDecode 对称，消除 11 处 doBizAndDecode → discard → return nil 样板。
+//
+// 注意：doBizAndDecode 内部已用 opName 包装错误，此处直接透传，不再二次包装。
 func (c *Client) doBizVoid(ctx context.Context, token, opName, path string, method string, body any) error {
 	_, err := c.doBizAndDecode(ctx, token, opName, path, method, body)
-	if err != nil {
-		return fmt.Errorf("%s 失败: %w", opName, err)
-	}
-	return nil
+	return err
 }
 
 // doBizAndDecode 封装业务请求的"预热 session → httpDo → DecodeResponse → CheckCode"公共管线。

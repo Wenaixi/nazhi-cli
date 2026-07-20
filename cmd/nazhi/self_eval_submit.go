@@ -2,11 +2,13 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
@@ -61,14 +63,15 @@ var selfEvalSubmitCmd = &cobra.Command{
 
 		// 纯文本模式：--comment
 		if comment == "" || comment == "-" {
-			printPrompt("请输入自我评价内容（Ctrl+D 结束）: ")
-			reader := bufio.NewReader(os.Stdin)
-			input, err := reader.ReadString(0)
-			if err != nil && err != io.EOF {
-				printError(fmt.Errorf("读取 stdin 评价内容失败: %w", err))
+			if isTerminalStdin() {
+				printPrompt("请输入自我评价内容（Ctrl+D 结束）: ")
+			}
+			var readErr error
+			comment, readErr = readStdinWithTimeout(cmd.Context(), 60)
+			if readErr != nil {
+				printError(fmt.Errorf("读取 stdin 评价内容失败: %w", readErr))
 				return
 			}
-			comment = strings.TrimSpace(input)
 			if comment == "" {
 				printEnvelope(envelope.Error(400, "评价内容不能为空"))
 				return
@@ -90,4 +93,35 @@ func init() {
 	registerBizFlags(selfEvalSubmitCmd)
 	selfEvalSubmitCmd.Flags().String("comment", "", "评价文本（空或 - 则从 stdin 读取）")
 	selfEvalSubmitCmd.Flags().String("payload", "", "结构化评价 JSON（与 --comment 互斥，可用 @file.json 或 - 读取）")
+}
+
+// readStdinWithTimeout 从 stdin 读取一行内容，超过 timeoutSec 秒未完成则返回超时错误。
+// 当 stdin 是管道且对端未关闭时，原始 reader.ReadString(0) 会无限阻塞，
+// 此函数通过 goroutine + select 实现超时保护。
+func readStdinWithTimeout(ctx context.Context, timeoutSec int) (string, error) {
+	type result struct {
+		text string
+		err  error
+	}
+	ch := make(chan result, 1)
+	go func() {
+		reader := bufio.NewReader(os.Stdin)
+		input, err := reader.ReadString(0)
+		ch <- result{strings.TrimSpace(input), err}
+	}()
+
+	timer := time.NewTimer(time.Duration(timeoutSec) * time.Second)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return "", ctx.Err()
+	case res := <-ch:
+		if res.err != nil && res.err != io.EOF {
+			return "", res.err
+		}
+		return res.text, nil
+	case <-timer.C:
+		return "", fmt.Errorf("stdin 读取超时（%d 秒无输入），请通过 --comment 参数直接传入内容", timeoutSec)
+	}
 }
