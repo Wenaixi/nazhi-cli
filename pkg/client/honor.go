@@ -2,7 +2,7 @@
 // 端点映射：
 //
 //	GET  /api/studentMoralEduNew/getHonorType          — 获取所有荣誉类型（dataList / returnData 双通道）
-//	GET  /api/studentMoralEduNew/getHonorTypeForSelect  — 获取级别下拉选项（returnData）
+//	GET  /api/studentMoralEduNew/getHonorTypeForSelect  — 获取级别下拉选项（returnData）；荣誉类型选项在 dataList
 //	GET  /api/studentMoralEduNew/getHonorLevel          — 获取荣誉级别（dataList，需 honorTypeId 参数）
 //	GET  /api/studentMoralEduNew/getHonorByStudentId    — 查询已有荣誉（分页，需 &key=）
 //	POST /api/studentMoralEduNew/addHonor               — 申报荣誉
@@ -45,7 +45,25 @@ func (c *Client) GetHonorTypes(ctx context.Context, token string) ([]types.Honor
 	return opts, nil
 }
 
-// GetHonorTypeForSelect 获取荣誉类型的级别下拉选项。
+// GetHonorTypeOptions 获取荣誉类型下拉选项（荣誉名称列表）。
+//
+// 对应前端 initHonorTypeAndLevel 中 dataList 的读取。
+// 与 GetHonorTypeForSelect 调用同一个接口，但读取 dataList 而非 returnData。
+func (c *Client) GetHonorTypeOptions(ctx context.Context, token string) ([]types.HonorSelectOption, error) {
+	resp, err := c.doBizAndDecode(ctx, token, "GetHonorTypeOptions",
+		"/api/studentMoralEduNew/getHonorTypeForSelect", http.MethodGet, nil)
+	if err != nil {
+		return nil, fmt.Errorf("GetHonorTypeOptions 失败: %w", err)
+	}
+
+	opts, err := types.DecodeDataList[types.HonorSelectOption](*resp)
+	if err != nil {
+		return nil, fmt.Errorf("GetHonorTypeOptions 解析失败: %w", err)
+	}
+	return opts, nil
+}
+
+// GetHonorTypeForSelect 获取荣誉等级下拉选项（returnData）。
 // 返回标签/值对（如 [{label:"校",value:5}]）。
 func (c *Client) GetHonorTypeForSelect(ctx context.Context, token string) ([]types.HonorSelectOption, error) {
 	resp, err := c.doBizAndDecode(ctx, token, "GetHonorTypeForSelect", "/api/studentMoralEduNew/getHonorTypeForSelect", http.MethodGet, nil)
@@ -120,12 +138,14 @@ func (c *Client) DeleteHonor(ctx context.Context, token string, honorID int64) e
 // AddHonor 申报一条荣誉。
 //
 // v1.4.0 增强：当 payload.TypeName 为空但 payload.TypeID > 0 时，
-// 自动调用 GetHonorTypeForSelect 反查 typeId 对应的 label 补全 typeName，
+// 自动调用 GetHonorTypeOptions 反查 typeId 对应的 label 补全 typeName，
 // 避免因缺少 typeName 被 API 拒绝。调用方只需传 typeId 即可。
+// v2.0.0 修复：原调用 GetHonorTypeForSelect（读取 returnData 即荣誉等级），
+// 改为 GetHonorTypeOptions（读取 dataList 即荣誉类型选项）。
 func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error {
 	// 自动补全 typeName：有 typeId 无 typeName 时自动反查
 	if payload.TypeName == "" && payload.TypeID > 0 {
-		opts, err := c.GetHonorTypeForSelect(ctx, token)
+		opts, err := c.GetHonorTypeOptions(ctx, token)
 		if err != nil {
 			return fmt.Errorf("AddHonor 自动反查 typeName 失败: %w", err)
 		}
