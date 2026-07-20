@@ -39,7 +39,7 @@ var taskWithdrawnCmd = &cobra.Command{
 
 		if onlyCount {
 			printVerbose("正在获取被撤回写实记录总数...")
-			total, err := c.PeekWithdrawnTotal(cmd.Context(), token)
+			total, err := c.PeekWithdrawnTotal(cmd.Context(), token, "")
 			if err != nil {
 				printError(fmt.Errorf("获取被撤回写实记录总数失败: %w", err))
 				return

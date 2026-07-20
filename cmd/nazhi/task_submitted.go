@@ -41,7 +41,7 @@ var taskSubmittedCmd = &cobra.Command{
 
 		if onlyCount {
 			printVerbose("正在获取记录总数...")
-			total, err := c.PeekSubmittedTotal(cmd.Context(), token)
+			total, err := c.PeekSubmittedTotal(cmd.Context(), token, "")
 			if err != nil {
 				printError(fmt.Errorf("获取记录总数失败: %w", err))
 				return

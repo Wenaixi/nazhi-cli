@@ -39,7 +39,7 @@ var taskTeacherCmd = &cobra.Command{
 
 		if onlyCount {
 			printVerbose("正在获取教师写实记录总数...")
-			total, err := c.PeekTeacherTotal(cmd.Context(), token)
+			total, err := c.PeekTeacherTotal(cmd.Context(), token, "")
 			if err != nil {
 				printError(fmt.Errorf("获取教师写实记录总数失败: %w", err))
 				return

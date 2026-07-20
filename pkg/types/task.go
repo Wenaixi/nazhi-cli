@@ -89,6 +89,13 @@ type TaskInput interface {
 	GetLikeSpecialty1() string
 	GetLikeSpecialty2() string
 	GetLikeSpecialty3() string
+	// 新增（v1.4.0）
+	GetHours() string
+	GetCircleBeginDate() string
+	GetCircleEndDate() string
+	GetCheckResult() string
+	GetPatentType() string
+	GetPatentNum() string
 }
 
 // TaskSubmitInput 是公开给 SDK 调用方的最小任务提交输入。
@@ -115,6 +122,13 @@ type TaskSubmitInput struct {
 	LikeSpecialty1      string
 	LikeSpecialty2      string
 	LikeSpecialty3      string
+	// 新增（v1.4.0）
+	Hours               string
+	CircleBeginDate     string
+	CircleEndDate       string
+	CheckResult         string
+	PatentType          string
+	PatentNum           string
 }
 
 func (in TaskSubmitInput) Validate() error {
@@ -150,6 +164,12 @@ func (in TaskSubmitInput) GetSpecialtyTechnology() string { return in.SpecialtyT
 func (in TaskSubmitInput) GetLikeSpecialty1() string      { return in.LikeSpecialty1 }
 func (in TaskSubmitInput) GetLikeSpecialty2() string      { return in.LikeSpecialty2 }
 func (in TaskSubmitInput) GetLikeSpecialty3() string      { return in.LikeSpecialty3 }
+func (in TaskSubmitInput) GetHours() string                { return in.Hours }
+func (in TaskSubmitInput) GetCircleBeginDate() string      { return in.CircleBeginDate }
+func (in TaskSubmitInput) GetCircleEndDate() string        { return in.CircleEndDate }
+func (in TaskSubmitInput) GetCheckResult() string          { return in.CheckResult }
+func (in TaskSubmitInput) GetPatentType() string           { return in.PatentType }
+func (in TaskSubmitInput) GetPatentNum() string            { return in.PatentNum }
 
 // TaskAddCirclePayload 是 SDK 内部使用的 addCircle 完整请求体。
 type TaskAddCirclePayload struct {
@@ -231,6 +251,13 @@ type TaskEditInput struct {
 	LikeSpecialty1      string
 	LikeSpecialty2      string
 	LikeSpecialty3      string
+	// 新增（v1.4.0）
+	Hours               string
+	CircleBeginDate     string
+	CircleEndDate       string
+	CheckResult         string
+	PatentType          string
+	PatentNum           string
 }
 
 func (in TaskEditInput) Validate() error {
@@ -269,6 +296,12 @@ func (in TaskEditInput) GetSpecialtyTechnology() string { return in.SpecialtyTec
 func (in TaskEditInput) GetLikeSpecialty1() string      { return in.LikeSpecialty1 }
 func (in TaskEditInput) GetLikeSpecialty2() string      { return in.LikeSpecialty2 }
 func (in TaskEditInput) GetLikeSpecialty3() string      { return in.LikeSpecialty3 }
+func (in TaskEditInput) GetHours() string                { return in.Hours }
+func (in TaskEditInput) GetCircleBeginDate() string      { return in.CircleBeginDate }
+func (in TaskEditInput) GetCircleEndDate() string        { return in.CircleEndDate }
+func (in TaskEditInput) GetCheckResult() string          { return in.CheckResult }
+func (in TaskEditInput) GetPatentType() string           { return in.PatentType }
+func (in TaskEditInput) GetPatentNum() string            { return in.PatentNum }
 
 var (
 	ErrTaskInputIDRequired      = taskInputError("id 为必填且必须 > 0")

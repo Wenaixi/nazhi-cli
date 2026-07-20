@@ -39,7 +39,7 @@ var taskPublicCmd = &cobra.Command{
 
 		if onlyCount {
 			printVerbose("正在获取公示写实记录总数...")
-			total, err := c.PeekPublicTotal(cmd.Context(), token)
+			total, err := c.PeekPublicTotal(cmd.Context(), token, "")
 			if err != nil {
 				printError(fmt.Errorf("获取公示写实记录总数失败: %w", err))
 				return

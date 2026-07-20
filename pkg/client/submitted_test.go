@@ -80,7 +80,7 @@ func TestGetSubmittedCircles_SinglePage(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCircles 失败: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCircles 失败: %v", err)
 	}
@@ -163,7 +163,7 @@ func TestGetSubmittedCircles_Empty(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCircles 失败: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestGetSubmittedCircles_BizError(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	_, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	_, err := c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err == nil {
 		t.Fatal("期望业务错误，实际 nil")
 	}
@@ -230,7 +230,7 @@ func TestGetSubmittedCircles_TotalPageGTR1ButNoData(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCircles 失败: %v", err)
 	}
@@ -257,7 +257,7 @@ func TestGetSubmittedCircles_TotalPage0(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	circles, err := c.GetSubmittedCircles(context.Background(), "test-token")
+	circles, err := c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCircles 失败: %v", err)
 	}
@@ -296,7 +296,7 @@ func TestGetSubmittedCircles_CustomPageSize(t *testing.T) {
 		t.Fatalf("New 失败: %v", err)
 	}
 
-	_, err = c.GetSubmittedCircles(context.Background(), "test-token")
+	_, err = c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCircles 失败: %v", err)
 	}
@@ -425,7 +425,7 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 	}
 	resultCh := make(chan getResult, 1)
 	go func() {
-		circles, err := c.GetSubmittedCircles(ctx, "test-token")
+		circles, err := c.GetSubmittedCircles(ctx, "test-token", "")
 		resultCh <- getResult{circles, err}
 	}()
 
@@ -480,7 +480,7 @@ func TestPeekSubmittedTotal_Normal(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	total, err := c.PeekSubmittedTotal(context.Background(), "test-token")
+	total, err := c.PeekSubmittedTotal(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("PeekSubmittedTotal 失败: %v", err)
 	}
@@ -507,7 +507,7 @@ func TestPeekSubmittedTotal_Zero(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	total, err := c.PeekSubmittedTotal(context.Background(), "test-token")
+	total, err := c.PeekSubmittedTotal(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("PeekSubmittedTotal 不应报错: %v", err)
 	}
@@ -529,7 +529,7 @@ func TestPeekSubmittedTotal_BizError(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	_, err := c.PeekSubmittedTotal(context.Background(), "test-token")
+	_, err := c.PeekSubmittedTotal(context.Background(), "test-token", "")
 	if err == nil {
 		t.Fatal("期望业务错误，实际 nil")
 	}
@@ -558,7 +558,7 @@ func TestPeekSubmittedTotal_VerifyQuery(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	_, _ = c.PeekSubmittedTotal(context.Background(), "test-token")
+	_, _ = c.PeekSubmittedTotal(context.Background(), "test-token", "")
 	wantQuery := "type=3&pageNo=1&pageSize=1&key="
 	if gotQuery != wantQuery {
 		t.Errorf("期望 query=%q，实际 %q", wantQuery, gotQuery)

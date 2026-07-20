@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -16,8 +17,8 @@ import (
 // circleType 对应 getStudentCircle 接口的 type 参数：
 //
 //	1=公示/全部, 2=教师写实, 3=我发布的, 4=被撤回
-func (c *Client) fetchCirclePage(ctx context.Context, token string, pageNo, pageSize int, circleType int) ([]types.CircleRecord, *types.PageBean, error) {
-	path := "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
+func (c *Client) fetchCirclePage(ctx context.Context, token string, pageNo, pageSize int, circleType int, key string) ([]types.CircleRecord, *types.PageBean, error) {
+	path := "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key=" + url.QueryEscape(key)
 
 	resp, err := c.doBizAndDecode(ctx, token, "fetchCirclePage", path, http.MethodGet, nil)
 	if err != nil {
@@ -40,8 +41,8 @@ func (c *Client) fetchCirclePage(ctx context.Context, token string, pageNo, page
 }
 
 // fetchCirclePageJSON 拉取一页写实记录，返回原始 dataList 字节。
-func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, pageSize int, circleType int) (*types.PageBean, []byte, error) {
-	path := "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
+func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, pageSize int, circleType int, key string) (*types.PageBean, []byte, error) {
+	path := "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key=" + url.QueryEscape(key)
 
 	resp, err := c.doBizAndDecode(ctx, token, "fetchCirclePageJSON", path, http.MethodGet, nil)
 	if err != nil {
@@ -69,13 +70,13 @@ type pageResult struct {
 	records []types.CircleRecord
 }
 
-func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleType int) ([]types.CircleRecord, error) {
+func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleType int, key string) ([]types.CircleRecord, error) {
 	pageSize := c.submittedPageSize
 	if pageSize <= 0 {
 		pageSize = defaultSubmittedPageSize
 	}
 
-	page1, pb, err := c.fetchCirclePage(ctx, token, 1, pageSize, circleType)
+	page1, pb, err := c.fetchCirclePage(ctx, token, 1, pageSize, circleType, key)
 	if err != nil {
 		return nil, fmt.Errorf("获取写实记录失败: %w", err)
 	}
@@ -102,7 +103,7 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 			if err := gctx.Err(); err != nil {
 				return err
 			}
-			records, _, err := c.fetchCirclePage(gctx, token, pn, pageSize, circleType)
+			records, _, err := c.fetchCirclePage(gctx, token, pn, pageSize, circleType, key)
 			if err != nil {
 				return fmt.Errorf("第 %d 页失败: %w", pn, err)
 			}
@@ -132,13 +133,13 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 // ─── type=1: 公示/全部（全班所有记录）───
 
 // GetPublicCircles 获取公示的全部写实记录（全班）。
-func (c *Client) GetPublicCircles(ctx context.Context, token string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 1)
+func (c *Client) GetPublicCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
+	return c.fetchAllCirclePages(ctx, token, 1, key)
 }
 
 // PeekPublicTotal 快速获取公示写实记录总数。
-func (c *Client) PeekPublicTotal(ctx context.Context, token string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 1)
+func (c *Client) PeekPublicTotal(ctx context.Context, token string, key string) (int, error) {
+	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 1, key)
 	if err != nil {
 		return 0, fmt.Errorf("PeekPublicTotal 失败: %w", err)
 	}
@@ -151,13 +152,13 @@ func (c *Client) PeekPublicTotal(ctx context.Context, token string) (int, error)
 // ─── type=2: 教师写实 ───
 
 // GetTeacherCircles 获取教师代写的全部写实记录。
-func (c *Client) GetTeacherCircles(ctx context.Context, token string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 2)
+func (c *Client) GetTeacherCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
+	return c.fetchAllCirclePages(ctx, token, 2, key)
 }
 
 // PeekTeacherTotal 快速获取教师写实记录总数。
-func (c *Client) PeekTeacherTotal(ctx context.Context, token string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 2)
+func (c *Client) PeekTeacherTotal(ctx context.Context, token string, key string) (int, error) {
+	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 2, key)
 	if err != nil {
 		return 0, fmt.Errorf("PeekTeacherTotal 失败: %w", err)
 	}
@@ -170,13 +171,13 @@ func (c *Client) PeekTeacherTotal(ctx context.Context, token string) (int, error
 // ─── type=3: 我发布的写实（仅当前用户自己的记录）───
 
 // GetSubmittedCircles 获取当前用户自己发布的写实记录。
-func (c *Client) GetSubmittedCircles(ctx context.Context, token string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 3)
+func (c *Client) GetSubmittedCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
+	return c.fetchAllCirclePages(ctx, token, 3, key)
 }
 
 // PeekSubmittedTotal 快速获取已提交写实记录总数（type=3，我发布的）。
-func (c *Client) PeekSubmittedTotal(ctx context.Context, token string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 3)
+func (c *Client) PeekSubmittedTotal(ctx context.Context, token string, key string) (int, error) {
+	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 3, key)
 	if err != nil {
 		return 0, fmt.Errorf("PeekSubmittedTotal 失败: %w", err)
 	}
@@ -190,19 +191,19 @@ func (c *Client) PeekSubmittedTotal(ctx context.Context, token string) (int, err
 //
 // 已弃用：请使用 fetchCirclePageJSON。
 func (c *Client) fetchSubmittedPageJSON(ctx context.Context, token string, pageNo, pageSize int) (*types.PageBean, []byte, error) {
-	return c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, 3)
+	return c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, 3, "")
 }
 
 // ─── type=4: 被撤回的写实 ───
 
 // GetWithdrawnCircles 获取被撤回的全部写实记录。
-func (c *Client) GetWithdrawnCircles(ctx context.Context, token string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 4)
+func (c *Client) GetWithdrawnCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
+	return c.fetchAllCirclePages(ctx, token, 4, key)
 }
 
 // PeekWithdrawnTotal 快速获取被撤回写实记录总数。
-func (c *Client) PeekWithdrawnTotal(ctx context.Context, token string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 4)
+func (c *Client) PeekWithdrawnTotal(ctx context.Context, token string, key string) (int, error) {
+	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 4, key)
 	if err != nil {
 		return 0, fmt.Errorf("PeekWithdrawnTotal 失败: %w", err)
 	}

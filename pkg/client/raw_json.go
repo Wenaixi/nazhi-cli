@@ -175,7 +175,7 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 		pageSize = defaultSubmittedPageSize
 	}
 
-	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
+	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, "")
 	if err != nil {
 		return nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
@@ -200,7 +200,7 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 			if err := gctx.Err(); err != nil {
 				return err
 			}
-			_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType)
+			_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, "")
 			if err != nil {
 				return fmt.Errorf("第 %d 页失败: %w", pn, err)
 			}
@@ -232,7 +232,7 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 		return raw, nil, err
 	}
 
-	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType)
+	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, "")
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
@@ -257,7 +257,7 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 				if err := gctx.Err(); err != nil {
 					return err
 				}
-				_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType)
+				_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, "")
 				if err != nil {
 					return fmt.Errorf("第 %d 页失败: %w", pn, err)
 				}

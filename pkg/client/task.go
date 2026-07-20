@@ -306,6 +306,19 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 	return c.buildTaskPayload(ctx, token, input, "SubmitTask")
 }
 
+// parseHours 解析用户输入的时长，空串时用任务预置时长。
+func parseHours(userInput string, metaHours float64) float64 {
+	h := strings.TrimSpace(userInput)
+	if h == "" {
+		return metaHours
+	}
+	parsed, err := strconv.ParseFloat(h, 64)
+	if err != nil {
+		return metaHours
+	}
+	return parsed
+}
+
 // buildTaskPayload 是 payload 构建的公共逻辑，供 SubmitTask 和 EditCircle 共用。
 //
 // 参数说明：
@@ -420,14 +433,14 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		CircleTaskID:        meta.TaskID,
 		CircleTypeID:        meta.CircleTypeID,
 		DimensionID:         meta.DimensionID,
-		Hours:               meta.Hours,
-		CircleBeginDate:     "",
-		CircleEndDate:       "",
-		CheckResult:         "",
-		PatentType:          "",
-		PatentNum:           "",
+		Hours:               parseHours(input.GetHours(), meta.Hours),
+		CircleBeginDate:     strings.TrimSpace(input.GetCircleBeginDate()),
+		CircleEndDate:       strings.TrimSpace(input.GetCircleEndDate()),
+		CheckResult:         strings.TrimSpace(input.GetCheckResult()),
+		PatentType:          strings.TrimSpace(input.GetPatentType()),
+		PatentNum:           strings.TrimSpace(input.GetPatentNum()),
 		Address:             address,
-		TermName:            "",
+		TermName:            strings.TrimSpace(input.GetCircleDate()), // fallback: 用 circleDate 作为届数
 		ActivityName:        activityName,
 		SportsName:          sportsName,
 		TeamName:            teamName,
