@@ -444,6 +444,24 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 	return payload, nil
 }
 
+// decodeSubmitResult 将 doBizAndDecode 的响应/错误映射为 TaskResult。
+//
+// SubmitTask 和 EditCircle 共用的后处理逻辑：业务错误提取 code/msg 到
+// TaskResult（同时保留 error 供 envelope 识别 partial），成功时从 resp 提取。
+func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResult, error) {
+	if err != nil {
+		var bizErr *types.BusinessError
+		if errors.As(err, &bizErr) {
+			return &types.TaskResult{Code: bizErr.Code, Msg: bizErr.Msg}, err
+		}
+		return nil, err
+	}
+	return &types.TaskResult{
+		Code: resp.Code,
+		Msg:  types.DerefOr(resp.Msg, ""),
+	}, nil
+}
+
 // EditCircle 修改一条已提交的写实记录。
 //
 // 与 SubmitTask 对称：内部自动完成 getCircleTypeByTaskId → GetMyInfo → 组装 editCircle payload。
@@ -460,18 +478,7 @@ func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskE
 	}
 
 	resp, err := c.doBizAndDecode(ctx, token, "EditCircle", "/api/studentCircleNew/editCircle", http.MethodPost, payload)
-	if err != nil {
-		var bizErr *types.BusinessError
-		if errors.As(err, &bizErr) {
-			return &types.TaskResult{Code: bizErr.Code, Msg: bizErr.Msg}, err
-		}
-		return nil, err
-	}
-
-	return &types.TaskResult{
-		Code: resp.Code,
-		Msg:  types.DerefOr(resp.Msg, ""),
-	}, nil
+	return decodeSubmitResult(resp, err)
 }
 
 // buildTaskEditPayload 构建 editCircle 的完整请求体。
@@ -492,18 +499,7 @@ func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskS
 	}
 
 	resp, err := c.doBizAndDecode(ctx, token, "SubmitTask", "/api/studentCircleNew/addCircle", http.MethodPost, payload)
-	if err != nil {
-		var bizErr *types.BusinessError
-		if errors.As(err, &bizErr) {
-			return &types.TaskResult{Code: bizErr.Code, Msg: bizErr.Msg}, err
-		}
-		return nil, err
-	}
-
-	return &types.TaskResult{
-		Code: resp.Code,
-		Msg:  types.DerefOr(resp.Msg, ""),
-	}, nil
+	return decodeSubmitResult(resp, err)
 }
 
 // GetCircleTypeByTaskID 获取任务提交前所需的 circleTypeId / dimensionId / hours 等元数据。
