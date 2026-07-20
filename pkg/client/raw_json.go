@@ -415,10 +415,7 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 		return []byte("[]"), nil
 	}
 
-	type rawPage struct {
-		raw []byte
-	}
-	pages := make(chan rawPage, len(activeDims))
+	pages := make(chan rawResult, len(activeDims))
 	dimErrs := make([]error, 0, len(activeDims))
 	var mu sync.Mutex
 
@@ -436,10 +433,10 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 			raw, err := c.fetchTasksDimensionJSON(gctx, dim, headers)
 			if err != nil {
 				appendLocked(&mu, &dimErrs, err)
-				pages <- rawPage{}
+				pages <- rawResult{}
 				return nil // 错误已记录到 dimErrs，不传播给 errgroup
 			}
-			pages <- rawPage{raw: raw}
+			pages <- rawResult{raw: raw}
 			return nil
 		})
 	}
@@ -540,6 +537,11 @@ func (c *Client) ActivateSessionJSON(ctx context.Context, token string) (json.Ra
 // 内部调用 GetMyInfo() 获取已后处理的 UserInfo struct，再 Marshal 回 JSON。
 // 包含 GetMyInfo 的全部后处理：学校信息 SSO 降级补全、班级名年级前缀清理。
 //
+// 注意：此处通过 GetMyInfo() 获取强类型 UserInfo 再 Marshal 回 JSON，
+// 而非直接使用原始响应字节。原因是 GetMyInfo 内部执行了 postProcessUserInfo
+// (学校信息 SSO 降级补全、班级名清理)，这些后处理是 CLI 输出所必需的。
+// 这意味着 omitempty 字段会被去除、字段顺序可能改变，与平台原始 JSON 不完全一致。
+//
 // 返回值：
 //   - json.RawMessage：处理后的 UserInfo JSON 字节；
 //     当数据为空时返回 (nil, ErrEmptyUserInfo)。
@@ -597,18 +599,11 @@ func (c *Client) GetHonorTypesJSON(ctx context.Context, token string) (json.RawM
 	return raw, nil
 }
 
-// GetHonorListJSON 获取指定页荣誉记录的原始 JSON（不含自动翻页）。
+// assembleRecordsPageJSON 将 UnifiedResponse 拼装为 {"records":..., "page":...} 格式。
 //
-// 与 GetHonorList 1:1 等价（按页调用，不自动翻页），
-// 返回拼装后的完整 JSON 对象 `{"records":..., "page":...}`，
-// records 和 page 字段值都是平台原始字节。
-func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pageSize int) (json.RawMessage, error) {
-	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
-	resp, err := c.doBizAndDecode(ctx, token, "GetHonorListJSON", path, http.MethodGet, nil)
-	if err != nil {
-		return nil, fmt.Errorf("GetHonorListJSON 失败: %w", err)
-	}
-
+// records 取自 dataList（缺失时回退为 []），page 取自 pageBean（缺失时省略该字段）。
+// 被 GetHonorListJSON 和 GetTypicalCaseListJSON 共用，避免重复拼装逻辑。
+func assembleRecordsPageJSON(resp *types.UnifiedResponse) json.RawMessage {
 	var recordsRaw json.RawMessage
 	if resp.DataList != nil {
 		recordsRaw = *resp.DataList
@@ -629,5 +624,19 @@ func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pag
 		buf.Write(pageBeanRaw)
 	}
 	buf.WriteByte('}')
-	return buf.Bytes(), nil
+	return buf.Bytes()
+}
+
+// GetHonorListJSON 获取指定页荣誉记录的原始 JSON（不含自动翻页）。
+//
+// 与 GetHonorList 1:1 等价（按页调用，不自动翻页），
+// 返回拼装后的完整 JSON 对象 `{"records":..., "page":...}`，
+// records 和 page 字段值都是平台原始字节。
+func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pageSize int) (json.RawMessage, error) {
+	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
+	resp, err := c.doBizAndDecode(ctx, token, "GetHonorListJSON", path, http.MethodGet, nil)
+	if err != nil {
+		return nil, fmt.Errorf("GetHonorListJSON 失败: %w", err)
+	}
+	return assembleRecordsPageJSON(resp), nil
 }
