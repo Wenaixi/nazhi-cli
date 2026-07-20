@@ -209,14 +209,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	// decode returnData 采用 UseNumber 一致地解析 json.Number，
 	// 但 float64 断言也要兼容——json.Number 需通过 Float64() 转换。
 	var idInt int64
+	var nameStr string
 	switch v := rawID.(type) {
 	case nil:
 		return nil, fmt.Errorf("%w: returnData.id 字段为 null", ErrUploadRejected)
 	case float64:
 		idInt = int64(v)
 	case json.Number:
-		// priority: Int64() for integer IDs (>2^53 仍精确), Float64 fallback for decimals.
-		// PLAUSIBLE: 仅当 ID >2^53 时 float64 精度损失触发 (json.Number.Float64 → +Inf)。
 		idInt, err = v.Int64()
 		if err != nil {
 			var f float64
@@ -230,7 +229,14 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("%w: returnData.id 类型不匹配, 期望 float64 或 json.Number 实际 %T", ErrUploadRejected, rawID)
 	}
 
-	return &types.UploadFileResult{AttachmentID: idInt}, nil
+	// 尝试读取 name 字段（可能不存在）
+	if rawName, exists := result["name"]; exists {
+		if s, ok := rawName.(string); ok {
+			nameStr = s
+		}
+	}
+
+	return &types.UploadFileResult{AttachmentID: idInt, AttachmentName: nameStr}, nil
 }
 
 // DownloadFile 按附件 ID 从公开文件服务器下载图片到本地 dst。

@@ -79,7 +79,7 @@ func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input
 
 	// 基础身份（直接透传）
 	if input.Name != "" {
-		updates["studentName"] = input.Name // 前端使用 studentName，不是 name
+		updates["studentName"] = input.Name  // 前端使用 studentName，不是 name
 	}
 	if input.StudentNumber != "" {
 		updates["studentNumber"] = input.StudentNumber

@@ -22,7 +22,7 @@ type HonorRecord struct {
 	Level            int    `json:"level"`
 	DimensionName    string `json:"dimension_name"`
 	Approved         bool   `json:"approved"`
-	ApprovedName     string `json:"approved_name"`
+	ApprovedName     string `json:"statusName"`             // 审核状态名称（API 返回 statusName）
 	GetDate          string `json:"get_date"` // 原始日期字符串
 	EvaluationAgency string `json:"evaluation_agency"`
 
@@ -31,6 +31,11 @@ type HonorRecord struct {
 	CertImgAttachmentID string `json:"cert_img_attachment_id,omitempty"` // 证书图片附件 ID
 	Score               int    `json:"score,omitempty"`                  // 分数
 	ScoreName           string `json:"score_name,omitempty"`             // 分数描述
+
+	// v1.4.1 新增：补齐前端表格列使用的字段
+	IfShow      string `json:"ifshow,omitempty"`      // 是否报告单展示
+	StudentName string `json:"student_name,omitempty"` // 学生姓名
+	ClassName   string `json:"class_name,omitempty"`  // 班级名称
 }
 
 // HonorListResult 是 GetHonorList 的统一返回对象。

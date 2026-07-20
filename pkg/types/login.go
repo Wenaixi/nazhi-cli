@@ -29,5 +29,6 @@ type SchoolInfo struct {
 
 // UploadFileResult 是 UploadFile 的统一返回对象。
 type UploadFileResult struct {
-	AttachmentID int64 `json:"attachmentID"`
+	AttachmentID   int64  `json:"attachmentID"`
+	AttachmentName string `json:"attachmentName,omitempty"` // 附件名称（v1.4.0 新增）
 }

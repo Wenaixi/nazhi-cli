@@ -52,6 +52,7 @@ type TypicalCaseRecord struct {
 	GradeName      string `json:"gradeName"`      // 年级名称
 	ClassName      string `json:"className"`      // 班级名称
 	StudentName    string `json:"studentName"`    // 学生姓名
+	AuditRemark    string `json:"auditRemark"`    // 学校审核意见（v1.4.0 新增）
 }
 
 // TypicalCaseListResult 是 GetTypicalCaseList 的统一返回对象。

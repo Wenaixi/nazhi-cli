@@ -23,7 +23,7 @@ func honorRecordJSON(id int64, name, statusName string) map[string]any {
 		"level":             5,
 		"dimension_name":    "思想品德",
 		"approved":          true,
-		"approved_name":     statusName,
+		"statusName":        statusName,
 		"get_date":          "2026-06-30T00:00:00+08:00",
 		"evaluation_agency": "示例中学",
 	}
