@@ -415,10 +415,9 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 		return []byte("[]"), nil
 	}
 
-	type rawPage struct {
-		raw []byte
-	}
-	pages := make(chan rawPage, len(activeDims))
+	// 使用索引切片按维度顺序收集结果，保持维度顺序确定性。
+	// channel-based 收集顺序取决于 goroutine 调度，结果顺序不可预测。
+	results := make([][]byte, len(activeDims))
 	dimErrs := make([]error, 0, len(activeDims))
 	var mu sync.Mutex
 
@@ -430,44 +429,43 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 	}
 	g.SetLimit(limit)
 
-	for _, dim := range activeDims {
+	for i, dim := range activeDims {
 		dim := dim
+		idx := i
 		g.Go(func() error {
 			raw, err := c.fetchTasksDimensionJSON(gctx, dim, headers)
 			if err != nil {
 				appendLocked(&mu, &dimErrs, err)
-				pages <- rawPage{}
 				return nil // 错误已记录到 dimErrs，不传播给 errgroup
 			}
-			pages <- rawPage{raw: raw}
+			results[idx] = raw
 			return nil
 		})
 	}
 
-	// 等待所有 goroutine 完成，然后关闭 channel
-	go func() {
-		_ = g.Wait()
-		close(pages)
-	}()
+	if err := g.Wait(); err != nil {
+		return nil, fmt.Errorf("FetchTasksJSON 并发拉取失败: %w", err)
+	}
 
 	buf := bytes.NewBuffer(nil)
 	buf.WriteByte('[')
 	first := true
 	totalPages := 0
-	// 从 channel 收集结果（goroutine 完成后会 close(pages)）
-	for p := range pages {
-		if len(p.raw) == 0 {
+	// 按维度顺序拼接结果，保持确定性顺序
+	for _, raw := range results {
+		if len(raw) == 0 {
+			continue
+		}
+		trimmed := trimArrayBrackets(raw)
+		if len(trimmed) == 0 {
 			continue
 		}
 		if first {
-			buf.Write(trimArrayBrackets(p.raw))
+			buf.Write(trimmed)
 			first = false
 		} else {
-			trimmed := trimArrayBrackets(p.raw)
-			if len(trimmed) > 0 {
-				buf.WriteByte(',')
-				buf.Write(trimmed)
-			}
+			buf.WriteByte(',')
+			buf.Write(trimmed)
 		}
 		totalPages++
 	}
