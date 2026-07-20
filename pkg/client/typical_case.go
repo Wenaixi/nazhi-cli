@@ -1,7 +1,6 @@
 package client
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -57,29 +56,7 @@ func (c *Client) GetTypicalCaseListJSON(ctx context.Context, token string, pageN
 	if err != nil {
 		return nil, fmt.Errorf("GetTypicalCaseListJSON 失败: %w", err)
 	}
-
-	var recordsRaw json.RawMessage
-	if resp.DataList != nil {
-		recordsRaw = *resp.DataList
-	}
-	var pageBeanRaw json.RawMessage
-	if resp.PageBean != nil {
-		pageBeanRaw = *resp.PageBean
-	}
-
-	if len(recordsRaw) == 0 {
-		recordsRaw = json.RawMessage("[]")
-	}
-
-	var buf bytes.Buffer
-	buf.WriteString(`{"records":`)
-	buf.Write(recordsRaw)
-	if len(pageBeanRaw) > 0 {
-		buf.WriteString(`,"page":`)
-		buf.Write(pageBeanRaw)
-	}
-	buf.WriteByte('}')
-	return buf.Bytes(), nil
+	return assembleRecordsPageJSON(resp), nil
 }
 
 // UpdateTypicalCase 更新一条典型案例。
