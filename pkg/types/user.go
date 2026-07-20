@@ -24,6 +24,9 @@ type UserUpdateInput struct {
 	IDCard      string `json:"idCard,omitempty"`      // 身份证号
 	BirthdayStr string `json:"birthdayStr,omitempty"` // 生日字符串（YYYY-MM-DD）
 
+	// 密码（前端用 studentUuid 字段表示密码，空串表示不修改；v1.4.0 新增）
+	StudentUuid string `json:"studentUuid,omitempty"`
+
 	// 座号（整数，0 表示跳过）
 	Seat int `json:"seat,omitempty"`
 }
@@ -71,4 +74,9 @@ type UserInfo struct {
 	Hobbies         string `json:"hobbies,omitempty"`         // 爱好
 	IDCard          string `json:"idCard,omitempty"`          // 身份证号
 	IDType          int    `json:"idType,omitempty"`          // 证件类型（数字）
+
+	// v1.4.0 新增：补齐前端 getMyInfo 响应的额外原始字段
+	RegistrationNumber string   `json:"registrationNumber,omitempty"` // 中考报名号
+	AdmissionDate      []string `json:"admissionDate,omitempty"`      // 入学年份数组
+	StudentUuid        string   `json:"studentUuid,omitempty"`        // 学生 UUID / 密码
 }

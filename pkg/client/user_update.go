@@ -73,13 +73,13 @@ func (c *Client) UpdateMyInfo(ctx context.Context, token string, updates map[str
 // 直接透传的字段（不做转换）：
 //   - Name / StudentNumber / NationalStudentNumber
 //   - Telephone / FamilyAddress / Hobbies
-//   - IDCard / BirthdayStr / Seat
+//   - IDCard / BirthdayStr / Seat / StudentUuid
 func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input types.UserUpdateInput) error {
 	updates := make(map[string]any, 16)
 
 	// 基础身份（直接透传）
 	if input.Name != "" {
-		updates["name"] = input.Name
+		updates["studentName"] = input.Name // 前端使用 studentName，不是 name
 	}
 	if input.StudentNumber != "" {
 		updates["studentNumber"] = input.StudentNumber
@@ -111,6 +111,9 @@ func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input
 	if input.Seat > 0 {
 		updates["seat"] = input.Seat
 	}
+
+	// StudentUuid（密码）：直接透传，不跳过空串——空串表示不修改密码
+	updates["studentUuid"] = input.StudentUuid
 
 	// ── 字段转换：面向用户的中文名称 → API 数字代码 ──
 
