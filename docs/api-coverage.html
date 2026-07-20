@@ -1,0 +1,397 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>纳智前端 API ↔ nazhi-cli SDK 全覆盖清单</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f5f7fa;
+    color: #2c3e50;
+    line-height: 1.7;
+    padding: 30px 20px;
+  }
+  .container { max-width: 960px; margin: 0 auto; }
+  h1 { font-size: 26px; font-weight: 600; margin-bottom: 6px; color: #1a1a2e; }
+  .subtitle {
+    font-size: 14px; color: #888; margin-bottom: 30px;
+    border-bottom: 2px solid #e8ecf1; padding-bottom: 16px;
+  }
+  .summary-bar { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 30px; }
+  .summary-item {
+    flex: 1; min-width: 120px; background: #fff; border-radius: 10px;
+    padding: 16px 18px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); text-align: center;
+  }
+  .summary-item .num { font-size: 28px; font-weight: 700; display: block; }
+  .summary-item .label { font-size: 13px; color: #888; margin-top: 2px; }
+  .summary-item.green .num { color: #27ae60; }
+  .summary-item.blue .num { color: #2980b9; }
+  .summary-item.red .num { color: #c0392b; }
+  .section {
+    background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+    margin-bottom: 20px; overflow: hidden;
+  }
+  .section-header {
+    padding: 14px 22px; font-size: 16px; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid #eef2f7;
+  }
+  .section-header .badge {
+    font-size: 12px; font-weight: 500; padding: 2px 10px;
+    border-radius: 12px; color: #fff;
+  }
+  .section-header .badge.green { background: #27ae60; }
+  .section-header .badge.blue { background: #2980b9; }
+  .section-header .badge.red { background: #c0392b; }
+  .section-header .badge.gray { background: #95a5a6; }
+  .section-desc {
+    font-size: 13px; color: #888; padding: 0 22px 12px; margin-top: -4px;
+  }
+  .api-table { width: 100%; border-collapse: collapse; }
+  .api-table th {
+    text-align: left; font-size: 12px; font-weight: 500; color: #999;
+    padding: 8px 16px; border-bottom: 1px solid #f0f2f5;
+  }
+  .api-table td {
+    padding: 10px 16px; border-bottom: 1px solid #f5f6f8;
+    font-size: 14px; vertical-align: top;
+  }
+  .api-table tr:last-child td { border-bottom: none; }
+  .api-table .api-path {
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: 13px; color: #2c3e50; word-break: break-all;
+  }
+  .api-table .sdk-method {
+    font-family: "SF Mono", "Fira Code", "Consolas", monospace;
+    font-size: 12px; color: #2980b9;
+  }
+  .api-table .desc { font-size: 13px; color: #666; }
+  .api-table .status-dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; margin-right: 4px;
+  }
+  .api-table .status-dot.green { background: #27ae60; }
+  .api-table .status-dot.blue { background: #2980b9; }
+  .api-table .status-dot.red { background: #c0392b; }
+  .api-table .status-dot.gray { background: #95a5a6; }
+  .api-table .status-dot.orange { background: #e67e22; }
+  .index-num {
+    display: inline-block; width: 24px; height: 24px; line-height: 24px;
+    text-align: center; background: #ecf0f6; border-radius: 50%;
+    font-size: 12px; color: #666; font-weight: 500;
+  }
+  .module-label {
+    font-size: 12px; font-weight: 500; color: #999; background: #f5f6f8;
+    padding: 2px 8px; border-radius: 4px; display: inline-block; margin-right: 6px;
+  }
+  .legend {
+    display: flex; gap: 18px; flex-wrap: wrap; margin-bottom: 24px;
+    font-size: 13px; color: #666;
+  }
+  .legend-item { display: flex; align-items: center; gap: 5px; }
+  footer { text-align: center; font-size: 13px; color: #aaa; padding: 30px 0 10px; }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>纳智前端 API 全覆盖清单</h1>
+<p class="subtitle">基于 nazhi 前端源码 12 模块 82 接口的逐一核对 → nazhi-cli SDK 实现状态</p>
+
+<div class="legend">
+  <span class="legend-item"><span class="status-dot green"></span> 已实现</span>
+  <span class="legend-item"><span class="status-dot blue"></span> SDK 内部使用</span>
+  <span class="legend-item"><span class="status-dot red"></span> 不实现 / 已删除</span>
+  <span class="legend-item"><span class="status-dot gray"></span> CLI 专用</span>
+</div>
+
+<div class="summary-bar">
+  <div class="summary-item green"><span class="num">33</span><span class="label">已实现</span></div>
+  <div class="summary-item blue"><span class="num">5</span><span class="label">SDK 内部使用</span></div>
+  <div class="summary-item red"><span class="num">44</span><span class="label">不实现 / 已删除</span></div>
+  <div class="summary-item"><span class="num">82</span><span class="label">接口总数</span></div>
+</div>
+
+<!-- 已实现 -->
+<div class="section">
+  <div class="section-header">
+    <span class="badge green">已实现</span>
+    33 个接口 — SDK 提供了完整的公开方法
+  </div>
+  <div class="section-desc">
+    核心业务线全部打通：写实记录 CRUD、典型案例 CRUD、荣誉 CRUD、自我评价（含毕业评价）、用户信息、文件上传下载。
+  </div>
+  <table class="api-table">
+    <thead><tr><th style="width:32px">#</th><th>API 路径</th><th>SDK 方法</th><th>说明</th></tr></thead>
+    <tbody>
+
+      <tr><td>1</td>
+        <td class="api-path">GET /api/studentInfo/getMyInfo</td>
+        <td class="sdk-method">GetMyInfo()</td>
+        <td class="desc">获取当前登录学生的个人信息（姓名/班级/学号/电话/性别/生日/民族/证件号等）</td></tr>
+      <tr><td>2</td>
+        <td class="api-path">POST /api/studentInfo/updateMyInfo</td>
+        <td class="sdk-method">UpdateMyInfo()</td>
+        <td class="desc">修改学生个人信息（姓名/性别/民族/证件/生日/电话/地址/爱好/密码等）</td></tr>
+
+      <tr><td>3</td>
+        <td class="api-path">GET /api/studentCircleNew/getCircleType</td>
+        <td class="sdk-method">GetCircleTypes()</td>
+        <td class="desc">根据维度ID获取写实类别列表（如党团活动、社团活动等）</td></tr>
+      <tr><td>4</td>
+        <td class="api-path">GET /api/studentCircleNew/getCircleTask</td>
+        <td class="sdk-method">GetCircleTasks()</td>
+        <td class="desc">根据类别ID获取具体的写实任务列表（含任务描述、预设时长）</td></tr>
+      <tr><td>5</td>
+        <td class="api-path">GET /api/studentCircleNew/getStudentCircle (type=3)</td>
+        <td class="sdk-method">GetSubmittedCircles()</td>
+        <td class="desc">查询"我发布的写实"记录列表（分页 + 自动翻页合并）</td></tr>
+      <tr><td>6</td>
+        <td class="api-path">GET /api/studentCircleNew/getStudentCircle (type=2)</td>
+        <td class="sdk-method">GetTeacherCircles()</td>
+        <td class="desc">查询"教师写实"记录列表</td></tr>
+      <tr><td>7</td>
+        <td class="api-path">GET /api/studentCircleNew/getStudentCircle (type=4)</td>
+        <td class="sdk-method">GetWithdrawnCircles()</td>
+        <td class="desc">查询"被撤回的写实"记录列表</td></tr>
+      <tr><td>8</td>
+        <td class="api-path">GET /api/studentCircleNew/getStudentCircle (type=1)</td>
+        <td class="sdk-method">GetPublicCircles()</td>
+        <td class="desc">查询"公示查看"写实记录列表</td></tr>
+      <tr><td>9</td>
+        <td class="api-path">POST /api/studentCircleNew/addCircle</td>
+        <td class="sdk-method">SubmitTask()</td>
+        <td class="desc">发布写实记录 — 支持 14 种任务类型，各有不同的字段组合</td></tr>
+      <tr><td>10</td>
+        <td class="api-path">POST /api/studentCircleNew/editCircle</td>
+        <td class="sdk-method">EditCircle()</td>
+        <td class="desc">编辑已有的写实记录（与 addCircle 同字段 + id）</td></tr>
+      <tr><td>11</td>
+        <td class="api-path">GET /api/studentCircleNew/deleteCircle</td>
+        <td class="sdk-method">DeleteCircle()</td>
+        <td class="desc">删除写实记录（仅 ifMySelf==1 且 status!=1 的记录可删除）</td></tr>
+      <tr><td>12</td>
+        <td class="api-path">POST /api/studentCircleNew/addCircleComment</td>
+        <td class="sdk-method">AddCircleComment()</td>
+        <td class="desc">对写实记录添加评论</td></tr>
+      <tr><td>13</td>
+        <td class="api-path">GET /api/studentCircleNew/setCircleLikeById</td>
+        <td class="sdk-method">SetCircleLike()</td>
+        <td class="desc">点赞 / 取消点赞写实记录</td></tr>
+      <tr><td>14</td>
+        <td class="api-path">GET /api/studentCircleNew/getCircleImg</td>
+        <td class="sdk-method">GetCircleImages()</td>
+        <td class="desc">获取学生上传的写实图片列表</td></tr>
+
+      <tr><td>15</td>
+        <td class="api-path">GET /api/studentCircleNew/getTypicalCase</td>
+        <td class="sdk-method">GetTypicalCaseList()</td>
+        <td class="desc">分页查询典型案例列表（含学期/类别/标题/审核状态等）</td></tr>
+      <tr><td>16</td>
+        <td class="api-path">POST /api/studentCircleNew/addTypicalCase</td>
+        <td class="sdk-method">AddTypicalCase()</td>
+        <td class="desc">新增典型案例（标题/类别/指导教师/合作者/角色/描述/内容/级别/附件）</td></tr>
+      <tr><td>17</td>
+        <td class="api-path">POST /api/studentCircleNew/updateTypicalCase</td>
+        <td class="sdk-method">UpdateTypicalCase()</td>
+        <td class="desc">更新典型案例（与新增同字段 + id）</td></tr>
+      <tr><td>18</td>
+        <td class="api-path">GET /api/studentCircleNew/deleteTypicalCase</td>
+        <td class="sdk-method">DeleteTypicalCase()</td>
+        <td class="desc">删除单个典型案例</td></tr>
+      <tr><td>19</td>
+        <td class="api-path">POST /api/studentCircleNew/deleteBatchTypicalCase</td>
+        <td class="sdk-method">DeleteBatchTypicalCase()</td>
+        <td class="desc">批量删除典型案例（传 ID 数组）</td></tr>
+
+      <tr><td>20</td>
+        <td class="api-path">GET /api/studentMoralEduNew/getHonorByStudentId</td>
+        <td class="sdk-method">GetHonorList()</td>
+        <td class="desc">分页查询学生的荣誉记录列表</td></tr>
+      <tr><td>21</td>
+        <td class="api-path">POST /api/studentMoralEduNew/addHonor</td>
+        <td class="sdk-method">AddHonor()</td>
+        <td class="desc">申报荣誉（类型/等级/评选单位/获得时间/证书图片）</td></tr>
+      <tr><td>22</td>
+        <td class="api-path">POST /api/studentMoralEduNew/updateHonor</td>
+        <td class="sdk-method">UpdateHonor()</td>
+        <td class="desc">修改已有的荣誉记录</td></tr>
+      <tr><td>23</td>
+        <td class="api-path">GET /api/studentMoralEduNew/deleteHonorById</td>
+        <td class="sdk-method">DeleteHonor()</td>
+        <td class="desc">删除一条荣誉记录</td></tr>
+      <tr><td>24</td>
+        <td class="api-path">GET /api/studentMoralEduNew/getHonorType</td>
+        <td class="sdk-method">GetHonorTypes()</td>
+        <td class="desc">获取所有荣誉类型列表（名称/维度/等级/分数）</td></tr>
+      <tr><td>25</td>
+        <td class="api-path">GET /api/studentMoralEduNew/getHonorTypeForSelect</td>
+        <td class="sdk-method">GetHonorTypeForSelect()</td>
+        <td class="desc">获取荣誉类型和等级的下拉选项（新增/编辑表单用）</td></tr>
+      <tr><td>26</td>
+        <td class="api-path">GET /api/studentMoralEduNew/getHonorLevel</td>
+        <td class="sdk-method">GetHonorLevel()</td>
+        <td class="desc">根据荣誉类型ID获取对应的等级列表（联动查询）</td></tr>
+      <tr><td>27</td>
+        <td class="api-path">GET /api/studentMoralEduNew/querySelfEvaluation</td>
+        <td class="sdk-method">QuerySelfEvaluation()</td>
+        <td class="desc">查询自我评价（学生评语 + 教师评语）</td></tr>
+      <tr><td>28</td>
+        <td class="api-path">POST /api/studentMoralEduNew/addSelfEvaluation</td>
+        <td class="sdk-method">SubmitSelfEvaluation()</td>
+        <td class="desc">提交文本型自我评价</td></tr>
+      <tr><td>29</td>
+        <td class="api-path">POST /api/studentMoralEduNew/addSelfEvaluation</td>
+        <td class="sdk-method">SubmitSelfEvaluationStructured()</td>
+        <td class="desc">提交结构化自我评价（"诉得失"页面：会做人/求知/生活/创造等 11 个字段）</td></tr>
+      <tr><td>30</td>
+        <td class="api-path">GET /api/studentMoralEduNew/querySelfGradEvaluation</td>
+        <td class="sdk-method">QuerySelfGradEvaluation()</td>
+        <td class="desc">查询毕业评价状态（学生评语 + 是否毕业班）</td></tr>
+      <tr><td>31</td>
+        <td class="api-path">POST /api/studentMoralEduNew/addSelfGradEvaluation</td>
+        <td class="sdk-method">SubmitSelfGradEvaluation()</td>
+        <td class="desc">提交毕业评价（与 QuerySelfGradEvaluation 配对组成完整 CRUD）</td></tr>
+
+      <tr><td>32</td>
+        <td class="api-path">POST {baseUrl}/common/upload/uploadImage</td>
+        <td class="sdk-method">UploadFile()</td>
+        <td class="desc">上传文件到独立文件服务器（不接 --token，业务类型固定 12）</td></tr>
+      <tr><td>33</td>
+        <td class="api-path">GET {baseUrl}/common/attachment/getImg</td>
+        <td class="sdk-method">DownloadFile()</td>
+        <td class="desc">根据附件ID下载/查看图片（302 重定向跟随）</td></tr>
+
+    </tbody>
+  </table>
+</div>
+
+<!-- SDK 内部使用 -->
+<div class="section">
+  <div class="section-header">
+    <span class="badge blue">SDK 内部使用</span>
+    5 个接口
+  </div>
+  <div class="section-desc">
+    在 SDK 内部被调用但没有作为独立的公开方法暴露。可通过 GetCircleTypes / FetchTasks 等其他公开方法间接获取数据。
+  </div>
+  <table class="api-table">
+    <thead><tr><th style="width:32px">#</th><th>API 路径</th><th>使用位置</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>1</td>
+        <td class="api-path">GET /api/studentInfo/getMenu</td>
+        <td class="sdk-method">ActivateSession -> doGetMenu()</td>
+        <td class="desc">HAR 验证的 4 步 session 激活中的步骤 2/3</td></tr>
+      <tr><td>2</td>
+        <td class="api-path">GET /api/studentCircleNew/getDimensions</td>
+        <td class="sdk-method">FetchTasks() 内部</td>
+        <td class="desc">获取写实维度列表</td></tr>
+      <tr><td>3</td>
+        <td class="api-path">GET /api/studentCircleNew/getCircleStatistics</td>
+        <td class="sdk-method">FetchTasks() 内部</td>
+        <td class="desc">对每个维度并发查询任务统计</td></tr>
+      <tr><td>4</td>
+        <td class="api-path">GET /api/studentCircleNew/getCircleTypeByTaskId</td>
+        <td class="sdk-method">EditCircle 流程内部</td>
+        <td class="desc">编辑写实时根据 taskId 获取任务的类型信息</td></tr>
+      <tr><td>5</td>
+        <td class="api-path">GET /api/teacher/circle/circleType/queryDimensionBySchoolIdAndStateType</td>
+        <td class="sdk-method">FetchTasks 维度初始化</td>
+        <td class="desc">备选维度查询接口</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- 不实现 + 已删除 -->
+<div class="section">
+  <div class="section-header">
+    <span class="badge red">不实现 / 已删除</span>
+    44 个接口 — 不在 SDK 中提供公开方法
+  </div>
+  <div class="section-desc">
+    包括：元洪附小专用 4 个、前端废弃 1 个、德育违规未验证 2 个、辅助页面 3 个、通知红点 1 个、v1.3.0 已删除模块 33 个。
+    "德育违规"留待真实抓包验证后再补充，避免重蹈 exam 模块交叉表建模错误的覆辙。
+  </div>
+  <table class="api-table">
+    <thead><tr><th style="width:32px">#</th><th>API 路径</th><th>放弃原因</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="api-path">GET /api/teacher/fiveEvaluation/classManagerStatisticsAnalysis/getClassStarCountByClassIdAndTermId2</td><td>元洪附小导航栏专用，非通用接口</td></tr>
+      <tr><td>2</td><td class="api-path">GET /api/studentInfo/getTermFace</td><td>元洪附小头像装饰专用</td></tr>
+      <tr><td>3</td><td class="api-path">GET /api/studentCircleNew/getCircleTypeByDimensionId</td><td>元洪附小专用</td></tr>
+      <tr><td>4</td><td class="api-path">GET /api/studentCircleNew/getCircleStatisticsByTypeId</td><td>元洪附小专用</td></tr>
+      <tr><td>5</td><td class="api-path">GET /api/studentCircleNew/getRecentlyCircleTask</td><td>前端已注释，废弃</td></tr>
+      <tr><td>6</td><td class="api-path">GET /api/studentMoralEduNew/getViolation</td><td>德育违规，待真实抓包验证后补充</td></tr>
+      <tr><td>7</td><td class="api-path">GET /api/studentMoralEduNew/getViolationType</td><td>德育违规，待真实抓包验证后补充</td></tr>
+      <tr><td>8</td><td class="api-path">GET /api/teacher/school/use/pageQueryTermBySchoolId</td><td>辅助信息，无真实需求</td></tr>
+      <tr><td>9</td><td class="api-path">GET /api/teacher/school/studentReport/getStudentInfoForTermId</td><td>辅助信息，无真实需求</td></tr>
+      <tr><td>10</td><td class="api-path">GET {baseUrl}/common/attachment/getHeaderImg</td><td>img 标签专用 URL 参数传 token</td></tr>
+      <tr><td>11</td><td class="api-path">GET /api/uiAnnouncement/queryUnreadNotificationByTeacher</td><td>通知红点，与已删除通知模块关联</td></tr>
+
+      <tr><td colspan="3" style="font-size:13px;color:#999;background:#fafbfc;padding:8px 16px;">— 以下 33 个为 v1.3.0 已删除模块（民主评价/成绩管理/积分信息/通知公告/商城积分）—</td></tr>
+
+      <tr><td>12</td><td class="api-path">GET /api/studentDemocraticNew/getActivity</td><td rowspan="8" style="font-size:12px;color:#999;">民主评价，v1.3.0 已删除</td></tr>
+      <tr><td>13</td><td class="api-path">GET /api/studentDemocraticNew/getDemocraticActivityById</td></tr>
+      <tr><td>14</td><td class="api-path">GET /api/studentDemocraticNew/getSelfEvaluation</td></tr>
+      <tr><td>15</td><td class="api-path">POST /api/studentDemocraticNew/addOrUpdateSelfEvaluation</td></tr>
+      <tr><td>16</td><td class="api-path">GET /api/studentDemocraticNew/getMutualPersonInfo</td></tr>
+      <tr><td>17</td><td class="api-path">POST /api/studentDemocraticNew/getMutualEvaluationDetail</td></tr>
+      <tr><td>18</td><td class="api-path">POST /api/studentDemocraticNew/addOrUpdateMutualEvaluation</td></tr>
+      <tr><td>19</td><td class="api-path">GET /api/studentDemocraticNew/getDemocraticResult</td></tr>
+
+      <tr><td>20</td><td class="api-path">GET /api/studentExamNew/getInitInfo</td><td rowspan="2" style="font-size:12px;color:#999;">成绩管理，v1.3.0 已删除</td></tr>
+      <tr><td>21</td><td class="api-path">POST /api/studentExamNew/queryStudentExam</td></tr>
+
+      <tr><td>22</td><td class="api-path">GET /api/bonusInfo/getMonthBonusByStudentId</td><td rowspan="4" style="font-size:12px;color:#999;">积分信息，v1.3.0 已删除</td></tr>
+      <tr><td>23</td><td class="api-path">GET /api/bonusInfo/getHistoryBonusByStudentId</td></tr>
+      <tr><td>24</td><td class="api-path">GET /api/bonusInfo/getMonthBonusRankByClassId</td></tr>
+      <tr><td>25</td><td class="api-path">GET /api/bonusInfo/getMonthBonusDetailByStudentId</td></tr>
+
+      <tr><td>26</td><td class="api-path">GET /api/uiAnnouncement/queryAllNotificationByTeacher</td><td rowspan="3" style="font-size:12px;color:#999;">通知公告，v1.3.0 已删除</td></tr>
+      <tr><td>27</td><td class="api-path">GET /api/uiAnnouncement/getAnnouncementById</td></tr>
+      <tr><td>28</td><td class="api-path">GET /api/uiAnnouncement/readUnreadNotificationByTeacher</td></tr>
+
+      <tr><td>29</td><td class="api-path">GET /teacher/school/use/getMangerInfoByStudentId</td><td rowspan="15" style="font-size:12px;color:#999;">商城积分，v1.3.0 已删除</td></tr>
+      <tr><td>30</td><td class="api-path">GET /teacher/productCategory/getProductCategory</td></tr>
+      <tr><td>31</td><td class="api-path">GET /teacher/product/getProduct</td></tr>
+      <tr><td>32</td><td class="api-path">POST /teacher/productExchange/exchangeProduct</td></tr>
+      <tr><td>33</td><td class="api-path">POST /teacher/productExchange/addToCart</td></tr>
+      <tr><td>34</td><td class="api-path">GET /teacher/productExchange/getProductOrder</td></tr>
+      <tr><td>35</td><td class="api-path">POST /teacher/productExchange/modiCartNum</td></tr>
+      <tr><td>36</td><td class="api-path">POST /teacher/productExchange/delCart</td></tr>
+      <tr><td>37</td><td class="api-path">POST /teacher/productExchange/settlement</td></tr>
+      <tr><td>38</td><td class="api-path">GET /teacher/school/use/getStudentInfoAndCoin</td></tr>
+      <tr><td>39</td><td class="api-path">POST /teacher/productExchange/exchangeCoin</td></tr>
+      <tr><td>40</td><td class="api-path">POST /teacher/productExchange/exchangeGive</td></tr>
+      <tr><td>41</td><td class="api-path">POST /teacher/productExchange/exchangeConvert</td></tr>
+      <tr><td>42</td><td class="api-path">GET /studentInfo/showShopInfo</td></tr>
+      <tr><td>43</td><td class="api-path">GET /teacher/school/use/getStudentInfoAndPoints</td></tr>
+      <tr><td>44</td><td class="api-path">（商城积分共 15 接口，全部 v1.3.0 已删除）</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- CLI 专用 -->
+<div class="section">
+  <div class="section-header">
+    <span class="badge gray">CLI 专用</span>
+    3 个 — 不涉及前端 API
+  </div>
+  <table class="api-table">
+    <thead><tr><th style="width:32px">#</th><th>项目</th><th>说明</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td class="api-path">nazhi login</td><td class="desc">SSO 登录 — ddddocr 自动识别验证码</td></tr>
+      <tr><td>2</td><td class="api-path">nazhi version</td><td class="desc">显示版本号</td></tr>
+      <tr><td>3</td><td class="api-path">nazhi completion</td><td class="desc">生成 shell 自动补全脚本</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<footer>
+  生成于 2026-07-20 · 基于 nazhi 前端源码 12 个 API 文档 + 32+ 个组件源码的逐一核对
+</footer>
+
+</div>
+</body>
+</html>

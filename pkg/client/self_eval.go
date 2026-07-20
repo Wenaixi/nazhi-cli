@@ -196,3 +196,12 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 	}
 	return v, nil
 }
+
+// SubmitSelfGradEvaluation 提交毕业评价。
+//
+// 与 SubmitSelfEvaluation 对称，使用 {"studentComment": "<评语>"} 请求体。
+func (c *Client) SubmitSelfGradEvaluation(ctx context.Context, token string, comment string) error {
+	_, err := c.doBizAndDecode(ctx, token, "SubmitSelfGradEvaluation", "/api/studentMoralEduNew/addSelfGradEvaluation",
+		http.MethodPost, map[string]string{"studentComment": comment})
+	return err
+}
