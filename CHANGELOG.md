@@ -1,9 +1,21 @@
-﻿# CHANGELOG
+# CHANGELOG
 
 所有重要变更都会记录在此文件。
 
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+
+## [Unreleased]
+
+### 破坏性变更 (BREAKING)
+
+- SDK 写实列表 `*JSON` 方法签名新增 `key string`：`GetSubmitted/Teacher/Withdrawn/PublicCirclesJSON`、`*LimitJSON` 及 `getCirclesJSON`/`getCirclesLimitJSON` 内部贯通关键字筛选（此前硬编码 `key=""`）
+- SDK `GetHonorList` / `GetHonorListJSON` 签名新增 `key string`（此前硬编码 `&key=` 空值）
+
+### 新增
+
+- CLI `nazhi task submitted|done|teacher|public|withdrawn` 支持 `--key` 关键字筛选（含 Peek 总数路径）
+- CLI `nazhi honor list` 支持 `--key` 关键字筛选
 
 ## [1.3.0] - 2026-07-18
 

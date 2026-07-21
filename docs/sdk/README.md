@@ -140,23 +140,23 @@ func New(opts ...Option) (*Client, error)
 | `SubmitSelfEvaluation` | `(ctx, token, comment) error` | — |
 | `QuerySelfEvaluation` | `(ctx, token) (*SelfEvalStatus, error)` | ID + 双向评语 |
 | `QuerySelfGradEvaluation` | `(ctx, token) (*map[string]any, error)` | 泛型 map |
-| `GetSubmittedCircles` | `(ctx, token) ([]CircleRecord, error)` | 原始 JSON 写实记录（含姓名学号） |
-| `GetSubmittedCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 原始 JSON 数组 + 分页信息 |
-| `PeekSubmittedTotal` | `(ctx, token) (int, error)` | 总记录数（轻量，只拉 1 条） |
-| `GetTeacherCircles` | `(ctx, token) ([]CircleRecord, error)` | 教师代写写实记录 |
-| `GetTeacherCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 教师代写原始 JSON 数组 + 分页 |
-| `PeekTeacherTotal` | `(ctx, token) (int, error)` | 教师代写记录总数 |
-| `GetWithdrawnCircles` | `(ctx, token) ([]CircleRecord, error)` | 被撤回写实记录 |
-| `GetWithdrawnCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 被撤回原始 JSON 数组 + 分页 |
-| `PeekWithdrawnTotal` | `(ctx, token) (int, error)` | 被撤回记录总数 |
-| `GetPublicCircles` | `(ctx, token) ([]CircleRecord, error)` | 公示写实记录（全班） |
-| `GetPublicCirclesLimitJSON` | `(ctx, token, offset, limit) (json.RawMessage, *PageBean, error)` | 公示原始 JSON 数组 + 分页 |
-| `PeekPublicTotal` | `(ctx, token) (int, error)` | 公示记录总数 |
+| `GetSubmittedCircles` | `(ctx, token, key) ([]CircleRecord, error)` | 原始 JSON 写实记录（含姓名学号）；key 可空 |
+| `GetSubmittedCirclesLimitJSON` | `(ctx, token, offset, limit, key) (json.RawMessage, *PageBean, error)` | 原始 JSON 数组 + 分页信息；key 可空 |
+| `PeekSubmittedTotal` | `(ctx, token, key) (int, error)` | 总记录数（轻量，只拉 1 条）；key 可空 |
+| `GetTeacherCircles` | `(ctx, token, key) ([]CircleRecord, error)` | 教师代写写实记录；key 可空 |
+| `GetTeacherCirclesLimitJSON` | `(ctx, token, offset, limit, key) (json.RawMessage, *PageBean, error)` | 教师代写原始 JSON 数组 + 分页；key 可空 |
+| `PeekTeacherTotal` | `(ctx, token, key) (int, error)` | 教师代写记录总数；key 可空 |
+| `GetWithdrawnCircles` | `(ctx, token, key) ([]CircleRecord, error)` | 被撤回写实记录；key 可空 |
+| `GetWithdrawnCirclesLimitJSON` | `(ctx, token, offset, limit, key) (json.RawMessage, *PageBean, error)` | 被撤回原始 JSON 数组 + 分页；key 可空 |
+| `PeekWithdrawnTotal` | `(ctx, token, key) (int, error)` | 被撤回记录总数；key 可空 |
+| `GetPublicCircles` | `(ctx, token, key) ([]CircleRecord, error)` | 公示写实记录（全班）；key 可空 |
+| `GetPublicCirclesLimitJSON` | `(ctx, token, offset, limit, key) (json.RawMessage, *PageBean, error)` | 公示原始 JSON 数组 + 分页；key 可空 |
+| `PeekPublicTotal` | `(ctx, token, key) (int, error)` | 公示记录总数；key 可空 |
 | `EditCircle` | `(ctx, token, input) (*TaskResult, error)` | 修改已提交的写实记录 |
 | `GetHonorTypes` | `(ctx, token) ([]HonorType, error)` | 5 字段荣誉类型 |
 | `GetHonorTypeForSelect` | `(ctx, token) ([]HonorSelectOption, error)` | Label / Value |
 | `GetHonorLevel` | `(ctx, token, honorTypeID) ([]HonorSelectOption, error)` | Label / Value |
-| `GetHonorList` | `(ctx, token, pageNo, pageSize) (*HonorListResult, error)` | `records` + `page` |
+| `GetHonorList` | `(ctx, token, pageNo, pageSize, key) (*HonorListResult, error)` | `records` + `page`；key 可空 |
 | `AddHonor` | `(ctx, token, payload) error` | — |
 | `DeleteHonor` | `(ctx, token, honorID) error` | — |
 | `AddTypicalCase` | `(ctx, token, payload) error` | — |
@@ -186,14 +186,14 @@ func New(opts ...Option) (*Client, error)
 | `nazhi whoami` | `GetMyInfoJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi session activate` | `ActivateSessionJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi task list` | `FetchTasks` | 否 | CLI 输出 SDK 业务模型的 `Task[]`（含 submitted/needPic） |
-| `nazhi task submitted` / `task done` | `GetSubmittedCirclesJSON` / `GetSubmittedCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
-| `nazhi task teacher` | `GetTeacherCirclesJSON` / `GetTeacherCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
-| `nazhi task withdrawn` | `GetWithdrawnCirclesJSON` / `GetWithdrawnCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
-| `nazhi task public` | `GetPublicCirclesJSON` / `GetPublicCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task submitted` / `task done` | `GetSubmittedCirclesJSON` / `GetSubmittedCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；支持 `--key`；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task teacher` | `GetTeacherCirclesJSON` / `GetTeacherCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；支持 `--key`；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task withdrawn` | `GetWithdrawnCirclesJSON` / `GetWithdrawnCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；支持 `--key`；`--limit/--offset/--count` 时输出 `{records,total}` |
+| `nazhi task public` | `GetPublicCirclesJSON` / `GetPublicCirclesLimitJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组；支持 `--key`；`--limit/--offset/--count` 时输出 `{records,total}` |
 | `nazhi task edit` | `EditCircle` | 否 | SDK 成功返回 `(*TaskResult, error)`，CLI 用 envelope.Success 表达成功 |
 | `nazhi self-eval status` | `QuerySelfEvaluationJSON` | 是 | CLI 直接透传 SDK 原始 JSON |
 | `nazhi honor types` | `GetHonorTypesJSON` | 是 | CLI 直接透传 SDK 原始 JSON 数组 |
-| `nazhi honor list` | `GetHonorListJSON` | 是 | CLI 直接透传 SDK 拼装的 `{records,page}` JSON |
+| `nazhi honor list` | `GetHonorListJSON` | 是 | CLI 直接透传 SDK 拼装的 `{records,page}` JSON；支持 `--key` |
 | `nazhi file upload` | `UploadFile` | 是 | CLI 直接输出 SDK 返回对象 `{attachmentID}` |
 | `nazhi self-eval submit` | `SubmitSelfEvaluation` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
 | `nazhi honor add` | `AddHonor` | 否 | SDK 成功返回 `nil`，CLI 用空 envelope 表达成功 |
@@ -669,7 +669,7 @@ SDK 响应示例（通过 `GetSubmittedCirclesJSON` 原始 JSON 路径获取，1
 ]
 ```
 
-### `GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error)`
+### `GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error)`
 
 按偏移和条数限制拉取已提交写实记录（原始 JSON）。v1.1.2 新增。
 
@@ -677,7 +677,7 @@ SDK 响应示例（通过 `GetSubmittedCirclesJSON` 原始 JSON 路径获取，1
 
 返回数据列表的原始 JSON 数组 + 分页信息（含 `TotalNum`，可用于获取总条数）。
 
-### `PeekSubmittedTotal(ctx context.Context, token string) (int, error)`
+### `PeekSubmittedTotal(ctx context.Context, token string, key string) (int, error)`
 
 轻量获取已提交写实记录总数。v1.2.2 新增。
 
@@ -812,14 +812,14 @@ SDK 响应示例：
 ]
 ```
 
-### `GetHonorList(ctx context.Context, token string, pageNo, pageSize int) (*types.HonorListResult, error)`
+### `GetHonorList(ctx context.Context, token string, pageNo, pageSize int, key string) (*types.HonorListResult, error)`
 
 获取已申报的荣誉记录。同时返回分页信息。
 
 请求示例：
 
 ```go
-result, err := c.GetHonorList(ctx, token, 1, 20)
+result, err := c.GetHonorList(ctx, token, 1, 20, "")
 if err != nil {
 	log.Fatalf("获取荣誉记录失败：%v", err)
 }
