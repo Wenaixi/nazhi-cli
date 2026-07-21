@@ -509,6 +509,7 @@ nazhi task done --token "eyJhbGciOiJIUzUxMiJ9.xxx"      # 同 submitted，别名
 nazhi task submitted --limit 5                           # 只取前 5 条
 nazhi task submitted --offset 5 --limit 5                # 跳过 5 条取 5 条
 nazhi task submitted --count                             # 只看总数
+nazhi task submitted --key 劳动                           # 按关键字筛选
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
@@ -519,6 +520,7 @@ nazhi task submitted --count                             # 只看总数
 | `--limit` | — | — | 只输出前 N 条（0=全量，v1.1.2 新增） |
 | `--offset` | — | — | 跳过前 N 条后再取（配合 --limit，v1.1.2 新增） |
 | `--count` | — | — | 只输出记录总数，不拉列表（v1.1.2 新增） |
+| `--key` | — | — | 搜索关键字（可空，对应 getStudentCircle 的 key） |
 
 `--limit`/`--offset` 模式下输出带 `total` + `records` 的结构；`--count` 模式输出 `{"total": N}`；不加参数时全量输出为平台原始 JSON 数组（向后兼容，含同班同学的完整写实记录）。
 
@@ -649,6 +651,7 @@ nazhi task teacher --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 nazhi task teacher --limit 5                           # 只取前 5 条
 nazhi task teacher --offset 5 --limit 5                # 跳过 5 条取 5 条
 nazhi task teacher --count                             # 只看总数
+nazhi task teacher --key 劳动                           # 按关键字筛选
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
@@ -659,6 +662,7 @@ nazhi task teacher --count                             # 只看总数
 | `--limit` | — | — | 只输出前 N 条（0=全量） |
 | `--offset` | — | — | 跳过前 N 条后再取（配合 --limit） |
 | `--count` | — | — | 只输出记录总数，不拉列表 |
+| `--key` | — | — | 搜索关键字（可空，对应 getStudentCircle 的 key） |
 
 ---
 
@@ -671,6 +675,7 @@ nazhi task withdrawn --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 nazhi task withdrawn --limit 5                           # 只取前 5 条
 nazhi task withdrawn --offset 5 --limit 5                # 跳过 5 条取 5 条
 nazhi task withdrawn --count                             # 只看总数
+nazhi task withdrawn --key 劳动                           # 按关键字筛选
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
@@ -681,6 +686,7 @@ nazhi task withdrawn --count                             # 只看总数
 | `--limit` | — | — | 只输出前 N 条（0=全量） |
 | `--offset` | — | — | 跳过前 N 条后再取（配合 --limit） |
 | `--count` | — | — | 只输出记录总数，不拉列表 |
+| `--key` | — | — | 搜索关键字（可空，对应 getStudentCircle 的 key） |
 
 ---
 
@@ -693,6 +699,7 @@ nazhi task public --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 nazhi task public --limit 5                           # 只取前 5 条
 nazhi task public --offset 5 --limit 5              # 跳过 5 条取 5 条
 nazhi task public --count                             # 只看总数
+nazhi task public --key 劳动                           # 按关键字筛选
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
@@ -703,6 +710,7 @@ nazhi task public --count                             # 只看总数
 | `--limit` | — | — | 只输出前 N 条（0=全量） |
 | `--offset` | — | — | 跳过前 N 条后再取（配合 --limit） |
 | `--count` | — | — | 只输出记录总数，不拉列表 |
+| `--key` | — | — | 搜索关键字（可空，对应 getStudentCircle 的 key） |
 
 ---
 
@@ -923,6 +931,7 @@ nazhi honor types --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 ```bash
 nazhi honor list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
 nazhi honor list --token "xxx" --page 1 --page-size 50
+nazhi honor list --token "xxx" --key 三好
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
@@ -930,6 +939,7 @@ nazhi honor list --token "xxx" --page 1 --page-size 50
 | `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
 | `--page` | — | — | 页码（从 1 开始），默认 `1` |
 | `--page-size` | — | — | 每页条数，默认 `20` |
+| `--key` | — | — | 搜索关键字（可空，对应 getHonorByStudentId 的 key） |
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 

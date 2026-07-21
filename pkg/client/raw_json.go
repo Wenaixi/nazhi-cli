@@ -23,6 +23,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"sync"
 
@@ -85,57 +86,81 @@ func rawSingleObjectBytes(resp types.UnifiedResponse) []byte {
 // GetSubmittedCirclesJSON 获取当前用户自己发布的写实记录，返回平台原始 JSON 数组。
 //
 // type=3 只返回当前用户自己发布的内容，自动翻页合并多页 dataList。
+// key 为搜索关键字（可空，对应 getStudentCircle 的 key 查询参数）。
 //
 // 返回值：
 //   - json.RawMessage：dataList 风格的 JSON 数组（可能为 null 当服务端确实无记录）
 //   - error：网络/解析/业务错误
 //
 // 取消语义：ctx 取消时返回 (已有合并数据, ctx.Err())，调用方按 partial envelope 处理。
-func (c *Client) GetSubmittedCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 3, "GetSubmittedCirclesJSON")
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetSubmittedCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
+	return c.getCirclesJSON(ctx, token, 3, key, "GetSubmittedCirclesJSON")
 }
 
 // GetSubmittedCirclesLimitJSON 按偏移和条数限制拉取当前用户自己发布的写实记录（原始 JSON）。
 //
 // offset=0, limit=0 时全量（等于 GetSubmittedCirclesJSON）。
 // offset/limit 超出实际数据量时返回空数组，不报错。
+// key 为搜索关键字（可空）。
 //
 // 返回值：
 //   - dataList 原始 JSON 数组（可能为 []）
 //   - 分页信息（含 TotalNum）
 //   - error
-func (c *Client) GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 3, "GetSubmittedCirclesLimitJSON")
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
+	return c.getCirclesLimitJSON(ctx, token, offset, limit, 3, key, "GetSubmittedCirclesLimitJSON")
 }
 
 // GetTeacherCirclesJSON 获取教师代写的全部写实记录，返回平台原始 JSON 数组。
-func (c *Client) GetTeacherCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 2, "GetTeacherCirclesJSON")
+// key 为搜索关键字（可空）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetTeacherCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
+	return c.getCirclesJSON(ctx, token, 2, key, "GetTeacherCirclesJSON")
 }
 
 // GetTeacherCirclesLimitJSON 按偏移和条数限制拉取教师写实记录（原始 JSON）。
-func (c *Client) GetTeacherCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 2, "GetTeacherCirclesLimitJSON")
+// key 为搜索关键字（可空）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetTeacherCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
+	return c.getCirclesLimitJSON(ctx, token, offset, limit, 2, key, "GetTeacherCirclesLimitJSON")
 }
 
 // GetWithdrawnCirclesJSON 获取被撤回的全部写实记录，返回平台原始 JSON 数组。
-func (c *Client) GetWithdrawnCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 4, "GetWithdrawnCirclesJSON")
+// key 为搜索关键字（可空）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetWithdrawnCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
+	return c.getCirclesJSON(ctx, token, 4, key, "GetWithdrawnCirclesJSON")
 }
 
 // GetWithdrawnCirclesLimitJSON 按偏移和条数限制拉取被撤回写实记录（原始 JSON）。
-func (c *Client) GetWithdrawnCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 4, "GetWithdrawnCirclesLimitJSON")
+// key 为搜索关键字（可空）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetWithdrawnCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
+	return c.getCirclesLimitJSON(ctx, token, offset, limit, 4, key, "GetWithdrawnCirclesLimitJSON")
 }
 
 // GetPublicCirclesJSON 获取公示的全部写实记录（全班），返回平台原始 JSON 数组。
-func (c *Client) GetPublicCirclesJSON(ctx context.Context, token string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 1, "GetPublicCirclesJSON")
+// key 为搜索关键字（可空）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetPublicCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
+	return c.getCirclesJSON(ctx, token, 1, key, "GetPublicCirclesJSON")
 }
 
 // GetPublicCirclesLimitJSON 按偏移和条数限制拉取公示写实记录（原始 JSON）。
-func (c *Client) GetPublicCirclesLimitJSON(ctx context.Context, token string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 1, "GetPublicCirclesLimitJSON")
+// key 为搜索关键字（可空）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetPublicCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
+	return c.getCirclesLimitJSON(ctx, token, offset, limit, 1, key, "GetPublicCirclesLimitJSON")
 }
 
 // rawResult 存储单页原始 JSON 数据。
@@ -186,13 +211,14 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 //
 // 多页时使用 errgroup 并发翻页（与 fetchAllCirclePages 对齐），
 // 避免串行循环在数据量大时慢 2-5 倍。
-func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType int, methodName string) (json.RawMessage, error) {
+// key 透传到 getStudentCircle 的 key 查询参数。
+func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType int, key string, methodName string) (json.RawMessage, error) {
 	pageSize := c.submittedPageSize
 	if pageSize <= 0 {
 		pageSize = defaultSubmittedPageSize
 	}
 
-	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, "")
+	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, key)
 	if err != nil {
 		return nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
@@ -217,7 +243,7 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 			if err := gctx.Err(); err != nil {
 				return err
 			}
-			_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, "")
+			_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, key)
 			if err != nil {
 				return fmt.Errorf("第 %d 页失败: %w", pn, err)
 			}
@@ -240,18 +266,19 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 // 多页时使用 errgroup 并发翻页，但只请求 offset/limit 覆盖到的页：
 // endPage = min(TotalPage, ceil((offset+limit)/pageSize))，
 // 避免全量翻页再截断造成的多余请求。
-func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, limit int, circleType int, methodName string) (json.RawMessage, *types.PageBean, error) {
+// key 透传到 getStudentCircle 的 key 查询参数。
+func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, limit int, circleType int, key string, methodName string) (json.RawMessage, *types.PageBean, error) {
 	pageSize := c.submittedPageSize
 	if pageSize <= 0 {
 		pageSize = defaultSubmittedPageSize
 	}
 
 	if limit <= 0 {
-		raw, err := c.getCirclesJSON(ctx, token, circleType, methodName)
+		raw, err := c.getCirclesJSON(ctx, token, circleType, key, methodName)
 		return raw, nil, err
 	}
 
-	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, "")
+	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, key)
 	if err != nil {
 		return nil, nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
@@ -287,7 +314,7 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 				if err := gctx.Err(); err != nil {
 					return err
 				}
-				_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, "")
+				_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, key)
 				if err != nil {
 					return fmt.Errorf("第 %d 页失败: %w", pn, err)
 				}
@@ -725,8 +752,11 @@ func assembleRecordsPageJSON(resp *types.UnifiedResponse) json.RawMessage {
 // 与 GetHonorList 1:1 等价（按页调用，不自动翻页），
 // 返回拼装后的完整 JSON 对象 `{"records":..., "page":...}`，
 // records 和 page 字段值都是平台原始字节。
-func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pageSize int) (json.RawMessage, error) {
-	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
+// key 为搜索关键字（可空，会做 URL 转义）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetHonorListJSON(ctx context.Context, token string, pageNo, pageSize int, key string) (json.RawMessage, error) {
+	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key=" + url.QueryEscape(key)
 	resp, err := c.doBizAndDecode(ctx, token, "GetHonorListJSON", path, http.MethodGet, nil)
 	if err != nil {
 		return nil, fmt.Errorf("GetHonorListJSON 失败: %w", err)

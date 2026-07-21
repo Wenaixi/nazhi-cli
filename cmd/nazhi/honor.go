@@ -60,7 +60,7 @@ var honorTypesCmd = &cobra.Command{
 var honorListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "获取已申报荣誉记录",
-	Long:  `获取当前用户已申报的全部荣誉记录（分页）。`,
+	Long:  `获取当前用户已申报的全部荣誉记录（分页）。支持 --key 关键字筛选。`,
 	Example: `  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx
 		  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -72,9 +72,10 @@ var honorListCmd = &cobra.Command{
 
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
+		key, _ := cmd.Flags().GetString("key")
 
 		printVerbose("正在获取荣誉记录...")
-		raw, err := c.GetHonorListJSON(cmd.Context(), token, pageNo, pageSize)
+		raw, err := c.GetHonorListJSON(cmd.Context(), token, pageNo, pageSize, key)
 		if err != nil {
 			printError(fmt.Errorf("获取荣誉记录失败: %w", err))
 			return
@@ -185,6 +186,7 @@ func init() {
 	honorCmd.AddCommand(honorListCmd)
 	honorListCmd.Flags().Int("page", 1, "页码（从 1 开始）")
 	honorListCmd.Flags().Int("page-size", 20, "每页条数")
+	honorListCmd.Flags().String("key", "", "搜索关键字（可空，对应 getHonorByStudentId 的 key）")
 	registerBizFlags(honorListCmd)
 
 	// honor add

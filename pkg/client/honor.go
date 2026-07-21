@@ -13,6 +13,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -101,8 +102,11 @@ func (c *Client) GetHonorLevel(ctx context.Context, token string, honorTypeID in
 //
 // 服务端要求同时带上 &key= 参数（可空值），否则返回 HTTP 400。
 // pageNo 从 1 开始，pageSize 建议 20。
-func (c *Client) GetHonorList(ctx context.Context, token string, pageNo, pageSize int) (*types.HonorListResult, error) {
-	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key="
+// key 为搜索关键字（可空，会做 URL 转义）。
+//
+// BREAKING：v1.3.x 起签名新增 key 参数。
+func (c *Client) GetHonorList(ctx context.Context, token string, pageNo, pageSize int, key string) (*types.HonorListResult, error) {
+	path := "/api/studentMoralEduNew/getHonorByStudentId?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key=" + url.QueryEscape(key)
 
 	resp, err := c.doBizAndDecode(ctx, token, "GetHonorList", path, http.MethodGet, nil)
 	if err != nil {

@@ -177,7 +177,7 @@ func TestGetHonorList(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	result, err := c.GetHonorList(context.Background(), "test-token", 1, 20)
+	result, err := c.GetHonorList(context.Background(), "test-token", 1, 20, "")
 	if err != nil {
 		t.Fatalf("GetHonorList 失败: %v", err)
 	}
@@ -210,7 +210,7 @@ func TestGetHonorList_Empty(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	result, err := c.GetHonorList(context.Background(), "test-token", 1, 20)
+	result, err := c.GetHonorList(context.Background(), "test-token", 1, 20, "")
 	if err != nil {
 		t.Fatalf("GetHonorList 失败: %v", err)
 	}
@@ -336,7 +336,7 @@ func TestGetHonorList_PageParam(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
-	_, err := c.GetHonorList(context.Background(), "test-token", 2, 50)
+	_, err := c.GetHonorList(context.Background(), "test-token", 2, 50, "")
 	if err != nil {
 		t.Fatalf("GetHonorList 分页失败: %v", err)
 	}
@@ -370,5 +370,33 @@ func TestGetHonorTypes_Empty(t *testing.T) {
 	}
 	if len(types) != 0 {
 		t.Fatalf("期望 0 个类型，实际 %d", len(types))
+	}
+}
+
+// TestGetHonorList_KeyParam 验证 key 查询参数正确透传（含空格，经 QueryEscape）。
+func TestGetHonorList_KeyParam(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentMoralEduNew/getHonorByStudentId" {
+			q := r.URL.Query()
+			if q.Get("key") != "三好 学生" {
+				t.Errorf("期望 key=三好 学生，实际 key=%q", q.Get("key"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(`{"pageNo":1,"pageSize":20,"totalNum":0,"totalPage":0}`),
+				"dataList": []map[string]any{},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	_, err := c.GetHonorList(context.Background(), "test-token", 1, 20, "三好 学生")
+	if err != nil {
+		t.Fatalf("GetHonorList key 透传失败: %v", err)
 	}
 }

@@ -109,7 +109,7 @@ func TestGetSubmittedCirclesJSON_MultiPageMerging(t *testing.T) {
 	}
 	defer c.Close()
 
-	raw, err := c.GetSubmittedCirclesJSON(context.Background(), "test-token")
+	raw, err := c.GetSubmittedCirclesJSON(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCirclesJSON: %v", err)
 	}
@@ -155,7 +155,7 @@ func TestGetSubmittedCirclesJSON_PreservesRawFields(t *testing.T) {
 	}
 	defer c.Close()
 
-	raw, err := c.GetSubmittedCirclesJSON(context.Background(), "test-token")
+	raw, err := c.GetSubmittedCirclesJSON(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCirclesJSON: %v", err)
 	}
@@ -212,7 +212,7 @@ func TestGetSubmittedCirclesJSON_ContextCancel(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
 	defer cancel()
 
-	raw, err := c.GetSubmittedCirclesJSON(ctx, "test-token")
+	raw, err := c.GetSubmittedCirclesJSON(ctx, "test-token", "")
 	if err == nil {
 		t.Fatalf("ctx 取消应返回 error")
 	}
@@ -381,7 +381,7 @@ func TestGetHonorListJSON_ReturnsRawRecordsAndPage(t *testing.T) {
 	}
 	defer c.Close()
 
-	raw, err := c.GetHonorListJSON(context.Background(), "test-token", 1, 20)
+	raw, err := c.GetHonorListJSON(context.Background(), "test-token", 1, 20, "")
 	if err != nil {
 		t.Fatalf("GetHonorListJSON: %v", err)
 	}
@@ -520,7 +520,7 @@ func TestGetCirclesJSON_BufferAssemblyConsistency(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
-	raw, err := c.GetSubmittedCirclesJSON(ctx, "test-token")
+	raw, err := c.GetSubmittedCirclesJSON(ctx, "test-token", "")
 	if err == nil {
 		t.Fatalf("ctx 超时应返回 error")
 	}
@@ -604,7 +604,7 @@ func TestGetCirclesLimitJSON_ConcurrentPagination(t *testing.T) {
 	defer cancel()
 
 	// offset=0, limit=4 表示全量，应该触发翻页
-	raw, _, err := c.GetSubmittedCirclesLimitJSON(ctx, "test-token", 0, 4)
+	raw, _, err := c.GetSubmittedCirclesLimitJSON(ctx, "test-token", 0, 4, "")
 	if err == nil {
 		t.Fatalf("ctx 超时应返回 error")
 	}
@@ -622,5 +622,68 @@ func TestGetCirclesLimitJSON_ConcurrentPagination(t *testing.T) {
 	}
 	if len(arr) != 2 {
 		t.Errorf("期望 2 条已合并记录, 得到 %d", len(arr))
+	}
+}
+
+// TestGetSubmittedCirclesJSON_KeyParam 验证 JSON 路径透传 key 到 getStudentCircle。
+func TestGetSubmittedCirclesJSON_KeyParam(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("key") != "劳动实践" {
+			t.Errorf("期望 key=劳动实践，实际 key=%q", r.URL.Query().Get("key"))
+		}
+		if r.URL.Query().Get("type") != "3" {
+			t.Errorf("期望 type=3，实际 type=%s", r.URL.Query().Get("type"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		pb := map[string]any{"pageNo": 1, "pageSize": 100, "totalNum": 0, "totalPage": 0}
+		body := map[string]any{"code": 1, "dataList": []map[string]any{}, "pageBean": pb}
+		_ = json.NewEncoder(w).Encode(body)
+	})))
+	defer biz.Close()
+
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithSSOBase(biz.URL),
+		client.WithUploadURL(biz.URL),
+	)
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	_, err = c.GetSubmittedCirclesJSON(context.Background(), "test-token", "劳动实践")
+	if err != nil {
+		t.Fatalf("GetSubmittedCirclesJSON key 透传失败: %v", err)
+	}
+}
+
+// TestGetHonorListJSON_KeyParam 验证 GetHonorListJSON 透传 key。
+func TestGetHonorListJSON_KeyParam(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentMoralEduNew/getHonorByStudentId" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.URL.Query().Get("key") != "校级" {
+			t.Errorf("期望 key=校级，实际 key=%q", r.URL.Query().Get("key"))
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(rawHonorListBody(1, 20, 0, 0, []map[string]any{})))
+	})))
+	defer biz.Close()
+
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL), client.WithUploadURL(biz.URL))
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	_, err = c.GetHonorListJSON(context.Background(), "test-token", 1, 20, "校级")
+	if err != nil {
+		t.Fatalf("GetHonorListJSON key 透传失败: %v", err)
 	}
 }
