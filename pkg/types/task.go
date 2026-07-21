@@ -176,7 +176,7 @@ func (in TaskSubmitInput) GetPatentNum() string           { return in.PatentNum 
 
 // TaskAddCirclePayload 是 SDK 内部使用的 addCircle 完整请求体。
 type TaskAddCirclePayload struct {
-	ID                  *int64  `json:"id"`
+	ID                  *int64  `json:"id,omitempty"`
 	Name                string  `json:"name"`
 	HostName            string  `json:"hostName"`
 	CircleDate          string  `json:"circleDate"`
