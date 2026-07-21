@@ -147,16 +147,33 @@ type rawResult struct {
 //
 // raw1 是第一页原始 JSON，results 是按页号索引的后续页数据。
 // 成功路径返回完整 JSON 数组，失败路径通过 trimArrayToCurrent 截断为已有部分。
+//
+// 用 first 标志控制逗号，避免 page1 为空数组时产生 leading comma 非法 JSON（[,{...}]）。
+// 对齐 assembleCirclesLimitJSON 的拼接策略。
 func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partialErr error) (json.RawMessage, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, len(raw1)*totalPage))
 	buf.WriteByte('[')
-	buf.Write(trimArrayBrackets(raw1))
+	first := true
+	// page1 可能为空数组 "[]"，trim 后长度为 0，不得写逗号
+	if trimmed := trimArrayBrackets(raw1); len(trimmed) > 0 {
+		buf.Write(trimmed)
+		first = false
+	}
 	for pn := 2; pn <= totalPage; pn++ {
 		if len(results[pn].raw) == 0 {
 			continue
 		}
-		buf.WriteByte(',')
-		buf.Write(trimArrayBrackets(results[pn].raw))
+		trimmed := trimArrayBrackets(results[pn].raw)
+		if len(trimmed) == 0 {
+			continue
+		}
+		if first {
+			buf.Write(trimmed)
+			first = false
+		} else {
+			buf.WriteByte(',')
+			buf.Write(trimmed)
+		}
 	}
 	buf.WriteByte(']')
 	if partialErr != nil {
@@ -220,7 +237,9 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 
 // getCirclesLimitJSON 是各类型写实记录按偏移/条数限制拉取的通用实现。
 //
-// 多页时使用 errgroup 并发翻页，避免串行循环在数据量大时慢 2-5 倍。
+// 多页时使用 errgroup 并发翻页，但只请求 offset/limit 覆盖到的页：
+// endPage = min(TotalPage, ceil((offset+limit)/pageSize))，
+// 避免全量翻页再截断造成的多余请求。
 func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, limit int, circleType int, methodName string) (json.RawMessage, *types.PageBean, error) {
 	pageSize := c.submittedPageSize
 	if pageSize <= 0 {
@@ -243,15 +262,26 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 		return []byte("[]"), pb, nil
 	}
 
+	// 只拉到覆盖 offset+limit 的最后一页，不全量翻页
+	// endPage = ceil((offset+limit)/pageSize)，再与 TotalPage 取 min
+	need := offset + limit
+	endPage := (need + pageSize - 1) / pageSize
+	if endPage < 1 {
+		endPage = 1
+	}
+	if endPage > pb.TotalPage {
+		endPage = pb.TotalPage
+	}
+
 	// 多页：预分配索引切片 + errgroup 并发翻页，保持页号顺序
-	results := make([]rawResult, pb.TotalPage+1)
+	results := make([]rawResult, endPage+1)
 	results[1] = rawResult{raw: raw1}
 
-	if pb.TotalPage > 1 {
+	if endPage > 1 {
 		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(concurrentPageLimit)
 
-		for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+		for pageNo := 2; pageNo <= endPage; pageNo++ {
 			pn := pageNo
 			g.Go(func() error {
 				if err := gctx.Err(); err != nil {
@@ -268,24 +298,28 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 
 		if err := g.Wait(); err != nil {
 			// 部分失败时，已成功的页仍有效；按已有页顺序拼接
-			return c.assembleCirclesLimitJSON(results, pb, offset, limit, methodName,
+			return c.assembleCirclesLimitJSON(results, pb, offset, limit, endPage, methodName,
 				fmt.Errorf("%s 部分页失败: %w", methodName, err))
 		}
 	}
 
-	return c.assembleCirclesLimitJSON(results, pb, offset, limit, methodName, nil)
+	return c.assembleCirclesLimitJSON(results, pb, offset, limit, endPage, methodName, nil)
 }
 
 // assembleCirclesLimitJSON 将并发翻页结果按 offset/limit 规则拼接为最终 JSON 数组。
-func (c *Client) assembleCirclesLimitJSON(results []rawResult, pb *types.PageBean, offset, limit int, methodName string, partialErr error) (json.RawMessage, *types.PageBean, error) {
+// endPage 是实际请求到的最大页号（<= TotalPage），results 长度对应 endPage+1。
+func (c *Client) assembleCirclesLimitJSON(results []rawResult, pb *types.PageBean, offset, limit, endPage int, methodName string, partialErr error) (json.RawMessage, *types.PageBean, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, 2048))
 	buf.WriteByte('[')
 	first := true
 	taken := 0
 	skipped := 0
 
-	// 按页号顺序处理数据，应用 offset/limit 规则
-	for pn := 1; pn <= pb.TotalPage; pn++ {
+	// 按页号顺序处理数据，应用 offset/limit 规则（只遍历已请求页）
+	if endPage > pb.TotalPage {
+		endPage = pb.TotalPage
+	}
+	for pn := 1; pn <= endPage; pn++ {
 		if len(results[pn].raw) == 0 {
 			continue
 		}
@@ -390,8 +424,10 @@ func trimArrayToCurrent(buf []byte) []byte {
 // FetchTasksJSON 拉取全维度任务列表，返回平台原始 JSON 数组（跨维度合并）。
 //
 // 自动跨维度并发拉取并在 SDK 内部合并为单一 JSON 数组，保留所有平台字段。
-// 错误聚合：context 取消 → 返回已有原始字节 + ErrBusinessRejected；
-// 业务错误 → 仍返回已合并的字节 + 包装错误（cmd 层按 partial envelope 处理）。
+// 错误聚合与 FetchTasks 对齐：
+//   - context 取消且无 partial → ErrRetryable
+//   - context 取消且有 partial → ErrBusinessRejected + ErrRetryable + 已合并字节
+//   - 业务错误 → 仍返回已合并的字节 + ErrBusinessRejected（cmd 层 partial envelope）
 func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMessage, error) {
 	if _, err := c.ActivateSession(ctx, token); err != nil {
 		return nil, fmt.Errorf("FetchTasksJSON 预热 session 失败: %w", err)
@@ -433,56 +469,117 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 		dim := dim
 		idx := i
 		g.Go(func() error {
+			// context 取消后直接 propagate，防止 cancel 被 dimErrs 吞掉后
+			// 统一包装为 ErrBusinessRejected，丢失 ErrRetryable 可重试语义。
+			// 对齐 FetchTasks 的 isContextError / ErrRetryable 分流。
+			if err := gctx.Err(); err != nil {
+				return err
+			}
 			raw, err := c.fetchTasksDimensionJSON(gctx, dim, headers)
 			if err != nil {
+				// 维度级 ctx 错误也要 propagate，让 g.Wait 走 cancel 分支
+				if isContextError(err) {
+					return err
+				}
 				appendLocked(&mu, &dimErrs, err)
-				return nil // 错误已记录到 dimErrs，不传播给 errgroup
+				return nil // 业务错误记录到 dimErrs，不取消其他维度
 			}
 			results[idx] = raw
 			return nil
 		})
 	}
 
+	// 先按维度顺序拼装已有结果，供 cancel / partial 路径复用
+	assemble := func() (json.RawMessage, int) {
+		buf := bytes.NewBuffer(nil)
+		buf.WriteByte('[')
+		first := true
+		totalPages := 0
+		for _, raw := range results {
+			if len(raw) == 0 {
+				continue
+			}
+			trimmed := trimArrayBrackets(raw)
+			if len(trimmed) == 0 {
+				continue
+			}
+			if first {
+				buf.Write(trimmed)
+				first = false
+			} else {
+				buf.WriteByte(',')
+				buf.Write(trimmed)
+			}
+			totalPages++
+		}
+		buf.WriteByte(']')
+		return buf.Bytes(), totalPages
+	}
+
 	if err := g.Wait(); err != nil {
+		if isContextError(err) {
+			merged, n := assemble()
+			if n > 0 {
+				// partial + cancel：双包 ErrBusinessRejected + ErrRetryable
+				return merged, fmt.Errorf("%w: FetchTasksJSON context 取消后部分维度成功: %w",
+					ErrBusinessRejected,
+					fmt.Errorf("%w: %w", ErrRetryable, err))
+			}
+			// 全 cancel：裸 ErrRetryable
+			return nil, fmt.Errorf("%w: FetchTasksJSON 全部维度因 context 取消失败: %w", ErrRetryable, err)
+		}
 		return nil, fmt.Errorf("FetchTasksJSON 并发拉取失败: %w", err)
 	}
 
-	buf := bytes.NewBuffer(nil)
-	buf.WriteByte('[')
-	first := true
-	totalPages := 0
-	// 按维度顺序拼接结果，保持确定性顺序
-	for _, raw := range results {
-		if len(raw) == 0 {
-			continue
-		}
-		trimmed := trimArrayBrackets(raw)
-		if len(trimmed) == 0 {
-			continue
-		}
-		if first {
-			buf.Write(trimmed)
-			first = false
-		} else {
-			buf.WriteByte(',')
-			buf.Write(trimmed)
-		}
-		totalPages++
-	}
-	buf.WriteByte(']')
+	merged, totalPages := assemble()
 
 	if totalPages == 0 {
 		if len(dimErrs) > 0 {
+			// 分离 dimErrs 中可能残留的 ctx 错误（防御性）
+			var bizErrs []error
+			var cancelledCount int
+			for _, de := range dimErrs {
+				if isContextError(de) {
+					cancelledCount++
+					continue
+				}
+				bizErrs = append(bizErrs, de)
+			}
+			if len(bizErrs) == 0 && cancelledCount > 0 {
+				return nil, fmt.Errorf("%w: FetchTasksJSON 全部维度因 context 取消失败: %w",
+					ErrRetryable, errors.Join(dimErrs...))
+			}
 			return nil, fmt.Errorf("%w: FetchTasksJSON 全部维度失败: %w", ErrBusinessRejected, errors.Join(dimErrs...))
 		}
 		return []byte("[]"), nil
 	}
 
 	if len(dimErrs) > 0 {
-		return buf.Bytes(), fmt.Errorf("%w: FetchTasksJSON %d 个维度失败: %w",
-			ErrBusinessRejected, len(dimErrs), errors.Join(dimErrs...))
+		var bizErrs []error
+		var ctxErrs []error
+		var cancelledCount int
+		for _, de := range dimErrs {
+			if isContextError(de) {
+				cancelledCount++
+				ctxErrs = append(ctxErrs, de)
+				continue
+			}
+			bizErrs = append(bizErrs, de)
+		}
+		var cancelPlaceholder error
+		if cancelledCount > 0 {
+			cancelPlaceholder = fmt.Errorf("%w: %d 个维度因 context 取消而失败", ErrRetryable, cancelledCount)
+		}
+		if len(bizErrs) == 0 && cancelledCount > 0 {
+			joined := errors.Join(append(ctxErrs, cancelPlaceholder)...)
+			return merged, fmt.Errorf("%w: FetchTasksJSON context 取消后部分维度成功: %w",
+				ErrBusinessRejected, joined)
+		}
+		joined := errors.Join(append(append(bizErrs, ctxErrs...), cancelPlaceholder)...)
+		return merged, fmt.Errorf("%w: FetchTasksJSON %d 个维度失败: %w",
+			ErrBusinessRejected, len(bizErrs), joined)
 	}
-	return buf.Bytes(), nil
+	return merged, nil
 }
 
 // fetchTasksDimensionJSON 拉取单个维度的任务 dataList 原始字节。
