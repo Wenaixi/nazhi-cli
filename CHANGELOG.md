@@ -54,6 +54,7 @@
 - **输入暴露原则**：用户手填字段进 Input；前端自动填字段由 SDK 补全（典型案例 *Name、荣誉 typeName/name/score）
 - **CircleRecord.PlayRole**：类型改为 `PlayRoleCode`，兼容列表 API 的 number 与表单 string（前端 `switch(map.play_role) case 1/2/3`）；序列化统一为字符串码
 - **SelfEvalStatus**：`UnmarshalJSON` 主解码 `student_comment`/`teacher_comment`（前端 mainLeft/selfgaintloss），兼容 camelCase；`QuerySelfEvaluation` 的 normalize 兜底仍保留
+- **parseHours / TaskSubmitInput.Hours**：对齐前端 `hoursStatus`——任务元数据 hours>0 时用户可空（SDK 用预设）；hours≤0 且用户空 → `ErrInvalidPayload`（不再静默提交 0）；显式 Hours 始终优先
 
 ## [1.3.0] - 2026-07-18
 

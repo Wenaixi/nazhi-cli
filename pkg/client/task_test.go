@@ -231,7 +231,7 @@ func TestIsContextError(t *testing.T) {
 	}
 }
 
-// ─── parseHours 非法输入 ───
+// ─── parseHours：对齐前端 hoursStatus（任务 hours>0 只读自动填；否则用户可填且常必填）───
 
 // TestParseHours_InvalidNonEmpty 非空且 ParseFloat 失败应返回 ErrInvalidPayload。
 func TestParseHours_InvalidNonEmpty(t *testing.T) {
@@ -244,25 +244,48 @@ func TestParseHours_InvalidNonEmpty(t *testing.T) {
 	}
 }
 
-// TestParseHours_EmptyFallsBack 空串回退 metaHours。
-func TestParseHours_EmptyFallsBack(t *testing.T) {
+// TestParseHours_EmptyFallsBackWhenMetaPositive 空串且任务预设 >0 → 用元数据（前端只读自动填）。
+func TestParseHours_EmptyFallsBackWhenMetaPositive(t *testing.T) {
 	got, err := parseHours("  ", 2.5)
 	if err != nil {
-		t.Fatalf("空串不应 error: %v", err)
+		t.Fatalf("空串+meta>0 不应 error: %v", err)
 	}
 	if got != 2.5 {
 		t.Fatalf("期望 2.5，得到 %v", got)
 	}
 }
 
-// TestParseHours_Valid 合法数字解析成功。
-func TestParseHours_Valid(t *testing.T) {
+// TestParseHours_EmptyMetaZeroRequiresUser 任务预设 ≤0 且用户空 → 对齐前端 checkData 拦截。
+func TestParseHours_EmptyMetaZeroRequiresUser(t *testing.T) {
+	_, err := parseHours("", 0)
+	if err == nil {
+		t.Fatal("meta.Hours=0 且用户空应返回 error")
+	}
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+	}
+	_, err = parseHours("  ", 0)
+	if err == nil || !errors.Is(err, ErrInvalidPayload) {
+		t.Fatalf("空白串+meta=0 也应 ErrInvalidPayload，实际: %v", err)
+	}
+}
+
+// TestParseHours_ExplicitOverridesMeta 用户显式 hours 优先于任务预设。
+func TestParseHours_ExplicitOverridesMeta(t *testing.T) {
 	got, err := parseHours("3.5", 1.0)
 	if err != nil {
 		t.Fatalf("合法 hours 不应 error: %v", err)
 	}
 	if got != 3.5 {
 		t.Fatalf("期望 3.5，得到 %v", got)
+	}
+	// 任务无预设时用户手填也应成功
+	got, err = parseHours("1.5", 0)
+	if err != nil {
+		t.Fatalf("meta=0 但用户填了不应 error: %v", err)
+	}
+	if got != 1.5 {
+		t.Fatalf("期望 1.5，得到 %v", got)
 	}
 }
 
@@ -307,5 +330,98 @@ func TestSubmitTask_InvalidHours(t *testing.T) {
 	}
 	if !errors.Is(err, ErrInvalidPayload) {
 		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+	}
+}
+
+// TestSubmitTask_EmptyHoursWhenMetaZero 任务 hours=0 且用户不传 → 不提交 addCircle。
+func TestSubmitTask_EmptyHoursWhenMetaZero(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			// hours=0：前端 hoursStatus=false，用户须手填
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"劳动","circle_type_id":1,"hours":0,"type_name":"劳动","dimension_id":1,"dimension_name":"劳动素养","task_id":2002,"remark":"","type":1}}`))
+		case "/api/studentCircleNew/addCircle":
+			t.Error("meta.hours=0 且用户空 Hours 不应到达 addCircle")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	c, err := New(WithBaseURL(server.URL), WithSSOBase(server.URL), WithTimeout(5*1000*1000*1000))
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:  2002,
+		Content: "劳动内容",
+		// Hours 留空
+	})
+	if err == nil {
+		t.Fatal("任务无预设学时且未填 Hours 应失败")
+	}
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+	}
+}
+
+// TestSubmitTask_EmptyHoursUsesMeta 任务 hours>0 且用户空 → 请求体 hours=任务元数据。
+func TestSubmitTask_EmptyHoursUsesMeta(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.5,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"","type":10}}`))
+		case "/api/studentCircleNew/addCircle":
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	c, err := New(WithBaseURL(server.URL), WithSSOBase(server.URL), WithTimeout(5*1000*1000*1000))
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:  1001,
+		Content: "班会内容",
+	})
+	if err != nil {
+		t.Fatalf("预设学时任务空 Hours 应成功: %v", err)
+	}
+	h, ok := gotBody["hours"]
+	if !ok {
+		t.Fatal("请求体应含 hours")
+	}
+	if h != float64(1.5) {
+		t.Errorf("期望 hours=1.5（任务元数据），实际 %v (%T)", h, h)
 	}
 }

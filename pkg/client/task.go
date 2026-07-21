@@ -306,12 +306,17 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 	return c.buildTaskPayload(ctx, token, input, "SubmitTask")
 }
 
-// parseHours 解析用户输入的时长，空串时用任务预置时长。
-// 非空且无法解析为 float64 时返回 ErrInvalidPayload，避免静默回退掩盖错误输入。
+// parseHours 解析写实提交的时长，对齐前端 hoursStatus 逻辑：
+//   - 用户非空：解析为 float；非法则 ErrInvalidPayload
+//   - 用户空且 metaHours > 0：用任务预设（前端只读自动填）
+//   - 用户空且 metaHours <= 0：ErrInvalidPayload（前端可编辑且 checkData 常要求非空）
 func parseHours(userInput string, metaHours float64) (float64, error) {
 	h := strings.TrimSpace(userInput)
 	if h == "" {
-		return metaHours, nil
+		if metaHours > 0 {
+			return metaHours, nil
+		}
+		return 0, fmt.Errorf("%w: hours 必填（任务未预设学时，须由调用方填写）", ErrInvalidPayload)
 	}
 	parsed, err := strconv.ParseFloat(h, 64)
 	if err != nil {
