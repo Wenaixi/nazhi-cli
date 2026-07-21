@@ -11,7 +11,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,7 +25,9 @@ import (
 var multipartBufPool = sync.Pool{
 	New: func() any {
 		b := &bytes.Buffer{}
-		b.Grow(5*1024 + 1024) // 预分配 5MB+1KB 匹配原 Grow 语义
+		// 预分配 MaxImageSize+1KB（约 5MB），匹配压缩后图片上限，避免 multipart 构造时多次扩容。
+		// 旧写法 5*1024+1024 仅为 6KB，与注释「5MB」不符。
+		b.Grow(MaxImageSize + 1024)
 		return b
 	},
 }
@@ -46,14 +50,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	// 1. 图片预处理
 	fileData, mimeType, err := c.prepareImageForUpload(filePath)
 	if err != nil {
-		// F3 修复：errors.Join(ErrFileTooLarge, err) 让 ErrFileTooLarge 进错误链，
-		// 调用方 errors.Is(err, ErrFileTooLarge) 单一识别所有「文件过大」路径——
-		// 不论根因是 image_prep.go L122 的 ErrImageTooLarge（缩放级联到底仍超限）
-		// 还是下方的 len(fileData) > MaxImageSize 兜底，二者都通过同一个 sentinel。
-		//
-		// 注：errors.Is(err, ErrImageTooLarge) 仍命中（pre-existing 行为保留），
-		// 只是额外让 ErrFileTooLarge 也进入链。
-		return nil, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
+		// 仅当根因确为「压缩后仍超限」时把 ErrFileTooLarge 并入错误链。
+		// 路径不存在 / 解码失败等不应 errors.Is(ErrFileTooLarge)，否则调用方会误判。
+		// 真正过大时 image_prep 返回 ErrImageTooLarge（或下方 len 兜底 Join）。
+		if errors.Is(err, ErrImageTooLarge) {
+			return nil, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
+		}
+		return nil, fmt.Errorf("图片预处理失败: %w", err)
 	}
 	if len(fileData) > MaxImageSize {
 		// A3 修复：让两条"图片过大"路径的 sentinel 行为一致。
@@ -81,7 +84,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	}
 	writer := multipart.NewWriter(buf)
 
-	part, err := writer.CreateFormFile("file", filePath+".jpg")
+	// filename 仅用 basename，扩展名统一 .jpg（预处理始终输出 JPEG）。
+	// 禁止把本地绝对路径塞进 Content-Disposition，避免路径泄露与服务端解析异常。
+	formName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)) + ".jpg"
+	part, err := writer.CreateFormFile("file", formName)
 	if err != nil {
 		return nil, fmt.Errorf("创建 multipart form 失败: %w", err)
 	}
@@ -345,15 +351,22 @@ func isSameTrustedHost(a, b string) bool {
 	return false
 }
 
-// hasHostSuffix 判断 host 是否以 suffix 结尾（host 或 .host 形式）。
+// hasHostSuffix 判断 host 是否受信：exact 匹配，或以 "."+suffix 结尾
+// （suffix 自身以 "." 开头时直接以 suffix 结尾）。
+// 禁止 evilnazhisoft.com 这种无点号前缀的后缀碰撞。
 func hasHostSuffix(host, suffix string) bool {
+	if host == "" || suffix == "" {
+		return false
+	}
 	if host == suffix {
 		return true
 	}
-	if len(host) > len(suffix) && host[len(host)-len(suffix):] == suffix {
-		return true
+	// suffix 已带前导点（如 .nazhisoft.com）：要求 host 以该后缀结尾即可
+	if strings.HasPrefix(suffix, ".") {
+		return strings.HasSuffix(host, suffix) && len(host) > len(suffix)
 	}
-	return false
+	// suffix 无前导点（如 nazhisoft.com）：要求 exact 或以 "."+suffix 结尾
+	return strings.HasSuffix(host, "."+suffix)
 }
 
 // writeDownloadToFile 把 src 流式写入 dst，ctx 取消可中断。
