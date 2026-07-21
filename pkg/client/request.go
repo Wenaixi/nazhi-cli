@@ -319,6 +319,11 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 // 改名自 doRequest，降级为内部私有。
 // headers 是可选的自定义请求头（合并到公共头之上）。
 // contentType 为空时默认 application/json。
+//
+// 非 2xx 状态码走 classifyHTTPStatus，返回 sentinel（ErrRateLimited /
+// ErrServiceUnavailable / ErrInvalidResponse），与 doBizGet 行为对齐。
+// 这样 doBizAndDecode 主路径能正确识别 401/429/5xx，而不会把 HTML/空 body
+// 当成 JSON 解析错误或业务 code 拒绝。
 func (c *Client) httpDo(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) ([]byte, error) {
 	resp, err := c.do(ctx, method, url, body, headers, contentType)
 	if err != nil {
@@ -332,6 +337,14 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	}
 
 	c.logDebug("← %d (%d bytes)", resp.StatusCode, len(respBytes))
+
+	// 非 2xx：返回 sentinel，不把 body 当作成功 JSON 交给上层解码。
+	// 2xx（含 201/204 等）视为传输成功，业务 code 仍由 DecodeResponse/CheckCode 判定。
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
+		return nil, fmt.Errorf("%w: %s %s 返回状态码 %d body=%s",
+			sentinel, method, url, resp.StatusCode, logSafeBody(respBytes))
+	}
 	return respBytes, nil
 }
 
