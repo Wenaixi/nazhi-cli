@@ -119,7 +119,8 @@ type TaskSubmitInput struct {
 
 	Name     string
 	HostName string
-	// CircleDate / TermName：前端 form 有键但无 v-model；非用户输入。
+	// CircleDate / TermName：前端 form 有键但**无 v-model**，用户从不手填。
+	// 仅兼容旧调用方；推荐保持空串，勿当作用户必填字段。
 	CircleDate          string
 	TermName            string
 	Rank                string

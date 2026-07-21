@@ -63,7 +63,7 @@ var taskEditCmd = &cobra.Command{
 			input.Level = v
 		}
 
-		printVerbose("正在修改写实记录（自动补全任务元数据/学校信息/图片上传）...")
+		printVerbose("正在修改写实记录（自动补全任务元数据/图片上传）...")
 		result, err := c.EditCircle(cmd.Context(), token, input)
 		if err != nil {
 			printError(fmt.Errorf("修改写实记录失败: %w", err))
@@ -77,6 +77,6 @@ var taskEditCmd = &cobra.Command{
 func init() {
 	registerBizFlags(taskEditCmd)
 	taskEditCmd.Flags().String("payload", "", "修改写实记录的 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
-	taskEditCmd.Flags().String("address", "", "地点（可选，覆盖 payload.address；未传则 SDK 默认学校名）")
-	taskEditCmd.Flags().String("level", "", "等级（可选，1=国家 2=省 3=地区/市 4=区/县/街道/社区 5=校；未传默认 5）")
+	taskEditCmd.Flags().String("address", "", "地点（可选，覆盖 payload.address；空则原样，不默认学校名）")
+	taskEditCmd.Flags().String("level", "", "等级代码（可选，写实：1=国家 2=省 3=地区/市 4=区县 5=校 6=年段；空则原样不默认 5）")
 }

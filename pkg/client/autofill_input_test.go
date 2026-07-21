@@ -97,6 +97,46 @@ func TestAddTypicalCase_ExplicitNamesPreserved(t *testing.T) {
 	}
 }
 
+// TestAddTypicalCase_FrontendOptionLabels 对齐 classiccanter.vue el-option：
+// type "2"→社会调查报告；level "1"→国际（非写实列表的「国家」文案）。
+func TestAddTypicalCase_FrontendOptionLabels(t *testing.T) {
+	var gotBody map[string]any
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/addTypicalCase" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	err := c.AddTypicalCase(context.Background(), "test-token", types.AddTypicalCasePayload{
+		Title:       "对齐前端 option",
+		Type:        "2",
+		TeacherName: "t",
+		PartnerName: "p",
+		Role:        "2",
+		Remark:      "r",
+		Content:     "c",
+		Level:       "1",
+	})
+	if err != nil {
+		t.Fatalf("AddTypicalCase 失败: %v", err)
+	}
+	if gotBody["typeName"] != "社会调查报告" {
+		t.Errorf("type=2 typeName: got %v，期望 社会调查报告（classiccanter el-option）", gotBody["typeName"])
+	}
+	if gotBody["roleName"] != "参与者" {
+		t.Errorf("role=2 roleName: got %v", gotBody["roleName"])
+	}
+	if gotBody["levelName"] != "国际" {
+		t.Errorf("level=1 levelName: got %v，期望 国际（非「国家」）", gotBody["levelName"])
+	}
+}
+
 // TestAddHonor_ScoreDefaultsToZero 前端 score 默认 0 且无输入；请求体应带 score。
 func TestAddHonor_ScoreDefaultsToZero(t *testing.T) {
 	var gotBody map[string]any

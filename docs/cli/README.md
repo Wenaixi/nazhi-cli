@@ -449,8 +449,8 @@ echo '{"taskId":18155,"content":"劳动让我更懂责任。"}' | nazhi task sub
 |---|---|---|---|
 | `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
 | `--payload` | ✅ | — | 任务 JSON 字符串、`@file.json` 路径，或 `-` 从 stdin 读取 |
-| `--address` | — | — | 地点（覆盖 `payload.address`；未传则默认学校名） |
-| `--level` | — | — | 等级（1=国家 2=省 3=地区/市 4=区/县/街道/社区 5=校；未传默认 5） |
+| `--address` | — | — | 地点（覆盖 `payload.address`；空则原样，不默认学校名） |
+| `--level` | — | — | 等级代码（写实：1=国家 2=省 3=地区/市 4=区县 5=校 6=年段；空则原样不默认 5） |
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 
@@ -462,15 +462,15 @@ echo '{"taskId":18155,"content":"劳动让我更懂责任。"}' | nazhi task sub
 | `content` | string | ✅ | 心得/感悟 |
 | `imagePaths` | string[] | — | 本地图片路径列表，SDK 自动上传后填入 `pictureList` |
 | `playRole` | string | — | 承担角色；不传默认空串 |
-| `address` | string | — | 地点；不传默认学校名 |
-| `level` | string | — | 等级；不传默认 `"5"` |
+| `address` | string | — | 地点；空串原样（部分活动类型前端要求非空） |
+| `level` | string | — | 等级；空串原样（部分活动类型前端要求非空） |
+| `hours` | string | — | 学时；任务预设>0 可省略，预设≤0 须填写 |
 
 SDK 内部自动执行：
 
-1. `getCircleTypeByTaskId(taskId)` 获取 `circleTypeId / dimensionId / hours`
-2. `whoami / getMyInfo` 获取 `schoolName`
-3. 上传 `imagePaths` 并转成 `pictureList`
-4. 组装完整 `addCircle` 请求体后提交
+1. `getCircleTypeByTaskId(taskId)` 获取 `circleTypeId / dimensionId / hours`（预设）
+2. 上传 `imagePaths` 并转成 `pictureList`
+3. 组装完整 `addCircle` 请求体后提交（**不**再发明学校名 / level=5）
 
 成功输出：
 
@@ -1114,18 +1114,18 @@ payload 字段：
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `title` | string | ✅ | 标题 |
-| `type` | string | ✅ | 材料类别代码（`"1"`=研究性学习报告, `"2"`=社会调查报告, `"3"`=艺术创作作品, `"4"`=其他） |
-| `typeName` | string | ✅ | 材料类别名称 |
-| `teacherName` | string | — | 指导教师 |
-| `partnerName` | string | — | 合作者 |
-| `role` | string | ✅ | 角色代码（`"1"`=负责人, `"2"`=参与者） |
-| `roleName` | string | ✅ | 角色名称 |
-| `remark` | string | — | 备注 |
-| `content` | string | ✅ | 正文 |
-| `level` | string | ✅ | 级别代码（`"5"`=学校, `"4"`=区县, `"3"`=市, `"2"`=省, `"1"`=国家） |
-| `levelName` | string | ✅ | 级别名称 |
-| `attachmentId` | int64 | — | 附件 ID（先通过 file upload 上传图片获得） |
+| `title` | string | ✅ | 标题（用户） |
+| `type` | string | ✅ | 类别代码：`"1"` 研究性学习报告 / `"2"` 社会调查报告 / `"3"` 艺术创作作品 / `"4"` 其他 |
+| `typeName` | string | — | 类别名；空则 SDK 按 type 补全 |
+| `teacherName` | string | — | 指导教师（用户） |
+| `partnerName` | string | — | 合作者（用户） |
+| `role` | string | ✅ | 角色代码：`"1"` 负责人 / `"2"` 参与者 |
+| `roleName` | string | — | 角色名；空则 SDK 补全 |
+| `remark` | string | — | 备注（用户） |
+| `content` | string | ✅ | 正文（用户） |
+| `level` | string | ✅ | 级别代码：`"1"` 国际 / `"2"` 省 / `"3"` 市 / `"4"` 区县 / `"5"` 学校 |
+| `levelName` | string | — | 级别名；空则 SDK 补全 |
+| `attachmentId` | int64 | — | 附件 ID（先通过 file upload） |
 | `attachmentName` | string | — | 附件文件名 |
 
 成功输出：

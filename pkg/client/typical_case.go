@@ -12,10 +12,11 @@ import (
 
 // 典型案例下拉展示名（对齐 classiccanter.vue el-option label）。
 // 用户只选 code；SDK 在 *Name 为空时自动补全。
+// type=2 为「社会调查报告」（非「社会实践报告」）；level=1 为「国际」（非写实列表的「国家」）。
 var (
 	typicalCaseTypeNames = map[string]string{
 		"1": "研究性学习报告",
-		"2": "社会实践报告",
+		"2": "社会调查报告",
 		"3": "艺术创作作品",
 		"4": "其他",
 	}
@@ -24,7 +25,7 @@ var (
 		"2": "参与者", // types.TypicalCaseRoleParticipant
 	}
 	typicalCaseLevelNames = map[string]string{
-		"1": "国家",
+		"1": "国际",
 		"2": "省",
 		"3": "市",
 		"4": "区县",

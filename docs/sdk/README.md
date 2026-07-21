@@ -497,6 +497,8 @@ SDK 响应示例（2 条）：
 
 **Address / OrgName / Level**：与前端一致——用户填什么发什么；**空串原样**，不再自动填学校名或默认 `"5"`。部分活动类型前端 `checkData` 会要求非空，调用方须按任务类型自行填写。
 
+**CircleDate / TermName**：前端 form 有键但**无 v-model**，用户从不手填。结构体仍保留以兼容旧调用方，推荐保持空串，不要当作用户必填字段。
+
 请求示例：
 
 ```go
@@ -936,25 +938,22 @@ null
 
 ### `AddTypicalCase(ctx context.Context, token string, payload types.AddTypicalCasePayload) error`
 
-用户只需传 type/role/level **代码**；`typeName`/`roleName`/`levelName` 为空时 SDK 按前端下拉自动补全。已填展示名不覆盖。
+用户只需传 type/role/level **代码**；`typeName`/`roleName`/`levelName` 为空时 SDK 按 classiccanter.vue el-option 自动补全。已填展示名不覆盖。
 
 提交一条典型案例。
 
-请求示例：
+请求示例（展示名可省略，由 SDK 补全）：
 
 ```go
 err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
     Title:          "论国内外各领域AI大模型能力对比",
-    Type:           "1",
-    TypeName:       "研究性学习报告",
+    Type:           "1", // → typeName 研究性学习报告
     TeacherName:    "王老师",
     PartnerName:    "庄同学等",
-    Role:           "1",
-    RoleName:       "负责人",
+    Role:           "1", // → roleName 负责人
     Remark:         "基于2026年前沿大语言模型全栈实测数据的深度解析",
     Content:        "经过本课题组数周的协作攻坚...",
-    Level:          "5",
-    LevelName:      "学校",
+    Level:          "5", // → levelName 学校
     AttachmentID:   5139876,
     AttachmentName: "example.jpg",
 })
@@ -967,18 +966,18 @@ payload 字段说明：
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `title` | string | ✅ | 标题 |
-| `type` | string | ✅ | 材料类别代码（`"1"`=研究性学习报告, `"2"`=社会调查报告, `"3"`=艺术创作作品, `"4"`=其他） |
-| `typeName` | string | ✅ | 材料类别名称 |
-| `teacherName` | string | — | 指导教师 |
-| `partnerName` | string | — | 合作者 |
-| `role` | string | ✅ | 角色代码（`"1"`=负责人, `"2"`=参与者） |
-| `roleName` | string | ✅ | 角色名称 |
-| `remark` | string | — | 备注 |
-| `content` | string | ✅ | 正文 |
-| `level` | string | ✅ | 级别代码（`"5"`=学校, `"4"`=区县, `"3"`=市, `"2"`=省, `"1"`=国家） |
-| `levelName` | string | ✅ | 级别名称 |
-| `attachmentId` | int64 | — | 附件 ID（先通过 `UploadFile` 上传图片获得） |
+| `title` | string | ✅ | 标题（用户） |
+| `type` | string | ✅ | 类别代码：`"1"` 研究性学习报告 / `"2"` 社会调查报告 / `"3"` 艺术创作作品 / `"4"` 其他 |
+| `typeName` | string | — | 类别名；空则 SDK 按 type 补全 |
+| `teacherName` | string | — | 指导教师（用户） |
+| `partnerName` | string | — | 合作者（用户） |
+| `role` | string | ✅ | 角色代码：`"1"` 负责人 / `"2"` 参与者 |
+| `roleName` | string | — | 角色名；空则 SDK 补全 |
+| `remark` | string | — | 备注（用户） |
+| `content` | string | ✅ | 正文（用户） |
+| `level` | string | ✅ | 级别代码：`"1"` 国际 / `"2"` 省 / `"3"` 市 / `"4"` 区县 / `"5"` 学校 |
+| `levelName` | string | — | 级别名；空则 SDK 补全 |
+| `attachmentId` | int64 | — | 附件 ID（先 `UploadFile`） |
 | `attachmentName` | string | — | 附件文件名 |
 
 SDK 响应示例：
