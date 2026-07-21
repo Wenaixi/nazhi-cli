@@ -25,7 +25,9 @@ import (
 var multipartBufPool = sync.Pool{
 	New: func() any {
 		b := &bytes.Buffer{}
-		b.Grow(5*1024 + 1024) // 预分配 5MB+1KB 匹配原 Grow 语义
+		// 预分配 MaxImageSize+1KB（约 5MB），匹配压缩后图片上限，避免 multipart 构造时多次扩容。
+		// 旧写法 5*1024+1024 仅为 6KB，与注释「5MB」不符。
+		b.Grow(MaxImageSize + 1024)
 		return b
 	},
 }
