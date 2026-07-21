@@ -454,13 +454,13 @@ func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResu
 
 // EditCircle 修改一条已提交的写实记录。
 //
-// 与 SubmitTask 对称：内部自动完成 getCircleTypeByTaskId → GetMyInfo → 组装 editCircle payload。
+// 与 SubmitTask 对称：内部自动完成 getCircleTypeByTaskId → 图片上传 → 组装 editCircle payload。
 // 区别：
 //   - SubmitTask 调用 addCircle（无 id 字段，新增记录）
 //   - EditCircle 调用 editCircle（必须传 id 字段，修改已有记录）
 //
-// 调用方只需提供最少必要字段（id / taskId / content / imagePaths / imageIDs），
-// 其余字段由 SDK 根据 taskId 元数据和用户资料自动补齐。
+// 用户字段（address/level/playRole 等）空串原样发送，不发明学校名或等级 5；
+// 任务元数据与图片由 SDK 自动补齐。
 func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskResult, error) {
 	payload, err := c.buildTaskEditPayload(ctx, token, input)
 	if err != nil {
@@ -481,7 +481,7 @@ func (c *Client) buildTaskEditPayload(ctx context.Context, token string, input t
 }
 
 // 公开接口仅接收最少必要输入，SDK 内部自动补齐真实网页提交流程所需字段：
-// getCircleTypeByTaskId → GetMyInfo → UploadFile → addCircle。
+// getCircleTypeByTaskId → UploadFile → addCircle（不再发明学校名/默认等级）。
 func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskResult, error) {
 	payload, err := c.buildTaskSubmitPayload(ctx, token, input)
 	if err != nil {

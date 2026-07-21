@@ -137,6 +137,47 @@ func TestAddTypicalCase_FrontendOptionLabels(t *testing.T) {
 	}
 }
 
+// TestUpdateTypicalCase_AutoFillWithNumericCodes 列表响应里 type/role/level 常为 number；
+// 更新 map 路径必须与 string 代码一样能补 *Name（对齐 openUpdate 回填后改选场景）。
+func TestUpdateTypicalCase_AutoFillWithNumericCodes(t *testing.T) {
+	var gotBody map[string]any
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/updateTypicalCase" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	err := c.UpdateTypicalCase(context.Background(), "test-token", map[string]any{
+		"id":          int64(99),
+		"title":       "数字代码更新",
+		"type":        2, // 列表 JSON number
+		"role":        float64(2),
+		"level":       1,
+		"teacherName": "t",
+		"partnerName": "p",
+		"remark":      "r",
+		"content":     "c",
+	})
+	if err != nil {
+		t.Fatalf("UpdateTypicalCase 失败: %v", err)
+	}
+	if gotBody["typeName"] != "社会调查报告" {
+		t.Errorf("type=2(number) typeName: got %v，期望 社会调查报告", gotBody["typeName"])
+	}
+	if gotBody["roleName"] != "参与者" {
+		t.Errorf("role=2(number) roleName: got %v", gotBody["roleName"])
+	}
+	if gotBody["levelName"] != "国际" {
+		t.Errorf("level=1(number) levelName: got %v，期望 国际", gotBody["levelName"])
+	}
+}
+
 // TestAddHonor_ScoreDefaultsToZero 前端 score 默认 0 且无输入；请求体应带 score。
 func TestAddHonor_ScoreDefaultsToZero(t *testing.T) {
 	var gotBody map[string]any

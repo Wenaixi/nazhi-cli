@@ -940,6 +940,8 @@ null
 
 用户只需传 type/role/level **代码**；`typeName`/`roleName`/`levelName` 为空时 SDK 按 classiccanter.vue el-option 自动补全。已填展示名不覆盖。
 
+`UpdateTypicalCase` 使用 `map[string]any`：`type`/`role`/`level` 支持 **string 或 number**（列表回填常为 number），对应 `*Name` 为空时同样自动补全。
+
 提交一条典型案例。
 
 请求示例（展示名可省略，由 SDK 补全）：

@@ -56,27 +56,58 @@ func fillTypicalCaseDisplayNames(p *types.AddTypicalCasePayload) {
 	}
 }
 
+// typicalCaseCodeString 把 type/role/level 统一成映射表用的字符串代码。
+// 列表回填常见 number（int/float64），新增表单为 string；均需可识别。
+func typicalCaseCodeString(v any) (string, bool) {
+	switch n := v.(type) {
+	case string:
+		if n == "" {
+			return "", false
+		}
+		return n, true
+	case int:
+		return strconv.Itoa(n), true
+	case int64:
+		return strconv.FormatInt(n, 10), true
+	case float64:
+		// JSON 数字默认 float64；仅接受整数值，避免 2.5 误映射
+		if n != float64(int64(n)) {
+			return "", false
+		}
+		return strconv.FormatInt(int64(n), 10), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return "", false
+		}
+		return strconv.FormatInt(i, 10), true
+	default:
+		return "", false
+	}
+}
+
 // fillTypicalCaseDisplayNamesMap 更新路径：map 含 type/role/level 且对应 *Name 缺失时补全。
+// code 支持 string 与 number（对齐 getTypicalCase 列表响应 + 手填 string）。
 func fillTypicalCaseDisplayNamesMap(payload map[string]any) {
 	if payload == nil {
 		return
 	}
 	if typeName, _ := payload["typeName"].(string); typeName == "" {
-		if code, ok := payload["type"].(string); ok {
+		if code, ok := typicalCaseCodeString(payload["type"]); ok {
 			if n, ok := typicalCaseTypeNames[code]; ok {
 				payload["typeName"] = n
 			}
 		}
 	}
 	if roleName, _ := payload["roleName"].(string); roleName == "" {
-		if code, ok := payload["role"].(string); ok {
+		if code, ok := typicalCaseCodeString(payload["role"]); ok {
 			if n, ok := typicalCaseRoleNames[code]; ok {
 				payload["roleName"] = n
 			}
 		}
 	}
 	if levelName, _ := payload["levelName"].(string); levelName == "" {
-		if code, ok := payload["level"].(string); ok {
+		if code, ok := typicalCaseCodeString(payload["level"]); ok {
 			if n, ok := typicalCaseLevelNames[code]; ok {
 				payload["levelName"] = n
 			}
