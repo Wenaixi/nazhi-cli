@@ -4,7 +4,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/Wenaixi/nazhi-cli/releases)
+[![Version](https://img.shields.io/badge/version-1.3.0-blue)](https://github.com/Wenaixi/nazhi-cli/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 
@@ -15,13 +15,9 @@
 | 入口 | 说明 |
 |---|---|
 | [快速开始](#快速开始) | 5 分钟登录并跑通业务 |
-| [环境变量](docs/env-vars.md) | NAZHI_* 完整说明 |
-| [CLI 参考](docs/cli/README.md) | 每个命令的 flag / 输出 / 示例 |
-| [SDK 参考](docs/sdk/README.md) | Go SDK API（pkg/client + pkg/types + pkg/tokenparse） |
-| [架构总览](docs/architecture.md) | 双层架构、关键决策 |
-| [登录流程详解](docs/login-flow.md) | SSO 多图多试 + 4 步 Session 激活 |
-| [跨平台 OCR](docs/cross-platform-ocr.md) | 5 平台 onnxruntime + Windows DLL 修复三轮演化 |
-| [HAR 驱动测试](docs/har-testing.md) | 抓包驱动集成测试 + PII SHA-256 守卫 |
+| [文档中心](docs/README.md) | docs 总索引 |
+| [CLI 参考](docs/cli/README.md) | 命令 / 环境变量 / envelope / 短示例 |
+| [SDK 参考](docs/sdk/README.md) | 总览 + 按功能分册（请求/响应/用法） |
 | [开发指南](#开发) | 构建、测试、贡献流程 |
 | [CHANGELOG](CHANGELOG.md) | 全部版本变更日志 |
 | [CLAUDE.md](CLAUDE.md) | 项目记忆库（git 忽略，AI 协作专用） |
@@ -103,7 +99,7 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
   xargs -I {} nazhi file download --id {} --output ./img_{}.jpg
 ```
 
-更详细的环境变量配置见 [docs/env-vars.md](docs/env-vars.md)。
+更详细的环境变量与命令说明见 [CLI 参考](docs/cli/README.md)。
 
 ## 命令概览
 
@@ -262,7 +258,7 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` |
 | `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload` 是 `30`） |
 
-详见 [docs/env-vars.md](docs/env-vars.md)。
+详见 [CLI 参考 · 环境变量](docs/cli/README.md#环境变量速查)。
 
 ## 开发
 

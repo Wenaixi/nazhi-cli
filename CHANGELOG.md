@@ -7,6 +7,11 @@
 
 ## [Unreleased]
 
+### 文档
+
+- **docs 重组**：删除设计类单页（architecture / login-flow / OCR / env-vars / har-testing / migration_v2 / api-coverage）；SDK 按功能域分册（`docs/sdk/*.md`）；CLI 精简为单文件并并入环境变量速查
+- 根 README / 文档中心仅链 CLI + SDK 分册
+
 ### 破坏性变更 (BREAKING)
 
 - SDK 写实列表 `*JSON` 方法签名新增 `key string`：`GetSubmitted/Teacher/Withdrawn/PublicCirclesJSON`、`*LimitJSON` 及 `getCirclesJSON`/`getCirclesLimitJSON` 内部贯通关键字筛选（此前硬编码 `key=""`）

@@ -1,97 +1,47 @@
 # nazhi-cli 文档中心
 
-本目录是项目文档的总入口。所有文档随 `main` 分支同步，与 [CHANGELOG.md](../CHANGELOG.md) 一一对应。
+文档随 `main` 同步。代码注释见 `pkg/client`、`pkg/types`、`pkg/tokenparse`。
 
-> 想直接看代码？[pkg/client/](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/client)、[pkg/types/](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/types)、[pkg/tokenparse/](https://github.com/Wenaixi/nazhi-cli/tree/main/pkg/tokenparse) 三个公开包都自带详细中文注释。
-
-## 用户文档（怎么用）
+## 用户文档
 
 | 文档 | 内容 |
-|---|---|
-| [README.md](../README.md) | 项目主页：快速开始 + 安装 + 命令概览 + 环境变量速查 |
-| [CLI 参考](./cli/README.md) | 命令的 flag / 输出 / 错误码 / 完整工作流 |
-| [SDK 参考](./sdk/README.md) | Go SDK API：Client 构造 + 方法 + Option + sentinel + 错误处理骨架 |
-| [环境变量](./env-vars.md) | NAZHI_* 完整清单 + urlType 分流 + 与 SDK Option 对应表 |
+|------|------|
+| [项目 README](../README.md) | 安装、快速开始 |
+| [CLI 参考](./cli/README.md) | 命令、环境变量、envelope、短示例 |
+| [SDK 参考](./sdk/README.md) | 总览 + **按功能分册** |
+| [CHANGELOG](../CHANGELOG.md) | 版本变更 |
+| [贡献指南](../CONTRIBUTING.md) | PR / CI |
+| [安全策略](../SECURITY.md) | 漏洞与 PII |
 
-## 架构文档（怎么实现的）
+## SDK 分册
 
-| 文档 | 内容 |
-|---|---|
-| [架构总览](./architecture.md) | 双层架构、目录结构、关键决策、并发模型、错误链、数据流 |
-| [登录流程](./login-flow.md) | SSO 5 步 + 业务 Session 4 步 + 完整时序图 + token 解析规则 |
-| [跨平台 OCR](./cross-platform-ocr.md) | 5 平台 onnxruntime 嵌入策略 + Windows DLL 三轮修复演化 + Pool 并发模型 + 可选构建 |
+| 域 | 链接 |
+|----|------|
+| 认证 | [sdk/auth.md](./sdk/auth.md) |
+| Session | [sdk/session.md](./sdk/session.md) |
+| 用户 | [sdk/user.md](./sdk/user.md) |
+| 任务提交 | [sdk/task.md](./sdk/task.md) |
+| 写实列表 | [sdk/circle-list.md](./sdk/circle-list.md) |
+| 写实互动 | [sdk/circle-action.md](./sdk/circle-action.md) |
+| 荣誉 | [sdk/honor.md](./sdk/honor.md) |
+| 典型案例 | [sdk/typical-case.md](./sdk/typical-case.md) |
+| 自我评价 | [sdk/self-eval.md](./sdk/self-eval.md) |
+| 文件 | [sdk/file.md](./sdk/file.md) |
+| 原始 JSON | [sdk/raw-json.md](./sdk/raw-json.md) |
 
-## 开发文档（怎么贡献）
+## 按角色
 
-| 文档 | 内容 |
-|---|---|
-| [HAR 驱动测试](./har-testing.md) | 抓包驱动 fixture + PII SHA-256 守卫反自反性陷阱 + 测试架构 |
-| [贡献指南](../CONTRIBUTING.md) | PR 流程、提交规范、push 前必跑 CI 6 步 |
-| [CHANGELOG](../CHANGELOG.md) | 全部版本变更日志 |
-| [安全策略](../SECURITY.md) | 漏洞上报 + PII 守卫承诺 + 凭据历史清理说明 |
-| [项目记忆](../CLAUDE.md) | AI 协作专用（git 忽略），含架构细节与本机凭据 |
+- **CLI 自动化**：README → [cli/README.md](./cli/README.md)  
+- **Go 集成**：[sdk/README.md](./sdk/README.md) → 对应分册  
+- **贡献者**：[CONTRIBUTING.md](../CONTRIBUTING.md)
 
-## 按角色看
+## 版本
 
-### 我是用户，想用 CLI 自动化
+文档对齐 **v1.3.0** 及当前 main 行为。历史 tag 下 docs 以 Git 为准。
 
-1. 看 [README.md](../README.md) 的「快速开始」
-2. 看 [env-vars.md](./env-vars.md) 配置凭据
-3. 需要时查 [cli/README.md](./cli/README.md) 找具体命令
+## 规范摘要
 
-### 我是开发者，要用 Go SDK 集成
-
-1. 看 [sdk/README.md](./sdk/README.md) 的「快速开始」
-2. 看 [sdk/README.md](./sdk/README.md) 的「错误处理」章节确认怎么用 `errors.Is` 分支
-3. 看 [architecture.md](./architecture.md) 了解 SDK 内部状态（如果要扩展）
-
-### 我是贡献者，要改代码
-
-1. 看 [CONTRIBUTING.md](../CONTRIBUTING.md) 的「push 前必跑」CI 6 步
-2. 看 [architecture.md](./architecture.md) 了解代码结构
-3. 看 [har-testing.md](./har-testing.md) 了解测试体系
-4. 提交规范遵循 Conventional Commits
-
-### 我想理解某些模块的工作原理
-
-| 问题 | 看 |
-|---|---|
-| 登录怎么跑通 OCR 验证码？ | [login-flow.md](./login-flow.md) |
-| 为什么 SetBackoff 在锁内读 backoff？ | [architecture.md](./architecture.md) 关键决策 #4 |
-| SDK 怎么区分登录错 vs 业务错？ | [sdk/README.md](./sdk/README.md) 错误处理章节 |
-| Windows 临时目录怎么自动清理？ | [cross-platform-ocr.md](./cross-platform-ocr.md) Windows OCR 三轮修复 |
-| HAR fixture 怎么生成的？ | [har-testing.md](./har-testing.md) 工作原理 |
-| CGO-free 怎么构建？ | [cross-platform-ocr.md](./cross-platform-ocr.md) OCR 可选构建 |
-| `withDurationGuard` 是什么设计模式？ | [architecture.md](./architecture.md) 关键决策 #1 |
-
-## 文档版本控制
-
-文档随 `main` 分支同步更新。每次发版前会增量更新到当前代码。
-
-历史版本：[GitHub Releases](https://github.com/Wenaixi/nazhi-cli/releases) 对应 tag 的 docs/ 目录。
-
-| 文档版本 | 对应 code 版本 | 文档冻结 |
-|---|---|---|
-| v1.2.2 | v1.2.2 | 当前版本 |
-| v1.2.1 | v1.2.1 | — |
-| v1.0.0 | v1.0.0 | [v1.0.0 tag](https://github.com/Wenaixi/nazhi-cli/tree/v1.0.0/docs) |
-| v0.4.0 | v0.4.0 | [v0.4.0 tag](https://github.com/Wenaixi/nazhi-cli/tree/v0.4.0/docs) |
-
-## 外部参考
-
-- [Go 官方文档](https://go.dev/doc/)
-- [cobra 用户指南](https://github.com/spf13/cobra)
-- [Yangbin1322/go-ddddocr](https://github.com/yangbin1322/go-ddddocr) — Go OCR 绑定
-- [Microsoft onnxruntime](https://github.com/microsoft/onnxruntime/releases) — 推理引擎
-- [Nazhi-auto](https://github.com/Wenaixi/Nazhi-auto) — 上游参考实现（v1 时期）
-
----
-
-文档规范（维护者参考）：
-
-- 中文为主，技术术语保留英文
-- 不堆形容词（"强大" / "业界领先" / "无缝集成" → 直接说能做什么）
-- 命令示例用真实路径，不用占位符（学号 `2025001` 这种占位是例外）
-- 内链必须可达（CI 跑 `markdown-link-check` 兜底）
-- 链接到 GitHub 用相对仓库路径（`../CHANGELOG.md` 而非绝对 URL）
-- 章节深度 ≤ 4 级（H4 `#` 是上限）
+- 中文为主；不堆空话  
+- 示例用占位学号/token，禁止真实凭据  
+- 写入口文档须区分「用户填 / SDK 自动」  
+- 章节深度 ≤ 4  
