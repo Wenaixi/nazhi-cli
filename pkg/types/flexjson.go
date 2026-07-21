@@ -58,3 +58,55 @@ func (p *PlayRoleCode) UnmarshalJSON(data []byte) error {
 func (p PlayRoleCode) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(p))
 }
+
+// IntList 解码平台「日期/时间」数组字段：JSON 中为 number 列表，如
+// admissionDate=[2025,9,1]、birthday=[2009,12,11]、creationTime=[...]
+//
+// 历史上 UserInfo.AdmissionDate 曾误标为 []string，真实 getMyInfo 返回 number，
+// 导致 Unmarshal 失败并被 fallback 当成「空用户」。
+type IntList []int
+
+// UnmarshalJSON 接受 [number...]、[string 数字...]、null、空数组。
+func (l *IntList) UnmarshalJSON(data []byte) error {
+	if l == nil {
+		return fmt.Errorf("IntList: UnmarshalJSON on nil pointer")
+	}
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*l = nil
+		return nil
+	}
+	// 优先 number 数组（平台主路径）
+	var nums []int
+	if err := json.Unmarshal(data, &nums); err == nil {
+		*l = IntList(nums)
+		return nil
+	}
+	// 兼容字符串数字数组
+	var strs []string
+	if err := json.Unmarshal(data, &strs); err != nil {
+		return fmt.Errorf("IntList: 期望 number/string 数组，得到 %s: %w", string(data), err)
+	}
+	out := make([]int, 0, len(strs))
+	for _, s := range strs {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			continue
+		}
+		n, err := strconv.Atoi(s)
+		if err != nil {
+			return fmt.Errorf("IntList: 元素 %q 不是整数: %w", s, err)
+		}
+		out = append(out, n)
+	}
+	*l = IntList(out)
+	return nil
+}
+
+// MarshalJSON 输出 JSON number 数组（与平台 getMyInfo 一致）。
+func (l IntList) MarshalJSON() ([]byte, error) {
+	if l == nil {
+		return []byte("null"), nil
+	}
+	return json.Marshal([]int(l))
+}

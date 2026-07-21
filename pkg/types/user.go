@@ -83,7 +83,9 @@ type UserInfo struct {
 	IDType          int    `json:"idType,omitempty"`          // 证件类型（数字）
 
 	// v1.4.0 新增：补齐前端 getMyInfo 响应的额外原始字段
-	RegistrationNumber string   `json:"registrationNumber,omitempty"` // 中考报名号
-	AdmissionDate      []string `json:"admissionDate,omitempty"`      // 入学年份数组
-	StudentUuid        string   `json:"studentUuid,omitempty"`        // 学生 UUID / 密码
+	RegistrationNumber string `json:"registrationNumber,omitempty"` // 中考报名号
+	// AdmissionDate 入学日期数组。平台返回 JSON number 列表（如 [2025,9,1]），
+	// 不是字符串列表；用 IntList 双兼容，避免解码失败被当成空用户。
+	AdmissionDate IntList `json:"admissionDate,omitempty"`
+	StudentUuid   string  `json:"studentUuid,omitempty"` // 学生 UUID / 密码
 }
