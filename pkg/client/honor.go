@@ -162,11 +162,13 @@ func (c *Client) ensureHonorTypeName(ctx context.Context, token string, typeID i
 
 // AddHonor 申报一条荣誉。
 //
-// v1.4.0 增强：当 payload.TypeName 为空但 payload.TypeID > 0 时，
-// 自动调用 GetHonorTypeOptions 反查 typeId 对应的 label 补全 typeName，
-// 避免因缺少 typeName 被 API 拒绝。调用方只需传 typeId 即可。
-// v2.0.0 修复：原调用 GetHonorTypeForSelect（读取 returnData 即荣誉等级），
-// 改为 GetHonorTypeOptions（读取 dataList 即荣誉类型选项）。
+// 用户输入：TypeID、Level、EvaluationAgency、GetDate、证书图（可选）。
+// SDK 自动：
+//   - TypeName 空且 TypeID>0 → GetHonorTypeOptions 反查
+//   - Name 空 → 回落 TypeName（前端不传 name）
+//   - Score 始终随请求体发出（json:"score" 无 omitempty；默认 0 对齐前端 form）
+//
+// v1.4.0：typeName 反查；v2.0.0：改读 dataList 类型选项；本版补 score 字段。
 func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error {
 	name, err := c.ensureHonorTypeName(ctx, token, payload.TypeID, payload.TypeName)
 	if err != nil {
@@ -178,6 +180,7 @@ func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHo
 	if payload.Name == "" {
 		payload.Name = payload.TypeName
 	}
+	// Score：前端 data 默认 0、无 v-model；AddHonorPayload.Score 零值也会序列化。
 
 	return c.doBizVoid(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
 }

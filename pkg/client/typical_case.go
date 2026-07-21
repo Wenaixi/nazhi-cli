@@ -10,10 +10,86 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
+// 典型案例下拉展示名（对齐 classiccanter.vue el-option label）。
+// 用户只选 code；SDK 在 *Name 为空时自动补全。
+var (
+	typicalCaseTypeNames = map[string]string{
+		"1": "研究性学习报告",
+		"2": "社会实践报告",
+		"3": "艺术创作作品",
+		"4": "其他",
+	}
+	typicalCaseRoleNames = map[string]string{
+		"1": "负责人", // types.TypicalCaseRoleHost
+		"2": "参与者", // types.TypicalCaseRoleParticipant
+	}
+	typicalCaseLevelNames = map[string]string{
+		"1": "国家",
+		"2": "省",
+		"3": "市",
+		"4": "区县",
+		"5": "学校",
+	}
+)
+
+// fillTypicalCaseDisplayNames 在 TypeName/RoleName/LevelName 为空时按 code 填展示名。
+// 已有非空 *Name 不覆盖，便于调用方自定义文案。
+func fillTypicalCaseDisplayNames(p *types.AddTypicalCasePayload) {
+	if p == nil {
+		return
+	}
+	if p.TypeName == "" {
+		if n, ok := typicalCaseTypeNames[p.Type]; ok {
+			p.TypeName = n
+		}
+	}
+	if p.RoleName == "" {
+		if n, ok := typicalCaseRoleNames[p.Role]; ok {
+			p.RoleName = n
+		}
+	}
+	if p.LevelName == "" {
+		if n, ok := typicalCaseLevelNames[p.Level]; ok {
+			p.LevelName = n
+		}
+	}
+}
+
+// fillTypicalCaseDisplayNamesMap 更新路径：map 含 type/role/level 且对应 *Name 缺失时补全。
+func fillTypicalCaseDisplayNamesMap(payload map[string]any) {
+	if payload == nil {
+		return
+	}
+	if typeName, _ := payload["typeName"].(string); typeName == "" {
+		if code, ok := payload["type"].(string); ok {
+			if n, ok := typicalCaseTypeNames[code]; ok {
+				payload["typeName"] = n
+			}
+		}
+	}
+	if roleName, _ := payload["roleName"].(string); roleName == "" {
+		if code, ok := payload["role"].(string); ok {
+			if n, ok := typicalCaseRoleNames[code]; ok {
+				payload["roleName"] = n
+			}
+		}
+	}
+	if levelName, _ := payload["levelName"].(string); levelName == "" {
+		if code, ok := payload["level"].(string); ok {
+			if n, ok := typicalCaseLevelNames[code]; ok {
+				payload["levelName"] = n
+			}
+		}
+	}
+}
+
 // AddTypicalCase 提交一条典型案例。
 //
+// 用户只需填标题/类别代码/角色代码/级别代码/指导教师等；
+// TypeName/RoleName/LevelName 为空时按前端下拉自动补全。
 // 遵循 AddHonor 模式：doBizVoid POST → 成功返回 nil。
 func (c *Client) AddTypicalCase(ctx context.Context, token string, payload types.AddTypicalCasePayload) error {
+	fillTypicalCaseDisplayNames(&payload)
 	return c.doBizVoid(ctx, token, "AddTypicalCase",
 		"/api/studentCircleNew/addTypicalCase", http.MethodPost, payload)
 }
@@ -80,7 +156,10 @@ func (c *Client) GetTypicalCaseListJSON(ctx context.Context, token string, pageN
 
 // UpdateTypicalCase 更新一条典型案例。
 // POST /api/studentCircleNew/updateTypicalCase
+//
+// 与 AddTypicalCase 对称：type/role/level 有值且对应 *Name 为空时自动补展示名。
 func (c *Client) UpdateTypicalCase(ctx context.Context, token string, payload map[string]any) error {
+	fillTypicalCaseDisplayNamesMap(payload)
 	return c.doBizVoid(ctx, token, "UpdateTypicalCase",
 		"/api/studentCircleNew/updateTypicalCase", http.MethodPost, payload)
 }

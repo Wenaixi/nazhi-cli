@@ -10,20 +10,25 @@ const (
 //
 // type/role/level 在请求体中是 JSON 字符串（HAR 确认），
 // 与列表响应中的整数类型不同。
+//
+// 用户输入（对齐 classiccanter.vue v-model）：
+// Title/Type/TeacherName/PartnerName/Role/Remark/Content/Level + 附件。
+// SDK 自动（AddTypicalCase 内）：TypeName/RoleName/LevelName 由代码映射；
+// 已显式填写的 *Name 不会被覆盖。调用方不必手填展示名。
 type AddTypicalCasePayload struct {
-	Title          string `json:"title"`          // 标题
-	Type           string `json:"type"`           // 材料类别代码（"1"）
-	TypeName       string `json:"typeName"`       // 材料类别名称（"研究性学习报告"）
-	TeacherName    string `json:"teacherName"`    // 指导教师
-	PartnerName    string `json:"partnerName"`    // 合作者
-	Role           string `json:"role"`           // 角色代码（TypicalCaseRoleHost=负责人）
-	RoleName       string `json:"roleName"`       // 角色名称（"负责人"）
-	Remark         string `json:"remark"`         // 备注
-	Content        string `json:"content"`        // 正文
-	Level          string `json:"level"`          // 级别代码（"5"）
-	LevelName      string `json:"levelName"`      // 级别名称（"学校"）
-	AttachmentID   int64  `json:"attachmentId"`   // 附件 ID（先上传图片后获得）
-	AttachmentName string `json:"attachmentName"` // 附件文件名
+	Title          string `json:"title"`          // 标题（用户）
+	Type           string `json:"type"`           // 材料类别代码（用户选，"1"…）
+	TypeName       string `json:"typeName"`       // 材料类别名称（SDK 可自动填）
+	TeacherName    string `json:"teacherName"`    // 指导教师（用户）
+	PartnerName    string `json:"partnerName"`    // 合作者（用户）
+	Role           string `json:"role"`           // 角色代码（用户选）
+	RoleName       string `json:"roleName"`       // 角色名称（SDK 可自动填）
+	Remark         string `json:"remark"`         // 备注（用户）
+	Content        string `json:"content"`        // 正文（用户）
+	Level          string `json:"level"`          // 级别代码（用户选）
+	LevelName      string `json:"levelName"`      // 级别名称（SDK 可自动填）
+	AttachmentID   int64  `json:"attachmentId"`   // 附件 ID（上传后获得）
+	AttachmentName string `json:"attachmentName"` // 附件文件名（上传后获得）
 }
 
 // TypicalCaseRecord 是已提交的典型案例记录（来自 getTypicalCase 列表接口）。

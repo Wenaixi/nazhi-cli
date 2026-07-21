@@ -85,23 +85,20 @@ func (c *Client) InvalidateCachedUserInfo() {
 //   - NationName → nation
 //   - IdCardType → idType
 //
-// 直接透传的字段（不做转换）：
-//   - Name / StudentNumber / NationalStudentNumber
-//   - Telephone / FamilyAddress / Hobbies
-//   - IDCard / BirthdayStr / Seat / StudentUuid
+// 用户可编辑透传：Telephone / FamilyAddress / Hobbies / IDCard / BirthdayStr / Seat / StudentUuid
+// 可选高级：Name→studentName、StudentNumber
+// 不写入：NationalStudentNumber（前端只读，Structured 忽略以免误改学籍）
 func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input types.UserUpdateInput) error {
 	updates := make(map[string]any, 16)
 
-	// 基础身份（直接透传）
+	// 基础身份（可选高级回传；前端主路径不编辑）
 	if input.Name != "" {
-		updates["studentName"] = input.Name  // 前端使用 studentName，不是 name
+		updates["studentName"] = input.Name // 前端 API 键 studentName
 	}
 	if input.StudentNumber != "" {
 		updates["studentNumber"] = input.StudentNumber
 	}
-	if input.NationalStudentNumber != "" {
-		updates["nationalStudentNumber"] = input.NationalStudentNumber
-	}
+	// 故意忽略 input.NationalStudentNumber（modifyBox 中 :disabled="true"）
 
 	// 联系方式（直接透传）
 	if input.Telephone != "" {

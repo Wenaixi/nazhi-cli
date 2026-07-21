@@ -924,6 +924,8 @@ null
 
 ### `AddTypicalCase(ctx context.Context, token string, payload types.AddTypicalCasePayload) error`
 
+用户只需传 type/role/level **代码**；`typeName`/`roleName`/`levelName` 为空时 SDK 按前端下拉自动补全。已填展示名不覆盖。
+
 提交一条典型案例。
 
 请求示例：

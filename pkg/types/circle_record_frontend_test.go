@@ -141,3 +141,28 @@ func TestHonorRecord_FrontendStatus(t *testing.T) {
 		t.Errorf("Score: got %d", rec.Score)
 	}
 }
+
+// TestHonorType_FrontendSnakeJSON 前端德育说明表列 dimension_name/level_name/score。
+func TestHonorType_FrontendSnakeJSON(t *testing.T) {
+	raw := `{
+		"id": 10,
+		"name": "校三好学生",
+		"dimension_name": "思想品德",
+		"level_name": "校",
+		"level": 5,
+		"score": 5
+	}`
+	var ht HonorType
+	if err := json.Unmarshal([]byte(raw), &ht); err != nil {
+		t.Fatalf("Unmarshal HonorType 失败: %v", err)
+	}
+	if ht.DimensionName != "思想品德" {
+		t.Errorf("DimensionName: got %q", ht.DimensionName)
+	}
+	if ht.LevelName != "校" {
+		t.Errorf("LevelName: got %q", ht.LevelName)
+	}
+	if ht.Score != 5 {
+		t.Errorf("Score: got %d", ht.Score)
+	}
+}

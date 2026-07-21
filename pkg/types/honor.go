@@ -1,12 +1,16 @@
 package types
 
 // HonorType 一种可申报的荣誉类型（来自 getHonorType 接口）。
+//
+// 前端 performanceM.vue 德育说明表列使用 snake_case：
+// dimension_name / level_name / score（非 camelCase）。
 type HonorType struct {
 	ID            int64  `json:"id"`
 	Name          string `json:"name"`
-	LevelName     string `json:"levelName"`
+	LevelName     string `json:"level_name"`
 	Level         int    `json:"level"`
-	DimensionName string `json:"dimensionName"`
+	DimensionName string `json:"dimension_name"`
+	Score         int    `json:"score,omitempty"` // 分值（说明表列）
 }
 
 // HonorRecord 一条已申报的荣誉记录（来自 getHonorByStudentId 接口）。
@@ -49,6 +53,10 @@ type HonorListResult struct {
 }
 
 // AddHonorPayload 是 addHonor 接口的请求体。
+//
+// 用户输入（对齐 performanceM.vue v-model）：TypeID、Level、EvaluationAgency、GetDate、证书图。
+// SDK 自动：TypeName（反查）、Name（回落 TypeName）、Score（默认 0，前端 form 无输入）。
+// 调用方一般不必填 TypeName/Name/Score。
 type AddHonorPayload struct {
 	Name                string `json:"name"`
 	TypeID              int64  `json:"typeId"`
@@ -57,6 +65,8 @@ type AddHonorPayload struct {
 	EvaluationAgency    string `json:"evaluationAgency"`
 	GetDate             string `json:"getDate"`
 	CertImgAttachmentID string `json:"certImgAttachmentId"`
+	// Score 分值。前端 form 默认 0 且无 v-model；零值也会序列化进请求体。
+	Score int `json:"score"`
 }
 
 // HonorSelectOption 是下拉选择选项。

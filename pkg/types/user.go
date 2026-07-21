@@ -2,32 +2,39 @@ package types
 
 // UserUpdateInput 是用户信息更新的结构化输入（v1.4.0 新增）。
 //
-// 接收面向用户的友好字段名（如 GenderName="男"），
-// SDK 内部自动转换为 API 数字代码（如 gender=1）。
-// 零值/空串的字段在转换时会跳过，避免覆盖服务端已有值。
+// 对齐前端 modifyBox.vue：只暴露用户可编辑的 v-model 字段；
+// SDK 将中文友好值转为 API 数字代码。零值/空串跳过（密码除外）。
+//
+// 用户应填：Telephone、FamilyAddress、Hobbies、GenderName、YouthLeague、
+// NationName、IdCardType、IDCard、BirthdayStr、StudentUuid、Seat。
+//
+// 非用户编辑（前端 disabled 或仅回显，一般勿填）：
+// Name/StudentNumber 页面整包回传用；NationalStudentNumber 只读，
+// UpdateMyInfoStructured 故意不写入该键，避免误改学籍。
 type UserUpdateInput struct {
-	// 基础身份
-	Name                  string `json:"name,omitempty"`                  // 姓名
-	StudentNumber         string `json:"studentNumber,omitempty"`         // 学号
-	NationalStudentNumber string `json:"nationalStudentNumber,omitempty"` // 全国学号
+	// 可选高级：姓名/学号（前端非主编辑项；空则不发送）
+	Name          string `json:"name,omitempty"`
+	StudentNumber string `json:"studentNumber,omitempty"`
+	// NationalStudentNumber 前端只读。字段保留兼容旧调用，但 Structured 路径忽略。
+	NationalStudentNumber string `json:"nationalStudentNumber,omitempty"`
 
-	// 联系方式
-	Telephone     string `json:"telephone,omitempty"`     // 电话号码
-	FamilyAddress string `json:"familyAddress,omitempty"` // 家庭地址
-	Hobbies       string `json:"hobbies,omitempty"`       // 爱好
+	// 用户可编辑
+	Telephone     string `json:"telephone,omitempty"`
+	FamilyAddress string `json:"familyAddress,omitempty"`
+	Hobbies       string `json:"hobbies,omitempty"`
 
 	// 个人信息（SDK 自动转换中文→API 代码）
-	GenderName  string `json:"genderName,omitempty"`  // 性别名称："男" / "女"
-	YouthLeague string `json:"youthLeague,omitempty"` // 团员："是" / "否"
-	NationName  string `json:"nationName,omitempty"`  // 民族名称："汉族" / "满族" / ...
-	IdCardType  string `json:"idCardType,omitempty"`  // 证件类型名："中国居民身份证" / "护照" / ...
-	IDCard      string `json:"idCard,omitempty"`      // 身份证号
-	BirthdayStr string `json:"birthdayStr,omitempty"` // 生日字符串（YYYY-MM-DD）
+	GenderName  string `json:"genderName,omitempty"`  // "男" / "女"
+	YouthLeague string `json:"youthLeague,omitempty"` // "是" / "否"
+	NationName  string `json:"nationName,omitempty"`
+	IdCardType  string `json:"idCardType,omitempty"`
+	IDCard      string `json:"idCard,omitempty"`
+	BirthdayStr string `json:"birthdayStr,omitempty"` // YYYY-MM-DD
 
-	// 密码（前端用 studentUuid 字段表示密码，空串表示不修改；v1.4.0 新增）
+	// 密码（studentUuid；空串表示不修改）
 	StudentUuid string `json:"studentUuid,omitempty"`
 
-	// 座号（整数，0 表示跳过）
+	// 座号（0 表示跳过）
 	Seat int `json:"seat,omitempty"`
 }
 

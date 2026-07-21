@@ -24,6 +24,8 @@
 - CLI 新增 `printParamError`：参数错误固定 `envelope.Error(400)` → 退出码 3
 - `HonorRecord.Status int`：荣誉列表审核状态码（前端 `scope.row.status`）
 - 常量 `TypicalCaseStatusPending/Approved/Rejected/All`
+- `HonorType.Score` + snake tag；`AddHonorPayload.Score`（默认 0 随请求发出）
+- `AddTypicalCase` / `UpdateTypicalCase`：空 `typeName`/`roleName`/`levelName` 时按 code 自动补全（对齐 classiccanter 下拉）
 
 ### 修复
 
@@ -46,7 +48,9 @@
 - 写实列表 `Get*CirclesJSON` 部分页失败时输出 `envelope.Partial(207)` 保留已合并数据
 - **CircleRecord 混用命名解析**：`imgList`/`imgPreViewList`/`commentList`/`likeStatus`/`ifMySelf`/`auditRemark`/`creationTimeStr`/`showName`/`imgPath`/`studentId` 对齐平台真实 JSON（此前 snake_case tag 导致结构化 API 静默丢字段；CLI `*JSON` 透传不受影响）
 - **GetTypicalCaseList 注释与能力**：status=3 为前端「全部」而非「已提交」；支持按审核状态筛选
-
+- **HonorType JSON tag**：`dimension_name`/`level_name`（前端德育说明表；此前 camel 导致空字段）
+- **UpdateMyInfoStructured**：忽略 `NationalStudentNumber`（前端只读，防止误写学籍）
+- **输入暴露原则**：用户手填字段进 Input；前端自动填字段由 SDK 补全（典型案例 *Name、荣誉 typeName/name/score）
 ## [1.3.0] - 2026-07-18
 
 ### 新增
