@@ -152,6 +152,59 @@ func TestAppendLocked_ConcurrentVariadic(t *testing.T) {
 	}
 }
 
+// ─── TermName 独立字段 ───
+
+// TestBuildTaskPayload_TermNameIndependent 验证 termName 不再误用 circleDate。
+// 仅传 CircleDate 时 TermName 必须为空；显式传 TermName 时两者互不覆盖。
+func TestBuildTaskPayload_TermNameIndependent(t *testing.T) {
+	// mock：getCircleTypeByTaskId + getMyInfo（经 session 预热）
+	var captured types.TaskAddCirclePayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"","type":10}}`))
+		case "/api/studentCircleNew/addCircle":
+			_ = json.NewDecoder(r.Body).Decode(&captured)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	c, err := New(WithBaseURL(server.URL), WithSSOBase(server.URL), WithTimeout(5*1000*1000*1000))
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	// 只传 CircleDate → TermName 必须为空（当前 bug 会把 CircleDate 填进 TermName）
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:     1001,
+		Content:    "内容",
+		CircleDate: "2026-03-01",
+	})
+	if err != nil {
+		t.Fatalf("SubmitTask 失败: %v", err)
+	}
+	if captured.CircleDate != "2026-03-01" {
+		t.Errorf("CircleDate 应保持 2026-03-01，实际 %q", captured.CircleDate)
+	}
+	if captured.TermName != "" {
+		t.Errorf("仅传 CircleDate 时 TermName 应为空，实际 %q（不应回落为 CircleDate）", captured.TermName)
+	}
+}
+
 // ─── isContextError helper 测试 ───
 
 // TestIsContextError 验证 isContextError 对 context.Canceled、context.DeadlineExceeded 返回 true，
@@ -175,5 +228,84 @@ func TestIsContextError(t *testing.T) {
 				t.Errorf("isContextError(%v) = %v, want %v", tt.err, got, tt.want)
 			}
 		})
+	}
+}
+
+// ─── parseHours 非法输入 ───
+
+// TestParseHours_InvalidNonEmpty 非空且 ParseFloat 失败应返回 ErrInvalidPayload。
+func TestParseHours_InvalidNonEmpty(t *testing.T) {
+	_, err := parseHours("abc", 1.5)
+	if err == nil {
+		t.Fatal("非法 hours 应返回 error")
+	}
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+	}
+}
+
+// TestParseHours_EmptyFallsBack 空串回退 metaHours。
+func TestParseHours_EmptyFallsBack(t *testing.T) {
+	got, err := parseHours("  ", 2.5)
+	if err != nil {
+		t.Fatalf("空串不应 error: %v", err)
+	}
+	if got != 2.5 {
+		t.Fatalf("期望 2.5，得到 %v", got)
+	}
+}
+
+// TestParseHours_Valid 合法数字解析成功。
+func TestParseHours_Valid(t *testing.T) {
+	got, err := parseHours("3.5", 1.0)
+	if err != nil {
+		t.Fatalf("合法 hours 不应 error: %v", err)
+	}
+	if got != 3.5 {
+		t.Fatalf("期望 3.5，得到 %v", got)
+	}
+}
+
+// TestSubmitTask_InvalidHours 端到端：非法 hours 在 SubmitTask 路径返回 ErrInvalidPayload。
+func TestSubmitTask_InvalidHours(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"","type":10}}`))
+		case "/api/studentCircleNew/addCircle":
+			t.Error("非法 hours 不应到达 addCircle")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	c, err := New(WithBaseURL(server.URL), WithSSOBase(server.URL), WithTimeout(5*1000*1000*1000))
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:  1001,
+		Content: "内容",
+		Hours:   "not-a-number",
+	})
+	if err == nil {
+		t.Fatal("非法 hours 应失败")
+	}
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
 	}
 }
