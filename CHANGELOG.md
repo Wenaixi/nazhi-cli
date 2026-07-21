@@ -11,13 +11,19 @@
 
 - SDK 写实列表 `*JSON` 方法签名新增 `key string`：`GetSubmitted/Teacher/Withdrawn/PublicCirclesJSON`、`*LimitJSON` 及 `getCirclesJSON`/`getCirclesLimitJSON` 内部贯通关键字筛选（此前硬编码 `key=""`）
 - SDK `GetHonorList` / `GetHonorListJSON` 签名新增 `key string`（此前硬编码 `&key=` 空值）
+- SDK `CircleRecord` 结构化字段 JSON tag 对齐真实 API 混用命名（见「修复」）：依赖错误 snake_case tag（如 `img_list`/`is_my_self`）的调用方需改用真实键或字段访问
+- `CircleRecord.IsMySelf bool` 重命名为 `IfMySelf int`（前端 `ifMySelf==1`）
+- `GetTypicalCaseList` / `GetTypicalCaseListJSON` 增加可选 `status ...int`（默认 3=全部）；三参数旧调用仍兼容
 
 ### 新增
 
 - CLI `nazhi task submitted|done|teacher|public|withdrawn` 支持 `--key` 关键字筛选（含 Peek 总数路径）
 - CLI `nazhi honor list` 支持 `--key` 关键字筛选
+- CLI `nazhi typical-case list --status`（0 未审 / 1 通过 / 2 驳回 / 3 全部，默认 3）
 - `TaskInput` / `TaskSubmitInput` / `TaskEditInput` 新增独立 `TermName` 字段（不再误用 `CircleDate` 填 `termName`）
 - CLI 新增 `printParamError`：参数错误固定 `envelope.Error(400)` → 退出码 3
+- `HonorRecord.Status int`：荣誉列表审核状态码（前端 `scope.row.status`）
+- 常量 `TypicalCaseStatusPending/Approved/Rejected/All`
 
 ### 修复
 
@@ -33,10 +39,13 @@
 - `nazhi user update` 解析 `UserUpdateInput` 并调用 `UpdateMyInfoStructured`，友好键（genderName 等）正确 remap
 - `QuerySelfEvaluation` 未提交评价时返回 `(nil, nil)`，不再把空成功误判为「所有解码器均失败」
 - `UpdateHonor` 对称补全 `typeName`（与 `AddHonor` 共用 ensureHonorTypeName）
+- `AddHonor` 空 `Name` 时回落 `TypeName`（对齐前端新增表单不传 name）
 - `GetCircleTypes` 对 `pid` 做 `url.QueryEscape`
 - `WithOCRConcurrency` 不再覆盖 `WithCustomOCR` 注入的识别器
 - 参数错误改用 `printParamError(400)`→exit 3（缺 token / payload 解析失败等）
 - 写实列表 `Get*CirclesJSON` 部分页失败时输出 `envelope.Partial(207)` 保留已合并数据
+- **CircleRecord 混用命名解析**：`imgList`/`imgPreViewList`/`commentList`/`likeStatus`/`ifMySelf`/`auditRemark`/`creationTimeStr`/`showName`/`imgPath`/`studentId` 对齐平台真实 JSON（此前 snake_case tag 导致结构化 API 静默丢字段；CLI `*JSON` 透传不受影响）
+- **GetTypicalCaseList 注释与能力**：status=3 为前端「全部」而非「已提交」；支持按审核状态筛选
 
 ## [1.3.0] - 2026-07-18
 

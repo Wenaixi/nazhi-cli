@@ -1154,11 +1154,12 @@ payload 字段：
 
 ## nazhi typical-case list
 
-获取当前用户已提交的典型案例记录（分页）。
+获取当前用户的典型案例记录（分页）。`--status` 按审核状态筛选，语义与前端典型案例页下拉一致。
 
 ```bash
 nazhi typical-case list --token "eyJhbGciOiJIUzUxMiJ9.xxx"
-nazhi typical-case list --token "xxx" --page 1 --page-size 20
+nazhi typical-case list --token "xxx" --status 1
+nazhi typical-case list --token "xxx" --page 1 --page-size 20 --status 3
 ```
 
 | 标志 | 必填 | 环境变量 | 说明 |
@@ -1166,6 +1167,7 @@ nazhi typical-case list --token "xxx" --page 1 --page-size 20
 | `--token` | ✅ | `NAZHI_TOKEN` | X-Auth-Token |
 | `--page` | — | — | 页码（从 1 开始），默认 `1` |
 | `--page-size` | — | — | 每页条数，默认 `20` |
+| `--status` | — | — | 审核状态：`0` 未审 / `1` 通过 / `2` 驳回 / `3` 全部（默认 `3`） |
 | `--base-url` | — | `NAZHI_BASE_URL` | 业务 API 根地址 |
 | `--timeout` | — | `NAZHI_TIMEOUT` | HTTP 超时（秒） |
 

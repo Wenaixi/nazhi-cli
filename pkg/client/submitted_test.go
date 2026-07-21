@@ -38,7 +38,7 @@ func submittedPageBean(pageNo, pageSize, totalNum, totalPage int) string {
 	return string(b)
 }
 
-// submittedRecord 生成一条写实记录。
+// submittedRecord 生成一条写实记录（字段名对齐前端/平台真实 JSON）。
 func submittedRecord(id int64, name string, status int) map[string]any {
 	return map[string]any{
 		"id":             id,
@@ -54,7 +54,7 @@ func submittedRecord(id int64, name string, status int) map[string]any {
 		"studentId":      387020,
 		"class_name":     "八班",
 		"ifMySelf":       1,
-		"img_list":       []map[string]any{},
+		"imgList":        []map[string]any{},
 		"remark":         name,
 	}
 }
@@ -366,7 +366,8 @@ func TestSubmittedDecodePageBean_Nil(t *testing.T) {
 
 // TestSubmittedDecodeCircleRecord 验证 CircleRecord 解码。
 func TestSubmittedDecodeCircleRecord(t *testing.T) {
-	jsonData := `{"id":1,"name":"国旗下讲话","content":"写实内容","type_name":"爱党爱国教育","approved":false,"circle_date":"2026-02-06T00:00:00Z","hours":0.5,"img_list":[],"remark":"国旗下讲话"}`
+	// 使用平台真实 camelCase 混用命名（imgList/ifMySelf/creationTimeStr）
+	jsonData := `{"id":1,"name":"国旗下讲话","content":"写实内容","type_name":"爱党爱国教育","approved":false,"circle_date":"2026-02-06T00:00:00Z","hours":0.5,"imgList":[{"id":1,"attachment_id":9,"imgPath":".jpg"}],"ifMySelf":1,"creationTimeStr":"2026-02-06 10:00","remark":"国旗下讲话"}`
 	var rec types.CircleRecord
 	if err := json.Unmarshal([]byte(jsonData), &rec); err != nil {
 		t.Fatalf("Unmarshal CircleRecord 失败: %v", err)
@@ -379,6 +380,15 @@ func TestSubmittedDecodeCircleRecord(t *testing.T) {
 	}
 	if rec.TypeName != "爱党爱国教育" {
 		t.Errorf("期望 typeName=爱党爱国教育，实际 %s", rec.TypeName)
+	}
+	if len(rec.ImgList) != 1 || rec.ImgList[0].ImgPath != ".jpg" {
+		t.Errorf("期望 imgList 解码成功，实际 %+v", rec.ImgList)
+	}
+	if rec.IfMySelf != 1 {
+		t.Errorf("期望 ifMySelf=1，实际 %d", rec.IfMySelf)
+	}
+	if rec.CreationTimeStr != "2026-02-06 10:00" {
+		t.Errorf("期望 creationTimeStr，实际 %q", rec.CreationTimeStr)
 	}
 }
 
@@ -493,9 +503,9 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 	}
 }
 
-// TestSubmittedDecodeCircleImg 验证 CircleImage 解码。
+// TestSubmittedDecodeCircleImg 验证 CircleImage 解码（imgPath 为 camelCase）。
 func TestSubmittedDecodeCircleImg(t *testing.T) {
-	jsonData := `{"id":4987641,"circle_id":5389265,"class_id":162647,"task_id":18296,"attachment_id":5005765,"img_path":".jpg"}`
+	jsonData := `{"id":4987641,"circle_id":5389265,"class_id":162647,"task_id":18296,"attachment_id":5005765,"imgPath":".jpg"}`
 	var img types.CircleImage
 	if err := json.Unmarshal([]byte(jsonData), &img); err != nil {
 		t.Fatalf("Unmarshal CircleImage 失败: %v", err)

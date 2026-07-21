@@ -246,13 +246,13 @@ func TestGetTypicalCaseListJSON(t *testing.T) {
 	}
 }
 
-// TestGetTypicalCaseList_StatusParam 验证 status=3 参数。
-func TestGetTypicalCaseList_StatusParam(t *testing.T) {
+// TestGetTypicalCaseList_DefaultStatus 验证默认 status=3（前端「全部」）。
+func TestGetTypicalCaseList_DefaultStatus(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/studentCircleNew/getTypicalCase" {
 			q := r.URL.Query()
 			if q.Get("status") != "3" {
-				t.Errorf("期望 status=3，实际 %s", q.Get("status"))
+				t.Errorf("期望默认 status=3，实际 %s", q.Get("status"))
 			}
 			w.Header().Set("Content-Type", "application/json")
 			resp := map[string]any{
@@ -268,8 +268,44 @@ func TestGetTypicalCaseList_StatusParam(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
+	// 默认 status 与三参数旧调用兼容：不传 status 时用 3
 	_, err := c.GetTypicalCaseList(context.Background(), "test-token", 1, 20)
 	if err != nil {
 		t.Fatalf("GetTypicalCaseList 失败: %v", err)
+	}
+}
+
+// TestGetTypicalCaseList_CustomStatus 验证可按审核状态筛选（0 未审 / 1 通过 / 2 驳回 / 3 全部）。
+func TestGetTypicalCaseList_CustomStatus(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentCircleNew/getTypicalCase" {
+			q := r.URL.Query()
+			if q.Get("status") != "1" {
+				t.Errorf("期望 status=1，实际 %s", q.Get("status"))
+			}
+			if q.Get("pageNo") != "1" || q.Get("pageSize") != "20" {
+				t.Errorf("分页参数错误: pageNo=%s pageSize=%s", q.Get("pageNo"), q.Get("pageSize"))
+			}
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": typicalCasePageBeanJSON(1, 20, 0),
+				"dataList": []map[string]any{},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	_, err := c.GetTypicalCaseList(context.Background(), "test-token", 1, 20, 1)
+	if err != nil {
+		t.Fatalf("GetTypicalCaseList 失败: %v", err)
+	}
+	_, err = c.GetTypicalCaseListJSON(context.Background(), "test-token", 1, 20, 1)
+	if err != nil {
+		t.Fatalf("GetTypicalCaseListJSON 失败: %v", err)
 	}
 }

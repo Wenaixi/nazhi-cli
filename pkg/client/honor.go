@@ -173,6 +173,11 @@ func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHo
 		return fmt.Errorf("AddHonor %w", err)
 	}
 	payload.TypeName = name
+	// 前端新增表单不传 name，只传 typeName；服务端部分路径仍读 name。
+	// 空 name 时回落 typeName，与页面「选类型即名称」行为对齐。
+	if payload.Name == "" {
+		payload.Name = payload.TypeName
+	}
 
 	return c.doBizVoid(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
 }

@@ -474,6 +474,85 @@ func TestUpdateHonor_SkipAutoFillWhenTypeNamePresent(t *testing.T) {
 	}
 }
 
+// TestAddHonor_NameDefaultsToTypeName 前端新增表单不传 name，只传 typeName；
+// SDK 在 Name 为空时用 TypeName 填 name，与页面行为对齐。
+func TestAddHonor_NameDefaultsToTypeName(t *testing.T) {
+	var gotBody map[string]any
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentMoralEduNew/addHonor" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"新增成功"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	err := c.AddHonor(context.Background(), "test-token", types.AddHonorPayload{
+		// Name 故意为空
+		TypeID:           1147,
+		TypeName:         "校学生优秀干部",
+		Level:            5,
+		EvaluationAgency: "示例中学",
+		GetDate:          "2026-06-30",
+	})
+	if err != nil {
+		t.Fatalf("AddHonor 失败: %v", err)
+	}
+	if gotBody["name"] != "校学生优秀干部" {
+		t.Errorf("期望 name 回落为 typeName=校学生优秀干部，实际 %v", gotBody["name"])
+	}
+	if gotBody["typeName"] != "校学生优秀干部" {
+		t.Errorf("期望 typeName=校学生优秀干部，实际 %v", gotBody["typeName"])
+	}
+}
+
+// TestGetHonorList_StatusField 验证列表响应 status 整型进入 HonorRecord。
+func TestGetHonorList_StatusField(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentMoralEduNew/getHonorByStudentId" {
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":     1,
+				"pageBean": json.RawMessage(`{"pageNo":1,"pageSize":20,"totalNum":1,"totalPage":1}`),
+				"dataList": []map[string]any{
+					{
+						"id":                int64(1),
+						"type_name":         "校三好学生",
+						"level_name":        "校",
+						"level":             5,
+						"dimension_name":    "思想品德",
+						"status":            0,
+						"statusName":        "未审核",
+						"get_date":          "2026-06-30",
+						"evaluation_agency": "示例中学",
+					},
+				},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	result, err := c.GetHonorList(context.Background(), "test-token", 1, 20, "")
+	if err != nil {
+		t.Fatalf("GetHonorList 失败: %v", err)
+	}
+	if len(result.Records) != 1 {
+		t.Fatalf("期望 1 条，实际 %d", len(result.Records))
+	}
+	if result.Records[0].Status != 0 {
+		t.Errorf("期望 Status=0，实际 %d", result.Records[0].Status)
+	}
+	if result.Records[0].ApprovedName != "未审核" {
+		t.Errorf("期望 ApprovedName=未审核，实际 %q", result.Records[0].ApprovedName)
+	}
+}
 
 // TestGetHonorList_KeyParam 验证 key 查询参数正确透传（含空格，经 QueryEscape）。
 func TestGetHonorList_KeyParam(t *testing.T) {

@@ -15,6 +15,9 @@ type HonorType struct {
 //
 // v1.4.0 修复：JSON tag 修正为 snake_case 以匹配 API 实际返回的字段名，
 // 补充 honor_list 中前端用到的 type_id / cert_img_attachment_id / score / score_name 字段。
+//
+// v1.4.1：补 Status 整型（前端 scope.row.status != 1 控制编辑/删除）；
+// Approved 仍保留兼容（测试夹具与部分响应可能带 approved bool）。
 type HonorRecord struct {
 	ID               int64  `json:"id"`
 	TypeName         string `json:"type_name"`
@@ -22,8 +25,9 @@ type HonorRecord struct {
 	Level            int    `json:"level"`
 	DimensionName    string `json:"dimension_name"`
 	Approved         bool   `json:"approved"`
-	ApprovedName     string `json:"statusName"`             // 审核状态名称（API 返回 statusName）
-	GetDate          string `json:"get_date"` // 原始日期字符串
+	Status           int    `json:"status"`     // 审核状态码：0 未审 / 1 通过 等（前端编辑按钮用）
+	ApprovedName     string `json:"statusName"` // 审核状态名称（API 返回 statusName）
+	GetDate          string `json:"get_date"`   // 原始日期字符串
 	EvaluationAgency string `json:"evaluation_agency"`
 
 	// v1.4.0 新增：前端 performanceM.vue 中实际使用的字段
@@ -33,9 +37,9 @@ type HonorRecord struct {
 	ScoreName           string `json:"score_name,omitempty"`             // 分数描述
 
 	// v1.4.1 新增：补齐前端表格列使用的字段
-	IfShow      string `json:"ifshow,omitempty"`      // 是否报告单展示
+	IfShow      string `json:"ifshow,omitempty"`       // 是否报告单展示
 	StudentName string `json:"student_name,omitempty"` // 学生姓名
-	ClassName   string `json:"class_name,omitempty"`  // 班级名称
+	ClassName   string `json:"class_name,omitempty"`   // 班级名称
 }
 
 // HonorListResult 是 GetHonorList 的统一返回对象。

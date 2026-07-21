@@ -69,13 +69,16 @@ var typicalCaseSubmitCmd = &cobra.Command{
 
 // typicalCaseListCmd 表示 nazhi typical-case list 命令
 //
-//	nazhi typical-case list --token <token> [--page <页>] [--page-size <条>]
+//	nazhi typical-case list --token <token> [--page <页>] [--page-size <条>] [--status <状态>]
 //	envelope.data 透传 SDK GetTypicalCaseListJSON 的原始 JSON（含 records + page）
+//	status：0 未审 / 1 通过 / 2 驳回 / 3 全部（默认 3，与前端一致）
 var typicalCaseListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "获取已提交典型案例",
-	Long:  `获取当前用户已提交的全部典型案例记录（分页）。`,
+	Short: "获取典型案例列表",
+	Long: `获取当前用户的典型案例记录（分页）。
+--status 筛选审核状态：0 未审核 / 1 通过 / 2 驳回 / 3 全部（默认）。`,
 	Example: `  nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx
+  nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --status 1
   nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
@@ -86,9 +89,10 @@ var typicalCaseListCmd = &cobra.Command{
 
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
+		status, _ := cmd.Flags().GetInt("status")
 
 		printVerbose("正在获取典型案例列表...")
-		raw, err := c.GetTypicalCaseListJSON(cmd.Context(), token, pageNo, pageSize)
+		raw, err := c.GetTypicalCaseListJSON(cmd.Context(), token, pageNo, pageSize, status)
 		if err != nil {
 			printError(fmt.Errorf("获取典型案例列表失败: %w", err))
 			return
@@ -108,6 +112,7 @@ func init() {
 	typicalCaseCmd.AddCommand(typicalCaseListCmd)
 	typicalCaseListCmd.Flags().Int("page", 1, "页码（从 1 开始）")
 	typicalCaseListCmd.Flags().Int("page-size", 20, "每页条数")
+	typicalCaseListCmd.Flags().Int("status", 3, "审核状态：0 未审 / 1 通过 / 2 驳回 / 3 全部（默认）")
 	registerBizFlags(typicalCaseListCmd)
 
 	// typical-case update

@@ -136,7 +136,7 @@ nazhi
 │   └── delete                   删除荣誉记录
 ├── typical-case
 │   ├── submit                   提交典型案例
-│   ├── list                     获取已提交典型案例
+│   ├── list                     获取典型案例（可 --status 筛审核状态）
 │   ├── update                   更新典型案例
 │   └── delete                   删除典型案例
 ├── user

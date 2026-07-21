@@ -160,8 +160,8 @@ func New(opts ...Option) (*Client, error)
 | `AddHonor` | `(ctx, token, payload) error` | — |
 | `DeleteHonor` | `(ctx, token, honorID) error` | — |
 | `AddTypicalCase` | `(ctx, token, payload) error` | — |
-| `GetTypicalCaseList` | `(ctx, token, pageNo, pageSize) (*types.TypicalCaseListResult, error)` | `records` + `page` |
-| `GetTypicalCaseListJSON` | `(ctx, token, pageNo, pageSize) (json.RawMessage, error)` | 原始 JSON `{records, page}` |
+| `GetTypicalCaseList` | `(ctx, token, pageNo, pageSize, status...int) (*types.TypicalCaseListResult, error)` | `records` + `page`；status 默认 3=全部 |
+| `GetTypicalCaseListJSON` | `(ctx, token, pageNo, pageSize, status...int) (json.RawMessage, error)` | 原始 JSON `{records, page}` |
 | `UploadFile` | `(ctx, filePath) (*UploadFileResult, error)` | `attachmentID` |
 | `DownloadFile` | `(ctx, attachmentID, dst) error` | — |
 | `DeleteCircle` | `(ctx, token, circleID) error` | — |
@@ -982,14 +982,24 @@ null
 }
 ```
 
-### `GetTypicalCaseList(ctx context.Context, token string, pageNo, pageSize int) (*types.TypicalCaseListResult, error)`
+### `GetTypicalCaseList(ctx context.Context, token string, pageNo, pageSize int, status ...int) (*types.TypicalCaseListResult, error)`
 
-查询已提交典型案例列表（分页）。`status=3` 固定查询已提交状态的记录。
+查询典型案例列表（分页）。`status` 为可选变参，默认 `3`（全部），与前端下拉一致：
+
+| status | 含义 |
+|--------|------|
+| 0 | 未审核 |
+| 1 | 通过 |
+| 2 | 驳回 |
+| 3 | 全部（默认） |
 
 请求示例：
 
 ```go
+// 默认全部
 result, err := c.GetTypicalCaseList(ctx, token, 1, 20)
+// 仅已通过
+result, err := c.GetTypicalCaseList(ctx, token, 1, 20, 1)
 if err != nil {
     log.Fatalf("获取典型案例列表失败：%v", err)
 }
@@ -1033,9 +1043,10 @@ SDK 响应示例：
 }
 ```
 
-### `GetTypicalCaseListJSON(ctx context.Context, token string, pageNo, pageSize int) (json.RawMessage, error)`
+### `GetTypicalCaseListJSON(ctx context.Context, token string, pageNo, pageSize int, status ...int) (json.RawMessage, error)`
 
-返回已提交典型案例列表的原始 JSON，CLI 1:1 对齐用途。返回拼装后的完整 JSON 对象 `{"records":..., "page":...}`，records 和 page 字段值都是平台原始字节。
+返回典型案例列表的原始 JSON，CLI 1:1 对齐用途。`status` 语义同 `GetTypicalCaseList`（默认 3=全部）。
+返回拼装后的完整 JSON 对象 `{"records":..., "page":...}`，records 和 page 字段值都是平台原始字节。
 
 ---
 

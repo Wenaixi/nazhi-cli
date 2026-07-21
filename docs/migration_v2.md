@@ -369,7 +369,7 @@ if info.SchoolID == 0 || info.SchoolName == "" {
 | 文件 | 变更内容 |
 |------|---------|
 | `pkg/types/datetime.go` | **删除** `DateOnly` 自定义类型 |
-| `pkg/types/circle.go` | `CircleDate` string、`Approved bool`→`Status int`、`IsMySelf bool`→`IfMySelf int`、`LikeStatus bool`→`LikeStatus int`、JSON tag 全量 snake_case |
+| `pkg/types/circle.go` | `CircleDate` string；混用命名：snake 活动字段 + camelCase UI 字段（`imgList`/`ifMySelf`/`likeStatus`/`auditRemark`/`commentList`/`creationTimeStr`/`showName`/`imgPath`/`studentId`）；`IfMySelf int`（非 bool） |
 | `pkg/types/task.go` | `StartDate/EndDate` string、删除 `DateOnly`、`NeedPic`→新增 `UpPic int`、`Submitted` 保留+保留 `CircleTaskStatus` |
 | `pkg/types/honor.go` | `GetDate` string、`Approved bool`→保留 `Status int` |
 | `pkg/types/notification.go` | `CreateTime` string |（v1.3.0 已删除，不再维护）

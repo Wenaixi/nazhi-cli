@@ -18,13 +18,28 @@ func (c *Client) AddTypicalCase(ctx context.Context, token string, payload types
 		"/api/studentCircleNew/addTypicalCase", http.MethodPost, payload)
 }
 
-// GetTypicalCaseList 查询已提交典型案例列表（分页）。
+// 典型案例审核状态（与前端 classiccanter.vue 下拉一致）。
+const (
+	TypicalCaseStatusPending  = 0 // 未审核
+	TypicalCaseStatusApproved = 1 // 通过
+	TypicalCaseStatusRejected = 2 // 驳回
+	TypicalCaseStatusAll      = 3 // 全部（前端默认）
+)
+
+// GetTypicalCaseList 查询典型案例列表（分页）。
 //
-// 遵循 GetHonorList 模式：path 拼参数 → doBizAndDecode → 解析 dataList + pageBean。
-// status=3 表示"已提交"状态的记录（HAR 确认）。
-func (c *Client) GetTypicalCaseList(ctx context.Context, token string, pageNo, pageSize int) (*types.TypicalCaseListResult, error) {
+// status 为可选变参：不传时默认 3（全部），与前端默认一致。
+// 取值：0 未审 / 1 通过 / 2 驳回 / 3 全部。
+//
+// 签名：GetTypicalCaseList(ctx, token, pageNo, pageSize, status...int)
+// 多传 status 时仅用第一个。
+func (c *Client) GetTypicalCaseList(ctx context.Context, token string, pageNo, pageSize int, status ...int) (*types.TypicalCaseListResult, error) {
+	st := TypicalCaseStatusAll
+	if len(status) > 0 {
+		st = status[0]
+	}
 	path := "/api/studentCircleNew/getTypicalCase?pageNo=" + strconv.Itoa(pageNo) +
-		"&pageSize=" + strconv.Itoa(pageSize) + "&status=3"
+		"&pageSize=" + strconv.Itoa(pageSize) + "&status=" + strconv.Itoa(st)
 
 	resp, err := c.doBizAndDecode(ctx, token, "GetTypicalCaseList", path, http.MethodGet, nil)
 	if err != nil {
@@ -44,13 +59,17 @@ func (c *Client) GetTypicalCaseList(ctx context.Context, token string, pageNo, p
 	return &types.TypicalCaseListResult{Records: records, Page: pb}, nil
 }
 
-// GetTypicalCaseListJSON 返回已提交典型案例列表的原始 JSON（CLI 1:1 对齐）。
+// GetTypicalCaseListJSON 返回典型案例列表的原始 JSON（CLI 1:1 对齐）。
 //
-// 遵循 GetHonorListJSON 模式：拼装 {"records":..., "page":...}，
-// records 和 page 字段值都是平台原始字节。
-func (c *Client) GetTypicalCaseListJSON(ctx context.Context, token string, pageNo, pageSize int) (json.RawMessage, error) {
+// status 变参语义同 GetTypicalCaseList：默认 3（全部）。
+// 拼装 {"records":..., "page":...}，records 和 page 均为平台原始字节。
+func (c *Client) GetTypicalCaseListJSON(ctx context.Context, token string, pageNo, pageSize int, status ...int) (json.RawMessage, error) {
+	st := TypicalCaseStatusAll
+	if len(status) > 0 {
+		st = status[0]
+	}
 	path := "/api/studentCircleNew/getTypicalCase?pageNo=" + strconv.Itoa(pageNo) +
-		"&pageSize=" + strconv.Itoa(pageSize) + "&status=3"
+		"&pageSize=" + strconv.Itoa(pageSize) + "&status=" + strconv.Itoa(st)
 
 	resp, err := c.doBizAndDecode(ctx, token, "GetTypicalCaseListJSON", path, http.MethodGet, nil)
 	if err != nil {

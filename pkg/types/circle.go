@@ -10,13 +10,17 @@ type PageBean struct {
 
 // CircleRecord 一条已提交的写实记录（来自 getStudentCircle 接口）。
 //
+// 平台字段命名混用（2026-07-21 对照前端 + docs/sdk 样例确认）：
+//   - 活动/任务元数据多为 snake_case：host_name、type_name、circle_task_name …
+//   - UI 相关字段为 camelCase：imgList、imgPreViewList、commentList、likeStatus、
+//     ifMySelf、creationTimeStr、showName、imgPath、studentId
+//
+// JSON tag 必须以平台真实键名为准，禁止假设「全 snake 或全 camel」。
+// Go 字段名保持驼峰惯例。
+//
 // v1.3.0 扩展：补齐前端所有原始字段。
-// v2.0.0 变更：CircleDate 改为 string，保留服务端原始日期格式。
-//
-//	Level/CheckResult 改为 int，与服务端返回类型一致。
-//
-// v1.4.0 修复：JSON tag 修正为 snake_case 以匹配 API 实际返回的字段名（前端的 getStudentCircle
-// 响应使用下划线命名），Go 字段名保持驼峰（Go 惯例）。
+// v2.0.0 变更：CircleDate 改为 string；Level/CheckResult 改为 int。
+// v1.4.1 修复：混用 camelCase 字段对齐真实 API（原错误写成全 snake 导致静默丢字段）。
 type CircleRecord struct {
 	// 基础字段
 	ID             int64         `json:"id"`
@@ -26,15 +30,15 @@ type CircleRecord struct {
 	Approved       bool          `json:"approved"`
 	CircleDate     string        `json:"circle_date"`
 	Hours          float64       `json:"hours"`
-	ImgList        []CircleImage `json:"img_list"`
-	ImgPreViewList []string      `json:"img_pre_view_list"`
+	ImgList        []CircleImage `json:"imgList"`
+	ImgPreViewList []string      `json:"imgPreViewList"`
 	Remark         string        `json:"remark"`
 
 	// 类型与状态编号
 	Type   int `json:"type,omitempty"`
 	Status int `json:"status,omitempty"`
 
-	// 活动/竞赛相关字段（API 返回 snake_case，Go 字段名保持驼峰）
+	// 活动/竞赛相关字段（API 返回 snake_case）
 	HostName            string `json:"host_name,omitempty"`
 	Rank                string `json:"rank,omitempty"`
 	Level               int    `json:"level,omitempty"`
@@ -57,15 +61,15 @@ type CircleRecord struct {
 	LikeSpecialty2      string `json:"like_specialty2,omitempty"`
 	LikeSpecialty3      string `json:"like_specialty3,omitempty"`
 
-	// 元数据字段
+	// 元数据字段（creationTimeStr/showName 为 camelCase）
 	OperatorName    string `json:"operator_name,omitempty"`
-	CreationTimeStr string `json:"creation_time_str,omitempty"`
+	CreationTimeStr string `json:"creationTimeStr,omitempty"`
 	CircleTaskName  string `json:"circle_task_name,omitempty"`
-	ShowName        string `json:"show_name,omitempty"`
+	ShowName        string `json:"showName,omitempty"`
 
-	// 学生/创建者信息（这些字段 API 已用 snake_case）
+	// 学生/创建者信息
 	Creator      int64  `json:"creator,omitempty"`
-	StudentId    int64  `json:"student_id,omitempty"`
+	StudentId    int64  `json:"studentId,omitempty"`
 	StudentNum   string `json:"student_num,omitempty"`
 	ClassName    string `json:"class_name,omitempty"`
 	GradeName    string `json:"grade_name,omitempty"`
@@ -100,13 +104,14 @@ type CircleRecord struct {
 	// 点赞信息
 	LikeList []any `json:"like_list,omitempty"`
 
-	// 状态字段
-	IsMySelf    bool   `json:"is_my_self,omitempty"`
-	AuditRemark string `json:"audit_remark,omitempty"`
-	LikeStatus  bool   `json:"like_status,omitempty"`
+	// 状态字段（ifMySelf 为数字 0/1，前端 item.ifMySelf==1；
+	// likeStatus / auditRemark 为 camelCase，见 managementRightBottom.vue）
+	IfMySelf    int    `json:"ifMySelf,omitempty"`
+	AuditRemark string `json:"auditRemark,omitempty"`
+	LikeStatus  bool   `json:"likeStatus,omitempty"`
 
-	// 评论列表
-	CommentList []Comment `json:"comment_list,omitempty"`
+	// 评论列表（camelCase）
+	CommentList []Comment `json:"commentList,omitempty"`
 }
 
 // Comment 写实记录关联的评论。
@@ -120,11 +125,12 @@ type Comment struct {
 }
 
 // CircleImage 写实记录关联的图片附件。
+// imgPath 为 camelCase（前端 item2.imgPath）；其余 id 类字段为 snake_case。
 type CircleImage struct {
 	ID           int64  `json:"id"`
 	CircleID     int64  `json:"circle_id"`
 	ClassID      int64  `json:"class_id"`
 	TaskID       int64  `json:"task_id"`
 	AttachmentID int64  `json:"attachment_id"`
-	ImgPath      string `json:"img_path"`
+	ImgPath      string `json:"imgPath"`
 }
