@@ -46,14 +46,13 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	// 1. 图片预处理
 	fileData, mimeType, err := c.prepareImageForUpload(filePath)
 	if err != nil {
-		// F3 修复：errors.Join(ErrFileTooLarge, err) 让 ErrFileTooLarge 进错误链，
-		// 调用方 errors.Is(err, ErrFileTooLarge) 单一识别所有「文件过大」路径——
-		// 不论根因是 image_prep.go L122 的 ErrImageTooLarge（缩放级联到底仍超限）
-		// 还是下方的 len(fileData) > MaxImageSize 兜底，二者都通过同一个 sentinel。
-		//
-		// 注：errors.Is(err, ErrImageTooLarge) 仍命中（pre-existing 行为保留），
-		// 只是额外让 ErrFileTooLarge 也进入链。
-		return nil, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
+		// 仅当根因确为「压缩后仍超限」时把 ErrFileTooLarge 并入错误链。
+		// 路径不存在 / 解码失败等不应 errors.Is(ErrFileTooLarge)，否则调用方会误判。
+		// 真正过大时 image_prep 返回 ErrImageTooLarge（或下方 len 兜底 Join）。
+		if errors.Is(err, ErrImageTooLarge) {
+			return nil, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
+		}
+		return nil, fmt.Errorf("图片预处理失败: %w", err)
 	}
 	if len(fileData) > MaxImageSize {
 		// A3 修复：让两条"图片过大"路径的 sentinel 行为一致。
