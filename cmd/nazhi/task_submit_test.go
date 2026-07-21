@@ -51,6 +51,28 @@ func makeTaskSubmitTestCmd(t *testing.T, payloadRaw string) *cobra.Command {
 	return cmd
 }
 
+// TestTaskSubmitCmd_InvalidPayloadJSON_Exit3 payload JSON 非法时 exit 3（参数错误）。
+func TestTaskSubmitCmd_InvalidPayloadJSON_Exit3(t *testing.T) {
+	cmd := makeTaskSubmitTestCmd(t, `{not-json`)
+	cmd.Flags().String("address", "", "")
+	cmd.Flags().String("level", "", "")
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	_, stderrBuf, restore := captureStdio(t)
+	taskSubmitCmd.Run(cmd, nil)
+	restore()
+	stderr := stderrBuf.String()
+
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("非法 payload JSON 应 pendingExitCode=3，实际 %d；stderr=%q", got, stderr)
+	}
+	if !strings.Contains(stderr, `"code": 400`) {
+		t.Errorf("stderr 应含 code=400，实际: %q", stderr)
+	}
+}
+
 // TestTaskSubmitCmd_WithPayload 验证新最小输入模型能正确提交并输出 envelope。
 func TestTaskSubmitCmd_WithPayload(t *testing.T) {
 	payload := `{"taskId":1001,"content":"测试任务心得","address":"高一(8)班"}`

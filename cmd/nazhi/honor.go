@@ -35,7 +35,7 @@ var honorTypesCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 
@@ -66,7 +66,7 @@ var honorListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 
@@ -99,7 +99,7 @@ var honorAddCmd = &cobra.Command{
 
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 		if payloadRaw == "" {
@@ -109,7 +109,7 @@ var honorAddCmd = &cobra.Command{
 
 		payload, err := parseAddHonorPayload(payloadRaw)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 
@@ -143,7 +143,7 @@ var honorDeleteCmd = &cobra.Command{
 
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 

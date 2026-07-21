@@ -31,18 +31,18 @@ var userUpdateCmd = &cobra.Command{
 
 		payloadBytes, err := parsePayloadFromArg(payloadRaw)
 		if err != nil {
-			printError(fmt.Errorf("读取 payload 失败: %w", err))
+			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
 		}
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-			printError(fmt.Errorf("解析 payload JSON 失败: %w", err))
+			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}
 
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 
