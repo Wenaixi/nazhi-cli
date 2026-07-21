@@ -52,6 +52,17 @@ var taskTeacherCmd = &cobra.Command{
 			printVerbose("正在获取教师写实记录（limit=%d, offset=%d）...", limit, offset)
 			raw, pb, err := c.GetTeacherCirclesLimitJSON(cmd.Context(), token, offset, limit)
 			if err != nil {
+				if len(raw) > 0 {
+					total := 0
+					if pb != nil {
+						total = pb.TotalNum
+					}
+					printEnvelope(envelope.Partial(207, "获取教师写实记录失败: "+err.Error(), map[string]any{
+						"records": json.RawMessage(raw),
+						"total":   total,
+					}))
+					return
+				}
 				printError(fmt.Errorf("获取教师写实记录失败: %w", err))
 				return
 			}
@@ -69,6 +80,10 @@ var taskTeacherCmd = &cobra.Command{
 		printVerbose("正在获取教师写实记录...")
 		raw, err := c.GetTeacherCirclesJSON(cmd.Context(), token)
 		if err != nil {
+			if len(raw) > 0 {
+				printEnvelope(envelope.Partial(207, "获取教师写实记录失败: "+err.Error(), json.RawMessage(raw)))
+				return
+			}
 			printError(fmt.Errorf("获取教师写实记录失败: %w", err))
 			return
 		}
