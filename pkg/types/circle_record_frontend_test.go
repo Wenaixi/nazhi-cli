@@ -110,6 +110,65 @@ func TestCircleRecord_FrontendRealJSON(t *testing.T) {
 	}
 }
 
+// TestCircleRecord_PlayRoleNumber 前端 managementRightBottom 列表用 switch(map.play_role) case 1/2/3，
+// 证明 getStudentCircle 返回数字；结构化解码须得到 "1"/"2"/"3" 字符串（与提交表单 label 一致）。
+func TestCircleRecord_PlayRoleNumber(t *testing.T) {
+	raw := `{"id":1,"name":"班会","play_role":1,"content":"x"}`
+	var rec CircleRecord
+	if err := json.Unmarshal([]byte(raw), &rec); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if string(rec.PlayRole) != "1" {
+		t.Errorf("PlayRole: got %q，期望 \"1\"（平台数字 1 解码为角色码）", rec.PlayRole)
+	}
+}
+
+// TestCircleRecord_PlayRoleString 提交路径/兼容样例可能仍为字符串 "2"。
+func TestCircleRecord_PlayRoleString(t *testing.T) {
+	raw := `{"id":1,"play_role":"2"}`
+	var rec CircleRecord
+	if err := json.Unmarshal([]byte(raw), &rec); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if string(rec.PlayRole) != "2" {
+		t.Errorf("PlayRole: got %q，期望 \"2\"", rec.PlayRole)
+	}
+}
+
+// TestSelfEvalStatus_FrontendSnakeJSON 前端 mainLeft/selfgaintloss 查询读 data.student_comment。
+func TestSelfEvalStatus_FrontendSnakeJSON(t *testing.T) {
+	raw := `{
+		"id": 372235,
+		"student_comment": "HAR 里的学生自评",
+		"teacher_comment": "HAR 里的教师评语"
+	}`
+	var st SelfEvalStatus
+	if err := json.Unmarshal([]byte(raw), &st); err != nil {
+		t.Fatalf("Unmarshal SelfEvalStatus: %v", err)
+	}
+	if st.ID != 372235 {
+		t.Errorf("ID: got %d", st.ID)
+	}
+	if st.StudentComment != "HAR 里的学生自评" {
+		t.Errorf("StudentComment: got %q，期望解码 student_comment", st.StudentComment)
+	}
+	if st.TeacherComment != "HAR 里的教师评语" {
+		t.Errorf("TeacherComment: got %q，期望解码 teacher_comment", st.TeacherComment)
+	}
+}
+
+// TestSelfEvalStatus_CamelJSON 兼容 camelCase 样例（部分 mock / returnData）。
+func TestSelfEvalStatus_CamelJSON(t *testing.T) {
+	raw := `{"id":1,"studentComment":"好","teacherComment":"继续"}`
+	var st SelfEvalStatus
+	if err := json.Unmarshal([]byte(raw), &st); err != nil {
+		t.Fatalf("Unmarshal: %v", err)
+	}
+	if st.StudentComment != "好" || st.TeacherComment != "继续" {
+		t.Errorf("got student=%q teacher=%q", st.StudentComment, st.TeacherComment)
+	}
+}
+
 // TestHonorRecord_FrontendStatus 验证荣誉列表 status 整型字段（前端 scope.row.status）。
 func TestHonorRecord_FrontendStatus(t *testing.T) {
 	raw := `{

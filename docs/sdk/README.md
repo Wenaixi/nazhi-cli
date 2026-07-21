@@ -559,6 +559,8 @@ null
 
 空数据契约：服务端业务成功（code=1）但尚未提交评价时返回 `(nil, nil)`，与 `QuerySelfEvaluationJSON` 一致；**不是**错误。调用方应先判 `err`，再判 `status == nil`。
 
+**字段命名**：平台 `dataMap` 主路径为 `student_comment` / `teacher_comment`（前端 mainLeft、selfgaintloss 读取方式）；`SelfEvalStatus` 自定义 `UnmarshalJSON` 兼容 snake 与 camel。导出结构体字段仍是 `StudentComment`/`TeacherComment`，`json` 序列化输出 camelCase（与提交键 `studentComment` 一致）。
+
 请求示例：
 
 ```go
@@ -574,7 +576,7 @@ log.Printf("自评：%s", status.StudentComment)
 log.Printf("师评：%s", status.TeacherComment)
 ```
 
-SDK 响应示例：
+SDK 响应示例（Go 结构体序列化后；原始 API 可能为 snake_case）：
 
 ```json
 {
@@ -1208,10 +1210,11 @@ token, expiresAt, err = tokenparse.ExtractFromReturnData(raw)
 | `HonorListResult` | 2 | `honor.go` | Records / Page |
 | `AddHonorPayload` | 7 | `honor.go` | 荣誉申报请求体 |
 | `HonorSelectOption` | 2 | `honor.go` | Label / Value |
-| `CircleRecord` | 10 | `circle.go` | 已提交写实记录 |
+| `CircleRecord` | 多 | `circle.go` | 已提交写实；混用 tag；`PlayRole` 为 `PlayRoleCode`（数字/字符串） |
 | `CircleImage` | 6 | `circle.go` | 写实图片附件 |
 | `PageBean` | 4 | `circle.go` | PageNo / PageSize / TotalNum / TotalPage |
-| `SelfEvalStatus` | 3 | `self_eval.go` | ID / StudentComment / TeacherComment |
+| `PlayRoleCode` | — | `flexjson.go` | 承担角色码，JSON number/string → `"1"`/`"2"`/`"3"` |
+| `SelfEvalStatus` | 3 | `self_eval.go` | ID / StudentComment / TeacherComment（解码兼容 snake） |
 | `Dimension` | 2 | `dimension.go` | ID / Name |
 | `AddTypicalCasePayload` | 13 | `typical_case.go` | 典型案例提交请求体 |
 | `TypicalCaseRecord` | 16 | `typical_case.go` | 典型案例列表记录 |

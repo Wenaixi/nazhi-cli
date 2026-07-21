@@ -56,7 +56,8 @@ type CircleRecord struct {
 	ResultsName         string `json:"results_name,omitempty"`
 	ObtainTime          string `json:"obtain_time,omitempty"`
 	SpecialtyTechnology string `json:"specialty_technology,omitempty"`
-	PlayRole            string `json:"play_role,omitempty"`
+	// PlayRole：列表 API 常为 number，提交表单为 string；见 PlayRoleCode。
+	PlayRole            PlayRoleCode `json:"play_role,omitempty"`
 	LikeSpecialty1      string `json:"like_specialty1,omitempty"`
 	LikeSpecialty2      string `json:"like_specialty2,omitempty"`
 	LikeSpecialty3      string `json:"like_specialty3,omitempty"`

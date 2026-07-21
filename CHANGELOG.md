@@ -14,6 +14,7 @@
 - SDK `CircleRecord` 结构化字段 JSON tag 对齐真实 API 混用命名（见「修复」）：依赖错误 snake_case tag（如 `img_list`/`is_my_self`）的调用方需改用真实键或字段访问
 - `CircleRecord.IsMySelf bool` 重命名为 `IfMySelf int`（前端 `ifMySelf==1`）
 - `GetTypicalCaseList` / `GetTypicalCaseListJSON` 增加可选 `status ...int`（默认 3=全部）；三参数旧调用仍兼容
+- `CircleRecord.PlayRole` 类型由 `string` 改为 `PlayRoleCode`（JSON 数字/字符串均可解码；比较请用 `string(rec.PlayRole)` 或 `.String()`）
 
 ### 新增
 
@@ -51,6 +52,9 @@
 - **HonorType JSON tag**：`dimension_name`/`level_name`（前端德育说明表；此前 camel 导致空字段）
 - **UpdateMyInfoStructured**：忽略 `NationalStudentNumber`（前端只读，防止误写学籍）
 - **输入暴露原则**：用户手填字段进 Input；前端自动填字段由 SDK 补全（典型案例 *Name、荣誉 typeName/name/score）
+- **CircleRecord.PlayRole**：类型改为 `PlayRoleCode`，兼容列表 API 的 number 与表单 string（前端 `switch(map.play_role) case 1/2/3`）；序列化统一为字符串码
+- **SelfEvalStatus**：`UnmarshalJSON` 主解码 `student_comment`/`teacher_comment`（前端 mainLeft/selfgaintloss），兼容 camelCase；`QuerySelfEvaluation` 的 normalize 兜底仍保留
+
 ## [1.3.0] - 2026-07-18
 
 ### 新增
