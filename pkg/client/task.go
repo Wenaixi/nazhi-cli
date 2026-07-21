@@ -307,16 +307,17 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 }
 
 // parseHours 解析用户输入的时长，空串时用任务预置时长。
-func parseHours(userInput string, metaHours float64) float64 {
+// 非空且无法解析为 float64 时返回 ErrInvalidPayload，避免静默回退掩盖错误输入。
+func parseHours(userInput string, metaHours float64) (float64, error) {
 	h := strings.TrimSpace(userInput)
 	if h == "" {
-		return metaHours
+		return metaHours, nil
 	}
 	parsed, err := strconv.ParseFloat(h, 64)
 	if err != nil {
-		return metaHours
+		return 0, fmt.Errorf("%w: hours 非法: %q", ErrInvalidPayload, h)
 	}
-	return parsed
+	return parsed, nil
 }
 
 // buildTaskPayload 是 payload 构建的公共逻辑，供 SubmitTask 和 EditCircle 共用。
@@ -421,6 +422,11 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 	likeSpecialty2 := strings.TrimSpace(input.GetLikeSpecialty2())
 	likeSpecialty3 := strings.TrimSpace(input.GetLikeSpecialty3())
 
+	hours, err := parseHours(input.GetHours(), meta.Hours)
+	if err != nil {
+		return nil, err
+	}
+
 	payload := &types.TaskAddCirclePayload{
 		ID:                  input.GetID(),
 		Name:                name,
@@ -433,7 +439,7 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		CircleTaskID:        meta.TaskID,
 		CircleTypeID:        meta.CircleTypeID,
 		DimensionID:         meta.DimensionID,
-		Hours:               parseHours(input.GetHours(), meta.Hours),
+		Hours:               hours,
 		CircleBeginDate:     strings.TrimSpace(input.GetCircleBeginDate()),
 		CircleEndDate:       strings.TrimSpace(input.GetCircleEndDate()),
 		CheckResult:         strings.TrimSpace(input.GetCheckResult()),
