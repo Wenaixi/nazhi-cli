@@ -147,16 +147,33 @@ type rawResult struct {
 //
 // raw1 是第一页原始 JSON，results 是按页号索引的后续页数据。
 // 成功路径返回完整 JSON 数组，失败路径通过 trimArrayToCurrent 截断为已有部分。
+//
+// 用 first 标志控制逗号，避免 page1 为空数组时产生 leading comma 非法 JSON（[,{...}]）。
+// 对齐 assembleCirclesLimitJSON 的拼接策略。
 func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partialErr error) (json.RawMessage, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, len(raw1)*totalPage))
 	buf.WriteByte('[')
-	buf.Write(trimArrayBrackets(raw1))
+	first := true
+	// page1 可能为空数组 "[]"，trim 后长度为 0，不得写逗号
+	if trimmed := trimArrayBrackets(raw1); len(trimmed) > 0 {
+		buf.Write(trimmed)
+		first = false
+	}
 	for pn := 2; pn <= totalPage; pn++ {
 		if len(results[pn].raw) == 0 {
 			continue
 		}
-		buf.WriteByte(',')
-		buf.Write(trimArrayBrackets(results[pn].raw))
+		trimmed := trimArrayBrackets(results[pn].raw)
+		if len(trimmed) == 0 {
+			continue
+		}
+		if first {
+			buf.Write(trimmed)
+			first = false
+		} else {
+			buf.WriteByte(',')
+			buf.Write(trimmed)
+		}
 	}
 	buf.WriteByte(']')
 	if partialErr != nil {
