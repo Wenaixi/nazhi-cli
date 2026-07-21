@@ -482,10 +482,9 @@ SDK 响应示例（2 条）：
 
 提交任务。公开输入只保留最少必要字段，SDK 内部自动完成：
 
-1. `getCircleTypeByTaskId(taskId)` 获取 `circleTypeId / dimensionId / hours`
-2. `GetMyInfo()` 获取 `schoolName`
-3. 合并 `imageIds` 与 `UploadFile()` 上传 `imagePaths` 得到的附件 ID，组装成 `pictureList`
-4. 组装完整 `addCircle` 请求体并提交
+1. `getCircleTypeByTaskId(taskId)` 获取 `circleTypeId / dimensionId / hours`（任务预设）
+2. 合并 `imageIds` 与 `UploadFile()` 上传 `imagePaths` 得到的附件 ID，组装成 `pictureList`
+3. 组装完整 `addCircle` 请求体并提交
 
 **学时 `Hours`（对齐前端 `hoursStatus`）**：
 
@@ -496,6 +495,8 @@ SDK 响应示例（2 条）：
 | 任意 | 非空合法数 | 用用户值 |
 | 任意 | 非空非法 | `ErrInvalidPayload` |
 
+**Address / OrgName / Level**：与前端一致——用户填什么发什么；**空串原样**，不再自动填学校名或默认 `"5"`。部分活动类型前端 `checkData` 会要求非空，调用方须按任务类型自行填写。
+
 请求示例：
 
 ```go
@@ -504,13 +505,12 @@ result, err := c.SubmitTask(ctx, token, types.TaskSubmitInput{
 	Content:    "手握扫帚净校园，春意盎然拂面来。每一次躬身劳动，都是对责任与成长的最好诠释。",
 	ImagePaths: []string{"./photo.jpg"},
 	ImageIDs:   []int64{123456}, // 可选；已上传过的附件 ID，可与 ImagePaths 混用
-	Address:    "示例中学",      // 可选；不传则默认 schoolName（SDK 便利，非前端脚本）
-	Level:      "5",             // 可选；不传默认 5（校级，SDK 便利）
-	PlayRole:   "",              // 可选；不传默认空串
+	Address:    "操场",           // 部分活动类型必填；空串不会自动变学校名
+	Level:      "5",             // 部分活动类型必填；空串不会默认 5
+	PlayRole:   "1",             // 部分活动类型必填
 	// Hours: 省略 → 任务预设>0 时自动；任务无预设时必须传，如 Hours: "2"
-	// v1.2.0 新增可选字段（零值空串时保持原有 fallback 行为）
-	ActivityName: "校园劳动实践",  // 可选；活动名称
-	HostName:     "班主任",       // 可选；主持人
+	ActivityName: "校园劳动实践",  // 按活动类型填写
+	HostName:     "班主任",
 })
 if err != nil {
 	var bErr *types.BusinessError

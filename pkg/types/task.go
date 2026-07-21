@@ -102,10 +102,11 @@ type TaskInput interface {
 // TaskSubmitInput 是公开给 SDK 调用方的最小任务提交输入。
 //
 // 用户应填：TaskID（选任务）、Content、按任务类型的活动字段、图片；
+// Address/OrgName/Level/PlayRole 等按活动类型由调用方填写（前端手填，空串原样提交）；
 // Hours：任务 getCircleTypeByTaskId 的 hours>0 时可省略（SDK 用元数据，对齐前端只读自动填）；
 // 任务 hours≤0 时必须显式填写（对齐前端可编辑 + checkData）。
-// SDK 自动：circleTaskId/circleTypeId/dimensionId（元数据）、pictureList（上传）、
-// 空 Address/OrgName→学校名、空 Level→"5"（SDK 便利默认，非前端脚本行为）。
+// SDK 自动：circleTaskId/circleTypeId/dimensionId（元数据）、pictureList（上传）。
+// 不再发明：空 Address/OrgName 不填学校名、空 Level 不默认 "5"（与前端一致）。
 // CircleDate/TermName 前端无 v-model，非用户输入，仅兼容保留。
 type TaskSubmitInput struct {
 	TaskID     int64

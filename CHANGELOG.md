@@ -15,6 +15,7 @@
 - `CircleRecord.IsMySelf bool` 重命名为 `IfMySelf int`（前端 `ifMySelf==1`）
 - `GetTypicalCaseList` / `GetTypicalCaseListJSON` 增加可选 `status ...int`（默认 3=全部）；三参数旧调用仍兼容
 - `CircleRecord.PlayRole` 类型由 `string` 改为 `PlayRoleCode`（JSON 数字/字符串均可解码；比较请用 `string(rec.PlayRole)` 或 `.String()`）
+- 写实提交：空 `Address`/`OrgName` **不再**回落学校名；空 `Level` **不再**默认 `"5"`。依赖旧便利默认的调用方须显式传值
 
 ### 新增
 
@@ -55,6 +56,7 @@
 - **CircleRecord.PlayRole**：类型改为 `PlayRoleCode`，兼容列表 API 的 number 与表单 string（前端 `switch(map.play_role) case 1/2/3`）；序列化统一为字符串码
 - **SelfEvalStatus**：`UnmarshalJSON` 主解码 `student_comment`/`teacher_comment`（前端 mainLeft/selfgaintloss），兼容 camelCase；`QuerySelfEvaluation` 的 normalize 兜底仍保留
 - **parseHours / TaskSubmitInput.Hours**：对齐前端 `hoursStatus`——任务元数据 hours>0 时用户可空（SDK 用预设）；hours≤0 且用户空 → `ErrInvalidPayload`（不再静默提交 0）；显式 Hours 始终优先
+- **写实 Address/OrgName/Level**：去掉 SDK 发明的默认（空 Address/OrgName→学校名、空 Level→`"5"`）；与前端一致，空串原样提交；调用方须按活动类型自行填写
 
 ## [1.3.0] - 2026-07-18
 

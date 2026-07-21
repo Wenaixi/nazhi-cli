@@ -330,35 +330,18 @@ func parseHours(userInput string, metaHours float64) (float64, error) {
 // 参数说明：
 //   - input: 实现 TaskInput 接口的输入（TaskSubmitInput 或 TaskEditInput）
 //   - callerName: 调用方名称，用于错误信息前缀
+//
+// 对齐前端（输入暴露原则）：
+//   - circleTaskId/circleTypeId/dimensionId/hours(预设>0)：SDK 从 getCircleTypeByTaskId 自动填
+//   - Address/OrgName/Level/PlayRole 等：用户填什么发什么；空串原样，不发明学校名或等级「5」
 func (c *Client) buildTaskPayload(ctx context.Context, token string, input types.TaskInput, callerName string) (*types.TaskAddCirclePayload, error) {
 	if err := input.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
 	}
 
-	// GetCircleTypeByTaskID 和 GetMyInfo 无数据依赖，并发执行减少一个 RTT 延迟。
-	var (
-		meta *types.TaskCircleTypeInfo
-		info *types.UserInfo
-	)
-	g, gctx := errgroup.WithContext(ctx)
-	g.Go(func() error {
-		var err error
-		meta, err = c.GetCircleTypeByTaskID(gctx, token, input.GetTaskID())
-		if err != nil {
-			return fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
-		}
-		return nil
-	})
-	g.Go(func() error {
-		var err error
-		info, err = c.GetMyInfo(gctx, token)
-		if err != nil {
-			return fmt.Errorf("%s 获取用户信息失败: %w", callerName, err)
-		}
-		return nil
-	})
-	if err := g.Wait(); err != nil {
-		return nil, err
+	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
+	if err != nil {
+		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
 	}
 
 	// 处理图片：合并 ImageIDs + ImagePaths
@@ -391,21 +374,10 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		}
 	}
 
-	// 地址处理：优先取输入，空串时 fallback 学校名
+	// 用户字段：Trim 后原样写入；前端不会自动填学校名 / 默认等级 5
 	address := strings.TrimSpace(input.GetAddress())
-	if address == "" {
-		address = strings.TrimSpace(info.SchoolName)
-	}
-
 	playRole := strings.TrimSpace(input.GetPlayRole())
-
-	// 等级处理：空串时默认 "5"
 	level := strings.TrimSpace(input.GetLevel())
-	if level == "" {
-		level = "5"
-	}
-
-	// v1.2.0：可选字段映射
 	name := strings.TrimSpace(input.GetName())
 	hostName := strings.TrimSpace(input.GetHostName())
 	circleDate := strings.TrimSpace(input.GetCircleDate())
@@ -413,13 +385,7 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 	activityName := strings.TrimSpace(input.GetActivityName())
 	sportsName := strings.TrimSpace(input.GetSportsName())
 	teamName := strings.TrimSpace(input.GetTeamName())
-
-	// OrgName：优先取输入，空串时 fallback 学校名
 	orgName := strings.TrimSpace(input.GetOrgName())
-	if orgName == "" {
-		orgName = strings.TrimSpace(info.SchoolName)
-	}
-
 	resultsName := strings.TrimSpace(input.GetResultsName())
 	obtainTime := strings.TrimSpace(input.GetObtainTime())
 	specialtyTechnology := strings.TrimSpace(input.GetSpecialtyTechnology())

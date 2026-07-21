@@ -425,3 +425,77 @@ func TestSubmitTask_EmptyHoursUsesMeta(t *testing.T) {
 		t.Errorf("期望 hours=1.5（任务元数据），实际 %v (%T)", h, h)
 	}
 }
+
+// TestSubmitTask_NoInventedDefaults 空 Address/OrgName/Level 不对齐前端——前端不自动填学校名/等级 5。
+// SDK 不得再发明默认值；用户未填则请求体为空串。
+func TestSubmitTask_NoInventedDefaults(t *testing.T) {
+	var gotBody map[string]any
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			// 即使仍调用 GetMyInfo，schoolName 也不得写入 address/orgName
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"","type":10}}`))
+		case "/api/studentCircleNew/addCircle":
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	c, err := New(WithBaseURL(server.URL), WithSSOBase(server.URL), WithTimeout(5*1000*1000*1000))
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:  1001,
+		Content: "不发明默认",
+		// Address / OrgName / Level 全部留空
+	})
+	if err != nil {
+		t.Fatalf("SubmitTask 应成功: %v", err)
+	}
+	if gotBody["address"] != "" && gotBody["address"] != nil {
+		t.Errorf("address 应为空串，不得填 schoolName，实际 %v", gotBody["address"])
+	}
+	if gotBody["orgName"] != "" && gotBody["orgName"] != nil {
+		t.Errorf("orgName 应为空串，不得填 schoolName，实际 %v", gotBody["orgName"])
+	}
+	if gotBody["level"] != "" && gotBody["level"] != nil {
+		t.Errorf("level 应为空串，不得默认 \"5\"，实际 %v", gotBody["level"])
+	}
+	// 显式非空仍透传
+	gotBody = nil
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:  1001,
+		Content: "显式字段",
+		Address: "操场",
+		OrgName: "团委",
+		Level:   "3",
+	})
+	if err != nil {
+		t.Fatalf("显式字段 SubmitTask 失败: %v", err)
+	}
+	if gotBody["address"] != "操场" {
+		t.Errorf("address 期望 操场，实际 %v", gotBody["address"])
+	}
+	if gotBody["orgName"] != "团委" {
+		t.Errorf("orgName 期望 团委，实际 %v", gotBody["orgName"])
+	}
+	if gotBody["level"] != "3" {
+		t.Errorf("level 期望 3，实际 %v", gotBody["level"])
+	}
+}
