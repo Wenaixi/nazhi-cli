@@ -11,6 +11,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -139,6 +140,26 @@ func (c *Client) DeleteHonor(ctx context.Context, token string, honorID int64) e
 	return c.doBizVoid(ctx, token, "DeleteHonor", path, http.MethodGet, nil)
 }
 
+// ensureHonorTypeName 在 typeId 有值且 typeName 为空时，
+// 通过 GetHonorTypeOptions（dataList 荣誉类型选项）反查并返回 typeName。
+// typeName 已非空时直接返回原值；typeId 无效或为 0 时返回空串与 nil。
+func (c *Client) ensureHonorTypeName(ctx context.Context, token string, typeID int64, typeName string) (string, error) {
+	if typeName != "" || typeID <= 0 {
+		return typeName, nil
+	}
+	opts, err := c.GetHonorTypeOptions(ctx, token)
+	if err != nil {
+		return "", fmt.Errorf("自动反查 typeName 失败: %w", err)
+	}
+	for _, opt := range opts {
+		if opt.Value == int(typeID) {
+			c.logDebug("ensureHonorTypeName 自动补全 typeName: typeId=%d → %q", typeID, opt.Label)
+			return opt.Label, nil
+		}
+	}
+	return "", fmt.Errorf("%w: typeId=%d 未找到对应的荣誉类型", ErrInvalidPayload, typeID)
+}
+
 // AddHonor 申报一条荣誉。
 //
 // v1.4.0 增强：当 payload.TypeName 为空但 payload.TypeID > 0 时，
@@ -147,34 +168,63 @@ func (c *Client) DeleteHonor(ctx context.Context, token string, honorID int64) e
 // v2.0.0 修复：原调用 GetHonorTypeForSelect（读取 returnData 即荣誉等级），
 // 改为 GetHonorTypeOptions（读取 dataList 即荣誉类型选项）。
 func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error {
-	// 自动补全 typeName：有 typeId 无 typeName 时自动反查
-	if payload.TypeName == "" && payload.TypeID > 0 {
-		opts, err := c.GetHonorTypeOptions(ctx, token)
-		if err != nil {
-			return fmt.Errorf("AddHonor 自动反查 typeName 失败: %w", err)
-		}
-
-		found := false
-		for _, opt := range opts {
-			if opt.Value == int(payload.TypeID) {
-				payload.TypeName = opt.Label
-				c.logDebug("AddHonor 自动补全 typeName: typeId=%d → %q", payload.TypeID, opt.Label)
-				found = true
-				break
-			}
-		}
-
-		if !found {
-			return fmt.Errorf("%w: typeId=%d 未找到对应的荣誉类型", ErrInvalidPayload, payload.TypeID)
-		}
+	name, err := c.ensureHonorTypeName(ctx, token, payload.TypeID, payload.TypeName)
+	if err != nil {
+		return fmt.Errorf("AddHonor %w", err)
 	}
+	payload.TypeName = name
 
 	return c.doBizVoid(ctx, token, "AddHonor", "/api/studentMoralEduNew/addHonor", http.MethodPost, payload)
 }
 
 // UpdateHonor 更新一条荣誉记录。
 // POST /api/studentMoralEduNew/updateHonor
+//
+// 与 AddHonor 对称：当 payload 含 typeId 且 typeName 为空/缺失时，
+// 自动调用 GetHonorTypeOptions 反查补全 typeName。
 func (c *Client) UpdateHonor(ctx context.Context, token string, payload map[string]any) error {
+	if payload != nil {
+		typeID, hasTypeID := honorMapInt64(payload["typeId"])
+		typeName := honorMapString(payload["typeName"])
+		if hasTypeID && typeName == "" {
+			name, err := c.ensureHonorTypeName(ctx, token, typeID, typeName)
+			if err != nil {
+				return fmt.Errorf("UpdateHonor %w", err)
+			}
+			if name != "" {
+				payload["typeName"] = name
+			}
+		}
+	}
 	return c.doBizVoid(ctx, token, "UpdateHonor",
 		"/api/studentMoralEduNew/updateHonor", http.MethodPost, payload)
+}
+
+// honorMapString 从 map[string]any 安全取字符串（缺失/非 string 视为空）。
+func honorMapString(v any) string {
+	if s, ok := v.(string); ok {
+		return s
+	}
+	return ""
+}
+
+// honorMapInt64 从 map[string]any 解析 typeId 类数值。
+// JSON 反序列化常为 float64；也接受 int / int64 / json.Number。
+func honorMapInt64(v any) (int64, bool) {
+	switch n := v.(type) {
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	case float64:
+		return int64(n), true
+	case json.Number:
+		i, err := n.Int64()
+		if err != nil {
+			return 0, false
+		}
+		return i, true
+	default:
+		return 0, false
+	}
 }

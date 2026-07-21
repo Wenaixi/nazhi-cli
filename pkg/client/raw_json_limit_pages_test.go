@@ -60,7 +60,7 @@ func TestGetCirclesLimitJSON_OnlyFetchesNeededPages(t *testing.T) {
 	defer c.Close()
 
 	// 只要前 2 条（恰好一页），不应请求 page2..5
-	raw, pb, err := c.GetSubmittedCirclesLimitJSON(context.Background(), "test-token", 0, 2)
+	raw, pb, err := c.GetSubmittedCirclesLimitJSON(context.Background(), "test-token", 0, 2, "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCirclesLimitJSON: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestGetCirclesLimitJSON_EndPageByOffsetLimit(t *testing.T) {
 	}
 	defer c.Close()
 
-	raw, _, err := c.GetSubmittedCirclesLimitJSON(context.Background(), "test-token", 3, 2)
+	raw, _, err := c.GetSubmittedCirclesLimitJSON(context.Background(), "test-token", 3, 2, "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCirclesLimitJSON: %v", err)
 	}

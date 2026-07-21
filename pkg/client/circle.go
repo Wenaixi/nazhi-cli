@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"strconv"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -37,9 +38,9 @@ func (c *Client) SetCircleLike(ctx context.Context, token string, circleID int64
 
 // GetCircleTypes 获取指定维度下的写实类别。
 // GET /api/studentCircleNew/getCircleType?dimensionId=&pid=
-// pid 可为空字符串。
+// pid 可为空字符串；会经 url.QueryEscape，避免 &/= 等字符破坏查询串。
 func (c *Client) GetCircleTypes(ctx context.Context, token string, dimensionID int64, pid string) ([]map[string]any, error) {
-	path := "/api/studentCircleNew/getCircleType?dimensionId=" + strconv.FormatInt(dimensionID, 10) + "&pid=" + pid
+	path := "/api/studentCircleNew/getCircleType?dimensionId=" + strconv.FormatInt(dimensionID, 10) + "&pid=" + url.QueryEscape(pid)
 	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleTypes", path,
 		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
 			data, err := types.DecodeDataList[map[string]any](resp)
