@@ -271,7 +271,7 @@ var WithToken = withURLGuard("WithToken", func(c *Client, v string) { c.pendingT
 //   - n > 0: 设置每页条数
 //
 // 服务端 pageSize 上限 500（实测 pageSize=10000 被截断为 500）。
-// 默认值 100 在绝大多数学期能单页覆盖所有记录，>100 条时自动翻页。
+// 默认值 defaultSubmittedPageSize（500）在绝大多数学期能单页覆盖所有记录，超出时由 fetchAllCirclePages 自动翻页合并。
 func WithSubmittedPageSize(n int) Option {
 	return func(c *Client) {
 		if n <= 0 {
