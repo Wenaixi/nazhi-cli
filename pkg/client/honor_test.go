@@ -372,3 +372,104 @@ func TestGetHonorTypes_Empty(t *testing.T) {
 		t.Fatalf("期望 0 个类型，实际 %d", len(types))
 	}
 }
+
+// ─── 测试: UpdateHonor typeName 自动补全 ───
+
+// TestUpdateHonor_AutoFillTypeName 验证 UpdateHonor 在有 typeId 无 typeName 时
+// 自动反查 GetHonorTypeOptions（dataList）补全 typeName，与 AddHonor 对称。
+func TestUpdateHonor_AutoFillTypeName(t *testing.T) {
+	var gotBody map[string]any
+	var optionsCalled bool
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/studentMoralEduNew/getHonorTypeForSelect":
+			optionsCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code": 1,
+				// dataList 才是荣誉类型选项（与 AddHonor 一致）
+				"dataList": []map[string]any{
+					{"label": "校三好学生", "value": 1147},
+					{"label": "校学生优秀干部", "value": 1148},
+				},
+				// returnData 是等级选项，UpdateHonor 不应读这里
+				"returnData": []map[string]any{
+					{"label": "校", "value": 5},
+				},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		case "/api/studentMoralEduNew/updateHonor":
+			if r.Method != http.MethodPost {
+				t.Errorf("期望 POST，实际 %s", r.Method)
+			}
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"更新成功"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	err := c.UpdateHonor(context.Background(), "test-token", map[string]any{
+		"id":     56241,
+		"typeId": 1147,
+		// 故意不传 typeName，期望 SDK 自动补全
+		"level":            5,
+		"evaluationAgency": "示例中学",
+		"getDate":          "2026-06-30",
+		"name":             "校三好学生",
+	})
+	if err != nil {
+		t.Fatalf("UpdateHonor 失败: %v", err)
+	}
+	if !optionsCalled {
+		t.Fatal("期望调用 getHonorTypeForSelect 反查 typeName，实际未调用")
+	}
+	if gotBody["typeName"] != "校三好学生" {
+		t.Errorf("期望 typeName=校三好学生，实际 %v", gotBody["typeName"])
+	}
+	if gotBody["typeId"] != float64(1147) {
+		t.Errorf("期望 typeId=1147，实际 %v", gotBody["typeId"])
+	}
+}
+
+// TestUpdateHonor_SkipAutoFillWhenTypeNamePresent 已有 typeName 时不应再反查。
+func TestUpdateHonor_SkipAutoFillWhenTypeNamePresent(t *testing.T) {
+	var optionsCalled bool
+	var gotBody map[string]any
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/studentMoralEduNew/getHonorTypeForSelect":
+			optionsCalled = true
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"dataList":[]}`))
+			return
+		case "/api/studentMoralEduNew/updateHonor":
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"更新成功"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	err := c.UpdateHonor(context.Background(), "test-token", map[string]any{
+		"id":       56241,
+		"typeId":   1147,
+		"typeName": "已有名称",
+	})
+	if err != nil {
+		t.Fatalf("UpdateHonor 失败: %v", err)
+	}
+	if optionsCalled {
+		t.Fatal("已有 typeName 时不应调用 getHonorTypeForSelect")
+	}
+	if gotBody["typeName"] != "已有名称" {
+		t.Errorf("期望保留 typeName=已有名称，实际 %v", gotBody["typeName"])
+	}
+}
