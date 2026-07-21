@@ -11,7 +11,9 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -80,7 +82,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	}
 	writer := multipart.NewWriter(buf)
 
-	part, err := writer.CreateFormFile("file", filePath+".jpg")
+	// filename 仅用 basename，扩展名统一 .jpg（预处理始终输出 JPEG）。
+	// 禁止把本地绝对路径塞进 Content-Disposition，避免路径泄露与服务端解析异常。
+	formName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)) + ".jpg"
+	part, err := writer.CreateFormFile("file", formName)
 	if err != nil {
 		return nil, fmt.Errorf("创建 multipart form 失败: %w", err)
 	}
