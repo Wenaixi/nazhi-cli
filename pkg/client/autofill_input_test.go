@@ -257,7 +257,8 @@ func TestGetHonorTypes_FrontendSnakeFields(t *testing.T) {
 						"dimension_name": "思想品德",
 						"level_name":     "校",
 						"level":          5,
-						"score":          5,
+						// 平台真实类型为展示字符串，不是 number
+						"score": "分数：+5.0",
 					},
 				},
 			}
@@ -283,8 +284,8 @@ func TestGetHonorTypes_FrontendSnakeFields(t *testing.T) {
 	if ht.LevelName != "校" {
 		t.Errorf("LevelName: got %q，期望解码 level_name", ht.LevelName)
 	}
-	if ht.Score != 5 {
-		t.Errorf("Score: got %d，期望 5", ht.Score)
+	if ht.Score != "分数：+5.0" {
+		t.Errorf("Score: got %q，期望展示文案", ht.Score)
 	}
 }
 

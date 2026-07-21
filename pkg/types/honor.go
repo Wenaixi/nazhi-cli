@@ -4,13 +4,16 @@ package types
 //
 // 前端 performanceM.vue 德育说明表列使用 snake_case：
 // dimension_name / level_name / score（非 camelCase）。
+//
+// 实测 getHonorType 的 score 为展示文案（如 "分数：+5.0"），不是 JSON number。
+// 误标为 int 会导致整页 DecodeDataList 失败（与 admissionDate 同类）。
 type HonorType struct {
 	ID            int64  `json:"id"`
 	Name          string `json:"name"`
 	LevelName     string `json:"level_name"`
 	Level         int    `json:"level"`
 	DimensionName string `json:"dimension_name"`
-	Score         int    `json:"score,omitempty"` // 分值（说明表列）
+	Score         string `json:"score,omitempty"` // 展示分值文案，如 "分数：+5.0"
 }
 
 // HonorRecord 一条已申报的荣誉记录（来自 getHonorByStudentId 接口）。
@@ -37,8 +40,9 @@ type HonorRecord struct {
 	// v1.4.0 新增：前端 performanceM.vue 中实际使用的字段
 	TypeID              int64  `json:"type_id,omitempty"`                // 荣誉类型 ID
 	CertImgAttachmentID string `json:"cert_img_attachment_id,omitempty"` // 证书图片附件 ID
-	Score               int    `json:"score,omitempty"`                  // 分数
-	ScoreName           string `json:"score_name,omitempty"`             // 分数描述
+	// Score：列表实测 JSON number（常为 4.0）；禁止 int（encoding/json 拒 4.0→int）。
+	Score     float64 `json:"score,omitempty"`
+	ScoreName string  `json:"score_name,omitempty"` // 分数描述
 
 	// v1.4.1 新增：补齐前端表格列使用的字段
 	IfShow      string `json:"ifshow,omitempty"`       // 是否报告单展示

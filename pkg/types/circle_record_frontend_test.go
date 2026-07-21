@@ -196,8 +196,8 @@ func TestHonorRecord_FrontendStatus(t *testing.T) {
 	if rec.ApprovedName != "未审核" {
 		t.Errorf("ApprovedName: got %q", rec.ApprovedName)
 	}
-	if rec.Score != 5 {
-		t.Errorf("Score: got %d", rec.Score)
+	if rec.Score != 5.0 {
+		t.Errorf("Score: got %v", rec.Score)
 	}
 }
 
@@ -209,7 +209,7 @@ func TestHonorType_FrontendSnakeJSON(t *testing.T) {
 		"dimension_name": "思想品德",
 		"level_name": "校",
 		"level": 5,
-		"score": 5
+		"score": "分数：+5.0"
 	}`
 	var ht HonorType
 	if err := json.Unmarshal([]byte(raw), &ht); err != nil {
@@ -221,7 +221,7 @@ func TestHonorType_FrontendSnakeJSON(t *testing.T) {
 	if ht.LevelName != "校" {
 		t.Errorf("LevelName: got %q", ht.LevelName)
 	}
-	if ht.Score != 5 {
-		t.Errorf("Score: got %d", ht.Score)
+	if ht.Score != "分数：+5.0" {
+		t.Errorf("Score: got %q", ht.Score)
 	}
 }

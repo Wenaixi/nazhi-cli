@@ -51,14 +51,16 @@ list, err := c.GetHonorList(ctx, token, 1, 10, "") // key 可空
       "statusName": "通过",
       "get_date": "2026-06-30",
       "evaluation_agency": "示例中学",
-      "score": 5
+      "score": 4.0
     }
   ],
   "page": { "pageNo": 1, "pageSize": 10, "totalNum": 1, "totalPage": 1 }
 }
 ```
 
-`HonorType` 说明表：`dimension_name` / `level_name` / `score`。
+- `HonorRecord.Score` 为 **`float64`**（列表常见 `4.0` 浮点字面量；`encoding/json` 拒绝 `4.0`→`int`）。
+- `HonorType.Score` 为 **`string`** 展示文案（如 `"分数：+5.0"`），说明表 `dimension_name` / `level_name` / `score` 均为 snake_case。
+- 提交体 `AddHonorPayload.Score` 仍为 **`int`**（前端 form 默认 0）。
 
 ---
 
