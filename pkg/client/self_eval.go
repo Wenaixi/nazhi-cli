@@ -57,6 +57,10 @@ func (c *Client) SubmitSelfEvaluationStructured(ctx context.Context, token strin
 //
 // 使用 doBizGetDecode 的 fallback 链（returnData → dataMap → dataList[0]），
 // 替换原有的 selfEvalGet + tryDecodeFallback 模式。
+//
+// 空数据契约：服务端 code=1 但尚未提交评价（returnData/dataMap/dataList 全空，
+// 或解码后归一化为 nil）时返回 (nil, nil)，与 QuerySelfEvaluationJSON 对齐。
+// 不把「未提交」误判为 doBizGetDecode 的「所有解码器均失败」。
 func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.SelfEvalStatus, error) {
 	v, err := doBizGetDecode[types.SelfEvalStatus](c, ctx, token, "QuerySelfEvaluation",
 		"/api/studentMoralEduNew/querySelfEvaluation",
@@ -87,9 +91,50 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		},
 	)
 	if err != nil {
+		// 业务成功但无评价内容：doBizGetDecode 在所有解码器返回 (nil,nil) 时
+		// 报「所有解码器均失败」。对本接口这是合法空成功，归一为 (nil, nil)。
+		if isEmptyDecodeFailure(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return v, nil
+}
+
+// isEmptyDecodeFailure 判断 err 是否为 doBizGetDecode 在业务成功、解码器
+// 全返回 (nil,nil) 时的空结果错误（无 lastErr 附加）。
+//
+// 解码器真正失败（JSON 类型不匹配等）时 errors.Join 会附带 lastErr，
+// 本函数返回 false，保留原错误给调用方。
+func isEmptyDecodeFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+	// doBizGetDecode 空结果：fmt.Errorf("%s: 所有解码器均失败", opName) 且无 Join 子错误
+	// 有解码错误时为 errors.Join(fmt.Errorf(...), lastErr)，Unwrap 非空。
+	msg := err.Error()
+	if !strings.Contains(msg, "所有解码器均失败") {
+		return false
+	}
+	// 若 Join 了子错误，Error() 会用 "\n" 拼接多段；纯空失败通常单段。
+	// 更稳妥：检查是否只有一条、且 Unwrap/Is 无业务哨兵。
+	type multi interface{ Unwrap() []error }
+	if m, ok := err.(multi); ok {
+		subs := m.Unwrap()
+		// Join(fmtErr, nil) 时可能只剩一条；Join(fmtErr, lastErr) 为 2 条
+		for _, sub := range subs {
+			if sub == nil {
+				continue
+			}
+			// 跳过「所有解码器均失败」本身，若还有其他子错误则非空失败
+			if !strings.Contains(sub.Error(), "所有解码器均失败") {
+				return false
+			}
+		}
+		return true
+	}
+	// 非 Join：直接匹配消息
+	return true
 }
 
 func decodeSelfEvalStatusFromContainer(getRaw func(types.UnifiedResponse) *json.RawMessage) func(types.UnifiedResponse) (*types.SelfEvalStatus, error) {

@@ -5,6 +5,14 @@
 格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
 项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+### 修复
+
+- `UpdateMyInfo` 成功后失效 `sm.cachedUserInfo`，避免同进程 `GetMyInfo` 返回更新前快照；新增 `InvalidateCachedUserInfo`
+- `nazhi user update` 解析 `UserUpdateInput` 并调用 `UpdateMyInfoStructured`，友好键（genderName 等）正确 remap
+- `QuerySelfEvaluation` 未提交评价时返回 `(nil, nil)`，不再把空成功误判为「所有解码器均失败」
+
 ## [1.3.0] - 2026-07-18
 
 ### 新增
