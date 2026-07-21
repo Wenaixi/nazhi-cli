@@ -56,7 +56,7 @@ type Client struct {
 	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// submittedPageSize 是 GetSubmittedCircles 每页请求条数。
-	// 默认 100，服务端 pageSize 上限 500。
+	// 默认 defaultSubmittedPageSize（500），服务端 pageSize 上限 500。
 	// 通过 WithSubmittedPageSize 可配置。
 	submittedPageSize int
 

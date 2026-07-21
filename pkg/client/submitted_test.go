@@ -4,10 +4,13 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -17,7 +20,9 @@ import (
 
 // ─── pageSize 常量 ───
 
-// 与 task.go 中实际使用的 pageSize 一致。
+// submittedPageSize 是本文件多页/取消场景使用的测试 pageSize。
+// 必须通过 WithSubmittedPageSize 注入到 Client，与生产默认
+// defaultSubmittedPageSize=500 解耦，才能稳定触发翻页路径。
 const submittedPageSize = 100
 
 // ─── 辅助 ───
@@ -93,27 +98,34 @@ func TestGetSubmittedCircles_SinglePage(t *testing.T) {
 }
 
 // TestGetSubmittedCircles_MultiPage 验证多页自动分页。
+//
+// 客户端 pageSize 必须 < TotalNum，才会走 fetchAllCirclePages 并发翻页；
+// 测试用 WithSubmittedPageSize(100)，与生产默认 500 解耦。
 func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 	const totalRecords = 250
-	const totalPages = 3
+	const totalPages = 3 // ceil(250/100)
 
 	var callCount int
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
+			// 按请求的 pageNo 生成页，避免并发翻页时用 callCount 当页号错位
+			pageNo, _ := strconv.Atoi(r.URL.Query().Get("pageNo"))
+			if pageNo < 1 {
+				pageNo = 1
+			}
 			callCount++
-			pageNo := callCount
 			totalPage := totalPages
+			totalNum := totalRecords
 
-			// 最后一条总记录数
-			var totalNum = totalRecords
-
-			// 本页条数
 			start := (pageNo-1)*submittedPageSize + 1
 			end := start + submittedPageSize - 1
 			if end > totalNum {
 				end = totalNum
 			}
 			count := end - start + 1
+			if count < 0 {
+				count = 0
+			}
 
 			records := make([]map[string]any, 0, count)
 			for i := start; i <= end; i++ {
@@ -132,7 +144,16 @@ func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 	})))
 	defer biz.Close()
 
-	c := newTestClient(nil, biz, nil)
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithTimeout(5*time.Second),
+		client.WithSubmittedPageSize(submittedPageSize),
+	)
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
 	circles, err := c.GetSubmittedCircles(context.Background(), "test-token", "")
 	if err != nil {
 		t.Fatalf("GetSubmittedCircles 失败: %v", err)
@@ -363,20 +384,25 @@ func TestSubmittedDecodeCircleRecord(t *testing.T) {
 
 // TestGetSubmittedCircles_CancelDuringPaging 验证翻页过程中 context 取消时返回已有数据 + error。
 //
-// 设计：page 1 handler 用 page1Done 信道通知主 goroutine，主 goroutine 收到后取消 context，
-// 然后 page 2 handler 通过 <-ctx.Done() 感知取消。这样确保 cancel 发生在两次翻页之间，
-// 精确命中循环顶部的 ctx.Err() 检查点（submitted.go:42）。
+// 设计（对齐并发翻页 errgroup）：
+//  1. pageSize=100，TotalNum=300 → 强制拉 page 2..3
+//  2. page1 立即返回 2 条；后续页阻塞到 ctx 取消，再写空页
+//  3. 主 goroutine 在 page2 到达后 cancel，期望 g.Wait 失败并带回 partial
+//  4. 全程带超时，避免再出现「不翻页 → 永久阻塞 page2Started」
 func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 	const (
 		page1Records = 2
 		totalPages   = 3
+		totalNum     = totalPages * submittedPageSize // 300 > pageSize，触发翻页
 	)
 
-	var callCount int
-	// page2Started 在 page 2 handler 被 server 端调用时关闭——此时 page 1
-	// 必定已被 client 端完全消费（httpDo 已返回响应体）。
+	var (
+		callCount atomic.Int32
+		once      sync.Once
+	)
 	page2Started := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
@@ -384,41 +410,53 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 			return
 		}
 
-		callCount++
+		pageNo, _ := strconv.Atoi(r.URL.Query().Get("pageNo"))
+		if pageNo < 1 {
+			pageNo = 1
+		}
+		callCount.Add(1)
 		w.Header().Set("Content-Type", "application/json")
 
-		if callCount == 1 {
-			// 第一页：正常返回，诱导继续翻页
+		if pageNo == 1 {
 			records := make([]map[string]any, page1Records)
 			for i := range records {
 				records[i] = submittedRecord(int64(i+1), "任务", 0)
 			}
 			resp := map[string]any{
 				"code":     1,
-				"pageBean": json.RawMessage(submittedPageBean(1, submittedPageSize, totalPages*submittedPageSize, totalPages)),
+				"pageBean": json.RawMessage(submittedPageBean(1, submittedPageSize, totalNum, totalPages)),
 				"dataList": records,
 			}
 			_ = json.NewEncoder(w).Encode(resp)
 			return
 		}
 
-		// 第二页（及后续）处理到此已确保 page 1 被 client 端完全消费：
-		// client 端收到 page 1 响应 → 解码 → 循环到 page 2 → 发请求 → server 收到此请求。
-		close(page2Started)
-		// 等待 context 取消（由主 goroutine 收到 page2Started 后触发）
-		<-ctx.Done()
+		// 后续页：通知主测试后阻塞到 cancel；并发多页用 Once 避免 double-close
+		once.Do(func() { close(page2Started) })
+		select {
+		case <-ctx.Done():
+		case <-time.After(10 * time.Second):
+			// 测试异常时仍返回，避免 mock 永久占连接
+		}
 		resp := map[string]any{
 			"code":     1,
-			"pageBean": json.RawMessage(submittedPageBean(callCount, submittedPageSize, totalPages*submittedPageSize, totalPages)),
+			"pageBean": json.RawMessage(submittedPageBean(pageNo, submittedPageSize, totalNum, totalPages)),
 			"dataList": []map[string]any{},
 		}
 		_ = json.NewEncoder(w).Encode(resp)
 	})))
 	defer biz.Close()
 
-	c := newTestClient(nil, biz, nil)
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithTimeout(5*time.Second),
+		client.WithSubmittedPageSize(submittedPageSize),
+	)
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
 
-	// 在后台 goroutine 中执行 GetSubmittedCircles
 	type getResult struct {
 		circles []types.CircleRecord
 		err     error
@@ -429,22 +467,29 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 		resultCh <- getResult{circles, err}
 	}()
 
-	// 等 page 2 被 server 端处理（此时 page 1 已被 client 端完全消费）
-	<-page2Started
-	cancel()
+	select {
+	case <-page2Started:
+		cancel()
+	case <-time.After(5 * time.Second):
+		t.Fatal("超时：未等到 page2 请求（检查 pageSize/TotalNum 是否触发翻页）")
+	}
 
-	r := <-resultCh
+	var r getResult
+	select {
+	case r = <-resultCh:
+	case <-time.After(5 * time.Second):
+		t.Fatal("超时：GetSubmittedCircles 未在 cancel 后返回")
+	}
 
-	// 应该返回 error（context 取消）
 	if r.err == nil {
 		t.Fatal("context 取消时应返回 error（调用方需感知截断），实际 nil")
 	}
-	if !strings.Contains(r.err.Error(), "context canceled") {
+	if !strings.Contains(r.err.Error(), "context canceled") && !errors.Is(r.err, context.Canceled) {
 		t.Errorf("error 应包含 context canceled 描述: %v", r.err)
 	}
-	// 应返回 page 1 已有的数据
-	if len(r.circles) != page1Records {
-		t.Fatalf("期望 %d 条记录（第一页数据），实际 %d", page1Records, len(r.circles))
+	// 至少应带回第一页已成功解析的数据
+	if len(r.circles) < page1Records {
+		t.Fatalf("期望至少 %d 条记录（第一页数据），实际 %d", page1Records, len(r.circles))
 	}
 }
 
