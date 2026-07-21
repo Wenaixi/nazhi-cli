@@ -33,12 +33,18 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 
 | 用户 | SDK 自动 |
 |------|----------|
-| token | GET `/` → getMenu×2 → getMyInfo，写入缓存 |
+| token | 4 步 HAR：GET `/` → getMenu（homepage Referer）→ getMenu（home）→ getMyInfo |
+| — | 成功写入 session 状态 + **缓存 UserInfo**（供 GetMyInfo 复用） |
+| — | 同 Client + 同 token 已激活 → **DCL 快速路径**，不重跑 4 步 |
+| — | 失败后 **backoff**（同 token 冷却窗口内 `ErrSessionBackoff`） |
+
+步骤 4 的 UserInfo 会走与 GetMyInfo 相同的解析；若含学号且学校字段不全，见 [user.md](./user.md) 的 `postProcessUserInfo`（按学号补学校）。
 
 ### 请求示例
 
 ```go
 user, err := c.ActivateSession(ctx, token)
+// 多数业务方法内部也会按需 ActivateSession，显式调用便于尽早失败
 ```
 
 ### 响应示例（结构化摘要）

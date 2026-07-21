@@ -45,16 +45,22 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 | 用户 | SDK 自动 |
 |------|----------|
-| Username、Password | InitSession、GetSchoolID、拉验证码、OCR、POST 登录、解析 JWT |
+| `Username`（学号）、`Password` | `InitSession`（建 JSESSIONID） |
+| 可选 `SchoolID` | **空则** `GetSchoolID(ctx, Username)`，用返回的 schoolId 拼登录表单 |
+| — | 拉验证码图 + OCR（可多图重试 / FallbackOCR）；`LoginRequest` **无** Captcha 字段 |
+| — | POST validate → 解析 JWT token / expiresAt |
 
-`LoginRequest` **无** Captcha 字段。
+**说明**：学号必须由调用方提供（或环境变量 `NAZHI_USERNAME`），SDK **不会**默认某个学号。  
+自动的是：**用你填的学号去查学校 ID**（若未手填 SchoolID）。
 
 ### 请求示例
 
 ```go
+// SchoolID 可省略 → SDK 按学号查学校
 resp, err := c.Login(ctx, types.LoginRequest{
     Username: "2025001",
     Password: "your-password",
+    // SchoolID: "123", // 可选；已有时跳过 GetSchoolID
 })
 ```
 
@@ -82,6 +88,7 @@ resp, err := c.Login(ctx, types.LoginRequest{
 
 ## 相关类型
 
-- `types.LoginRequest`：`username` / `password`  
+- `types.LoginRequest`：`username` / `password` / 可选 `schoolId`  
 - `types.LoginResponse`：`token` / `expiresAt` / `rawData`  
 - `types.SchoolInfo`：学校元数据  
+- 总表：[autofill.md](./autofill.md)（空 SchoolID → 按学号查学校）  

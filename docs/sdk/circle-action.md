@@ -22,6 +22,9 @@ _ = c.SetCircleLike(ctx, token, 5400001)
 _ = c.DeleteCircle(ctx, token, 5400001)
 ```
 
+**用户输入**：circleId、评论 content（点赞/删除无额外 body）。  
+**SDK 自动**：内部 `ActivateSession`；`GetCircleTypes` 的 `pid` 做 `url.QueryEscape`。无其它发明默认。
+
 ---
 
 ## DeleteCircle

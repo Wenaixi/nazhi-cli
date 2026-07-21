@@ -65,31 +65,39 @@ func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskE
 
 `TaskEditInput` 比提交多必填 `ID`（已有写实记录 id）。
 
-### 用户输入 vs SDK 自动
+### 用户输入 vs SDK 自动（对照 `buildTaskPayload`）
 
-| 用户 | SDK 自动 |
-|------|----------|
-| TaskID、Content、活动相关字段（name/address/level/playRole/hostName/…）、Hours（任务预设≤0 时必填）、ImagePaths/ImageIDs | getCircleTypeByTaskId → circleTaskId/circleTypeId/dimensionId；Hours 在 meta>0 时可空用预设；本地图上传为 pictureList |
+| 类别 | 字段 | 谁填 |
+|------|------|------|
+| 必填用户 | `TaskID`、`Content`；Edit 另需 `ID` | 调用方 |
+| 活动用户 | name / address / level / playRole / hostName / rank / activityName / sportsName / teamName / orgName / resultsName / obtainTime / specialtyTechnology / likeSpecialty1–3 / checkResult / patentType / patentNum / circleBeginDate / circleEndDate | 调用方按任务类型；**空串原样，不发明值** |
+| 半自动 | `Hours`（字符串） | 用户非空 → 用用户；用户空且 meta.hours>0 → **SDK 用任务预设**；用户空且 meta≤0 → **ErrInvalidPayload** |
+| 纯 SDK | `circleTaskId`、`circleTypeId`、`dimensionId` | `GetCircleTypeByTaskID(TaskID)` |
+| 纯 SDK | `pictureList` | `ImageIDs` + 对每个 `ImagePaths` 调 `UploadFile` |
+| 兼容非用户 | `CircleDate`、`TermName` | 前端无 v-model；可空保留，勿当必填 |
+| 不出现在 body | 学号 / 姓名 / 学校名 | **不会**自动写入；身份靠 token |
 
-**禁止发明默认**：空 `Address`/`OrgName`/`Level` **原样提交**，不填学校名、不默认 `"5"`。  
-`CircleDate`/`TermName` 前端无 v-model，兼容字段，勿当必填。
+**禁止发明默认**（已从 SDK 去掉的旧行为）：
 
-写实等级（字典 cateCode=23，常见）：`1` 国家 … `5` 校 `6` 年段（以服务端字典为准）。
+- 空 `Address` / `OrgName` → ~~学校名~~ **不会**  
+- 空 `Level` → ~~`"5"`~~ **不会**  
+
+写实等级字典（`GetDictList(cateCode=23)`，常见）：`1` 国家 … `5` 校 `6` 年段（以服务端为准）。
 
 ### 请求示例
 
 ```go
-// 提交
+// 最小：任务预设 hours>0 时可省略 Hours；图片可选
 res, err := c.SubmitTask(ctx, token, types.TaskSubmitInput{
     TaskID:     18154,
     Content:    "今日完成卫生值日。",
-    Address:    "教学楼",
-    Level:      "5",
+    Address:    "教学楼", // 活动类型需要时再填；不要指望 SDK 填学校
+    Level:      "5",      // 需要时显式传
     PlayRole:   "3",
-    ImagePaths: []string{"./photo.jpg"},
+    ImagePaths: []string{"./photo.jpg"}, // SDK 自动上传并写入 pictureList
 })
 
-// 编辑
+// 编辑：同样走 buildTaskPayload 自动元数据 + 图片
 res, err = c.EditCircle(ctx, token, types.TaskEditInput{
     ID:      5400001,
     TaskID:  18154,
@@ -112,8 +120,9 @@ res, err = c.EditCircle(ctx, token, types.TaskEditInput{
 
 - 缺 content / taskId → `ErrInvalidPayload`  
 - 任务 hours≤0 且用户未填 Hours → `ErrInvalidPayload`  
-- 任务备注要求图片但未传图 → `ErrInvalidPayload`  
+- 任务备注含「照片/图片/pdf」且无图 → `ErrInvalidPayload`  
 - 业务拒绝 → `ErrBusinessRejected`（`TaskResult` 可能仍带 code/msg）  
+- 总表：[autofill.md](./autofill.md)  
 
 ---
 

@@ -28,6 +28,7 @@
 | 自我评价 | [sdk/self-eval.md](./sdk/self-eval.md) |
 | 文件 | [sdk/file.md](./sdk/file.md) |
 | 原始 JSON | [sdk/raw-json.md](./sdk/raw-json.md) |
+| **自动补全总表** | [sdk/autofill.md](./sdk/autofill.md) |
 
 ## 按角色
 
@@ -43,5 +44,5 @@
 
 - 中文为主；不堆空话  
 - 示例用占位学号/token，禁止真实凭据  
-- 写入口文档须区分「用户填 / SDK 自动」  
+- 写入口文档须区分「用户填 / SDK 自动」；细则见 [sdk/autofill.md](./sdk/autofill.md)  
 - 章节深度 ≤ 4  

@@ -23,8 +23,10 @@ Go SDK：`pkg/client` + `pkg/types` + `pkg/tokenparse`。当前文档按**功能
 | 自我评价 | [self-eval.md](./self-eval.md) |
 | 文件 | [file.md](./file.md) |
 | 原始 JSON 透传 | [raw-json.md](./raw-json.md) |
+| **自动补全总表** | [autofill.md](./autofill.md) |
 
-CLI 见 [../cli/README.md](../cli/README.md)。
+CLI 见 [../cli/README.md](../cli/README.md)。  
+**学号补学校、任务元数据、荣誉 typeName、典型案例 *Name 等**一律以 [autofill.md](./autofill.md) 为准。
 
 ---
 
@@ -145,11 +147,12 @@ c, err := client.New(
 ## 输入暴露原则（写入口）
 
 1. 前端用户 v-model / 手选 → 公开 Input  
-2. 前端自动填（任务元数据、typeName、上传 id、*Name 映射）→ SDK 自动  
+2. 前端/SDK 能自动填的 → 调用方可不填（任务元数据、typeName、*Name、score=0、学校信息用学号补全等）  
 3. **禁止发明默认**：写实空 Address/OrgName/Level 原样发送（不填学校名、不默认 `"5"`）  
 4. Hours：任务预设 >0 可空；≤0 须用户填  
 
-详见各域文档「用户输入 vs SDK 自动」。
+**完整对照表（含「学号 → 自动补 schoolId/schoolName」）见 [autofill.md](./autofill.md)。**  
+各域文档内另有「用户输入 vs SDK 自动」小节。
 
 ---
 

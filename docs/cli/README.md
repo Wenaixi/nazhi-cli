@@ -184,4 +184,23 @@ nazhi task submitted --token "$T" | jq '.data.records // .data | length'
 | 2 | 网络 / 5xx |
 | 3 | 参数错误（缺 token、坏 JSON 等） |
 
-更多字段与自动填充行为见 [SDK 文档中心](../sdk/README.md)。  
+---
+
+## SDK 自动补全对照
+
+CLI 是 SDK 薄壳：下列行为在命令里**不用**手填，由 SDK 完成。完整表见 [sdk/autofill.md](../sdk/autofill.md)。
+
+| 场景 | CLI 侧 | SDK 自动 |
+|------|--------|----------|
+| `login` | 学号/密码（`NAZHI_*` 或 `-u/-p`） | 空 schoolId → 按学号查学校；验证码 OCR |
+| `whoami` / `user info` | token | Session 预热；若 school 不全则用**平台返回的学号**补 schoolId/schoolName |
+| `task submit` / `edit` | payload 里 taskId+content+活动字段 | 任务元数据 id；hours 半自动；ImagePaths 上传；**不**默认 address/level |
+| `honor add` | typeId/level/agency/getDate | typeName 反查；name 回落 typeName；score=0 |
+| `typical-case submit` | type/role/level 代码 + 正文 | *Name 按 code；type2=社会调查报告，level1=国际 |
+| `user update` | 友好 JSON 键 | 中文→代码；忽略全国学籍号 |
+| `file upload` | 本地路径 | 转 JPG≤5MB；**无** token |
+| 多数业务命令 | token | 内部 `ActivateSession` |
+
+**不会**自动：用默认学号登录、把学号写进写实 body、空地址填学校名、空 level 填 `"5"`。
+
+字段级说明：[SDK 文档中心](../sdk/README.md)。  

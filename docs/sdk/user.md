@@ -33,10 +33,22 @@ err = c.UpdateMyInfoStructured(ctx, token, types.UserUpdateInput{
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error)
 ```
 
+### SDK 自动（读路径）
+
+| 步骤 | 行为 |
+|------|------|
+| Session 预热 | 先 `ActivateSession`；若本次激活已返回 UserInfo，**直接复用**，不再打第二遍 getMyInfo |
+| 学号补学校 | 响应里已有 `studentNumber`，且 `schoolId==0` **或** `schoolName==""` 时：用**该学号**调 `GetSchoolID`（SSO 公开接口）补全 `schoolId` / `schoolName` |
+| 班级名 | 若 `className` 以 `gradeName` 为前缀，去掉前缀（年级信息已在 gradeName） |
+
+**学号不会被 SDK 改写或伪造**；平台返回什么学号就用什么去补学校。写实提交也**不会**把学号塞进 addCircle body。
+
 ### 请求示例
 
 ```go
 info, err := c.GetMyInfo(ctx, token)
+// info.StudentNumber 来自平台
+// info.SchoolID / SchoolName 可能经 SSO 按学号补全
 ```
 
 ### 响应示例
@@ -47,6 +59,7 @@ info, err := c.GetMyInfo(ctx, token)
   "name": "张三",
   "studentNumber": "2025001",
   "schoolId": 123,
+  "schoolName": "示例中学",
   "gradeId": 1,
   "gradeName": "高一",
   "classId": 8,
@@ -58,6 +71,11 @@ info, err := c.GetMyInfo(ctx, token)
   "familyAddress": "福建省福州市"
 }
 ```
+
+### 错误 / 注意
+
+- `ErrEmptyUserInfo`：业务成功但无用户数据  
+- SSO 补学校失败只打 debug 日志，不导致整个 GetMyInfo 失败  
 
 ---
 
@@ -73,9 +91,24 @@ func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input
 
 | 用户可填 | SDK 自动 / 不发 |
 |----------|-----------------|
-| Telephone、FamilyAddress、Hobbies、GenderName、YouthLeague、NationName、IdCardType、IDCard、BirthdayStr、Seat、StudentUuid | 中文→gender/youthLeagueFlag/nation/idType；**忽略** NationalStudentNumber（前端只读） |
+| Telephone、FamilyAddress、Hobbies、GenderName、YouthLeague、NationName、IdCardType、IDCard、BirthdayStr、Seat、StudentUuid | 中文→gender / youthLeagueFlag / nation / idType |
+| Name（可选） | 映射 API key **`studentName`**（不是 `name`） |
+| StudentNumber（可选高级） | 原样 `studentNumber` |
+| NationalStudentNumber | **故意忽略，不写入**（前端只读全国学籍号） |
 
-零值/空串跳过（密码 `StudentUuid` 例外：空串表示不改密码，仍写入 key）。
+零值/空串跳过，避免覆盖服务端（**密码例外**：`StudentUuid` 始终带 key，空串表示不改密码）。
+
+| GenderName | → gender |
+|------------|----------|
+| 男 | 1 |
+| 女 | 2 |
+
+| YouthLeague | → youthLeagueFlag |
+|-------------|-------------------|
+| 是 | 1 |
+| 否 | 0 |
+
+民族、证件类型映射见源码 `user_update.go` 的 `nationMap` / `idCardTypeMap`（汉族=1…；身份证=1…）。
 
 ### 请求示例
 
@@ -86,6 +119,7 @@ err := c.UpdateMyInfoStructured(ctx, token, types.UserUpdateInput{
     NationName: "汉族",
     IdCardType: "中国居民身份证",
     Seat:       15,
+    // 不要填 NationalStudentNumber——即使填了也不会发出
 })
 ```
 
@@ -96,18 +130,22 @@ err := c.UpdateMyInfoStructured(ctx, token, types.UserUpdateInput{
 ### 错误 / 注意
 
 - 不支持的中文映射值 → `ErrInvalidPayload`  
-- 成功后自动 `InvalidateCachedUserInfo`  
+- 成功后自动 `InvalidateCachedUserInfo`，避免下次 GetMyInfo 读到更新前缓存  
 
 ---
 
 ## UpdateMyInfo / InvalidateCachedUserInfo
 
 ```go
-// 原始 key
+// 原始 key（调用方自己保证 key 正确，无中文转换）
 _ = c.UpdateMyInfo(ctx, token, map[string]any{"telephone": "13800138000"})
+// 若绕过 Update* 改了服务端资料，可手动清缓存：
 c.InvalidateCachedUserInfo()
 ```
+
+`UpdateMyInfo` 成功路径也会清缓存。
 
 ## 相关类型
 
 - `types.UserInfo`、`types.UserUpdateInput`  
+- 总表：[autofill.md](./autofill.md)  

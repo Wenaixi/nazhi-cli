@@ -11,6 +11,7 @@
 
 - **docs 重组**：删除设计类单页（architecture / login-flow / OCR / env-vars / har-testing / migration_v2 / api-coverage）；SDK 按功能域分册（`docs/sdk/*.md`）；CLI 精简为单文件并并入环境变量速查
 - 根 README / 文档中心仅链 CLI + SDK 分册
+- **自动补全总表** [`docs/sdk/autofill.md`](docs/sdk/autofill.md)：对照源码列出 Login 按学号查学校、GetMyInfo 用学号补 schoolId/schoolName、写实 hours/元数据/图片、荣誉 typeName/name/score、典型案例 *Name、用户中文映射与禁止发明默认等；各域分册补「用户输入 vs SDK 自动」；CLI 增加「SDK 自动补全对照」节
 
 ### 破坏性变更 (BREAKING)
 

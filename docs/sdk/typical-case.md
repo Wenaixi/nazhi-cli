@@ -32,21 +32,22 @@ err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
 
 ## AddTypicalCase
 
-### 用户输入 vs SDK 自动
+### 用户输入 vs SDK 自动（`fillTypicalCaseDisplayNames`）
 
-| 用户 | SDK 自动 |
-|------|----------|
-| Title、Type、Role、Level、TeacherName、PartnerName、Remark、Content、AttachmentID/Name | 空 typeName/roleName/levelName 按 el-option 补全 |
+| 字段 | 用户 | SDK |
+|------|------|-----|
+| title / type / role / level / teacherName / partnerName / remark / content | 必填侧（对齐前端） | — |
+| attachmentId / attachmentName | 可选；证书图需先 `UploadFile` 再填 id | SDK **不**从本地路径代传（与荣誉一致） |
+| typeName / roleName / levelName | 可空 | 空则按 code 映射（下表）；**已填不覆盖** |
+| Update 的 map | type/role/level 可为 **string 或 number** | 均能补 *Name |
 
 | code | typeName | roleName | levelName |
 |------|----------|----------|-----------|
-| 1 | 研究性学习报告 | 负责人 | **国际** |
-| 2 | **社会调查报告** | 参与者 | 省 |
+| 1 | 研究性学习报告 | 负责人 | **国际**（不是「国家」） |
+| 2 | **社会调查报告**（不是「社会实践」） | 参与者 | 省 |
 | 3 | 艺术创作作品 | — | 市 |
 | 4 | 其他 | — | 区县 |
 | 5 | — | — | 学校 |
-
-勿与写实列表「国家 / 社会实践」文案混用。
 
 ### 请求示例
 
@@ -60,6 +61,7 @@ err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
     PartnerName: "无",
     Remark: "任务描述",
     Content: "材料内容……",
+    // TypeName/RoleName/LevelName 可省略
 })
 ```
 
@@ -75,8 +77,7 @@ err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
 func (c *Client) GetTypicalCaseList(ctx context.Context, token string, pageNo, pageSize int, status ...int) (*types.TypicalCaseListResult, error)
 ```
 
-`status` 默认 **3=全部**（0 未审 / 1 通过 / 2 驳回 / 3 全部）。
-
+`status` 变参默认 **3=全部**（0 未审 / 1 通过 / 2 驳回 / 3 全部）；与前端列表默认一致。
 ### 响应示例
 
 ```json
@@ -134,3 +135,4 @@ _ = c.DeleteBatchTypicalCase(ctx, token, []int64{1, 2, 3}) // body 为纯 JSON �
 
 - `AddTypicalCasePayload`、`TypicalCaseRecord`、`TypicalCaseListResult`  
 - 常量 `TypicalCaseStatusPending/Approved/Rejected/All`  
+- 总表：[autofill.md](./autofill.md)  

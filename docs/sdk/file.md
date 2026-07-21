@@ -34,12 +34,16 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 
 | 用户 | SDK 自动 |
 |------|----------|
-| 本地文件路径 | 透明底合成、缩放、JPEG、multipart；`bussinessType=12&groupName=other`；剥离鉴权头 |
+| 本地文件路径 | 解码 → 白底扁平化 → 缩放 → JPEG；目标体积 ≤5MB |
+| — | multipart 字段名与 `bussinessType=12&groupName=other`（拼写与平台一致） |
+| — | 上传文件名 = `basename(path)` 改 `.jpg`（不含目录） |
+| — | **剥离** Authorization / X-Auth-Token / Cookie（独立 clean client） |
 
 ### 请求示例
 
 ```go
 r, err := c.UploadFile(ctx, "./shot.png")
+// r.AttachmentID 供写实 pictureList / 荣誉 CertImgAttachmentID / 典型案例 attachmentId
 ```
 
 ### 响应示例
@@ -56,7 +60,8 @@ r, err := c.UploadFile(ctx, "./shot.png")
 
 - `ErrFileTooLarge` / `ErrImageTooLarge`：压缩后仍超限  
 - `ErrUploadRejected`：服务端拒绝  
-- 写实/荣誉/典型案例：可先 Upload 再填 attachmentId / CertImgAttachmentID / pictureList  
+- 写实 `SubmitTask` 的 `ImagePaths` 会在内部自动调 Upload；荣誉/典型案例证书需调用方先 Upload 再填 id  
+- 总表：[autofill.md](./autofill.md)  
 
 ---
 

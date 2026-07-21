@@ -34,7 +34,7 @@ func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment
 
 | 用户 | SDK |
 |------|-----|
-| 评语文本 | POST `{"studentComment": comment}` |
+| 评语文本 | POST 一层 `{"studentComment": comment}`；先 `ActivateSession` |
 
 ### 请求 / 响应
 
@@ -47,7 +47,11 @@ err := c.SubmitSelfEvaluation(ctx, token, "本学期收获……")
 
 ## SubmitSelfEvaluationStructured
 
-前端 `selfgaintloss.vue`：form 对象再 `JSON.stringify` 包进 `studentComment`。
+前端 `selfgaintloss.vue`：form 对象 **`JSON.stringify` 后再**作为 `studentComment` 字符串提交（双层）。
+
+| 用户 | SDK |
+|------|-----|
+| `map` 各键（bxqhzr…） | `json.Marshal(form)` → 作为 `studentComment` 字段值 POST |
 
 ```go
 err := c.SubmitSelfEvaluationStructured(ctx, token, map[string]any{
@@ -64,7 +68,6 @@ err := c.SubmitSelfEvaluationStructured(ctx, token, map[string]any{
     "sxqhcz": "下学期会创造",
 })
 ```
-
 ---
 
 ## QuerySelfEvaluation
@@ -99,3 +102,4 @@ _ = c.SubmitSelfGradEvaluation(ctx, token, "毕业感言……")
 ## 相关类型
 
 - `types.SelfEvalStatus`（`UnmarshalJSON` 主读 student_comment/teacher_comment）  
+- 总表：[autofill.md](./autofill.md)  

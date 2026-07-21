@@ -29,6 +29,17 @@ n, err := c.PeekSubmittedTotal(ctx, token, "劳动")
 
 结构化方法自动翻页合并；CLI 大列表多用 `*JSON` / `*LimitJSON`（见 [raw-json.md](./raw-json.md)）。
 
+### SDK 自动
+
+| 行为 | 说明 |
+|------|------|
+| 翻页 | `Get*Circles` 循环 pageNo 合并全量 `[]CircleRecord` |
+| Session | 内部按需 `ActivateSession` |
+| `key` | 原样透传；空串 = 不筛选 |
+| Peek | 只取 total，不拉全量 |
+
+详见 [autofill.md](./autofill.md)。
+
 ---
 
 ## GetSubmittedCircles（示例，其它三类同形）
