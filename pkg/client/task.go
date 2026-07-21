@@ -440,7 +440,7 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		PatentType:          strings.TrimSpace(input.GetPatentType()),
 		PatentNum:           strings.TrimSpace(input.GetPatentNum()),
 		Address:             address,
-		TermName:            strings.TrimSpace(input.GetCircleDate()), // fallback: 用 circleDate 作为届数
+		TermName:            strings.TrimSpace(input.GetTermName()),
 		ActivityName:        activityName,
 		SportsName:          sportsName,
 		TeamName:            teamName,

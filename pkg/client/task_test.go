@@ -152,6 +152,59 @@ func TestAppendLocked_ConcurrentVariadic(t *testing.T) {
 	}
 }
 
+// ─── TermName 独立字段 ───
+
+// TestBuildTaskPayload_TermNameIndependent 验证 termName 不再误用 circleDate。
+// 仅传 CircleDate 时 TermName 必须为空；显式传 TermName 时两者互不覆盖。
+func TestBuildTaskPayload_TermNameIndependent(t *testing.T) {
+	// mock：getCircleTypeByTaskId + getMyInfo（经 session 预热）
+	var captured types.TaskAddCirclePayload
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"","type":10}}`))
+		case "/api/studentCircleNew/addCircle":
+			_ = json.NewDecoder(r.Body).Decode(&captured)
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer server.Close()
+
+	c, err := New(WithBaseURL(server.URL), WithSSOBase(server.URL), WithTimeout(5*1000*1000*1000))
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	// 只传 CircleDate → TermName 必须为空（当前 bug 会把 CircleDate 填进 TermName）
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:     1001,
+		Content:    "内容",
+		CircleDate: "2026-03-01",
+	})
+	if err != nil {
+		t.Fatalf("SubmitTask 失败: %v", err)
+	}
+	if captured.CircleDate != "2026-03-01" {
+		t.Errorf("CircleDate 应保持 2026-03-01，实际 %q", captured.CircleDate)
+	}
+	if captured.TermName != "" {
+		t.Errorf("仅传 CircleDate 时 TermName 应为空，实际 %q（不应回落为 CircleDate）", captured.TermName)
+	}
+}
+
 // ─── isContextError helper 测试 ───
 
 // TestIsContextError 验证 isContextError 对 context.Canceled、context.DeadlineExceeded 返回 true，
