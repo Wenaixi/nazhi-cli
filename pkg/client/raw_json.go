@@ -237,7 +237,9 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 
 // getCirclesLimitJSON 是各类型写实记录按偏移/条数限制拉取的通用实现。
 //
-// 多页时使用 errgroup 并发翻页，避免串行循环在数据量大时慢 2-5 倍。
+// 多页时使用 errgroup 并发翻页，但只请求 offset/limit 覆盖到的页：
+// endPage = min(TotalPage, ceil((offset+limit)/pageSize))，
+// 避免全量翻页再截断造成的多余请求。
 func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, limit int, circleType int, methodName string) (json.RawMessage, *types.PageBean, error) {
 	pageSize := c.submittedPageSize
 	if pageSize <= 0 {
@@ -260,15 +262,26 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 		return []byte("[]"), pb, nil
 	}
 
+	// 只拉到覆盖 offset+limit 的最后一页，不全量翻页
+	// endPage = ceil((offset+limit)/pageSize)，再与 TotalPage 取 min
+	need := offset + limit
+	endPage := (need + pageSize - 1) / pageSize
+	if endPage < 1 {
+		endPage = 1
+	}
+	if endPage > pb.TotalPage {
+		endPage = pb.TotalPage
+	}
+
 	// 多页：预分配索引切片 + errgroup 并发翻页，保持页号顺序
-	results := make([]rawResult, pb.TotalPage+1)
+	results := make([]rawResult, endPage+1)
 	results[1] = rawResult{raw: raw1}
 
-	if pb.TotalPage > 1 {
+	if endPage > 1 {
 		g, gctx := errgroup.WithContext(ctx)
 		g.SetLimit(concurrentPageLimit)
 
-		for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+		for pageNo := 2; pageNo <= endPage; pageNo++ {
 			pn := pageNo
 			g.Go(func() error {
 				if err := gctx.Err(); err != nil {
@@ -285,24 +298,28 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 
 		if err := g.Wait(); err != nil {
 			// 部分失败时，已成功的页仍有效；按已有页顺序拼接
-			return c.assembleCirclesLimitJSON(results, pb, offset, limit, methodName,
+			return c.assembleCirclesLimitJSON(results, pb, offset, limit, endPage, methodName,
 				fmt.Errorf("%s 部分页失败: %w", methodName, err))
 		}
 	}
 
-	return c.assembleCirclesLimitJSON(results, pb, offset, limit, methodName, nil)
+	return c.assembleCirclesLimitJSON(results, pb, offset, limit, endPage, methodName, nil)
 }
 
 // assembleCirclesLimitJSON 将并发翻页结果按 offset/limit 规则拼接为最终 JSON 数组。
-func (c *Client) assembleCirclesLimitJSON(results []rawResult, pb *types.PageBean, offset, limit int, methodName string, partialErr error) (json.RawMessage, *types.PageBean, error) {
+// endPage 是实际请求到的最大页号（<= TotalPage），results 长度对应 endPage+1。
+func (c *Client) assembleCirclesLimitJSON(results []rawResult, pb *types.PageBean, offset, limit, endPage int, methodName string, partialErr error) (json.RawMessage, *types.PageBean, error) {
 	buf := bytes.NewBuffer(make([]byte, 0, 2048))
 	buf.WriteByte('[')
 	first := true
 	taken := 0
 	skipped := 0
 
-	// 按页号顺序处理数据，应用 offset/limit 规则
-	for pn := 1; pn <= pb.TotalPage; pn++ {
+	// 按页号顺序处理数据，应用 offset/limit 规则（只遍历已请求页）
+	if endPage > pb.TotalPage {
+		endPage = pb.TotalPage
+	}
+	for pn := 1; pn <= endPage; pn++ {
 		if len(results[pn].raw) == 0 {
 			continue
 		}
