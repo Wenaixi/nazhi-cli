@@ -236,6 +236,8 @@ var WithCustomOCR = withNilGuard[CaptchaRecognizer]("WithCustomOCR", func(c *Cli
 //     首次调用 Recognize 时触发完整模型加载
 //   - n < 0：拒绝设置并 warn，保持当前 c.ocr（防止负数被静默截 0
 //     后用默认值覆盖调用方已注入的自定义识别器，如 WithCustomOCR mock）
+//   - ddddocr 构建：若 c.ocr 已是 WithCustomOCR 注入的非 *ocr.Pool 识别器，
+//     n>=0 时 no-op，不得 NewPool 覆盖 mock；仅对 *ocr.Pool 调整并发
 //
 // 内存代价：每个 ONNX session 约 50MB（模型 + 原生库），N=4 约 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单次 Login 用 1 实例足够。

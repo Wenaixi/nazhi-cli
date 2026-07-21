@@ -8,6 +8,7 @@ package client
 
 import (
 	"bytes"
+	"io"
 	"log/slog"
 	"strings"
 	"testing"
@@ -141,6 +142,50 @@ func TestWithOCRConcurrency_NegativeRejected(t *testing.T) {
 	}
 	if !strings.Contains(logBuf.String(), "负") || !strings.Contains(logBuf.String(), "WithOCRConcurrency") {
 		t.Errorf("应 warn 包含 '负' 和 'WithOCRConcurrency'，实际 log：%s", logBuf.String())
+	}
+}
+
+// TestWithOCRConcurrency_DoesNotOverwriteCustomOCR 回归测试（group-H）：
+// WithCustomOCR(mock) 之后再 WithOCRConcurrency(n>=0) 不得用 ocr.NewPool 覆盖 mock。
+// 历史 bug：ddddocr 构建下 n>=0 无条件 c.ocr = ocr.NewPool(n)，导致
+// New(WithCustomOCR(mock), WithOCRConcurrency(1)) 静默丢掉 mock，Login 走真实 OCR。
+func TestWithOCRConcurrency_DoesNotOverwriteCustomOCR(t *testing.T) {
+	var logBuf bytes.Buffer
+	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+
+	mock := &mockCaptchaRecognizer{}
+	c := &Client{
+		ocr:    mock, // 模拟 WithCustomOCR(mock) 已注入
+		logger: logger,
+	}
+
+	// n=0 / n=1 / n>1 均不得覆盖自定义识别器
+	for _, n := range []int{0, 1, 2} {
+		WithOCRConcurrency(n)(c)
+		if c.ocr != mock {
+			t.Fatalf("WithOCRConcurrency(%d) 不得覆盖 WithCustomOCR 注入的 mock，实际被替换", n)
+		}
+	}
+}
+
+// TestWithOCRConcurrency_StillReplacesDefaultPool 保证修复后默认 ddddocr Pool
+// 仍可被 WithOCRConcurrency 替换（仅保护自定义识别器，不误伤内置 Pool）。
+func TestWithOCRConcurrency_StillReplacesDefaultPool(t *testing.T) {
+	old := defaultOCR()
+	if old == nil {
+		t.Fatal("ddddocr 构建下 defaultOCR() 不应为 nil")
+	}
+	c := &Client{
+		ocr:    old,
+		logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	WithOCRConcurrency(2)(c)
+	if c.ocr == old {
+		t.Error("WithOCRConcurrency 应对内置 *ocr.Pool 生效（创建新 Pool），不应保持原实例")
+	}
+	if c.ocr == nil {
+		t.Fatal("WithOCRConcurrency 替换后 c.ocr 不应为 nil")
 	}
 }
 

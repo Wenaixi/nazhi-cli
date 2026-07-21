@@ -47,6 +47,9 @@ func defaultOCR() CaptchaRecognizer {
 //     首次调用 Recognize 时触发完整模型加载
 //   - n < 0：拒绝设置并 warn，保持当前 c.ocr（防止负数被静默截 0
 //     后用默认值覆盖调用方已注入的自定义识别器，如 WithCustomOCR mock）
+//   - 若 c.ocr 已是用户通过 WithCustomOCR 注入的自定义识别器
+//     （非 *ocr.Pool）：n>=0 时 no-op，不得 NewPool 覆盖 mock
+//   - 若 c.ocr 是 *ocr.Pool（默认或此前 WithOCRConcurrency 创建）：可替换为新 Pool
 //
 // 内存代价：每个 ONNX session 约 50MB（模型 + 原生库），N=4 约 200MB。
 // 业务场景：批量调用 Login() 时才需要调高；单次 Login 用 1 实例足够。
@@ -57,6 +60,14 @@ func WithOCRConcurrency(n int) Option {
 				"n", n,
 				"tip", "用 0/1 = 单实例，N>1 = 并发池")
 			return
+		}
+		// 保护 WithCustomOCR 注入的自定义识别器：仅对 *ocr.Pool 调整并发度。
+		// c.ocr == nil 也允许创建默认 Pool（极少数显式清空后再调的场景）。
+		if c.ocr != nil {
+			if _, ok := c.ocr.(*ocr.Pool); !ok {
+				// 自定义 mock / 外部识别器：no-op，避免 NewPool 静默覆盖
+				return
+			}
 		}
 		c.ocr = ocr.NewPool(n)
 		// 如果已有外部模型目录设置，传播到新的 OCR Pool
