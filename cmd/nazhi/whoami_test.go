@@ -227,5 +227,43 @@ func TestWhoami_BizFail_PrintsError(t *testing.T) {
 	}
 }
 
+// TestWhoami_MissingToken_Exit3 缺 token 时 whoami 必须 exit 3（参数错误），不是 2。
+// 历史 bug：buildBizClient 失败走 printError → Error(500)→exit 2，
+// 把用户参数问题误标为服务端错误。
+func TestWhoami_MissingToken_Exit3(t *testing.T) {
+	origToken := os.Getenv("NAZHI_TOKEN")
+	_ = os.Unsetenv("NAZHI_TOKEN")
+	t.Cleanup(func() {
+		if origToken != "" {
+			_ = os.Setenv("NAZHI_TOKEN", origToken)
+		}
+	})
+
+	cmd := &cobra.Command{Use: "whoami"}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("token", "", "")
+	cmd.Flags().String("base-url", "", "")
+	cmd.Flags().Int("timeout", 5, "")
+	// 故意不 Set token → buildBizClient 返回参数错误
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	_, stderrBuf, restore := captureStdio(t)
+	whoamiCmd.Run(cmd, nil)
+	restore()
+	stderr := stderrBuf.String()
+
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("缺 token 应 pendingExitCode=3，实际 %d；stderr=%q", got, stderr)
+	}
+	if !strings.Contains(stderr, `"code": 400`) {
+		t.Errorf("缺 token stderr 应含 code=400，实际: %q", stderr)
+	}
+	if !strings.Contains(stderr, "--token") {
+		t.Errorf("缺 token stderr 应提示 --token，实际: %q", stderr)
+	}
+}
+
 // 静默：防止 import 未使用
 var _ = fmt.Sprintf

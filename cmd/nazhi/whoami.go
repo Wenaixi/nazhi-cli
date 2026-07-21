@@ -25,7 +25,7 @@ var whoamiCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 

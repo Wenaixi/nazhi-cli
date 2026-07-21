@@ -49,7 +49,7 @@ func printEnvelope(e *envelope.Envelope) {
 	}
 }
 
-// printError 输出 envelope.Error 到 stderr 并标记退出码。
+// printError 输出 envelope.Error(500) 到 stderr 并标记退出码（exit 2）。
 // 注意：此函数**不**调用 os.Exit。退出由 main 在 rootCmd.Execute() 之后
 // 统一处理。原因：修复——os.Exit 绕过 goroutine 栈展开，导致 main 的
 // defer closeAllClients() 永远不执行，ONNX session + 临时目录 +
@@ -58,7 +58,21 @@ func printEnvelope(e *envelope.Envelope) {
 //   - printError 仅写 stderr + 设 pendingExitCode（按 envelope.ExitCode）
 //   - 调用方（cobra Run 回调）保持原样 `printError(err); return`
 //   - main 在 Execute 返回非 nil 或 pendingExitCode!=0 时统一 os.Exit
+//
+// 参数错误（缺 token、payload 读/解析失败）请用 printParamError（400→exit 3）。
 func printError(err error) {
+	printErrorWithCode(err, 500)
+}
+
+// printParamError 输出参数错误 envelope.Error(400) 到 stderr，退出码 3。
+// 用于 buildBizClient 失败（缺 token）、payload 读取/JSON 解析失败等
+// 调用方可控的输入问题，与服务端/网络错误（printError → 500/exit 2）区分。
+func printParamError(err error) {
+	printErrorWithCode(err, 400)
+}
+
+// printErrorWithCode 是 printError / printParamError 的共享实现。
+func printErrorWithCode(err error, httpCode int) {
 	if err == nil {
 		return
 	}
@@ -74,17 +88,15 @@ func printError(err error) {
 	defer printErrorDepth.Add(-1)
 
 	// 把 error 包成 envelope，按 ExitCode 设退出码。
-	// 默认 code=500（服务端错误兜底），具体命令可调 envelope.Error(code, msg)
-	// 自行设置更精确的状态码。
-	e := envelope.Error(500, err.Error())
+	e := envelope.Error(httpCode, err.Error())
 
 	// quiet 模式下只标记退出码，不写 stderr
 	if !quiet {
 		enc := json.NewEncoder(os.Stderr)
 		enc.SetIndent("", "  ")
 		if enc.Encode(e) != nil {
-			// 兜底：JSON 编码失败时也必须走 pendingExitCode=1 路径
-			printError(fmt.Errorf("printError JSON 编码失败: %w", err))
+			// 兜底：JSON 编码失败时也必须走 pendingExitCode 路径
+			printErrorWithCode(fmt.Errorf("printError JSON 编码失败: %w", err), httpCode)
 			return
 		}
 	}

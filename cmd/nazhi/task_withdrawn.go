@@ -31,7 +31,7 @@ var taskWithdrawnCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
-			printError(err)
+			printParamError(err)
 			return
 		}
 
@@ -55,6 +55,17 @@ var taskWithdrawnCmd = &cobra.Command{
 			printVerbose("正在获取被撤回写实记录（limit=%d, offset=%d）...", limit, offset)
 			raw, pb, err := c.GetWithdrawnCirclesLimitJSON(cmd.Context(), token, offset, limit, key)
 			if err != nil {
+				if len(raw) > 0 {
+					total := 0
+					if pb != nil {
+						total = pb.TotalNum
+					}
+					printEnvelope(envelope.Partial(207, "获取被撤回写实记录失败: "+err.Error(), map[string]any{
+						"records": json.RawMessage(raw),
+						"total":   total,
+					}))
+					return
+				}
 				printError(fmt.Errorf("获取被撤回写实记录失败: %w", err))
 				return
 			}
@@ -72,6 +83,10 @@ var taskWithdrawnCmd = &cobra.Command{
 		printVerbose("正在获取被撤回写实记录...")
 		raw, err := c.GetWithdrawnCirclesJSON(cmd.Context(), token, key)
 		if err != nil {
+			if len(raw) > 0 {
+				printEnvelope(envelope.Partial(207, "获取被撤回写实记录失败: "+err.Error(), json.RawMessage(raw)))
+				return
+			}
 			printError(fmt.Errorf("获取被撤回写实记录失败: %w", err))
 			return
 		}

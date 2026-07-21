@@ -228,6 +228,85 @@ func TestPrintError_QuietModeSuppressesStderr(t *testing.T) {
 	}
 }
 
+// TestPrintParamError_Code400_Exit3 回归：参数错误必须 envelope.Error(400)→exit 3。
+// 历史 bug：printError 固定 Error(500)→exit 2，缺 token / payload 读解析失败
+// 被误标为服务端错误，脚本无法区分「用户参数问题」与「服务端/网络问题」。
+func TestPrintParamError_Code400_Exit3(t *testing.T) {
+	orig := pendingExitCode.Load()
+	defer pendingExitCode.Store(orig)
+
+	origQuiet := quiet
+	quiet = false
+	t.Cleanup(func() { quiet = origQuiet })
+
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	pendingExitCode.Store(0)
+	printParamError(errors.New("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）"))
+
+	_ = w.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("读取 stderr 失败: %v", err)
+	}
+	stderr := buf.String()
+
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("printParamError 应设 pendingExitCode=3，实际 %d", got)
+	}
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应含 status=error，实际: %q", stderr)
+	}
+	if !strings.Contains(stderr, `"code": 400`) {
+		t.Errorf("stderr 应含 code=400，实际: %q", stderr)
+	}
+	if strings.Contains(stderr, `"code": 500`) {
+		t.Errorf("参数错误不得输出 code=500，实际: %q", stderr)
+	}
+	if !strings.Contains(stderr, "--token 为必填") {
+		t.Errorf("stderr 应含错误信息，实际: %q", stderr)
+	}
+}
+
+// TestPrintParamError_QuietModeStillSetsExit3 quiet 下不写 stderr，但退出码仍为 3。
+func TestPrintParamError_QuietModeStillSetsExit3(t *testing.T) {
+	orig := pendingExitCode.Load()
+	defer pendingExitCode.Store(orig)
+
+	origQuiet := quiet
+	quiet = true
+	t.Cleanup(func() { quiet = origQuiet })
+
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr }()
+
+	pendingExitCode.Store(0)
+	printParamError(errors.New("解析 payload JSON 失败: invalid"))
+
+	_ = w.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("读取 stderr 失败: %v", err)
+	}
+	if buf.Len() > 0 {
+		t.Errorf("quiet 模式下 printParamError 不应写 stderr，实际: %q", buf.String())
+	}
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("quiet 下仍应 pendingExitCode=3，实际 %d", got)
+	}
+}
+
 // TestPrintPrompt_NonTTYStdinSuppressesOutput L finding 回归测试
 // stdin 不是 TTY 时（CI / 管道环境）printPrompt 必须不输出。
 // 模拟方法：用 os.Pipe 替换 os.Stdin（管道永远不是 TTY）。
