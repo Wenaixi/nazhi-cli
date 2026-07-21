@@ -16,6 +16,27 @@
 
 - CLI `nazhi task submitted|done|teacher|public|withdrawn` 支持 `--key` 关键字筛选（含 Peek 总数路径）
 - CLI `nazhi honor list` 支持 `--key` 关键字筛选
+- `TaskInput` / `TaskSubmitInput` / `TaskEditInput` 新增独立 `TermName` 字段（不再误用 `CircleDate` 填 `termName`）
+- CLI 新增 `printParamError`：参数错误固定 `envelope.Error(400)` → 退出码 3
+
+### 修复
+
+- `httpDo` 对非 2xx 走 `classifyHTTPStatus`，主业务路径可识别 429/5xx/4xx 哨兵错误
+- `UploadFile` 仅在真正过大时 `Join ErrFileTooLarge`；multipart 文件名改用 basename+.jpg；`multipartBufPool` 预分配 `MaxImageSize+1024`
+- `hasHostSuffix` 要求 exact 或以 `.`+suffix 结尾，防止 `evilnazhisoft.com` 受信绕过
+- `assembleCirclesJSON` 空首页不再产生 leading comma 非法 JSON
+- `getCirclesLimitJSON` 只请求 offset/limit 覆盖页，避免全量翻页再截断
+- `FetchTasksJSON` cancel 路径对齐 `ErrRetryable`（与 `FetchTasks` 对称）
+- `parseHours` 非法输入返回 `ErrInvalidPayload`，不再静默回退 meta.Hours
+- `TaskAddCirclePayload.ID` 加 `omitempty`，新增写实不再发 `"id":null`
+- `UpdateMyInfo` 成功后失效 `sm.cachedUserInfo`，避免同进程 `GetMyInfo` 返回更新前快照；新增 `InvalidateCachedUserInfo`
+- `nazhi user update` 解析 `UserUpdateInput` 并调用 `UpdateMyInfoStructured`，友好键（genderName 等）正确 remap
+- `QuerySelfEvaluation` 未提交评价时返回 `(nil, nil)`，不再把空成功误判为「所有解码器均失败」
+- `UpdateHonor` 对称补全 `typeName`（与 `AddHonor` 共用 ensureHonorTypeName）
+- `GetCircleTypes` 对 `pid` 做 `url.QueryEscape`
+- `WithOCRConcurrency` 不再覆盖 `WithCustomOCR` 注入的识别器
+- 参数错误改用 `printParamError(400)`→exit 3（缺 token / payload 解析失败等）
+- 写实列表 `Get*CirclesJSON` 部分页失败时输出 `envelope.Partial(207)` 保留已合并数据
 
 ## [1.3.0] - 2026-07-18
 

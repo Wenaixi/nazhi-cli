@@ -53,9 +53,24 @@ var idCardTypeMap = map[string]int{
 //	{"telephone": "138xxx", "familyAddress": "福建省福州市", "hobbies": "阅读"}
 //
 // 可用字段参考 types.UserInfo 中的 json tag 名。
+//
+// 成功后会失效 sm.cachedUserInfo：ActivateSession 步骤 4 缓存的 UserInfo
+// 不再对 GetMyInfo 的 DCL fast path 可见，下次 GetMyInfo 会重新拉取。
 func (c *Client) UpdateMyInfo(ctx context.Context, token string, updates map[string]any) error {
-	return c.doBizVoid(ctx, token, "UpdateMyInfo",
-		"/api/studentInfo/updateMyInfo", http.MethodPost, updates)
+	if err := c.doBizVoid(ctx, token, "UpdateMyInfo",
+		"/api/studentInfo/updateMyInfo", http.MethodPost, updates); err != nil {
+		return err
+	}
+	c.InvalidateCachedUserInfo()
+	return nil
+}
+
+// InvalidateCachedUserInfo 清空 session 缓存的 UserInfo。
+//
+// 供调用方在绕过 UpdateMyInfo 直接改服务端用户资料后，主动让本地缓存失效。
+// UpdateMyInfo / UpdateMyInfoStructured 成功路径已自动调用本方法。
+func (c *Client) InvalidateCachedUserInfo() {
+	c.sm.InvalidateCachedUserInfo()
 }
 
 // UpdateMyInfoStructured 使用面向用户的字段名更新个人信息（v1.4.0 新增）。

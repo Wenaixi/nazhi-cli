@@ -173,7 +173,9 @@ func New(opts ...Option) (*Client, error)
 | `GetDimensionsBySchool` | `(ctx, token) ([]Dimension, error)` | 学校维度 |
 | `GetDictList` | `(ctx, token, cateCode) ([]HonorSelectOption, error)` | 字典选项 |
 | `UpdateHonor` | `(ctx, token, payload) error` | — |
-| `UpdateMyInfo` | `(ctx, token, userInfo) error` | — |
+| `UpdateMyInfo` | `(ctx, token, updates map) error` | 成功后失效 cachedUserInfo |
+| `UpdateMyInfoStructured` | `(ctx, token, UserUpdateInput) error` | 友好键 remap + 清缓存 |
+| `InvalidateCachedUserInfo` | `()` | 主动清空 GetMyInfo 缓存 |
 
 ---
 
@@ -355,6 +357,8 @@ SDK 响应示例：
 
 获取用户资料。会触发 ActivateSession（复用其步骤 4 缓存），同 token 第一次调用做 4 步激活，第二次调用纯缓存零 HTTP。
 
+`UpdateMyInfo` / `UpdateMyInfoStructured` 成功后会自动 `InvalidateCachedUserInfo()`，下次 `GetMyInfo` 会重新拉取而非返回更新前快照。
+
 请求示例：
 
 ```go
@@ -388,6 +392,18 @@ SDK 响应示例：
   "seat": 29
 }
 ```
+
+### `UpdateMyInfo(ctx context.Context, token string, updates map[string]any) error`
+
+POST `/api/studentInfo/updateMyInfo`。`updates` 只传需要修改的字段（API 原始 key，如 `telephone`、`gender`）。成功后失效 session 缓存的 UserInfo。
+
+### `UpdateMyInfoStructured(ctx context.Context, token string, input types.UserUpdateInput) error`
+
+面向用户的友好字段更新：`GenderName="男"` → `gender=1`，`YouthLeague` / `NationName` / `IdCardType` 同理。零值/空串跳过。内部调 `UpdateMyInfo`，故同样清缓存。
+
+### `InvalidateCachedUserInfo()`
+
+主动清空 `ActivateSession` 步骤 4 缓存的 UserInfo。绕过 `UpdateMyInfo` 改服务端资料后可调用。
 
 ---
 
@@ -541,16 +557,18 @@ null
 
 查询自我评价 + 教师评语。
 
+空数据契约：服务端业务成功（code=1）但尚未提交评价时返回 `(nil, nil)`，与 `QuerySelfEvaluationJSON` 一致；**不是**错误。调用方应先判 `err`，再判 `status == nil`。
+
 请求示例：
 
 ```go
 status, err := c.QuerySelfEvaluation(ctx, token)
 if err != nil {
-	if errors.Is(err, client.ErrEmptyUserInfo) {
-		log.Println("尚未提交自我评价")
-		return
-	}
 	log.Fatalf("查询自我评价失败：%v", err)
+}
+if status == nil {
+	log.Println("尚未提交自我评价")
+	return
 }
 log.Printf("自评：%s", status.StudentComment)
 log.Printf("师评：%s", status.TeacherComment)

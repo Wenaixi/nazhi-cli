@@ -204,6 +204,16 @@ func (sm *sessionManager) Reset() {
 	sm.mu.Unlock()
 }
 
+// InvalidateCachedUserInfo 清空 DCL fast path 的 UserInfo 缓存。
+// 持锁，调用方无需关心并发安全。
+//
+// 典型场景：UpdateMyInfo 成功后调用，避免后续 GetMyInfo 返回更新前的快照。
+func (sm *sessionManager) InvalidateCachedUserInfo() {
+	sm.mu.Lock()
+	sm.cachedUserInfo = nil
+	sm.mu.Unlock()
+}
+
 // StoreToken 持锁写 token，并清除 backoff 状态。
 // 内部 helper，仅 tryActivate 持锁路径内调用。
 func (sm *sessionManager) StoreToken(token string) {

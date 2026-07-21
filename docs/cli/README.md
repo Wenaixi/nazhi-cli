@@ -50,7 +50,7 @@ nazhi
 │   └── like                        点赞写实记录（--id）
 ├── user                            用户管理（v1.3.0 新增）
 │   ├── info                        查看个人信息（whoami 别名）
-│   └── update                      更新个人信息（--payload）
+│   └── update                      更新个人信息（--payload，走 UserUpdateInput 友好键 remap）
 ├── version                         显示版本信息
 └── completion                      生成 shell 自动补全
 ```
