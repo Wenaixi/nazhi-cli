@@ -351,15 +351,22 @@ func isSameTrustedHost(a, b string) bool {
 	return false
 }
 
-// hasHostSuffix 判断 host 是否以 suffix 结尾（host 或 .host 形式）。
+// hasHostSuffix 判断 host 是否受信：exact 匹配，或以 "."+suffix 结尾
+// （suffix 自身以 "." 开头时直接以 suffix 结尾）。
+// 禁止 evilnazhisoft.com 这种无点号前缀的后缀碰撞。
 func hasHostSuffix(host, suffix string) bool {
+	if host == "" || suffix == "" {
+		return false
+	}
 	if host == suffix {
 		return true
 	}
-	if len(host) > len(suffix) && host[len(host)-len(suffix):] == suffix {
-		return true
+	// suffix 已带前导点（如 .nazhisoft.com）：要求 host 以该后缀结尾即可
+	if strings.HasPrefix(suffix, ".") {
+		return strings.HasSuffix(host, suffix) && len(host) > len(suffix)
 	}
-	return false
+	// suffix 无前导点（如 nazhisoft.com）：要求 exact 或以 "."+suffix 结尾
+	return strings.HasSuffix(host, "."+suffix)
 }
 
 // writeDownloadToFile 把 src 流式写入 dst，ctx 取消可中断。
