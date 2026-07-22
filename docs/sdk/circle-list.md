@@ -82,4 +82,10 @@ records, err = c.GetTeacherCircles(ctx, token, "德育")
 
 ## 相关类型
 
-- `types.CircleRecord`、`types.PageBean`、`types.PlayRoleCode`  
+- `types.CircleRecord`、`types.PageBean`、`types.PlayRoleCode`
+
+## 类型注意（JSON 兼容）
+
+- `CircleRecord.Approved` / `LikeStatus` 为 **`FlexBool`**：接受 JSON `bool`、`0`/`1`、常见字符串；Marshal 输出 bool。
+- 业务审核态以 **`status` 整型**为准（0 未审 / 1 通过 / 2 撤回等）；`approved` 字段在真实样例中常缺失。
+- `PlayRole` 为 **`PlayRoleCode`**（number/string 双收）。

@@ -30,7 +30,7 @@ func typicalCaseRecordJSON(id int64, title, typeName, roleName string) map[strin
 		"termName":       "2025-2026学年下学期",
 		"gradeName":      "高一",
 		"className":      "八班",
-		"studentName":    "高博文",
+		"studentName":    "测试同学",
 	}
 }
 

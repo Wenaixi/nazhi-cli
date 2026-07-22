@@ -372,7 +372,7 @@ func TestSubmittedDecodeCircleRecord(t *testing.T) {
 	if err := json.Unmarshal([]byte(jsonData), &rec); err != nil {
 		t.Fatalf("Unmarshal CircleRecord 失败: %v", err)
 	}
-	if rec.ID != 1 || rec.Name != "国旗下讲话" || rec.Approved {
+	if rec.ID != 1 || rec.Name != "国旗下讲话" || rec.Approved.Bool() {
 		t.Errorf("字段匹配失败: %+v", rec)
 	}
 	if rec.Hours != 0.5 {

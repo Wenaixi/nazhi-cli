@@ -81,7 +81,7 @@ func TestCircleRecord_FrontendRealJSON(t *testing.T) {
 	if rec.IfMySelf != 1 {
 		t.Errorf("IfMySelf: got %d，期望 1（前端 ifMySelf==1）", rec.IfMySelf)
 	}
-	if !rec.LikeStatus {
+	if !rec.LikeStatus.Bool() {
 		t.Error("LikeStatus: 期望 true（解码 likeStatus）")
 	}
 	if rec.Status != 2 {

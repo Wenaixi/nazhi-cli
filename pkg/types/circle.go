@@ -23,11 +23,12 @@ type PageBean struct {
 // v1.4.1 修复：混用 camelCase 字段对齐真实 API（原错误写成全 snake 导致静默丢字段）。
 type CircleRecord struct {
 	// 基础字段
-	ID             int64         `json:"id"`
-	Name           string        `json:"name"`
-	Content        string        `json:"content"`
-	TypeName       string        `json:"type_name"`
-	Approved       bool          `json:"approved"`
+	ID       int64  `json:"id"`
+	Name     string `json:"name"`
+	Content  string `json:"content"`
+	TypeName string `json:"type_name"`
+	// Approved：业务以 Status 为准；解码兼容 bool/0/1（见 FlexBool）。
+	Approved       FlexBool      `json:"approved"`
 	CircleDate     string        `json:"circle_date"`
 	Hours          float64       `json:"hours"`
 	ImgList        []CircleImage `json:"imgList"`
@@ -57,10 +58,10 @@ type CircleRecord struct {
 	ObtainTime          string `json:"obtain_time,omitempty"`
 	SpecialtyTechnology string `json:"specialty_technology,omitempty"`
 	// PlayRole：列表 API 常为 number，提交表单为 string；见 PlayRoleCode。
-	PlayRole            PlayRoleCode `json:"play_role,omitempty"`
-	LikeSpecialty1      string `json:"like_specialty1,omitempty"`
-	LikeSpecialty2      string `json:"like_specialty2,omitempty"`
-	LikeSpecialty3      string `json:"like_specialty3,omitempty"`
+	PlayRole       PlayRoleCode `json:"play_role,omitempty"`
+	LikeSpecialty1 string       `json:"like_specialty1,omitempty"`
+	LikeSpecialty2 string       `json:"like_specialty2,omitempty"`
+	LikeSpecialty3 string       `json:"like_specialty3,omitempty"`
 
 	// 元数据字段（creationTimeStr/showName 为 camelCase）
 	OperatorName    string `json:"operator_name,omitempty"`
@@ -107,9 +108,9 @@ type CircleRecord struct {
 
 	// 状态字段（ifMySelf 为数字 0/1，前端 item.ifMySelf==1；
 	// likeStatus / auditRemark 为 camelCase，见 managementRightBottom.vue）
-	IfMySelf    int    `json:"ifMySelf,omitempty"`
-	AuditRemark string `json:"auditRemark,omitempty"`
-	LikeStatus  bool   `json:"likeStatus,omitempty"`
+	IfMySelf    int      `json:"ifMySelf,omitempty"`
+	AuditRemark string   `json:"auditRemark,omitempty"`
+	LikeStatus  FlexBool `json:"likeStatus,omitempty"`
 
 	// 评论列表（camelCase）
 	CommentList []Comment `json:"commentList,omitempty"`

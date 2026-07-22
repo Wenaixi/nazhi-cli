@@ -110,3 +110,78 @@ func (l IntList) MarshalJSON() ([]byte, error) {
 	}
 	return json.Marshal([]int(l))
 }
+
+// FlexBool 解码平台布尔字段：JSON bool、number 0/1、字符串 "true"/"false"/"0"/"1"、null。
+//
+// encoding/json 标准 bool 拒绝 0/1；若某版本 getStudentCircle 返回 likeStatus/approved 为数字，
+// 裸 bool 会导致 DecodeDataList 整页失败（与 admissionDate / Honor.score 同类）。
+// 业务判断仍以 Status 等整型字段为准；本类型只保证解码不炸。
+type FlexBool bool
+
+// Bool 返回 Go bool。
+func (b FlexBool) Bool() bool { return bool(b) }
+
+// UnmarshalJSON 接受 bool / number 0|1 / 常见字符串 / null。
+func (b *FlexBool) UnmarshalJSON(data []byte) error {
+	if b == nil {
+		return fmt.Errorf("FlexBool: UnmarshalJSON on nil pointer")
+	}
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*b = false
+		return nil
+	}
+	// JSON bool
+	if bytes.Equal(data, []byte("true")) {
+		*b = true
+		return nil
+	}
+	if bytes.Equal(data, []byte("false")) {
+		*b = false
+		return nil
+	}
+	// number
+	if data[0] == '-' || (data[0] >= '0' && data[0] <= '9') {
+		var n json.Number
+		if err := json.Unmarshal(data, &n); err != nil {
+			return fmt.Errorf("FlexBool: 期望 bool/number/string，得到 %s: %w", string(data), err)
+		}
+		if i, err := n.Int64(); err == nil {
+			*b = FlexBool(i != 0)
+			return nil
+		}
+		f, err := n.Float64()
+		if err != nil {
+			return fmt.Errorf("FlexBool: 无法解析 number %q: %w", n.String(), err)
+		}
+		*b = FlexBool(f != 0)
+		return nil
+	}
+	// string
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return err
+		}
+		s = strings.TrimSpace(strings.ToLower(s))
+		switch s {
+		case "", "0", "false", "no", "n", "off":
+			*b = false
+			return nil
+		case "1", "true", "yes", "y", "on":
+			*b = true
+			return nil
+		default:
+			return fmt.Errorf("FlexBool: 无法解析字符串 %q", s)
+		}
+	}
+	return fmt.Errorf("FlexBool: 期望 bool/number/string，得到 %s", string(data))
+}
+
+// MarshalJSON 输出 JSON bool。
+func (b FlexBool) MarshalJSON() ([]byte, error) {
+	if b {
+		return []byte("true"), nil
+	}
+	return []byte("false"), nil
+}

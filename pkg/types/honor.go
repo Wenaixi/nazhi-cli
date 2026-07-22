@@ -26,16 +26,16 @@ type HonorType struct {
 // v1.4.1：补 Status 整型（前端 scope.row.status != 1 控制编辑/删除）；
 // Approved 仍保留兼容（测试夹具与部分响应可能带 approved bool）。
 type HonorRecord struct {
-	ID               int64  `json:"id"`
-	TypeName         string `json:"type_name"`
-	LevelName        string `json:"level_name"`
-	Level            int    `json:"level"`
-	DimensionName    string `json:"dimension_name"`
-	Approved         bool   `json:"approved"`
-	Status           int    `json:"status"`     // 审核状态码：0 未审 / 1 通过 等（前端编辑按钮用）
-	ApprovedName     string `json:"statusName"` // 审核状态名称（API 返回 statusName）
-	GetDate          string `json:"get_date"`   // 原始日期字符串
-	EvaluationAgency string `json:"evaluation_agency"`
+	ID               int64    `json:"id"`
+	TypeName         string   `json:"type_name"`
+	LevelName        string   `json:"level_name"`
+	Level            int      `json:"level"`
+	DimensionName    string   `json:"dimension_name"`
+	Approved         FlexBool `json:"approved"`   // 兼容 bool/0/1；业务以 Status 为准
+	Status           int      `json:"status"`     // 审核状态码：0 未审 / 1 通过 等（前端编辑按钮用）
+	ApprovedName     string   `json:"statusName"` // 审核状态名称（API 返回 statusName）
+	GetDate          string   `json:"get_date"`   // 原始日期字符串
+	EvaluationAgency string   `json:"evaluation_agency"`
 
 	// v1.4.0 新增：前端 performanceM.vue 中实际使用的字段
 	TypeID              int64  `json:"type_id,omitempty"`                // 荣誉类型 ID
