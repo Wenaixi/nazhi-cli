@@ -334,6 +334,17 @@ func (t *Task) SetSubmittedByStatus() {
 	t.Submitted = !ok
 }
 
+// SetNeedPicFromUpPic 用平台 upPic（int 0/1）推导 NeedPic。
+//
+// getCircleStatistics 只返回 upPic，不返回 needPic；encoding/json 不会把
+// upPic 填进 NeedPic。调用方依赖 NeedPic 做"是否要求图片"时，必须在解码后调用本方法。
+func (t *Task) SetNeedPicFromUpPic() {
+	if t == nil {
+		return
+	}
+	t.NeedPic = t.UpPic > 0
+}
+
 type taskInputError string
 
 func (e taskInputError) Error() string { return string(e) }

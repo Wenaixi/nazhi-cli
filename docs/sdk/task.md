@@ -136,4 +136,8 @@ dims, err := c.GetDimensions(ctx, token)
 
 ## 相关类型
 
-- `TaskSubmitInput` / `TaskEditInput` / `TaskAddCirclePayload` / `Task` / `TaskResult` / `TaskCircleTypeInfo`  
+- `TaskSubmitInput` / `TaskEditInput` / `TaskAddCirclePayload` / `Task` / `TaskResult` / `TaskCircleTypeInfo`
+
+## 类型注意
+
+- 平台只返回 `upPic`；`FetchTasks` 内 `SetNeedPicFromUpPic()` 推导 `NeedPic`。
