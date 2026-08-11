@@ -151,6 +151,7 @@ c, err := client.New(
 3. **禁止发明默认**：写实空 Address/OrgName/Level 原样发送（不填学校名、不默认 `"5"`）  
 4. Hours：任务预设 >0 可空；≤0 须用户填  
 5. 写实 CLI payload 对 `hours` 兼容可为小数的 number 与 string；`level`、`checkResult`、`playRole` 的未加引号 number 仅接受有限整数，string 按原值保留。CLI 通过 `cmd/nazhi` 私有 JSON helper 解码后，SDK 按提交字段语义处理；真实前端的 `circleTaskId` / `pictureList` 分别归一为 `taskId` / `imageIDs`。
+6. 用户资料 `className` 后处理遵循前端规则，仅移除首个“级”字，不按 `gradeName` 删除前缀；无“级”字时原样保留。
 
 **完整对照表（含「学号 → 自动补 schoolId/schoolName」）见 [autofill.md](./autofill.md)。**  
 各域文档内另有「用户输入 vs SDK 自动」小节。

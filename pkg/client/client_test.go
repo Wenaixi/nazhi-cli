@@ -502,7 +502,7 @@ func TestGetMyInfo_FullFields(t *testing.T) {
 	if info.GradeID != 27900 || info.GradeName != "高一" {
 		t.Errorf("Grade 错: id=%d name=%s", info.GradeID, info.GradeName)
 	}
-	if info.ClassID != 162647 || info.ClassName != "(8)班" {
+	if info.ClassID != 162647 || info.ClassName != "高一(8)班" {
 		t.Errorf("Class 错: id=%d name=%s", info.ClassID, info.ClassName)
 	}
 }

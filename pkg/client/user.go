@@ -105,11 +105,8 @@ func (c *Client) postProcessUserInfo(ctx context.Context, v *types.UserInfo) {
 		}
 	}
 
-	// 清理班级名：API 返回的 className 含年级前缀（如"高一(8)班"→"八班"）。
-	// GradeName 已有年级信息，无需重复。去掉前缀后为空则保留原值。
-	if v.ClassName != "" && v.GradeName != "" && strings.HasPrefix(v.ClassName, v.GradeName) {
-		if trimmed := strings.TrimPrefix(v.ClassName, v.GradeName); trimmed != "" {
-			v.ClassName = trimmed
-		}
+	// 前端 userBox/modifyBox/header 统一只移除首个“级”字，而不是按 GradeName 删除前缀。
+	if v.ClassName != "" {
+		v.ClassName = strings.Replace(v.ClassName, "级", "", 1)
 	}
 }

@@ -1,9 +1,11 @@
 # CHANGELOG
 
-所有重要变更都会记录在此文件。
+## [未发布]
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
-项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+### 修复
+
+- SDK `GetMyInfo` 的 `className` 后处理与前端 `userBox`、`modifyBox`、`header` 对齐：只移除首个“级”字，不再按 `gradeName` 删除前缀。
+
 
 ## [Unreleased]
 
