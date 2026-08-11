@@ -10,7 +10,9 @@ import (
 
 // TestDeleteHonor_UsesGETWithIDQuery 验证删除荣誉使用 GET，并通过 id 查询参数传递记录 ID。
 func TestDeleteHonor_UsesGETWithIDQuery(t *testing.T) {
+	requestSeen := 0
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		requestSeen++
 		if r.URL.Path != "/api/studentMoralEduNew/deleteHonorById" {
 			t.Errorf("期望路径 deleteHonorById，得到 %s", r.URL.Path)
 		}
@@ -29,11 +31,16 @@ func TestDeleteHonor_UsesGETWithIDQuery(t *testing.T) {
 	if err := c.DeleteHonor(context.Background(), "test-token", 56241); err != nil {
 		t.Fatalf("DeleteHonor 失败: %v", err)
 	}
+	if requestSeen != 1 {
+		t.Fatalf("期望业务请求恰好调用一次，实际调用 %d 次", requestSeen)
+	}
 }
 
 // TestSubmitSelfEvaluationStructured_EncodesStudentCommentAsJSONString 验证结构化自评把表单 JSON 字符串放入 studentComment。
 func TestSubmitSelfEvaluationStructured_EncodesStudentCommentAsJSONString(t *testing.T) {
+	called := 0
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		called++
 		if r.URL.Path != "/api/studentMoralEduNew/addSelfEvaluation" {
 			t.Errorf("期望路径 addSelfEvaluation，得到 %s", r.URL.Path)
 		}
@@ -76,5 +83,8 @@ func TestSubmitSelfEvaluationStructured_EncodesStudentCommentAsJSONString(t *tes
 	})
 	if err != nil {
 		t.Fatalf("SubmitSelfEvaluationStructured 失败: %v", err)
+	}
+	if called != 1 {
+		t.Fatalf("期望业务请求恰好调用一次，实际调用 %d 次", called)
 	}
 }
