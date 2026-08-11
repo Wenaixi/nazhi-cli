@@ -37,7 +37,7 @@ err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
 | 字段 | 用户 | SDK |
 |------|------|-----|
 | title / type / role / level / teacherName / partnerName / remark / content | 必填侧（对齐前端） | — |
-| `attachmentId` / `attachmentName` | 可选；证书图需先 `UploadFile` 再填 id | SDK **不**从本地路径代传（与荣誉一致）；前端初始 `attachmentId:""` 会按无附件处理并省略 |
+| `attachmentId` / `attachmentName` | 可选；证书图需先 `UploadFile` 再填 id | SDK **不**从本地路径代传（与荣誉一致）；前端初始 `attachmentId:""` 会按无附件处理并省略；通过 `json.Unmarshal` 复用已有 payload 时，未出现在 JSON 中的字段保留原值 |
 | typeName / roleName / levelName | 可空 | 空则按 code 映射（下表）；**已填不覆盖** |
 | Update 的 map | type/role/level 可为 **string 或 number** | 均能补 *Name |
 

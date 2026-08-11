@@ -39,6 +39,7 @@
 
 ### 修复
 
+- `AddTypicalCasePayload.UnmarshalJSON` 遵循标准部分解码语义：缺失字段保留实例原值，仅对 JSON 明确提供的空 `attachmentId` 归一为 0；避免 SDK 调用方复用 payload 时已有字段被意外清零
 - `AddTypicalCasePayload` 兼容前端初始 `attachmentId:""`：空字符串/null 归一为零值并省略，无附件的前端原始表单可直接提交
 - `nazhi typical-case list` 默认 `--page-size` 从 20 调整为前端一致的 10
 - 修正 `honor.go` 顶部 `deleteHonorById` 端点注释为真实 GET

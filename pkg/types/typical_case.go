@@ -42,33 +42,21 @@ type AddTypicalCasePayload struct {
 // UnmarshalJSON 兼容前端表单初始 attachmentId:""。
 // 空字符串/null 表示尚未上传附件，归一为零值；数字仍按原值保留。
 func (p *AddTypicalCasePayload) UnmarshalJSON(data []byte) error {
+	type payloadAlias AddTypicalCasePayload
 	var raw struct {
-		Title          string          `json:"title"`
-		Type           string          `json:"type"`
-		TypeName       string          `json:"typeName"`
-		TeacherName    string          `json:"teacherName"`
-		PartnerName    string          `json:"partnerName"`
-		Role           string          `json:"role"`
-		RoleName       string          `json:"roleName"`
-		Remark         string          `json:"remark"`
-		Content        string          `json:"content"`
-		Level          string          `json:"level"`
-		LevelName      string          `json:"levelName"`
-		AttachmentID   json.RawMessage `json:"attachmentId"`
-		AttachmentName string          `json:"attachmentName"`
+		AttachmentID json.RawMessage `json:"attachmentId"`
+		*payloadAlias
 	}
+	raw.payloadAlias = (*payloadAlias)(p)
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	*p = AddTypicalCasePayload{
-		Title: raw.Title, Type: raw.Type, TypeName: raw.TypeName,
-		TeacherName: raw.TeacherName, PartnerName: raw.PartnerName,
-		Role: raw.Role, RoleName: raw.RoleName, Remark: raw.Remark,
-		Content: raw.Content, Level: raw.Level, LevelName: raw.LevelName,
-		AttachmentName: raw.AttachmentName,
-	}
 	id := bytes.TrimSpace(raw.AttachmentID)
-	if len(id) == 0 || bytes.Equal(id, []byte("null")) || bytes.Equal(id, []byte(`""`)) {
+	if len(id) == 0 {
+		return nil
+	}
+	if bytes.Equal(id, []byte("null")) || bytes.Equal(id, []byte(`""`)) {
+		p.AttachmentID = 0
 		return nil
 	}
 	if id[0] == '"' {
