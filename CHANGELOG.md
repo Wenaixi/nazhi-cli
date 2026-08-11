@@ -41,6 +41,7 @@
 
 ### 修复
 
+- CLI 各现有对象型 `--payload` 入口拒绝顶层 `null`、数组等非对象 JSON，统一走参数错误路径（退出码 3），避免零值请求或错误请求发出
 - `AddTypicalCasePayload.UnmarshalJSON` 遵循标准部分解码语义：缺失字段保留实例原值，仅对 JSON 明确提供的空 `attachmentId` 归一为 0；避免 SDK 调用方复用 payload 时已有字段被意外清零
 - `AddTypicalCasePayload` 兼容前端初始 `attachmentId:""`：空字符串/null 归一为零值并省略，无附件的前端原始表单可直接提交
 - `nazhi typical-case list` 默认 `--page-size` 从 20 调整为前端一致的 10

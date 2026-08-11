@@ -86,7 +86,7 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `file download` | `--id --output`（无 token） | `nazhi file download --id 5139876 -o ./a.jpg` |
 | `version` / `completion` | | `nazhi version` |
 
-`--payload` 支持内联 JSON、`@file.json`、`-`（stdin）。`self-eval submit --payload` 对应前端结构化「诉得失」表单，SDK 会将表单 JSON 序列化后再放入 `studentComment`；例如：
+`--payload` 支持对象 JSON、`@file.json`、`-`（stdin）；顶层 JSON 必须是对象，`null`、数组等非对象输入会按参数错误处理（退出码 3）。`self-eval submit --payload` 对应前端结构化「诉得失」表单，SDK 会将表单 JSON 序列化后再放入 `studentComment`；例如：
 
 ```bash
 nazhi self-eval submit --token "$T" --payload '{"bxqhzr":"本学期会做人目标","bxqbx":"本学期表现","bxqys":"优势"}'

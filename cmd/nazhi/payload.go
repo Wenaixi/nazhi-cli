@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -16,4 +18,21 @@ func parsePayloadFromArg(raw string) ([]byte, error) {
 		return io.ReadAll(io.LimitReader(os.Stdin, 16<<20))
 	}
 	return []byte(raw), nil
+}
+
+// parseJSONObjectPayload 读取并校验对象型 JSON payload。
+// 文件、stdin 和内联 JSON 的读取语义保持由 parsePayloadFromArg 负责。
+func parseJSONObjectPayload(raw string) ([]byte, error) {
+	payload, err := parsePayloadFromArg(raw)
+	if err != nil {
+		return nil, err
+	}
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(payload, &object); err != nil {
+		return nil, err
+	}
+	if object == nil {
+		return nil, fmt.Errorf("顶层 JSON 必须为对象")
+	}
+	return payload, nil
 }

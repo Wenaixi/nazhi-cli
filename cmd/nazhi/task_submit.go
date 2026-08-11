@@ -7,11 +7,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// parsePayload 解析 --payload 参数，委托公共 helper 处理 @file.json / - / 原始字符串。
-func parsePayload(raw string) ([]byte, error) {
-	return parsePayloadFromArg(raw)
-}
-
 // taskSubmitCmd 表示 nazhi task submit 命令。
 //
 // 公开输入：taskId / content / imagePaths 等用户字段；SDK 只自动补任务元数据与图片上传。
@@ -37,7 +32,7 @@ var taskSubmitCmd = &cobra.Command{
 			return
 		}
 
-		payloadBytes, err := parsePayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return

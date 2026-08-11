@@ -161,9 +161,9 @@ var honorDeleteCmd = &cobra.Command{
 }
 
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
-// 委托 parsePayloadFromArg 处理 @file.json / - / 原始字符串。
+// 委托 parseJSONObjectPayload 处理 @file.json / - / 原始字符串，并校验顶层对象。
 func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
-	payloadBytes, err := parsePayloadFromArg(raw)
+	payloadBytes, err := parseJSONObjectPayload(raw)
 	if err != nil {
 		return nil, fmt.Errorf("读取 payload 失败: %w", err)
 	}
