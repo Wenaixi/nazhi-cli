@@ -94,8 +94,8 @@
 
 | 字段 | 用户 | SDK |
 |------|------|-----|
-| title / type / role / level / teacher… / content / 附件 id | 填 code 与正文 | — |
-| typeName / roleName / levelName | 可空 | 按 code 映射（见下表）；已填不覆盖 |
+| title / type / role / level / teacher… / content / 附件 id | 填 code 与正文；附件可省略 | — |
+| typeName / roleName / levelName | 可空 | 按 code 映射（见下表）；已填不覆盖；前端初始空 `attachmentId` 归一为零值并省略 |
 | Update `type`/`role`/`level` | string 或 number | 均能补 *Name |
 
 | code | typeName | roleName | levelName |

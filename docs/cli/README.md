@@ -79,7 +79,7 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `honor add` | `--token --payload` | `@honor.json` |
 | `honor delete` | `--token --id` | `nazhi honor delete --token "$T" --id 1` |
 | `typical-case submit` | `--token --payload` | `@case.json` |
-| `typical-case list` | `--token` `[--status]` | 默认 status=3 全部 |
+| `typical-case list` | `--token` `[--status] [--page-size]` | 默认 status=3、page-size=10（与前端一致） |
 | `typical-case update` | `--token --payload` | 含 `id` 的 JSON |
 | `typical-case delete` | `--token --id` | `nazhi typical-case delete --token "$T" --id 1` |
 | `file upload` | 路径 / `--file`（无 token） | `nazhi file upload ./a.jpg` |
@@ -136,7 +136,8 @@ nazhi typical-case submit --token "$T" --payload @case.json
 # type/role/level 用代码；typeName 等可省略
 # type 2=社会调查报告，level 1=国际
 
-nazhi typical-case list --token "$T" --status 3
+nazhi typical-case list --token "$T" --status 3 --page-size 10
+# 前端初始 attachmentId:"" 会按无附件处理；typeName 等展示名由 SDK 自动补全
 nazhi typical-case update --token "$T" --payload '{"id":1,"title":"新标题","type":"1","role":"1","level":"5","teacherName":"王","partnerName":"李","remark":"r","content":"c"}'
 nazhi typical-case delete --token "$T" --id 1
 ```

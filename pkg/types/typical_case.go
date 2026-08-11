@@ -1,5 +1,13 @@
 package types
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"strconv"
+	"strings"
+)
+
 // 典型案例角色常量（对应服务端 role 字段）。
 const (
 	TypicalCaseRoleHost        = "1" // 负责人
@@ -16,19 +24,78 @@ const (
 // SDK 自动（AddTypicalCase 内）：TypeName/RoleName/LevelName 由代码映射；
 // 已显式填写的 *Name 不会被覆盖。调用方不必手填展示名。
 type AddTypicalCasePayload struct {
-	Title          string `json:"title"`          // 标题（用户）
-	Type           string `json:"type"`           // 材料类别代码（用户选，"1"…）
-	TypeName       string `json:"typeName"`       // 材料类别名称（SDK 可自动填）
-	TeacherName    string `json:"teacherName"`    // 指导教师（用户）
-	PartnerName    string `json:"partnerName"`    // 合作者（用户）
-	Role           string `json:"role"`           // 角色代码（用户选）
-	RoleName       string `json:"roleName"`       // 角色名称（SDK 可自动填）
-	Remark         string `json:"remark"`         // 备注（用户）
-	Content        string `json:"content"`        // 正文（用户）
-	Level          string `json:"level"`          // 级别代码（用户选）
-	LevelName      string `json:"levelName"`      // 级别名称（SDK 可自动填）
-	AttachmentID   int64  `json:"attachmentId"`   // 附件 ID（上传后获得）
-	AttachmentName string `json:"attachmentName"` // 附件文件名（上传后获得）
+	Title          string `json:"title"`                  // 标题（用户）
+	Type           string `json:"type"`                   // 材料类别代码（用户选，"1"…）
+	TypeName       string `json:"typeName"`               // 材料类别名称（SDK 可自动填）
+	TeacherName    string `json:"teacherName"`            // 指导教师（用户）
+	PartnerName    string `json:"partnerName"`            // 合作者（用户）
+	Role           string `json:"role"`                   // 角色代码（用户选）
+	RoleName       string `json:"roleName"`               // 角色名称（SDK 可自动填）
+	Remark         string `json:"remark"`                 // 备注（用户）
+	Content        string `json:"content"`                // 正文（用户）
+	Level          string `json:"level"`                  // 级别代码（用户选）
+	LevelName      string `json:"levelName"`              // 级别名称（SDK 可自动填）
+	AttachmentID   int64  `json:"attachmentId,omitempty"` // 附件 ID（上传后获得）
+	AttachmentName string `json:"attachmentName"`         // 附件文件名（上传后获得）
+}
+
+// UnmarshalJSON 兼容前端表单初始 attachmentId:""。
+// 空字符串/null 表示尚未上传附件，归一为零值；数字仍按原值保留。
+func (p *AddTypicalCasePayload) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Title          string          `json:"title"`
+		Type           string          `json:"type"`
+		TypeName       string          `json:"typeName"`
+		TeacherName    string          `json:"teacherName"`
+		PartnerName    string          `json:"partnerName"`
+		Role           string          `json:"role"`
+		RoleName       string          `json:"roleName"`
+		Remark         string          `json:"remark"`
+		Content        string          `json:"content"`
+		Level          string          `json:"level"`
+		LevelName      string          `json:"levelName"`
+		AttachmentID   json.RawMessage `json:"attachmentId"`
+		AttachmentName string          `json:"attachmentName"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	*p = AddTypicalCasePayload{
+		Title: raw.Title, Type: raw.Type, TypeName: raw.TypeName,
+		TeacherName: raw.TeacherName, PartnerName: raw.PartnerName,
+		Role: raw.Role, RoleName: raw.RoleName, Remark: raw.Remark,
+		Content: raw.Content, Level: raw.Level, LevelName: raw.LevelName,
+		AttachmentName: raw.AttachmentName,
+	}
+	id := bytes.TrimSpace(raw.AttachmentID)
+	if len(id) == 0 || bytes.Equal(id, []byte("null")) || bytes.Equal(id, []byte(`""`)) {
+		return nil
+	}
+	if id[0] == '"' {
+		var s string
+		if err := json.Unmarshal(id, &s); err != nil {
+			return fmt.Errorf("attachmentId: %w", err)
+		}
+		if strings.TrimSpace(s) == "" {
+			return nil
+		}
+		n, err := strconv.ParseInt(strings.TrimSpace(s), 10, 64)
+		if err != nil {
+			return fmt.Errorf("attachmentId: %w", err)
+		}
+		p.AttachmentID = n
+		return nil
+	}
+	if err := json.Unmarshal(id, &p.AttachmentID); err != nil {
+		return fmt.Errorf("attachmentId: %w", err)
+	}
+	return nil
+}
+
+// MarshalJSON 无附件时省略 attachmentId，与提交前的前端表单语义一致。
+func (p AddTypicalCasePayload) MarshalJSON() ([]byte, error) {
+	type payloadAlias AddTypicalCasePayload
+	return json.Marshal(payloadAlias(p))
 }
 
 // TypicalCaseRecord 是已提交的典型案例记录（来自 getTypicalCase 列表接口）。

@@ -79,7 +79,7 @@ var typicalCaseListCmd = &cobra.Command{
 --status 筛选审核状态：0 未审核 / 1 通过 / 2 驳回 / 3 全部（默认）。`,
 	Example: `  nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --status 1
-  nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
+  nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -111,7 +111,7 @@ func init() {
 	// typical-case list
 	typicalCaseCmd.AddCommand(typicalCaseListCmd)
 	typicalCaseListCmd.Flags().Int("page", 1, "页码（从 1 开始）")
-	typicalCaseListCmd.Flags().Int("page-size", 20, "每页条数")
+	typicalCaseListCmd.Flags().Int("page-size", 10, "每页条数")
 	typicalCaseListCmd.Flags().Int("status", 3, "审核状态：0 未审 / 1 通过 / 2 驳回 / 3 全部（默认）")
 	registerBizFlags(typicalCaseListCmd)
 

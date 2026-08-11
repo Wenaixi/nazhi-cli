@@ -37,8 +37,10 @@
 
 ### 修复
 
+- `AddTypicalCasePayload` 兼容前端初始 `attachmentId:""`：空字符串/null 归一为零值并省略，无附件的前端原始表单可直接提交
+- `nazhi typical-case list` 默认 `--page-size` 从 20 调整为前端一致的 10
+- 修正 `honor.go` 顶部 `deleteHonorById` 端点注释为真实 GET
 - `httpDo` 对非 2xx 走 `classifyHTTPStatus`，主业务路径可识别 429/5xx/4xx 哨兵错误
-- `UploadFile` 仅在真正过大时 `Join ErrFileTooLarge`；multipart 文件名改用 basename+.jpg；`multipartBufPool` 预分配 `MaxImageSize+1024`
 - `hasHostSuffix` 要求 exact 或以 `.`+suffix 结尾，防止 `evilnazhisoft.com` 受信绕过
 - `assembleCirclesJSON` 空首页不再产生 leading comma 非法 JSON
 - `getCirclesLimitJSON` 只请求 offset/limit 覆盖页，避免全量翻页再截断
