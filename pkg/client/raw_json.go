@@ -717,7 +717,8 @@ func (c *Client) GetHonorTypesJSON(ctx context.Context, token string) (json.RawM
 			raw = *resp.ReturnData
 		}
 	}
-	if len(raw) == 0 {
+	trimmed = bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) || bytes.Equal(trimmed, []byte(`""`)) || bytes.Equal(trimmed, []byte("[]")) {
 		return []byte("[]"), nil
 	}
 	return raw, nil

@@ -297,6 +297,44 @@ func TestGetHonorTypesJSON_FallbackReturnData(t *testing.T) {
 	}
 }
 
+// TestGetHonorTypesJSON_EmptyFallbackReturnsArray 验证空回退最终保持 JSON 数组形状。
+func TestGetHonorTypesJSON_EmptyFallbackReturnsArray(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		dataList   string
+		returnData string
+	}{
+		{name: "empty dataList and null returnData", dataList: "[]", returnData: "null"},
+		{name: "null dataList and empty returnData", dataList: "null", returnData: `""`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path != "/api/studentMoralEduNew/getHonorType" {
+					http.NotFound(w, r)
+					return
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"code":1,"dataList":` + tc.dataList + `,"returnData":` + tc.returnData + `}`))
+			})))
+			defer biz.Close()
+
+			c, err := client.New(client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL), client.WithUploadURL(biz.URL))
+			if err != nil {
+				t.Fatalf("构造 Client: %v", err)
+			}
+			defer c.Close()
+
+			raw, err := c.GetHonorTypesJSON(context.Background(), "test-token")
+			if err != nil {
+				t.Fatalf("GetHonorTypesJSON: %v", err)
+			}
+			if got := string(raw); got != "[]" {
+				t.Fatalf("空回退应返回 JSON 数组 []，实际 %s", got)
+			}
+		})
+	}
+}
+
 // TestQuerySelfEvaluationJSON_ReturnData 验证 returnData 通道。
 func TestQuerySelfEvaluationJSON_ReturnData(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
