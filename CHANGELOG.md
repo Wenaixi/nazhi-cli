@@ -55,6 +55,7 @@
 - `QuerySelfEvaluation` 未提交评价时返回 `(nil, nil)`，不再把空成功误判为「所有解码器均失败」
 - `UpdateHonor` 对称补全 `typeName`（与 `AddHonor` 共用 ensureHonorTypeName）
 - `AddHonor` 空 `Name` 时回落 `TypeName`（对齐前端新增表单不传 name）
+- `AddHonorPayload.UnmarshalJSON` 部分解码时保留未提供字段，证书附件 ID 继续兼容 number/string，并区分缺失与显式 null
 - `GetCircleTypes` 对 `pid` 做 `url.QueryEscape`
 - `WithOCRConcurrency` 不再覆盖 `WithCustomOCR` 注入的识别器
 - 参数错误改用 `printParamError(400)`→exit 3（缺 token / payload 解析失败等）
