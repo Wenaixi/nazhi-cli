@@ -14,7 +14,7 @@
 |----|--------------|------|
 | 认证 | 空 `SchoolID`→按学号查学校；验证码 OCR | [auth.md](./auth.md) |
 | Session | HAR 4 步；缓存 UserInfo；同 token 快速路径 / 失败 backoff | [session.md](./session.md) |
-| 用户读 | Session 预热复用；`schoolId`/`schoolName` 用**学号**走 SSO 补全；班级名去年级前缀 | [user.md](./user.md) |
+| 用户读 | Session 预热复用；`schoolId`/`schoolName` 用**学号**走 SSO 补全；`className` 只移除首个“级”字，不按年级前缀删除 | [user.md](./user.md) |
 | 用户写 | 中文性别/团员/民族/证件→数字；忽略全国学籍号；更新后清缓存 | [user.md](./user.md) |
 | 写实提交 | 任务元数据 id；学时半自动；本地图上传；**不**填学校名/默认 level | [task.md](./task.md) |
 | 写实列表 | 自动翻页合并；`key` 透传 | [circle-list.md](./circle-list.md) |
@@ -44,7 +44,7 @@
 |------|----------|------|
 | 调用 `GetMyInfo` | 先 `ActivateSession`；若本次激活拿到 UserInfo 则**不再**打第二遍 getMyInfo | `user.go` |
 | `StudentNumber != ""` 且 (`SchoolID==0` **或** `SchoolName==""`) | `GetSchoolID(ctx, StudentNumber)` 补 `schoolId` / `schoolName` | `postProcessUserInfo` |
-| `ClassName` 以 `GradeName` 为前缀 | 去掉年级前缀（如「高一(8)班」在已有 gradeName 时整理 className） | 同上 |
+| `ClassName` | 前端规则：移除首个“级”字；不按 `GradeName` 删除前缀，无“级”字时原样保留 | 同上 |
 
 说明：
 
