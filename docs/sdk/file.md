@@ -50,9 +50,8 @@ r, err := c.UploadFile(ctx, "./shot.png")
 
 ```json
 {
-  "attachmentId": 5139876,
-  "attachmentName": "shot.jpg",
-  "url": ""
+  "attachmentID": 5139876,
+  "attachmentName": "shot.jpg"
 }
 ```
 
@@ -71,7 +70,7 @@ r, err := c.UploadFile(ctx, "./shot.png")
 func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst string) error
 ```
 
-跟随 302；写到 `dst` 路径。成功 `nil`。
+跟随 HTTP 重定向；写到 `dst` 路径。成功 `nil`。
 
 ## 相关类型
 

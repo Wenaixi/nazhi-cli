@@ -82,7 +82,7 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `typical-case list` | `--token` `[--status] [--page-size]` | 默认 status=3、page-size=10（与前端一致） |
 | `typical-case update` | `--token --payload` | 含 `id` 的 JSON |
 | `typical-case delete` | `--token --id` | `nazhi typical-case delete --token "$T" --id 1` |
-| `file upload` | 路径 / `--file`（无 token） | `nazhi file upload ./a.jpg` |
+| `file upload` | 路径 / `--file`（无 token） | `nazhi file upload -f ./a.jpg` |
 | `file download` | `--id --output`（无 token） | `nazhi file download --id 5139876 -o ./a.jpg` |
 | `version` / `completion` | | `nazhi version` |
 
@@ -158,7 +158,7 @@ nazhi user update --token "$T" --payload '{"telephone":"13800138000","genderName
 ### file
 
 ```bash
-nazhi file upload ./photo.png          # 无 --token
+nazhi file upload -f ./photo.png          # 无 --token
 nazhi file download --id 5139876 -o ./out.jpg
 ```
 
