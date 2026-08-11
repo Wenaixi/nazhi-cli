@@ -44,6 +44,54 @@ func TestDecodeTaskEditInputFrontendNumericValues(t *testing.T) {
 	}
 }
 
+func TestDecodeTaskInputJSONRejectsFractionalNumericCodes(t *testing.T) {
+	for _, field := range []string{"level", "checkResult", "playRole"} {
+		t.Run(field, func(t *testing.T) {
+			var input types.TaskSubmitInput
+			payload := []byte(`{"taskId":1,"content":"内容","` + field + `":5.5}`)
+			if err := decodeTaskInputJSON(payload, &input); err == nil {
+				t.Fatalf("非整数 %s number 不应被归一化后放行", field)
+			}
+		})
+	}
+}
+
+func TestDecodeTaskInputJSONRejectsNonFiniteNumericCodes(t *testing.T) {
+	for _, field := range []string{"level", "checkResult", "playRole"} {
+		t.Run(field, func(t *testing.T) {
+			var input types.TaskSubmitInput
+			payload := []byte(`{"taskId":1,"content":"内容","` + field + `":1e999}`)
+			if err := decodeTaskInputJSON(payload, &input); err == nil {
+				t.Fatalf("非有限 %s number 不应被归一化后放行", field)
+			}
+		})
+	}
+}
+
+func TestDecodeTaskInputJSONAcceptsExponentIntegerCodes(t *testing.T) {
+	for _, field := range []string{"level", "checkResult", "playRole"} {
+		t.Run(field, func(t *testing.T) {
+			var input types.TaskSubmitInput
+			payload := []byte(`{"taskId":1,"content":"内容","` + field + `":1e1}`)
+			if err := decodeTaskInputJSON(payload, &input); err != nil {
+				t.Fatalf("数值为整数的科学计数法 %s 应允许: %v", field, err)
+			}
+			var got string
+			switch field {
+			case "level":
+				got = input.Level
+			case "checkResult":
+				got = input.CheckResult
+			case "playRole":
+				got = input.PlayRole
+			}
+			if got != "1e1" {
+				t.Fatalf("%s 应保留 number 的原始字符串表示，得到 %q", field, got)
+			}
+		})
+	}
+}
+
 func TestDecodeTaskInputJSONRejectsNonScalarNumericFields(t *testing.T) {
 	var input types.TaskSubmitInput
 	if err := decodeTaskInputJSON([]byte(`{"taskId":1,"content":"内容","hours":true}`), &input); err == nil {

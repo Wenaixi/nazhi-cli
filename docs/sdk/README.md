@@ -150,7 +150,7 @@ c, err := client.New(
 2. 前端/SDK 能自动填的 → 调用方可不填（任务元数据、typeName、*Name、score=0、学校信息用学号补全等）  
 3. **禁止发明默认**：写实空 Address/OrgName/Level 原样发送（不填学校名、不默认 `"5"`）  
 4. Hours：任务预设 >0 可空；≤0 须用户填  
-5. 写实 CLI payload 对 `hours`、`level`、`checkResult`、`playRole` 兼容前端编辑回填的 number 与常规 string；CLI 通过 `cmd/nazhi` 私有 JSON helper 解码后，SDK 按提交字段语义处理；真实前端的 `circleTaskId` / `pictureList` 分别归一为 `taskId` / `imageIDs`。
+5. 写实 CLI payload 对 `hours` 兼容可为小数的 number 与 string；`level`、`checkResult`、`playRole` 的未加引号 number 仅接受有限整数，string 按原值保留。CLI 通过 `cmd/nazhi` 私有 JSON helper 解码后，SDK 按提交字段语义处理；真实前端的 `circleTaskId` / `pictureList` 分别归一为 `taskId` / `imageIDs`。
 
 **完整对照表（含「学号 → 自动补 schoolId/schoolName」）见 [autofill.md](./autofill.md)。**  
 各域文档内另有「用户输入 vs SDK 自动」小节。

@@ -114,7 +114,7 @@ nazhi task submit --token "$T" --payload '{"taskId":18154,"content":"今日劳�
 nazhi task edit --token "$T" --payload '{"id":5400001,"taskId":18154,"content":"补充。","address":"操场","level":"5"}'
 ```
 
-SDK 自动：任务元数据、图片上传。用户按活动类型填 address/level 等；CLI 解析 `--payload` 时，`cmd/nazhi` 私有 JSON helper 可直接接收真实前端编辑表单中的 number/string 字段，并将 `hours`、`level`、`checkResult`、`playRole` 归一为提交字段所需的字符串，同时把 `circleTaskId` / `pictureList` 兼容为 `taskId` / `imageIDs`。详见 [sdk/task.md](../sdk/task.md)。
+SDK 自动：任务元数据、图片上传。用户按活动类型填 address/level 等；CLI 解析 `--payload` 时，`cmd/nazhi` 私有 JSON helper 可接收真实前端编辑表单的 number/string 字段：`hours` 的 number 可为小数，`level`、`checkResult`、`playRole` 的 number 必须是有限整数，随后统一为提交字段所需的字符串；同时把 `circleTaskId` / `pictureList` 兼容为 `taskId` / `imageIDs`。详见 [sdk/task.md](../sdk/task.md)。
 
 ### task 列表
 

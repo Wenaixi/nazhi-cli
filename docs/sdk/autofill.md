@@ -71,7 +71,7 @@
 |-----------|------|-----|
 | `circleTaskId` / `circleTypeId` / `dimensionId` | 只传 `TaskID`；CLI 也兼容前端 `circleTaskId` 别名 | `GetCircleTypeByTaskID` |
 | `hours` | 可空；前端编辑回填可能是 number | meta.hours>0 → 用预设；meta≤0 且空 → `ErrInvalidPayload`；用户提供有效值时优先；非法值 → `ErrInvalidPayload`；CLI 的 JSON payload 由 `cmd/nazhi` 私有 helper 兼容 number/string |
-| `level` / `checkResult` / `playRole` | 按任务类型填写或由编辑记录回填 | 用户仍负责字段取值；CLI 的 JSON payload 由 `cmd/nazhi` 私有 helper 兼容 number/string，进入 client 前只做表示类型归一，不根据学校或任务猜测字段值 |
+| `level` / `checkResult` / `playRole` | 按任务类型填写或由编辑记录回填 | 用户仍负责字段取值；CLI 的 JSON payload 对未加引号 number 仅接受有限整数、对 string 保留原值，进入 client 前只做表示类型归一，不根据学校或任务猜测字段值 |
 | `pictureList` | CLI 可直接接收前端字段；SDK 输入为 `ImagePaths` 和/或 `ImageIDs` | 路径逐个 `UploadFile` 合并 id |
 | 备注要求图 | — | remark 含「照片/图片/pdf」且无图 → `ErrInvalidPayload` |
 | `address` / `orgName` / `level` / 其它活动字段 | 手填；空串**原样** | **不**填学校名、**不**默认 `"5"` |

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -64,6 +66,12 @@ func normalizeTaskInputJSON(data []byte) ([]byte, error) {
 		var number json.Number
 		if err := json.Unmarshal(raw, &number); err != nil {
 			return nil, fmt.Errorf("%s: 期望字符串或数字: %w", name, err)
+		}
+		if name != "hours" {
+			value, err := strconv.ParseFloat(number.String(), 64)
+			if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value != math.Trunc(value) {
+				return nil, fmt.Errorf("%s: 数字代码必须是有限整数", name)
+			}
 		}
 		encoded, err := json.Marshal(number.String())
 		if err != nil {
