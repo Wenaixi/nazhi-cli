@@ -73,7 +73,7 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `circle delete` | `--token --id` | `nazhi circle delete --token "$T" --id 5400001` |
 | `circle comment` | `--token --id --content` | `nazhi circle comment --token "$T" --id 5400001 --content '好'` |
 | `circle like` | `--token --id` | `nazhi circle like --token "$T" --id 5400001` |
-| `self-eval submit` | `--token` `--comment` 或 stdin / `--payload` | `echo 评语 \| nazhi self-eval submit --token "$T"` |
+| `self-eval submit` | `--token` `--comment` 或 stdin / `--payload`（二者不可同时提供） | `echo 评语 \| nazhi self-eval submit --token "$T"` |
 | `self-eval status` | `--token` | `nazhi self-eval status --token "$T"` |
 | `honor types\|list` | `--token` list 可 `--key` | `nazhi honor list --token "$T" --page 1` |
 | `honor add` | `--token --payload` | `@honor.json` |

@@ -30,16 +30,21 @@ var selfEvalSubmitCmd = &cobra.Command{
   nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "-"
   nazhi self-eval submit --token xxx --payload '{"bxqhzr":"会做人目标","bxqbx":"表现","bxqys":"优势"}'`,
 	Run: func(cmd *cobra.Command, args []string) {
+		payloadRaw, _ := cmd.Flags().GetString("payload")
+		comment, _ := cmd.Flags().GetString("comment")
+
+		if cmd.Flags().Changed("payload") && cmd.Flags().Changed("comment") {
+			printParamError(fmt.Errorf("--payload 与 --comment 不能同时提供"))
+			return
+		}
+
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
 			printParamError(err)
 			return
 		}
 
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-		comment, _ := cmd.Flags().GetString("comment")
-
-		// 结构化模式：--payload 优先
+		// 结构化模式：--payload
 		if payloadRaw != "" {
 			payloadBytes, err := parsePayloadFromArg(payloadRaw)
 			if err != nil {
