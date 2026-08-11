@@ -101,6 +101,8 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 
 更详细的环境变量与命令说明见 [CLI 参考](docs/cli/README.md)。
 
+> 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON；`hours`、`level`、`checkResult`、`playRole` 兼容 number/string，CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名，规范字段优先。任务元数据和图片由 SDK 自动补齐；Hours 是否可省略取决于任务元数据，空地址和空等级不会被 SDK 自动替换。详见 [SDK 任务文档](docs/sdk/task.md)。
+
 ## 命令概览
 
 ```

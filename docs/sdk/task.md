@@ -65,13 +65,17 @@ func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskE
 
 `TaskEditInput` 比提交多必填 `ID`（已有写实记录 id）。
 
+CLI 的 `--payload` 可直接接收真实前端表单 JSON：`hours`、`level`、`checkResult`、`playRole` 同时兼容 JSON number 和 string；`circleTaskId` / `pictureList` 分别兼容为 `taskId` / `imageIDs`，且显式规范字段优先。CLI 解析 payload 时由 `cmd/nazhi` 私有 JSON helper 将数字值规范为字符串，再按现有 `addCircle` / `editCircle` payload 发送；公开 `TaskSubmitInput` / `TaskEditInput` 仍按普通 Go string 字段赋值。
+
+列表响应中的 `CircleRecord.PlayRole` 是兼容平台 `play_role` number/string 的输出类型；提交输入中的 `TaskSubmitInput.PlayRole` / `TaskEditInput.PlayRole` 仍由用户填写，JSON 解码时只做表示类型归一，不根据任务或学校猜测字段值。
+
 ### 用户输入 vs SDK 自动（对照 `buildTaskPayload`）
 
 | 类别 | 字段 | 谁填 |
 |------|------|------|
 | 必填用户 | `TaskID`、`Content`；Edit 另需 `ID` | 调用方 |
 | 活动用户 | name / address / level / playRole / hostName / rank / activityName / sportsName / teamName / orgName / resultsName / obtainTime / specialtyTechnology / likeSpecialty1–3 / checkResult / patentType / patentNum / circleBeginDate / circleEndDate | 调用方按任务类型；**空串原样，不发明值** |
-| 半自动 | `Hours`（字符串） | 用户非空 → 用用户；用户空且 meta.hours>0 → **SDK 用任务预设**；用户空且 meta≤0 → **ErrInvalidPayload** |
+| 半自动 | `Hours`（字符串） | 用户提供有效值时优先；用户空值且 meta.hours>0 → **SDK 用任务预设**；用户空值且 meta≤0 → `ErrInvalidPayload`；非法值 → `ErrInvalidPayload` |
 | 纯 SDK | `circleTaskId`、`circleTypeId`、`dimensionId` | `GetCircleTypeByTaskID(TaskID)` |
 | 纯 SDK | `pictureList` | `ImageIDs` + 对每个 `ImagePaths` 调 `UploadFile` |
 | 兼容非用户 | `CircleDate`、`TermName` | 前端无 v-model；可空保留，勿当必填 |

@@ -8,10 +8,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -244,6 +249,20 @@ func TestParseHours_InvalidNonEmpty(t *testing.T) {
 	}
 }
 
+func TestParseHours_RejectsNonFinite(t *testing.T) {
+	for _, input := range []string{"NaN", "+Inf", "-Inf"} {
+		t.Run(input, func(t *testing.T) {
+			_, err := parseHours(input, 1.5)
+			if err == nil {
+				t.Fatal("非有限 hours 应返回 error")
+			}
+			if !errors.Is(err, ErrInvalidPayload) {
+				t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+			}
+		})
+	}
+}
+
 // TestParseHours_EmptyFallsBackWhenMetaPositive 空串且任务预设 >0 → 用元数据（前端只读自动填）。
 func TestParseHours_EmptyFallsBackWhenMetaPositive(t *testing.T) {
 	got, err := parseHours("  ", 2.5)
@@ -330,6 +349,86 @@ func TestSubmitTask_InvalidHours(t *testing.T) {
 	}
 	if !errors.Is(err, ErrInvalidPayload) {
 		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+	}
+}
+
+func TestSubmitTask_InvalidHoursSkipsImageUpload(t *testing.T) {
+	var uploadCalls atomic.Int32
+	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uploadCalls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":1,"returnData":{"id":67890}}`))
+	}))
+	defer upload.Close()
+
+	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"","type":10}}`))
+		case "/api/studentCircleNew/addCircle":
+			t.Error("非法 hours 不应到达 addCircle")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer biz.Close()
+
+	c, err := New(
+		WithBaseURL(biz.URL),
+		WithSSOBase(biz.URL),
+		WithUploadURL(upload.URL),
+		WithTimeout(5*1000*1000*1000),
+	)
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	imagePath := t.TempDir() + "/task.png"
+	img := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	for y := 0; y < 2; y++ {
+		for x := 0; x < 2; x++ {
+			img.Set(x, y, color.RGBA{255, 0, 0, 255})
+		}
+	}
+	f, err := os.Create(imagePath)
+	if err != nil {
+		t.Fatalf("创建测试图片失败: %v", err)
+	}
+	if err := png.Encode(f, img); err != nil {
+		_ = f.Close()
+		t.Fatalf("编码测试图片失败: %v", err)
+	}
+	if err := f.Close(); err != nil {
+		t.Fatalf("关闭测试图片失败: %v", err)
+	}
+
+	_, err = c.SubmitTask(context.Background(), "tok", types.TaskSubmitInput{
+		TaskID:     1001,
+		Content:    "内容",
+		Hours:      "+Inf",
+		ImagePaths: []string{imagePath},
+	})
+	if err == nil {
+		t.Fatal("+Inf hours 应失败")
+	}
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+	}
+	if got := uploadCalls.Load(); got != 0 {
+		t.Fatalf("非法 hours 时不应调用上传服务，实际调用 %d 次", got)
 	}
 }
 

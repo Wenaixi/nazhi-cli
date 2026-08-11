@@ -67,6 +67,8 @@
 - **写实 Address/OrgName/Level**：去掉 SDK 发明的默认（空 Address/OrgName→学校名、空 Level→`"5"`）；与前端一致，空串原样提交；调用方须按活动类型自行填写
 - **典型案例 *Name 映射**：对齐 classiccanter el-option——type `"2"`→「社会调查报告」、level `"1"`→「国际」（此前误为「社会实践报告」/「国家」）
 - **UpdateTypicalCase 数字 code**：`fillTypicalCaseDisplayNamesMap` 支持 type/role/level 为 number 或 string（列表回填常为 number；此前仅 string 能自动补 *Name）
+- **写实 CLI payload 类型兼容**：CLI 私有 JSON 解码 helper 兼容前端编辑回填的 `hours`、`level`、`checkResult`、`playRole` number/string，并在进入 client 前统一为提交字段使用的字符串；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs`，规范字段优先；`TaskSubmitInput` / `TaskEditInput` 公开 Go 字段和标准 JSON 解码语义保持不变
+- **写实提交默认行为说明**：历史版本中的 Address/OrgName 学校名回落与 Level 默认 `"5"` 仅代表旧行为；当前版本保持前端语义，空值不自动替换
 
 ## [1.3.0] - 2026-07-18
 

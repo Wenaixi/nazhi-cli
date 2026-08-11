@@ -60,7 +60,7 @@ err := c.AddCircleComment(ctx, token, 5400001, "加油")
 
 ### 响应示例
 
-成功 `nil`。
+成功 `nil`。真实前端会继续消费响应中的 `returnData` 并立即更新评论列表；当前已有 SDK 方法签名是 error-only，本轮保持该公开契约，不新增评论返回对象方法。
 
 ---
 

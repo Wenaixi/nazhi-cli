@@ -1,6 +1,7 @@
 # SDK 自动补全与默认行为总表
 
-本文对照 `pkg/client` 源码，列出**所有**「调用方可不填 / 由 SDK 自动完成」的行为。  
+本文对照 `pkg/client`、`pkg/types` 与 `cmd/nazhi` 的业务和 payload 解码逻辑，列出**所有**「调用方可不填 / 由 SDK 或输入层自动完成」的行为。
+
 原则：前端用户 v-model 才暴露；前端/SDK 能自动填的不要求调用方填；**禁止**发明前端没有的默认（如空地址→学校名）。
 
 > 写入口细则见各域分册；本页是索引与对照表。
@@ -68,9 +69,10 @@
 
 | 字段/步骤 | 用户 | SDK |
 |-----------|------|-----|
-| `circleTaskId` / `circleTypeId` / `dimensionId` | 只传 `TaskID` | `GetCircleTypeByTaskID` |
-| `hours` | 可空字符串 | meta.hours>0 → 用预设；meta≤0 且空 → `ErrInvalidPayload`；非空优先用户 |
-| `pictureList` | `ImagePaths` 和/或 `ImageIDs` | 路径逐个 `UploadFile` 合并 id |
+| `circleTaskId` / `circleTypeId` / `dimensionId` | 只传 `TaskID`；CLI 也兼容前端 `circleTaskId` 别名 | `GetCircleTypeByTaskID` |
+| `hours` | 可空；前端编辑回填可能是 number | meta.hours>0 → 用预设；meta≤0 且空 → `ErrInvalidPayload`；用户提供有效值时优先；非法值 → `ErrInvalidPayload`；CLI 的 JSON payload 由 `cmd/nazhi` 私有 helper 兼容 number/string |
+| `level` / `checkResult` / `playRole` | 按任务类型填写或由编辑记录回填 | 用户仍负责字段取值；CLI 的 JSON payload 由 `cmd/nazhi` 私有 helper 兼容 number/string，进入 client 前只做表示类型归一，不根据学校或任务猜测字段值 |
+| `pictureList` | CLI 可直接接收前端字段；SDK 输入为 `ImagePaths` 和/或 `ImageIDs` | 路径逐个 `UploadFile` 合并 id |
 | 备注要求图 | — | remark 含「照片/图片/pdf」且无图 → `ErrInvalidPayload` |
 | `address` / `orgName` / `level` / 其它活动字段 | 手填；空串**原样** | **不**填学校名、**不**默认 `"5"` |
 | `circleDate` / `termName` | 兼容可空 | 不自动造值（前端无 v-model） |

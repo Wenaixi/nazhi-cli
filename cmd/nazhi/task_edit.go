@@ -1,11 +1,9 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -49,8 +47,8 @@ var taskEditCmd = &cobra.Command{
 			return
 		}
 
-		var input types.TaskEditInput
-		if err := json.Unmarshal(payloadBytes, &input); err != nil {
+		input, err := decodeTaskEditInput(payloadBytes)
+		if err != nil {
 			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}

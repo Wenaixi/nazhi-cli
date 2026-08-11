@@ -626,6 +626,15 @@ func TestSubmitTask_WithImageIDs(t *testing.T) {
 		case "/api/studentCircleNew/addCircle":
 			var payload types.TaskAddCirclePayload
 			_ = json.NewDecoder(r.Body).Decode(&payload)
+			if payload.CircleTaskID != 1001 {
+				t.Fatalf("期望 circleTaskId=1001, 得到 %d", payload.CircleTaskID)
+			}
+			if payload.CircleTypeID != 9256 {
+				t.Fatalf("期望 circleTypeId=9256, 得到 %d", payload.CircleTypeID)
+			}
+			if payload.DimensionID != 9 {
+				t.Fatalf("期望 dimensionId=9, 得到 %d", payload.DimensionID)
+			}
 			if len(payload.PictureList) != 2 {
 				t.Fatalf("期望 2 个 pictureList, 得到 %d", len(payload.PictureList))
 			}

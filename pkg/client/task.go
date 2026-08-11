@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -320,7 +321,7 @@ func parseHours(userInput string, metaHours float64) (float64, error) {
 		return 0, fmt.Errorf("%w: hours 必填（任务未预设学时，须由调用方填写）", ErrInvalidPayload)
 	}
 	parsed, err := strconv.ParseFloat(h, 64)
-	if err != nil {
+	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
 		return 0, fmt.Errorf("%w: hours 非法: %q", ErrInvalidPayload, h)
 	}
 	return parsed, nil
@@ -343,6 +344,11 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
 	if err != nil {
 		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
+	}
+
+	hours, err := parseHours(input.GetHours(), meta.Hours)
+	if err != nil {
+		return nil, err
 	}
 
 	// 处理图片：合并 ImageIDs + ImagePaths
@@ -393,11 +399,6 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 	likeSpecialty1 := strings.TrimSpace(input.GetLikeSpecialty1())
 	likeSpecialty2 := strings.TrimSpace(input.GetLikeSpecialty2())
 	likeSpecialty3 := strings.TrimSpace(input.GetLikeSpecialty3())
-
-	hours, err := parseHours(input.GetHours(), meta.Hours)
-	if err != nil {
-		return nil, err
-	}
 
 	payload := &types.TaskAddCirclePayload{
 		ID:                  input.GetID(),
