@@ -169,6 +169,22 @@ func TestSelfEvalStatus_CamelJSON(t *testing.T) {
 	}
 }
 
+// TestSelfEvalStatus_RejectsInvalidIDType 保证已知字段类型错误不会被静默吞掉。
+func TestSelfEvalStatus_RejectsInvalidIDType(t *testing.T) {
+	for _, raw := range []string{
+		`{"id":"not-an-integer"}`,
+		`{"id":1.5}`,
+		`{"id":true}`,
+	} {
+		t.Run(raw, func(t *testing.T) {
+			var st SelfEvalStatus
+			if err := json.Unmarshal([]byte(raw), &st); err == nil {
+				t.Fatalf("invalid id type should return an error, got status=%+v", st)
+			}
+		})
+	}
+}
+
 // TestHonorRecord_FrontendStatus 验证荣誉列表 status 整型字段（前端 scope.row.status）。
 func TestHonorRecord_FrontendStatus(t *testing.T) {
 	raw := `{

@@ -31,7 +31,9 @@ func (s *SelfEvalStatus) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	if v, ok := raw["id"]; ok {
-		_ = json.Unmarshal(v, &s.ID)
+		if err := json.Unmarshal(v, &s.ID); err != nil {
+			return fmt.Errorf("SelfEvalStatus.id: %w", err)
+		}
 	}
 	s.StudentComment = firstJSONString(raw, "studentComment", "student_comment")
 	s.TeacherComment = firstJSONString(raw, "teacherComment", "teacher_comment")
