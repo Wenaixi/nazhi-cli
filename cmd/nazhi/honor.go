@@ -62,7 +62,7 @@ var honorListCmd = &cobra.Command{
 	Short: "获取已申报荣誉记录",
 	Long:  `获取当前用户已申报的全部荣誉记录（分页）。支持 --key 关键字筛选。`,
 	Example: `  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx
-		  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
+		  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -185,7 +185,7 @@ func init() {
 	// honor list
 	honorCmd.AddCommand(honorListCmd)
 	honorListCmd.Flags().Int("page", 1, "页码（从 1 开始）")
-	honorListCmd.Flags().Int("page-size", 20, "每页条数")
+	honorListCmd.Flags().Int("page-size", 10, "每页条数")
 	honorListCmd.Flags().String("key", "", "搜索关键字（可空，对应 getHonorByStudentId 的 key）")
 	registerBizFlags(honorListCmd)
 

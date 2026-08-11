@@ -31,18 +31,25 @@ func (c *Client) GetHonorTypes(ctx context.Context, token string) ([]types.Honor
 	}
 
 	// 优先 dataList（丰富字段），fallback 到 returnData
+	var dataListTypes []types.HonorType
 	if resp.DataList != nil {
-		honorTypes, err := types.DecodeDataList[types.HonorType](*resp)
+		var err error
+		dataListTypes, err = types.DecodeDataList[types.HonorType](*resp)
 		if err != nil {
 			return nil, fmt.Errorf("GetHonorTypes 解析失败: %w", err)
 		}
-		return honorTypes, nil
+		if len(dataListTypes) > 0 {
+			return dataListTypes, nil
+		}
 	}
 
 	// returnData 路径（简化字段）
 	var opts []types.HonorType
 	if err := types.DecodeReturnDataSlice(*resp, &opts); err != nil {
 		return nil, fmt.Errorf("GetHonorTypes 解析 returnData 失败: %w", err)
+	}
+	if opts == nil && resp.DataList != nil {
+		return dataListTypes, nil
 	}
 	return opts, nil
 }
@@ -102,7 +109,7 @@ func (c *Client) GetHonorLevel(ctx context.Context, token string, honorTypeID in
 // GetHonorList 查询当前学生已申报的荣誉记录（分页）。
 //
 // 服务端要求同时带上 &key= 参数（可空值），否则返回 HTTP 400。
-// pageNo 从 1 开始，pageSize 建议 20。
+// pageNo 从 1 开始，pageSize 默认 10（与前端一致）。
 // key 为搜索关键字（可空，会做 URL 转义）。
 //
 // BREAKING：v1.3.x 起签名新增 key 参数。

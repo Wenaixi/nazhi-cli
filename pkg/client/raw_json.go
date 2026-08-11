@@ -710,8 +710,12 @@ func (c *Client) GetHonorTypesJSON(ctx context.Context, token string) (json.RawM
 		return nil, fmt.Errorf("GetHonorTypesJSON 失败: %w", err)
 	}
 	raw := rawListBytes(*resp)
-	if len(raw) == 0 && resp.ReturnData != nil {
-		raw = *resp.ReturnData
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) || bytes.Equal(trimmed, []byte("[]")) {
+		raw = nil
+		if resp.ReturnData != nil {
+			raw = *resp.ReturnData
+		}
 	}
 	if len(raw) == 0 {
 		return []byte("[]"), nil

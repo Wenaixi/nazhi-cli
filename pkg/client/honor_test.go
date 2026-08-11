@@ -39,8 +39,11 @@ func TestGetHonorTypes(t *testing.T) {
 			resp := map[string]any{
 				"code": 1,
 				"dataList": []map[string]any{
-					{"id": 1147, "name": "校学生优秀干部", "levelName": "校", "level": 5, "dimensionName": "思想品德"},
-					{"id": 1148, "name": "校三好学生", "levelName": "校", "level": 5, "dimensionName": "学业水平"},
+					{"id": 1147, "name": "honor-a", "level_name": "school", "level": 5, "dimension_name": "conduct", "score": "分数：+5.0"},
+					{"id": 1148, "name": "honor-b", "level_name": "city", "level": 4, "dimension_name": "study", "score": "分数：+4.0"},
+				},
+				"returnData": []map[string]any{
+					{"id": 9999, "name": "return-data"},
 				},
 			}
 			_ = json.NewEncoder(w).Encode(resp)
@@ -58,8 +61,43 @@ func TestGetHonorTypes(t *testing.T) {
 	if len(types) != 2 {
 		t.Fatalf("期望 2 个荣誉类型，实际 %d", len(types))
 	}
-	if types[0].ID != 1147 || types[0].Name != "校学生优秀干部" {
+	if types[0].ID != 1147 || types[0].Name != "honor-a" {
 		t.Errorf("字段解析错误: %+v", types[0])
+	}
+	if types[0].LevelName != "school" || types[0].DimensionName != "conduct" || types[0].Score != "分数：+5.0" {
+		t.Errorf("真实 snake_case 字段解析错误: %+v", types[0])
+	}
+}
+
+// TestGetHonorTypes_FallbackReturnDataWhenDataListEmpty 验证 dataList 为空时回退到 returnData。
+func TestGetHonorTypes_FallbackReturnDataWhenDataListEmpty(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		dataList string
+	}{
+		{name: "empty array", dataList: "[]"},
+		{name: "null", dataList: "null"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+				if r.URL.Path == "/api/studentMoralEduNew/getHonorType" {
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"code":1,"dataList":` + tc.dataList + `,"returnData":[{"id":2001,"name":"fallback-type","level_name":"school","level":5,"dimension_name":"conduct","score":"+5"}]}`))
+					return
+				}
+				w.WriteHeader(http.StatusNotFound)
+			})))
+			defer biz.Close()
+
+			c := newTestClient(nil, biz, nil)
+			got, err := c.GetHonorTypes(context.Background(), "test-token")
+			if err != nil {
+				t.Fatalf("GetHonorTypes 失败: %v", err)
+			}
+			if len(got) != 1 || got[0].ID != 2001 || got[0].Name != "fallback-type" {
+				t.Fatalf("期望从 returnData 回退解析 1 条类型，实际 %+v", got)
+			}
+		})
 	}
 }
 

@@ -55,6 +55,7 @@ func rawHonorTypesReturnData(types any) string {
 	b, _ := json.Marshal(map[string]any{
 		"code":       1,
 		"msg":        "成功",
+		"dataList":   []any{},
 		"returnData": types,
 	})
 	return string(b)
@@ -240,9 +241,12 @@ func TestGetHonorTypesJSON_DataList(t *testing.T) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(rawHonorTypesDataList([]map[string]any{
-			{"id": 1, "name": "校三好", "extraField": "raw_only_dataList"},
-		})))
+		body, _ := json.Marshal(map[string]any{
+			"code":       1,
+			"dataList":   []map[string]any{{"id": 1, "name": "data-list", "extraField": "raw_only_dataList"}},
+			"returnData": []map[string]any{{"id": 2, "name": "return-data"}},
+		})
+		_, _ = w.Write(body)
 	})))
 	defer biz.Close()
 
@@ -258,6 +262,9 @@ func TestGetHonorTypesJSON_DataList(t *testing.T) {
 	}
 	if !strings.Contains(string(raw), `"extraField":"raw_only_dataList"`) {
 		t.Errorf("dataList 通道字节应原样保留 extraField, body=%s", raw)
+	}
+	if strings.Contains(string(raw), `"name":"return-data"`) {
+		t.Errorf("dataList 有记录时不应回退到 returnData, body=%s", raw)
 	}
 }
 
