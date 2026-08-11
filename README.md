@@ -89,6 +89,7 @@ nazhi whoami
 nazhi task list
 nazhi task submit --payload @task.json
 nazhi self-eval submit --comment "很好的学期"
+nazhi self-eval submit --payload '{"bxqhzr":"会做人目标","bxqbx":"本学期表现","bxqys":"优势"}'
 nazhi self-eval status
 
 # 4. 上传图片（独立服务，不需要 token）
@@ -100,6 +101,8 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 ```
 
 更详细的环境变量与命令说明见 [CLI 参考](docs/cli/README.md)。
+
+> 自我评价支持纯文本和结构化 `--payload` 两种提交方式；结构化表单会由 SDK 双层包装为 `studentComment`。毕业评价的查询/提交仅提供 Go SDK 方法，当前 CLI 不提供对应命令。荣誉删除使用 GET，并通过 `id` 查询参数传递记录 ID。详见 [SDK 自评](docs/sdk/self-eval.md) 与 [SDK 荣誉](docs/sdk/honor.md)。
 
 > 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON；`hours`、`level`、`checkResult`、`playRole` 兼容 number/string，CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名，规范字段优先。任务元数据和图片由 SDK 自动补齐；Hours 是否可省略取决于任务元数据，空地址和空等级不会被 SDK 自动替换。详见 [SDK 任务文档](docs/sdk/task.md)。
 

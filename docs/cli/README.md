@@ -86,7 +86,13 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `file download` | `--id --output`（无 token） | `nazhi file download --id 5139876 -o ./a.jpg` |
 | `version` / `completion` | | `nazhi version` |
 
-`--payload` 支持内联 JSON、`@file.json`、`-`（stdin）。
+`--payload` 支持内联 JSON、`@file.json`、`-`（stdin）。`self-eval submit --payload` 对应前端结构化「诉得失」表单，SDK 会将表单 JSON 序列化后再放入 `studentComment`；例如：
+
+```bash
+nazhi self-eval submit --token "$T" --payload '{"bxqhzr":"本学期会做人目标","bxqbx":"本学期表现","bxqys":"优势"}'
+```
+
+当前 CLI 只提供学期自评的 `submit/status`；毕业评价的查询与提交保留为 SDK 方法，不新增 CLI 命令。
 
 ---
 
@@ -129,7 +135,7 @@ nazhi circle delete --token "$T" --id 5400001
 
 ```bash
 nazhi honor add --token "$T" --payload @honor.json
-# honor.json: typeId, level, evaluationAgency, getDate, certImgAttachmentId(可选)
+# honor.json: typeId, level, evaluationAgency, getDate, certImgAttachmentId(number/string，可选)
 # typeName/name/score 可省略（SDK 补）
 
 nazhi typical-case submit --token "$T" --payload @case.json

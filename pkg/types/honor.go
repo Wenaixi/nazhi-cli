@@ -1,5 +1,12 @@
 package types
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
+
 // HonorType 一种可申报的荣誉类型（来自 getHonorType 接口）。
 //
 // 前端 performanceM.vue 德育说明表列使用 snake_case：
@@ -71,6 +78,53 @@ type AddHonorPayload struct {
 	CertImgAttachmentID string `json:"certImgAttachmentId"`
 	// Score 分值。前端 form 默认 0 且无 v-model；零值也会序列化进请求体。
 	Score int `json:"score"`
+}
+
+// UnmarshalJSON 兼容前端上传成功后返回的 number 类型 certImgAttachmentId，
+// 同时保留调用方传入的字符串形式。
+func (p *AddHonorPayload) UnmarshalJSON(data []byte) error {
+	var raw struct {
+		Name                string          `json:"name"`
+		TypeID              int64           `json:"typeId"`
+		TypeName            string          `json:"typeName"`
+		Level               int             `json:"level"`
+		EvaluationAgency    string          `json:"evaluationAgency"`
+		GetDate             string          `json:"getDate"`
+		CertImgAttachmentID json.RawMessage `json:"certImgAttachmentId"`
+		Score               int             `json:"score"`
+	}
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	p.Name = raw.Name
+	p.TypeID = raw.TypeID
+	p.TypeName = raw.TypeName
+	p.Level = raw.Level
+	p.EvaluationAgency = raw.EvaluationAgency
+	p.GetDate = raw.GetDate
+	p.Score = raw.Score
+	p.CertImgAttachmentID = ""
+	value := bytes.TrimSpace(raw.CertImgAttachmentID)
+	if len(value) == 0 || bytes.Equal(value, []byte("null")) {
+		return nil
+	}
+	var text string
+	if value[0] == '"' {
+		if err := json.Unmarshal(value, &text); err != nil {
+			return fmt.Errorf("certImgAttachmentId: %w", err)
+		}
+		p.CertImgAttachmentID = text
+		return nil
+	}
+	var number json.Number
+	if err := json.Unmarshal(value, &number); err != nil {
+		return fmt.Errorf("certImgAttachmentId: 期望字符串或数字: %w", err)
+	}
+	if _, err := strconv.ParseInt(number.String(), 10, 64); err != nil {
+		return fmt.Errorf("certImgAttachmentId: 非法数字 %q: %w", number.String(), err)
+	}
+	p.CertImgAttachmentID = number.String()
+	return nil
 }
 
 // HonorSelectOption 是下拉选择选项。

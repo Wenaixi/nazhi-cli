@@ -22,6 +22,20 @@ st, err := c.QuerySelfEvaluation(ctx, token)
 
 ---
 
+## 请求路径与响应约定
+
+| 方法 | HTTP 请求 | 请求体 / 返回值 |
+|------|-----------|----------------|
+| `SubmitSelfEvaluation` | `POST /api/studentMoralEduNew/addSelfEvaluation` | `{"studentComment":"评语"}`；成功返回 `nil` |
+| `SubmitSelfEvaluationStructured` | `POST /api/studentMoralEduNew/addSelfEvaluation` | `studentComment` 是 `JSON.stringify(form)` 后的字符串；成功返回 `nil` |
+| `QuerySelfEvaluation` | `GET /api/studentMoralEduNew/querySelfEvaluation` | 从 `dataMap` 读取 `student_comment`/`teacher_comment`；未提交返回 `nil, nil` |
+| `QuerySelfGradEvaluation` | `GET /api/studentMoralEduNew/querySelfGradEvaluation` | 从 `dataMap`/`returnData` 返回 `*map[string]any`；常见字段为 `student_comment`、`isGrad` |
+| `SubmitSelfGradEvaluation` | `POST /api/studentMoralEduNew/addSelfGradEvaluation` | `{"studentComment":"毕业评语"}`；成功返回 `nil` |
+
+纯文本与毕业评价提交均只有一层 `studentComment` 包装；结构化学期自评才会把表单 JSON 再嵌入该字段。毕业评价方法当前仅在 Go SDK 暴露，CLI 命令树没有对应命令。
+
+---
+
 ## SubmitSelfEvaluation
 
 ### 签名

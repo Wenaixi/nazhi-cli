@@ -63,6 +63,8 @@
 - **输入暴露原则**：用户手填字段进 Input；前端自动填字段由 SDK 补全（典型案例 *Name、荣誉 typeName/name/score）
 - **CircleRecord.PlayRole**：类型改为 `PlayRoleCode`，兼容列表 API 的 number 与表单 string（前端 `switch(map.play_role) case 1/2/3`）；序列化统一为字符串码
 - **SelfEvalStatus**：`UnmarshalJSON` 主解码 `student_comment`/`teacher_comment`（前端 mainLeft/selfgaintloss），兼容 camelCase；`QuerySelfEvaluation` 的 normalize 兜底仍保留
+- **荣誉/自评协议文档**：补充荣誉各方法的真实 HTTP method/path、删除荣誉的 GET+`id` 查询参数，以及自评/毕业评价的 endpoint、请求体层级、`dataMap` 字段和当前 CLI 能力边界
+- **荣誉/自评回归测试**：覆盖 `DeleteHonor` 的 GET+`id` query、结构化自评的双层 `studentComment` JSON 请求体，以及荣誉证书附件 ID 的 number/string 输入兼容
 - **parseHours / TaskSubmitInput.Hours**：对齐前端 `hoursStatus`——任务元数据 hours>0 时用户可空（SDK 用预设）；hours≤0 且用户空 → `ErrInvalidPayload`（不再静默提交 0）；显式 Hours 始终优先
 - **写实 Address/OrgName/Level**：去掉 SDK 发明的默认（空 Address/OrgName→学校名、空 Level→`"5"`）；与前端一致，空串原样提交；调用方须按活动类型自行填写
 - **典型案例 *Name 映射**：对齐 classiccanter el-option——type `"2"`→「社会调查报告」、level `"1"`→「国际」（此前误为「社会实践报告」/「国家」）
