@@ -10,7 +10,7 @@ import (
 //
 // 查询接口 dataMap 前端读 student_comment / teacher_comment（mainLeft.vue、selfgaintloss.vue）；
 // 部分 mock / returnData 为 camelCase。Unmarshal 双键兼容；Marshal 输出 camelCase
-//（与提交 addSelfEvaluation 的 studentComment 请求键一致）。
+// （与提交 addSelfEvaluation 的 studentComment 请求键一致）。
 type SelfEvalStatus struct {
 	ID             int64  `json:"id"`
 	StudentComment string `json:"studentComment"`
@@ -35,21 +35,38 @@ func (s *SelfEvalStatus) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("SelfEvalStatus.id: %w", err)
 		}
 	}
-	s.StudentComment = firstJSONString(raw, "studentComment", "student_comment")
-	s.TeacherComment = firstJSONString(raw, "teacherComment", "teacher_comment")
+	studentComment, present, err := firstJSONString(raw, "studentComment", "student_comment")
+	if err != nil {
+		return fmt.Errorf("SelfEvalStatus.studentComment: %w", err)
+	}
+	if present {
+		s.StudentComment = studentComment
+	}
+	teacherComment, present, err := firstJSONString(raw, "teacherComment", "teacher_comment")
+	if err != nil {
+		return fmt.Errorf("SelfEvalStatus.teacherComment: %w", err)
+	}
+	if present {
+		s.TeacherComment = teacherComment
+	}
 	return nil
 }
 
-func firstJSONString(raw map[string]json.RawMessage, keys ...string) string {
+func firstJSONString(raw map[string]json.RawMessage, keys ...string) (string, bool, error) {
 	for _, k := range keys {
 		v, ok := raw[k]
-		if !ok || len(v) == 0 || bytes.Equal(v, []byte("null")) {
+		if !ok {
+			continue
+		}
+		trimmed := bytes.TrimSpace(v)
+		if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
 			continue
 		}
 		var s string
-		if err := json.Unmarshal(v, &s); err == nil {
-			return s
+		if err := json.Unmarshal(trimmed, &s); err != nil {
+			return "", true, err
 		}
+		return s, true, nil
 	}
-	return ""
+	return "", false, nil
 }
