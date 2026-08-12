@@ -68,7 +68,27 @@ func TestDecodeTaskInputJSONRejectsNonFiniteNumericCodes(t *testing.T) {
 	}
 }
 
-func TestDecodeTaskInputJSONAcceptsExponentIntegerCodes(t *testing.T) {
+func TestDecodeTaskInputJSONCanonicalizesIntegerNumericCodes(t *testing.T) {
+	input, err := decodeTaskSubmitInput([]byte(`{
+		"taskId": 1,
+		"content": "内容",
+		"hours": 1.25,
+		"level": 1.0,
+		"checkResult": 1e0,
+		"playRole": -0.0
+	}`))
+	if err != nil {
+		t.Fatalf("合法有限整数代码应允许: %v", err)
+	}
+	if input.Hours != "1.25" {
+		t.Fatalf("hours 应保留合法小数，得到 %q", input.Hours)
+	}
+	if input.Level != "1" || input.CheckResult != "1" || input.PlayRole != "0" {
+		t.Fatalf("离散代码应规范为标准十进制字符串: level=%q checkResult=%q playRole=%q", input.Level, input.CheckResult, input.PlayRole)
+	}
+}
+
+func TestDecodeTaskInputJSONCanonicalizesExponentIntegerCodes(t *testing.T) {
 	for _, field := range []string{"level", "checkResult", "playRole"} {
 		t.Run(field, func(t *testing.T) {
 			var input types.TaskSubmitInput
@@ -85,8 +105,8 @@ func TestDecodeTaskInputJSONAcceptsExponentIntegerCodes(t *testing.T) {
 			case "playRole":
 				got = input.PlayRole
 			}
-			if got != "1e1" {
-				t.Fatalf("%s 应保留 number 的原始字符串表示，得到 %q", field, got)
+			if got != "10" {
+				t.Fatalf("%s 应规范为标准十进制字符串，得到 %q", field, got)
 			}
 		})
 	}

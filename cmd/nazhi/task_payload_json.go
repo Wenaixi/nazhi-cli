@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"math/big"
 	"sort"
 	"strconv"
 	"strings"
@@ -69,9 +70,14 @@ func normalizeTaskInputJSON(data []byte) ([]byte, error) {
 		}
 		if name != "hours" {
 			value, err := strconv.ParseFloat(number.String(), 64)
-			if err != nil || math.IsNaN(value) || math.IsInf(value, 0) || value != math.Trunc(value) {
+			if err != nil || math.IsNaN(value) || math.IsInf(value, 0) {
 				return nil, fmt.Errorf("%s: 数字代码必须是有限整数", name)
 			}
+			integer, ok := new(big.Rat).SetString(number.String())
+			if !ok || !integer.IsInt() {
+				return nil, fmt.Errorf("%s: 数字代码必须是有限整数", name)
+			}
+			number = json.Number(integer.Num().String())
 		}
 		encoded, err := json.Marshal(number.String())
 		if err != nil {

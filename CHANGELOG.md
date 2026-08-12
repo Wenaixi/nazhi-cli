@@ -5,6 +5,9 @@
 ### 修复
 
 - SDK `GetMyInfo` 的 `className` 后处理与前端 `userBox`、`modifyBox`、`header` 对齐：只移除首个“级”字，不再按 `gradeName` 删除前缀。
+- CLI stdin payload 超过 16 MiB 时返回参数错误，避免读取限制造成静默截断。
+- CLI 写实 payload 将 `level`、`checkResult`、`playRole` 的合法整数 number 规范为标准十进制代码字符串，同时继续拒绝小数、非有限值和溢出值。
+- CLI `self-eval submit --payload=` 显式空值立即返回参数错误，不再误走 stdin/纯文本模式。
 
 
 ## [Unreleased]

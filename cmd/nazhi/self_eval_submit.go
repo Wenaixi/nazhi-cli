@@ -32,8 +32,13 @@ var selfEvalSubmitCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		comment, _ := cmd.Flags().GetString("comment")
+		payloadMode := cmd.Flags().Changed("payload")
 
-		if cmd.Flags().Changed("payload") && cmd.Flags().Changed("comment") {
+		if payloadMode && payloadRaw == "" {
+			printParamError(fmt.Errorf("--payload 不能为空"))
+			return
+		}
+		if payloadMode && cmd.Flags().Changed("comment") {
 			printParamError(fmt.Errorf("--payload 与 --comment 不能同时提供"))
 			return
 		}
@@ -45,7 +50,7 @@ var selfEvalSubmitCmd = &cobra.Command{
 		}
 
 		// 结构化模式：--payload
-		if payloadRaw != "" {
+		if payloadMode {
 			payloadBytes, err := parseJSONObjectPayload(payloadRaw)
 			if err != nil {
 				printParamError(fmt.Errorf("读取 payload 失败: %w", err))

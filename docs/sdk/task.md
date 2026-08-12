@@ -65,7 +65,7 @@ func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskE
 
 `TaskEditInput` 比提交多必填 `ID`（已有写实记录 id）。
 
-CLI 的 `--payload` 可直接接收真实前端表单 JSON：`hours` 兼容可为小数的 JSON number 和 string；`level`、`checkResult`、`playRole` 的 JSON number 仅接受有限整数，string 则按调用方原值保留。`circleTaskId` / `pictureList` 分别兼容为 `taskId` / `imageIDs`，且显式规范字段优先。CLI 解析 payload 时由 `cmd/nazhi` 私有 JSON helper 将可接受的数字值规范为字符串，再按现有 `addCircle` / `editCircle` payload 发送；公开 `TaskSubmitInput` / `TaskEditInput` 仍按普通 Go string 字段赋值。
+CLI 的 `--payload` 可直接接收真实前端表单 JSON：`hours` 兼容可为小数的 JSON number 和 string；`level`、`checkResult`、`playRole` 的 JSON number 仅接受有限整数，并把 `1.0`、`1e0` 等合法整数规范为标准十进制代码字符串，string 则按调用方原值保留。小数、非有限值和溢出值会被拒绝。`circleTaskId` / `pictureList` 分别兼容为 `taskId` / `imageIDs`，且显式规范字段优先。CLI 解析 payload 时由 `cmd/nazhi` 私有 JSON helper 将可接受的数字值规范为字符串，再按现有 `addCircle` / `editCircle` payload 发送；公开 `TaskSubmitInput` / `TaskEditInput` 仍按普通 Go string 字段赋值。
 
 列表响应中的 `CircleRecord.PlayRole` 是兼容平台 `play_role` number/string 的输出类型；提交输入中的 `TaskSubmitInput.PlayRole` / `TaskEditInput.PlayRole` 仍由用户填写，JSON 解码时只做表示类型归一，不根据任务或学校猜测字段值。
 
