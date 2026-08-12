@@ -104,7 +104,7 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 
 > 自我评价支持纯文本和结构化 `--payload` 两种提交方式；结构化表单会由 SDK 双层包装为 `studentComment`。毕业评价的查询/提交仅提供 Go SDK 方法，当前 CLI 不提供对应命令。荣誉删除使用 GET，并通过 `id` 查询参数传递记录 ID。详见 [SDK 自评](docs/sdk/self-eval.md) 与 [SDK 荣誉](docs/sdk/honor.md)。
 
-> 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON；`hours`、`level`、`checkResult`、`playRole` 兼容 number/string，CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名，规范字段优先。任务元数据和图片由 SDK 自动补齐；Hours 是否可省略取决于任务元数据，空地址和空等级不会被 SDK 自动替换。详见 [SDK 任务文档](docs/sdk/task.md)。
+> 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON；`hours` 的 number/string 均兼容且可保留小数，`level`、`checkResult`、`playRole` 的未加引号 number 必须是有限整数，`1.0`/`1e0` 等会规范为标准十进制代码字符串，小数、非有限值和溢出值会被拒绝，string 按原值保留。`--payload -` 从 stdin 读取时上限为 16 MiB，超限会按参数错误处理，不会静默截断。CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名，规范字段优先。任务元数据和图片由 SDK 自动补齐；Hours 是否可省略取决于任务元数据，空地址和空等级不会被 SDK 自动替换。详见 [SDK 任务文档](docs/sdk/task.md)。
 
 ## 命令概览
 
