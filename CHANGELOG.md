@@ -8,8 +8,7 @@
 - CLI stdin payload 超过 16 MiB 时返回参数错误，避免读取限制造成静默截断。
 - CLI 写实 payload 将 `level`、`checkResult`、`playRole` 的合法整数 number 规范为标准十进制代码字符串，同时继续拒绝小数、非有限值和溢出值。
 - CLI `self-eval submit --payload=` 显式空值立即返回参数错误，不再误走 stdin/纯文本模式。
-
-
+- 修复写实列表分页测试夹具的并发计数竞态，`go test -race` 不再因测试自身的共享计数器误报。
 ## [Unreleased]
 
 ### 文档
