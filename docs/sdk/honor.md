@@ -9,10 +9,10 @@
 | `GetHonorTypes` | `GET /api/studentMoralEduNew/getHonorType` | 荣誉类型说明表 | `honor types` |
 | `GetHonorTypeOptions` | `GET /api/studentMoralEduNew/getHonorTypeForSelect` | 类型下拉（读取 `dataList`） | — |
 | `GetHonorTypeForSelect` | `GET /api/studentMoralEduNew/getHonorTypeForSelect` | 级别下拉（读取 `returnData`） | — |
-| `GetHonorLevel` | `GET /api/studentMoralEduNew/getHonorLevel?honorTypeId=...` | 按 `typeId` 联动级别 | — |
+| `GetHonorLevel` | `GET /api/studentMoralEduNew/getHonorLevel?honorTypeId=...` | 按 `typeId` 联动级别 | `honor levels` |
 | `GetHonorList` | `GET /api/studentMoralEduNew/getHonorByStudentId?pageNo=...&pageSize=...&key=...` | 已申报分页 | `honor list` |
 | `AddHonor` | `POST /api/studentMoralEduNew/addHonor` | 申报 | `honor add` |
-| `UpdateHonor` | `POST /api/studentMoralEduNew/updateHonor` | 更新（JSON map） | — |
+| `UpdateHonor` | `POST /api/studentMoralEduNew/updateHonor` | 更新（JSON map） | `honor update` |
 | `DeleteHonor` | `GET /api/studentMoralEduNew/deleteHonorById?id=...` | 删除 | `honor delete` |
 
 ## 使用方法

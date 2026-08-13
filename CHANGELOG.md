@@ -7,6 +7,7 @@
 - CLI `nazhi honor update`：保留 SDK `UpdateHonor` 能力，对象 payload 走 `parseJSONObjectPayload`，自动空 typeName 反查（`GetHonorTypeOptions`）；典型案例批量删除 `nazhi typical-case delete-batch --payload '[1,2,3]'`：保留 SDK `DeleteBatchTypicalCase` 能力，纯 ID 数组 payload 校验非空/正整数。
 - SDK `types.UserUpdateInput` 新增 `Birthday` 字段（对应前端 `updateMyInfo.birthday` 键）；`UpdateMyInfoStructured` 写入 wire key `birthday`，`Birthday` 优先、`BirthdayStr`（兼容旧调用）仅在 `Birthday` 为空时生效。SDK 原样透传，**不**做日期或时区转换（前端实际发送 ISO 8601 UTC）。
 - CLI `nazhi self-eval grad-status` / `grad-submit`：透传前端毕业评价查询与提交。查询走 `QuerySelfGradEvaluationJSON` 保留 `dataMap.student_comment` / `isGrad` 原始字段；提交走 `SubmitSelfGradEvaluation` 单层 `{studentComment}`。
+- CLI `nazhi honor levels --type-id`：透传 SDK `GetHonorLevel`，对齐前端按荣誉类型联动加载级别。
 
 ### 测试
 

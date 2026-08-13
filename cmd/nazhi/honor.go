@@ -199,6 +199,37 @@ var honorUpdateCmd = &cobra.Command{
 	},
 }
 
+// honorLevelsCmd 表示 nazhi honor levels 命令。
+//
+// 对齐前端 performanceM.vue：用户先选手类型，再按 typeId 联动加载级别。
+var honorLevelsCmd = &cobra.Command{
+	Use:     "levels",
+	Short:   "按荣誉类型查询可用级别",
+	Long:    "查询指定荣誉类型的级别下拉。对应 SDK GetHonorLevel，前端 getHonorLevel?honorTypeId=。",
+	Example: "  nazhi honor levels --token eyJhbGciOiJIUzI1NiJ9.xxx --type-id 1147",
+	Args:    cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		typeID, _ := cmd.Flags().GetInt64("type-id")
+		if typeID <= 0 {
+			printEnvelope(envelope.Error(400, "--type-id 必须为正整数"))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
+			return
+		}
+		printVerbose("正在获取荣誉级别...")
+		opts, err := c.GetHonorLevel(cmd.Context(), token, typeID)
+		if err != nil {
+			printError(fmt.Errorf("获取荣誉级别失败: %w", err))
+			return
+		}
+		printEnvelope(envelope.Success(opts))
+	},
+}
+
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
 // 委托 parseJSONObjectPayload 处理 @file.json / - / 原始字符串，并校验顶层对象。
 func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
@@ -242,4 +273,9 @@ func init() {
 	honorCmd.AddCommand(honorUpdateCmd)
 	honorUpdateCmd.Flags().String("payload", "", "荣誉更新 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 	registerBizFlags(honorUpdateCmd)
+
+	// honor levels
+	honorCmd.AddCommand(honorLevelsCmd)
+	honorLevelsCmd.Flags().Int64("type-id", 0, "荣誉类型 ID（必填，对应前端 getHonorLevel?honorTypeId=）")
+	registerBizFlags(honorLevelsCmd)
 }

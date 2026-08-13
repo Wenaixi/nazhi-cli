@@ -37,7 +37,7 @@ nazhi
 ├── task list | submit | edit | submitted|done | teacher | withdrawn | public
 ├── circle delete | comment | like
 ├── self-eval submit | status | grad-status | grad-submit
-├── honor types | list | add | delete
+├── honor types | list | add | delete | update | levels
 ├── typical-case submit | list | update | delete
 ├── file upload | download
 ├── version
@@ -80,6 +80,8 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `honor types\|list` | `--token` list 可 `--key` | `nazhi honor list --token "$T" --page 1` |
 | `honor add` | `--token --payload` | `@honor.json` |
 | `honor delete` | `--token --id` | `nazhi honor delete --token "$T" --id 1` |
+| `honor update` | `--token --payload` | `@honor-update.json` |
+| `honor levels` | `--token --type-id` | `nazhi honor levels --token "$T" --type-id 1147` |
 | `typical-case submit` | `--token --payload` | `@case.json` |
 | `typical-case list` | `--token` `[--status] [--page-size]` | 默认 status=3、page-size=10（与前端一致） |
 | `typical-case update` | `--token --payload` | 含 `id` 的 JSON |
