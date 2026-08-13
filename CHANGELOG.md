@@ -2,6 +2,15 @@
 
 ## [未发布]
 
+### 新增（本轮审计）
+
+- CLI `nazhi honor update`：保留 SDK `UpdateHonor` 能力，对象 payload 走 `parseJSONObjectPayload`，自动空 typeName 反查（`GetHonorTypeOptions`）；典型案例批量删除 `nazhi typical-case delete-batch --payload '[1,2,3]'`：保留 SDK `DeleteBatchTypicalCase` 能力，纯 ID 数组 payload 校验非空/正整数。
+- SDK `types.UserUpdateInput` 新增 `Birthday` 字段（对应前端 `updateMyInfo.birthday` 键）；`UpdateMyInfoStructured` 写入 wire key `birthday`，`Birthday` 优先、`BirthdayStr`（兼容旧调用）仅在 `Birthday` 为空时生效。SDK 原样透传，**不**做日期或时区转换（前端实际发送 ISO 8601 UTC）。
+
+### 测试
+
+- 集成守卫 `TestNoRealPII` 抽出 `piiSkipDir` 辅助函数并新增 `TestPiiSkipDirSkipsNestedGitRepo` 回归：自动跳过嵌套 git 仓库（worktree / 子模块等），避免旧 worktree 中残留的早期 PII 夹具持续误报 `go test ./...`；主仓库 `.git`、经典 `vendor` / `node_modules` 跳过规则保持不变。
+
 ### 修复
 
 - SDK `GetMyInfo` 的 `className` 后处理与前端 `userBox`、`modifyBox`、`header` 对齐：只移除首个“级”字，不再按 `gradeName` 删除前缀。
@@ -9,7 +18,6 @@
 - CLI 写实 payload 将 `level`、`checkResult`、`playRole` 的合法整数 number 规范为标准十进制代码字符串，同时继续拒绝小数、非有限值和溢出值。
 - CLI `self-eval submit --payload=` 显式空值立即返回参数错误，不再误走 stdin/纯文本模式。
 - 修复写实列表分页测试夹具的并发计数竞态，`go test -race` 不再因测试自身的共享计数器误报。
-## [Unreleased]
 
 ### 文档
 
