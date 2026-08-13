@@ -124,6 +124,65 @@ func init() {
 	typicalCaseCmd.AddCommand(typicalCaseDeleteCmd)
 	typicalCaseDeleteCmd.Flags().String("id", "", "案例 ID（必填）")
 	registerBizFlags(typicalCaseDeleteCmd)
+
+	// typical-case delete-batch
+	typicalCaseCmd.AddCommand(typicalCaseDeleteBatchCmd)
+	typicalCaseDeleteBatchCmd.Flags().String("payload", "", "典型案例 ID 数组（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
+	registerBizFlags(typicalCaseDeleteBatchCmd)
+}
+
+// typicalCaseDeleteBatchCmd 表示 nazhi typical-case delete-batch 命令。
+var typicalCaseDeleteBatchCmd = &cobra.Command{
+	Use:     "delete-batch",
+	Short:   "批量删除典型案例",
+	Long:    "批量删除典型案例。payload 必须是正整数 ID 数组，可用 @file.json 或 - 读取。",
+	Example: "  nazhi typical-case delete-batch --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '[1,2,3]'",
+	Args:    cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		payloadRaw, _ := cmd.Flags().GetString("payload")
+		if payloadRaw == "" {
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
+			return
+		}
+		ids, err := parseTypicalCaseBatchIDs(payloadRaw)
+		if err != nil {
+			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
+			return
+		}
+		printVerbose("正在批量删除典型案例...")
+		if err := c.DeleteBatchTypicalCase(cmd.Context(), token, ids); err != nil {
+			printError(fmt.Errorf("批量删除典型案例失败: %w", err))
+			return
+		}
+		printEnvelope(envelope.Empty("典型案例已批量删除"))
+	},
+}
+
+// parseTypicalCaseBatchIDs 读取并校验批量删除的纯 ID 数组。
+func parseTypicalCaseBatchIDs(raw string) ([]int64, error) {
+	payload, err := parsePayloadFromArg(raw)
+	if err != nil {
+		return nil, err
+	}
+	var ids []int64
+	if err := json.Unmarshal(payload, &ids); err != nil {
+		return nil, fmt.Errorf("顶层 JSON 必须是正整数数组: %w", err)
+	}
+	if len(ids) == 0 {
+		return nil, fmt.Errorf("批量 ID 数组不能为空")
+	}
+	for _, id := range ids {
+		if id <= 0 {
+			return nil, fmt.Errorf("批量 ID 必须为正整数，实际 %d", id)
+		}
+	}
+	return ids, nil
 }
 
 // typicalCaseUpdateCmd 表示 nazhi typical-case update 命令

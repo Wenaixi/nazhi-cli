@@ -160,6 +160,45 @@ var honorDeleteCmd = &cobra.Command{
 	},
 }
 
+// honorUpdateCmd 表示 nazhi honor update 命令。
+var honorUpdateCmd = &cobra.Command{
+	Use:     "update",
+	Short:   "更新荣誉记录",
+	Long:    "更新一条未审核的荣誉记录。payload 必须是 updateHonor 请求体对象，可用 @file.json 或 - 读取。",
+	Example: "  nazhi honor update --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor-update.json",
+	Args:    cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		payloadRaw, _ := cmd.Flags().GetString("payload")
+		if payloadRaw == "" {
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
+			return
+		}
+
+		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		if err != nil {
+			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
+			return
+		}
+		printVerbose("正在更新荣誉记录...")
+		if err := c.UpdateHonor(cmd.Context(), token, payload); err != nil {
+			printError(fmt.Errorf("更新荣誉记录失败: %w", err))
+			return
+		}
+		printEnvelope(envelope.Empty("荣誉记录更新成功"))
+	},
+}
+
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
 // 委托 parseJSONObjectPayload 处理 @file.json / - / 原始字符串，并校验顶层对象。
 func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
@@ -198,4 +237,9 @@ func init() {
 	honorCmd.AddCommand(honorDeleteCmd)
 	honorDeleteCmd.Flags().Int64("id", 0, "荣誉记录 ID（必填）")
 	registerBizFlags(honorDeleteCmd)
+
+	// honor update
+	honorCmd.AddCommand(honorUpdateCmd)
+	honorUpdateCmd.Flags().String("payload", "", "荣誉更新 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
+	registerBizFlags(honorUpdateCmd)
 }
