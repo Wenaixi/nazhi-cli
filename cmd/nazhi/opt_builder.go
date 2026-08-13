@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
@@ -111,5 +112,21 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 			slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
 		))
 	}
+	if ocr := omniOCRFromEnv(); ocr != nil {
+		opts = append(opts, client.WithCustomOCR(ocr))
+	}
 	return opts, token, nil
+}
+
+// omniOCRFromEnv 读取硅基流动 Qwen3-Omni 配置。
+// 密钥只来自环境变量，禁止写入仓库或文档示例真值。
+func omniOCRFromEnv() *omniOCR {
+	key := strings.TrimSpace(os.Getenv("NAZHI_OCR_API_KEY"))
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("SILICONFLOW_API_KEY"))
+	}
+	if key == "" {
+		return nil
+	}
+	return newOmniOCR(key, os.Getenv("NAZHI_OCR_BASE_URL"), os.Getenv("NAZHI_OCR_MODEL"))
 }

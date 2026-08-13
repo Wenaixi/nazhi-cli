@@ -23,6 +23,7 @@ nazhi-cli：统一 JSON envelope 输出，便于脚本。字段级 API 见 [SDK 
 | `NAZHI_BASE_URL` | 业务 API | 业务命令（默认见发布说明） |
 | `NAZHI_UPLOAD_URL` | 上传服 | file upload |
 | `NAZHI_TIMEOUT` | 超时秒 | 全局（upload/download 默认更长） |
+| `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY` | 硅基流动 Qwen3-Omni 验证码识别 | `login` |
 
 `file upload` / `file download` **不读**业务 token。可用 `.env`（已 gitignore）或 CI secrets。
 

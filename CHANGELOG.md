@@ -8,6 +8,7 @@
 - SDK `types.UserUpdateInput` 新增 `Birthday` 字段（对应前端 `updateMyInfo.birthday` 键）；`UpdateMyInfoStructured` 写入 wire key `birthday`，`Birthday` 优先、`BirthdayStr`（兼容旧调用）仅在 `Birthday` 为空时生效。SDK 原样透传，**不**做日期或时区转换（前端实际发送 ISO 8601 UTC）。
 - CLI `nazhi self-eval grad-status` / `grad-submit`：透传前端毕业评价查询与提交。查询走 `QuerySelfGradEvaluationJSON` 保留 `dataMap.student_comment` / `isGrad` 原始字段；提交走 `SubmitSelfGradEvaluation` 单层 `{studentComment}`。
 - CLI `nazhi honor levels --type-id`：透传 SDK `GetHonorLevel`，对齐前端按荣誉类型联动加载级别。
+- CLI 登录可接入 Nazhi-auto 同款硅基流动 Qwen3-Omni：设置 `NAZHI_OCR_API_KEY` 或 `SILICONFLOW_API_KEY` 后通过 `WithCustomOCR` 注入；密钥不入库。
 
 ### 测试
 
