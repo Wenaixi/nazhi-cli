@@ -81,8 +81,7 @@ func TestNoRealPII(t *testing.T) {
 				return nil // 路径不存在时跳过
 			}
 			if info.IsDir() {
-				base := info.Name()
-				if base == "vendor" || base == ".git" || base == "node_modules" {
+				if piiSkipDir(path, info.Name()) {
 					return filepath.SkipDir
 				}
 				return nil
@@ -138,6 +137,75 @@ func TestNoRealPII(t *testing.T) {
 			t.Error(v)
 		}
 		t.Fatalf("PII 守卫发现 %d 处违规，详见上方 t.Error", len(violations))
+	}
+}
+
+// piiSkipDir 决定守卫在 walk 时是否应跳过某目录。返回 true 时调用者执行
+// filepath.SkipDir，返回 false 时继续递归。
+//
+// 三类目录直接跳过：
+//   - 经典依赖/工具目录：vendor、node_modules
+//   - 主仓库 .git：本仓库自身（不在 roots 内但 walk 仍可能路过）
+//   - 嵌套 git 仓库：worktree、子模块、内嵌 git 索引；目录下存在 .git
+//     条目即视为独立仓库，与本仓库 .gitignore 隔离无关。
+//
+// 抽出本函数便于独立回归测试：未来若有人放宽或收紧该判定，
+// TestPiiSkipDirSkipsNestedGitRepo 会立刻失败。
+func piiSkipDir(path, name string) bool {
+	switch name {
+	case "vendor", "node_modules":
+		return true
+	}
+	if name == ".git" {
+		return true
+	}
+	if _, statErr := os.Stat(filepath.Join(path, ".git")); statErr == nil {
+		return true
+	}
+	return false
+}
+
+// TestPiiSkipDirSkipsNestedGitRepo 回归守卫的嵌套仓库跳过逻辑：
+// 普通目录、嵌套 .git 目录、与经典忽略目录的判定必须保持一致。
+func TestPiiSkipDirSkipsNestedGitRepo(t *testing.T) {
+	root := t.TempDir()
+
+	// 普通子目录：不应跳过
+	normalDir := filepath.Join(root, "normal")
+	if err := os.MkdirAll(normalDir, 0o755); err != nil {
+		t.Fatalf("建普通子目录失败: %v", err)
+	}
+	if piiSkipDir(normalDir, "normal") {
+		t.Errorf("普通目录应继续递归，实际被跳过: %s", normalDir)
+	}
+
+	// 嵌套 git 仓库：内部存在 .git → 必须跳过
+	nestedRepo := filepath.Join(root, "nested")
+	if err := os.MkdirAll(filepath.Join(nestedRepo, ".git"), 0o755); err != nil {
+		t.Fatalf("建嵌套 .git 失败: %v", err)
+	}
+	if !piiSkipDir(nestedRepo, "nested") {
+		t.Errorf("嵌套 git 仓库应被跳过: %s", nestedRepo)
+	}
+
+	// vendor / node_modules：经典忽略目录仍然跳过
+	for _, name := range []string{"vendor", "node_modules"} {
+		path := filepath.Join(root, name)
+		if err := os.MkdirAll(path, 0o755); err != nil {
+			t.Fatalf("建 %s 失败: %v", name, err)
+		}
+		if !piiSkipDir(path, name) {
+			t.Errorf("%s 应被跳过: %s", name, path)
+		}
+	}
+
+	// 主仓库 .git：守卫路径里仍可能路过，必须跳过
+	gitDir := filepath.Join(root, ".git")
+	if err := os.MkdirAll(gitDir, 0o755); err != nil {
+		t.Fatalf("建 .git 失败: %v", err)
+	}
+	if !piiSkipDir(gitDir, ".git") {
+		t.Errorf("顶层 .git 应被跳过: %s", gitDir)
 	}
 }
 
