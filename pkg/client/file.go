@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -22,6 +23,19 @@ import (
 
 // multipartBufPool 复用 multipart 构造过程的字节缓冲，避免每次 UploadFile
 // 都分配 5MB+ 的 bytes.Buffer。F8.3 优化。
+// MaxAttachmentSize 是前端典型案例附件提示的 2MB 上限。
+const MaxAttachmentSize = 2 * 1024 * 1024
+
+var directUploadExtensions = map[string]struct{}{
+	".mp4":  {},
+	".txt":  {},
+	".doc":  {},
+	".docx": {},
+	".wps":  {},
+	".rar":  {},
+	".zip":  {},
+}
+
 var multipartBufPool = sync.Pool{
 	New: func() any {
 		b := &bytes.Buffer{}
@@ -32,7 +46,13 @@ var multipartBufPool = sync.Pool{
 	},
 }
 
-// UploadFile 上传图片到文件服务器，返回图片 ID。
+// isDirectUploadAttachment 判断文件是否属于前端允许原样上传的非图片附件。
+func isDirectUploadAttachment(filePath string) bool {
+	_, ok := directUploadExtensions[strings.ToLower(filepath.Ext(filePath))]
+	return ok
+}
+
+// UploadFile 上传图片或前端允许的非图片附件，返回附件 ID。
 //
 // ⚠️ 关键约束：本方法不发送任何 Token / Cookie / Authorization 头。
 // 文件服务器（doc.nazhisoft.com）是独立公共服务，不需要业务域鉴权。
@@ -47,24 +67,47 @@ var multipartBufPool = sync.Pool{
 // 上传前自动预处理：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB。
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.UploadFileResult, error) {
-	// 1. 图片预处理
-	fileData, mimeType, err := c.prepareImageForUpload(filePath)
-	if err != nil {
-		// 仅当根因确为「压缩后仍超限」时把 ErrFileTooLarge 并入错误链。
-		// 路径不存在 / 解码失败等不应 errors.Is(ErrFileTooLarge)，否则调用方会误判。
-		// 真正过大时 image_prep 返回 ErrImageTooLarge（或下方 len 兜底 Join）。
-		if errors.Is(err, ErrImageTooLarge) {
-			return nil, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
+	// 1. 准备上传字节。图片继续走预处理；非图片附件按前端允许格式原样直传。
+	var (
+		fileData []byte
+		mimeType string
+		formName string
+		err      error
+	)
+	if isDirectUploadAttachment(filePath) {
+		fileData, err = os.ReadFile(filePath)
+		if err != nil {
+			return nil, fmt.Errorf("读取附件失败: %w", err)
 		}
-		return nil, fmt.Errorf("图片预处理失败: %w", err)
+		if len(fileData) > MaxAttachmentSize {
+			return nil, fmt.Errorf("附件超过 %d 字节: %w", MaxAttachmentSize, ErrFileTooLarge)
+		}
+		formName = filepath.Base(filePath)
+		mimeType = mime.TypeByExtension(filepath.Ext(formName))
+		if mimeType == "" {
+			mimeType = "application/octet-stream"
+		}
+		c.logDebug("非图片附件原样上传: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
+	} else {
+		fileData, mimeType, err = c.prepareImageForUpload(filePath)
+		if err != nil {
+			// 仅当根因确为「压缩后仍超限」时把 ErrFileTooLarge 并入错误链。
+			// 路径不存在 / 解码失败等不应 errors.Is(ErrFileTooLarge)，否则调用方会误判。
+			// 真正过大时 image_prep 返回 ErrImageTooLarge（或下方 len 兜底 Join）。
+			if errors.Is(err, ErrImageTooLarge) {
+				return nil, fmt.Errorf("图片预处理失败: %w", errors.Join(ErrFileTooLarge, err))
+			}
+			return nil, fmt.Errorf("图片预处理失败: %w", err)
+		}
+		if len(fileData) > MaxImageSize {
+			// A3 修复：让两条"图片过大"路径的 sentinel 行为一致。
+			// 兜底路径也用 errors.Join 包含 ErrImageTooLarge。
+			return nil, fmt.Errorf("压缩后仍达 %d 字节: %w", len(fileData),
+				errors.Join(ErrFileTooLarge, ErrImageTooLarge))
+		}
+		formName = strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)) + ".jpg"
+		c.logDebug("图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 	}
-	if len(fileData) > MaxImageSize {
-		// A3 修复：让两条"图片过大"路径的 sentinel 行为一致。
-		// 兜底路径也用 errors.Join 包含 ErrImageTooLarge。
-		return nil, fmt.Errorf("压缩后仍达 %d 字节: %w", len(fileData),
-			errors.Join(ErrFileTooLarge, ErrImageTooLarge))
-	}
-	c.logDebug("图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 
 	// 2. 构造 multipart 请求体
 	//
@@ -84,9 +127,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	}
 	writer := multipart.NewWriter(buf)
 
-	// filename 仅用 basename，扩展名统一 .jpg（预处理始终输出 JPEG）。
+	// formName 仅使用 basename，图片已在上方统一为 .jpg，非图片保留原扩展名。
 	// 禁止把本地绝对路径塞进 Content-Disposition，避免路径泄露与服务端解析异常。
-	formName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)) + ".jpg"
 	part, err := writer.CreateFormFile("file", formName)
 	if err != nil {
 		return nil, fmt.Errorf("创建 multipart form 失败: %w", err)

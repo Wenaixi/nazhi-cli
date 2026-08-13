@@ -7,6 +7,7 @@ package client
 
 import (
 	"bytes"
+	"errors"
 	"image"
 	"image/color"
 	"image/png"
@@ -255,5 +256,80 @@ func TestUploadFile_ViaBuildRequest(t *testing.T) {
 	// User-Agent 必须是 chrome UA（与 ssoHeaders/bizHeaders 保持一致的标识字符串）
 	if !strings.Contains(gotUserAgent, "Chrome/149") {
 		t.Errorf("User-Agent 应为 chrome UA，实际 %q", gotUserAgent)
+	}
+}
+
+// TestUploadFile_NonImagePreservesBytesAndFilename 验证前端允许的非图片附件原样上传。
+func TestUploadFile_NonImagePreservesBytesAndFilename(t *testing.T) {
+	wantData := []byte("示例文本附件内容，不经过图片解码或 JPEG 转换。")
+	var gotName string
+	var gotData []byte
+
+	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		file, header, err := r.FormFile("file")
+		if err != nil {
+			t.Errorf("读取 multipart 文件失败: %v", err)
+		} else {
+			gotName = header.Filename
+			gotData, _ = io.ReadAll(file)
+			_ = file.Close()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1,"returnData":{"id":2,"name":"sample.txt"}}`))
+	}))
+	defer upload.Close()
+
+	path := t.TempDir() + "/sample.txt"
+	if err := os.WriteFile(path, wantData, 0o600); err != nil {
+		t.Fatalf("写入测试附件失败: %v", err)
+	}
+
+	c, err := New(WithUploadURL(upload.URL), WithTimeout(5*time.Second))
+	if err != nil {
+		t.Fatalf("构造 Client 失败: %v", err)
+	}
+	defer c.Close()
+
+	result, err := c.UploadFile(t.Context(), path)
+	if err != nil {
+		t.Fatalf("UploadFile 不应拒绝文本附件: %v", err)
+	}
+	if result == nil || result.AttachmentID != 2 || result.AttachmentName != "sample.txt" {
+		t.Fatalf("上传结果错误: %+v", result)
+	}
+	if gotName != "sample.txt" {
+		t.Fatalf("非图片附件应保留原文件名，实际 %q", gotName)
+	}
+	if !bytes.Equal(gotData, wantData) {
+		t.Fatalf("非图片附件内容被改写: want=%q got=%q", wantData, gotData)
+	}
+}
+
+// TestUploadFile_NonImageRejectsOversizeBeforeRequest 验证非图片附件超过前端 2MB 限制时不发请求。
+func TestUploadFile_NonImageRejectsOversizeBeforeRequest(t *testing.T) {
+	var requests int
+	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests++
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer upload.Close()
+
+	path := t.TempDir() + "/too-large.zip"
+	if err := os.WriteFile(path, bytes.Repeat([]byte("x"), MaxAttachmentSize+1), 0o600); err != nil {
+		t.Fatalf("写入测试附件失败: %v", err)
+	}
+
+	c, err := New(WithUploadURL(upload.URL), WithTimeout(5*time.Second))
+	if err != nil {
+		t.Fatalf("构造 Client 失败: %v", err)
+	}
+	defer c.Close()
+
+	_, err = c.UploadFile(t.Context(), path)
+	if !errors.Is(err, ErrFileTooLarge) {
+		t.Fatalf("超限非图片附件应返回 ErrFileTooLarge，实际: %v", err)
+	}
+	if requests != 0 {
+		t.Fatalf("超限附件不应发出 HTTP 请求，实际 %d 次", requests)
 	}
 }
