@@ -9,7 +9,7 @@
 //
 // 域拆分：
 //   - login.go      认证（LoginRequest, LoginResponse）
-//   - user.go       用户（UserInfo, BirthdayDate）
+//   - user.go       用户（UserInfo, UserUpdateInput）
 //   - task.go       任务（Task, TaskSubmitPayload, TaskResult, ScopeType 常量）
 //   - circle.go     写实记录（CircleRecord, CircleImage, PageBean, PlayRoleCode）
 //   - honor.go      荣誉（HonorType, HonorRecord, AddHonorPayload, HonorSelectOption）

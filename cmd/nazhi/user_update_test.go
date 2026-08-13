@@ -103,6 +103,34 @@ func TestUserUpdateCmd_FriendlyKeysRemap(t *testing.T) {
 	}
 }
 
+// TestUserUpdateCmd_PreservesFrontendBirthday 验证 CLI 可直接接收前端 birthday 字段。
+func TestUserUpdateCmd_PreservesFrontendBirthday(t *testing.T) {
+	var body string
+	cmd := makeUserUpdateTestCmd(t, `{"birthday":"2009-12-11T00:00:00.000Z"}`, &body)
+
+	quiet = false
+	pendingExitCode.Store(0)
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+	userUpdateCmd.Run(cmd, nil)
+	restore()
+
+	if pendingExitCode.Load() != 0 {
+		t.Fatalf("生日更新成功路径不应设置退出码，实际 %d；stderr=%s", pendingExitCode.Load(), stderrBuf.String())
+	}
+	if !strings.Contains(stdoutBuf.String(), `"code": 204`) {
+		t.Fatalf("生日更新应输出成功 envelope，实际: %s", stdoutBuf.String())
+	}
+	if !strings.Contains(body, `"birthday":"2009-12-11T00:00:00.000Z"`) && !strings.Contains(body, `"birthday": "2009-12-11T00:00:00.000Z"`) {
+		t.Fatalf("前端 birthday 未透传，实际请求体: %s", body)
+	}
+	if strings.Contains(body, "birthdayStr") {
+		t.Errorf("请求体不应出现 birthdayStr，实际请求体: %s", body)
+	}
+	if strings.Contains(stderrBuf.String(), `"status": "error"`) {
+		t.Errorf("成功更新不应输出错误 envelope，实际: %s", stderrBuf.String())
+	}
+}
+
 // TestUserUpdateCmd_InvalidGender 验证不支持的友好值返回参数错误而非裸透传。
 func TestUserUpdateCmd_InvalidGender(t *testing.T) {
 	cmd := makeUserUpdateTestCmd(t, `{"genderName":"未知"}`, nil)

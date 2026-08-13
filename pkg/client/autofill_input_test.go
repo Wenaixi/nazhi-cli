@@ -313,6 +313,7 @@ func TestUpdateMyInfoStructured_SkipsNationalStudentNumber(t *testing.T) {
 	c := newTestClient(nil, biz, nil)
 	err := c.UpdateMyInfoStructured(context.Background(), "test-token", types.UserUpdateInput{
 		Telephone:             "13800138000",
+		BirthdayStr:           "2009-01-01",
 		NationalStudentNumber: "不应出现在请求体",
 	})
 	if err != nil {
@@ -323,6 +324,44 @@ func TestUpdateMyInfoStructured_SkipsNationalStudentNumber(t *testing.T) {
 	}
 	if gotBody["telephone"] != "13800138000" {
 		t.Errorf("期望 telephone 透传，实际 %v", gotBody["telephone"])
+	}
+	if gotBody["birthday"] != "2009-01-01" {
+		t.Errorf("BirthdayStr 应写入 birthday，实际 %v", gotBody["birthday"])
+	}
+}
+
+// TestUpdateMyInfoStructured_PreservesFrontendBirthday 验证前端 birthday 字段和 ISO 字符串原样透传。
+func TestUpdateMyInfoStructured_PreservesFrontendBirthday(t *testing.T) {
+	const birthday = "2009-12-11T00:00:00.000Z"
+	var gotBody map[string]any
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/studentInfo/updateMyInfo" {
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+			return
+		}
+		if r.URL.Path == "/" || r.URL.Path == "/api/studentInfo/getMenu" || r.URL.Path == "/api/studentInfo/getMyInfo" {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"示例"}}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	err := c.UpdateMyInfoStructured(context.Background(), "test-token", types.UserUpdateInput{
+		Birthday: birthday,
+	})
+	if err != nil {
+		t.Fatalf("UpdateMyInfoStructured 失败: %v", err)
+	}
+	if gotBody["birthday"] != birthday {
+		t.Errorf("前端 birthday 应原样透传，实际 %v", gotBody["birthday"])
+	}
+	if _, ok := gotBody["birthdayStr"]; ok {
+		t.Errorf("请求体不应出现兼容字段 birthdayStr，实际 %v", gotBody)
 	}
 }
 

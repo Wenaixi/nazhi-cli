@@ -100,6 +100,8 @@ func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input
 
 零值/空串跳过，避免覆盖服务端（**密码例外**：`StudentUuid` 始终带 key，空串表示不改密码）。
 
+生日字段兼容：types.UserUpdateInput 同时提供前端生日字段（JSON 键 birthday）与 BirthdayStr（兼容旧调用）。SDK 写入 wire key birthday，前者优先、后者仅在前者为空时生效。前端 modifyBox.vue 提交时把生日 Date 直接 JSON.stringify，会得到形如 2009-12-11T00:00:00.000Z 的 ISO 8601 UTC 字符串；SDK 原样透传，**不**做日期或时区转换，服务端解析格式以实测为准。
+
 | GenderName | → gender |
 |------------|----------|
 | 男 | 1 |

@@ -6,7 +6,7 @@ package types
 // SDK 将中文友好值转为 API 数字代码。零值/空串跳过（密码除外）。
 //
 // 用户应填：Telephone、FamilyAddress、Hobbies、GenderName、YouthLeague、
-// NationName、IdCardType、IDCard、BirthdayStr、StudentUuid、Seat。
+// NationName、IdCardType、IDCard、Birthday 或 BirthdayStr、StudentUuid、Seat。
 //
 // 非用户编辑（前端 disabled 或仅回显，一般勿填）：
 // Name/StudentNumber 页面整包回传用；NationalStudentNumber 只读，
@@ -29,7 +29,12 @@ type UserUpdateInput struct {
 	NationName  string `json:"nationName,omitempty"`
 	IdCardType  string `json:"idCardType,omitempty"`
 	IDCard      string `json:"idCard,omitempty"`
-	BirthdayStr string `json:"birthdayStr,omitempty"` // YYYY-MM-DD
+
+	// Birthday 对应前端 updateMyInfo 的 birthday 键。前端修改页实际发送 ISO 8601 UTC
+	// 字符串；SDK 原样透传，不做日期或时区转换。
+	Birthday string `json:"birthday,omitempty"`
+	// BirthdayStr 兼容旧 SDK 调用；当 Birthday 为空时，其值写入 birthday。
+	BirthdayStr string `json:"birthdayStr,omitempty"`
 
 	// 密码（studentUuid；空串表示不修改）
 	StudentUuid string `json:"studentUuid,omitempty"`
