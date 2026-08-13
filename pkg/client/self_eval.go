@@ -227,7 +227,7 @@ func firstInt64(m map[string]any, keys ...string) int64 {
 
 // QuerySelfGradEvaluation 查询毕业状态。
 //
-// SDK 高级用户使用，CLI 暂未暴露此命令。
+// CLI 通过 QuerySelfGradEvaluationJSON 透传原始 JSON（self-eval grad-status）。
 // 使用 doBizGetDecode 的 fallback 链（returnData → dataMap），
 // 替换原有的 selfEvalGet + tryDecodeFallback 模式。
 func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error) {

@@ -732,3 +732,72 @@ func TestGetHonorListJSON_KeyParam(t *testing.T) {
 		t.Fatalf("GetHonorListJSON key 透传失败: %v", err)
 	}
 }
+
+// TestQuerySelfGradEvaluationJSON_DataMap 对齐前端 mainLeft.vue：主读 dataMap。
+func TestQuerySelfGradEvaluationJSON_DataMap(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentMoralEduNew/querySelfGradEvaluation" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		body := map[string]any{
+			"code": 1,
+			"dataMap": map[string]any{
+				"student_comment": "毕业感言",
+				"isGrad":          1,
+				"rawGradExtra":    "keep_me",
+			},
+		}
+		_ = json.NewEncoder(w).Encode(body)
+	})))
+	defer biz.Close()
+
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL), client.WithUploadURL(biz.URL))
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	raw, err := c.QuerySelfGradEvaluationJSON(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("QuerySelfGradEvaluationJSON: %v", err)
+	}
+	if !strings.Contains(string(raw), "keep_me") {
+		t.Errorf("毕业评价原始字段必须保留, body=%s", raw)
+	}
+	if !strings.Contains(string(raw), "student_comment") {
+		t.Errorf("应透传前端主读的 student_comment, body=%s", raw)
+	}
+}
+
+// TestSubmitSelfGradEvaluation_SendsStudentComment 验证毕业评价请求体与前端一致。
+func TestSubmitSelfGradEvaluation_SendsStudentComment(t *testing.T) {
+	var gotBody map[string]any
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentMoralEduNew/addSelfGradEvaluation" {
+			http.NotFound(w, r)
+			return
+		}
+		if r.Method != http.MethodPost {
+			t.Errorf("期望 POST，实际 %s", r.Method)
+		}
+		_ = json.NewDecoder(r.Body).Decode(&gotBody)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+	})))
+	defer biz.Close()
+
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL), client.WithUploadURL(biz.URL))
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	if err := c.SubmitSelfGradEvaluation(context.Background(), "test-token", "毕业感言……"); err != nil {
+		t.Fatalf("SubmitSelfGradEvaluation: %v", err)
+	}
+	if gotBody["studentComment"] != "毕业感言……" {
+		t.Errorf("请求体应为单层 studentComment，实际 %#v", gotBody)
+	}
+}

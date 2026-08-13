@@ -9,8 +9,8 @@
 | `SubmitSelfEvaluation` | 纯文本自评 | `self-eval submit` |
 | `SubmitSelfEvaluationStructured` | 结构化（诉得失 form） | `self-eval submit --payload` |
 | `QuerySelfEvaluation` | 查询自评+教师评语 | `self-eval status` |
-| `QuerySelfGradEvaluation` | 毕业评价查询 | — |
-| `SubmitSelfGradEvaluation` | 毕业评价提交 | — |
+| `QuerySelfGradEvaluation` / `QuerySelfGradEvaluationJSON` | 毕业评价查询 | `self-eval grad-status` |
+| `SubmitSelfGradEvaluation` | 毕业评价提交 | `self-eval grad-submit` |
 
 ## 使用方法
 
@@ -32,7 +32,7 @@ st, err := c.QuerySelfEvaluation(ctx, token)
 | `QuerySelfGradEvaluation` | `GET /api/studentMoralEduNew/querySelfGradEvaluation` | 从 `dataMap`/`returnData` 返回 `*map[string]any`；常见字段为 `student_comment`、`isGrad` |
 | `SubmitSelfGradEvaluation` | `POST /api/studentMoralEduNew/addSelfGradEvaluation` | `{"studentComment":"毕业评语"}`；成功返回 `nil` |
 
-纯文本与毕业评价提交均只有一层 `studentComment` 包装；结构化学期自评才会把表单 JSON 再嵌入该字段。毕业评价方法当前仅在 Go SDK 暴露，CLI 命令树没有对应命令。
+纯文本与毕业评价提交均只有一层 `studentComment` 包装；结构化学期自评才会把表单 JSON 再嵌入该字段。CLI `self-eval grad-status` 透传 `QuerySelfGradEvaluationJSON` 原始对象；`self-eval grad-submit --comment` 透传 `SubmitSelfGradEvaluation`。
 
 ---
 

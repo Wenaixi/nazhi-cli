@@ -130,6 +130,8 @@ func init() {
 	rootCmd.AddCommand(selfEvalCmd) // self-eval parent
 	selfEvalCmd.AddCommand(selfEvalSubmitCmd)
 	selfEvalCmd.AddCommand(selfEvalStatusCmd)
+	selfEvalCmd.AddCommand(selfEvalGradStatusCmd)
+	selfEvalCmd.AddCommand(selfEvalGradSubmitCmd)
 
 	// file
 	rootCmd.AddCommand(fileCmd) // file parent

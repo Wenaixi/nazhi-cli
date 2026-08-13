@@ -36,7 +36,7 @@ nazhi
 ├── user info | update
 ├── task list | submit | edit | submitted|done | teacher | withdrawn | public
 ├── circle delete | comment | like
-├── self-eval submit | status
+├── self-eval submit | status | grad-status | grad-submit
 ├── honor types | list | add | delete
 ├── typical-case submit | list | update | delete
 ├── file upload | download
@@ -75,6 +75,8 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `circle like` | `--token --id` | `nazhi circle like --token "$T" --id 5400001` |
 | `self-eval submit` | `--token` `--comment` 或 stdin / `--payload`（二者不可同时提供） | `echo 评语 \| nazhi self-eval submit --token "$T"` |
 | `self-eval status` | `--token` | `nazhi self-eval status --token "$T"` |
+| `self-eval grad-status` | `--token` | `nazhi self-eval grad-status --token "$T"` |
+| `self-eval grad-submit` | `--token --comment` 或 stdin | `nazhi self-eval grad-submit --token "$T" --comment "毕业感言"` |
 | `honor types\|list` | `--token` list 可 `--key` | `nazhi honor list --token "$T" --page 1` |
 | `honor add` | `--token --payload` | `@honor.json` |
 | `honor delete` | `--token --id` | `nazhi honor delete --token "$T" --id 1` |
@@ -92,7 +94,7 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 nazhi self-eval submit --token "$T" --payload '{"bxqhzr":"本学期会做人目标","bxqbx":"本学期表现","bxqys":"优势"}'
 ```
 
-当前 CLI 只提供学期自评的 `submit/status`；毕业评价的查询与提交保留为 SDK 方法，不新增 CLI 命令。
+学期自评用 `submit/status`；毕业评价用 `grad-submit/grad-status`，分别透传 SDK `SubmitSelfGradEvaluation` 与 `QuerySelfGradEvaluationJSON`。
 
 ---
 

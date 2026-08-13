@@ -699,6 +699,25 @@ func (c *Client) QuerySelfEvaluationJSON(ctx context.Context, token string) (jso
 	return raw, nil
 }
 
+// QuerySelfGradEvaluationJSON 查询毕业评价状态的原始 JSON。
+//
+// 等价 QuerySelfGradEvaluation 但保留平台原始字段。
+// 前端 mainLeft.vue 主读 dataMap.student_comment / isGrad；
+// 本方法走 rawSingleObjectBytes：returnData 对象优先，其次 dataList[0]，再 dataMap。
+// 空数据时返回 (nil, nil)。
+func (c *Client) QuerySelfGradEvaluationJSON(ctx context.Context, token string) (json.RawMessage, error) {
+	resp, err := c.doBizAndDecode(ctx, token, "QuerySelfGradEvaluationJSON",
+		"/api/studentMoralEduNew/querySelfGradEvaluation", http.MethodGet, nil)
+	if err != nil {
+		return nil, err
+	}
+	raw := rawSingleObjectBytes(*resp)
+	if len(raw) == 0 {
+		return nil, nil
+	}
+	return raw, nil
+}
+
 // GetHonorTypesJSON 获取所有荣誉类型的原始 JSON 数组。
 //
 // 等价 GetHonorTypes 但保留平台原始字段（如备注 / 启用状态 / 上传附件要求等）。
