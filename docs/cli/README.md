@@ -35,8 +35,8 @@ nazhi
 ├── session activate
 ├── whoami
 ├── user info | update
-├── task list | submit | edit | submitted|done | teacher | withdrawn | public
-├── circle delete | comment | like
+├── task list | submit | edit | submitted|done | teacher | withdrawn | public | dimensions | circle-type
+├── circle delete | comment | like | types | tasks | images | dict
 ├── self-eval submit | status | grad-status | grad-submit
 ├── honor types | type-options | level-options | list | add | delete | update | levels
 ├── typical-case submit | list | update | delete | delete-batch
@@ -71,9 +71,15 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `task submit` | `--token --payload` `[--address] [--level]` | 见下 |
 | `task edit` | `--token --payload` | 见下 |
 | `task submitted\|done\|teacher\|withdrawn\|public` | `--token` `[--key] [--limit] [--offset] [--count]` | `nazhi task submitted --token "$T" --key ""` |
+| `task dimensions` | `--token` | `nazhi task dimensions --token "$T"` |
+| `task circle-type` | `--token --task-id` | `nazhi task circle-type --token "$T" --task-id 18154` |
 | `circle delete` | `--token --id` | `nazhi circle delete --token "$T" --id 5400001` |
 | `circle comment` | `--token --id --content` | `nazhi circle comment --token "$T" --id 5400001 --content '好'` |
 | `circle like` | `--token --id` | `nazhi circle like --token "$T" --id 5400001` |
+| `circle types` | `--token --dimension-id [--pid]` | `nazhi circle types --token "$T" --dimension-id 14` |
+| `circle tasks` | `--token --type-id` | `nazhi circle tasks --token "$T" --type-id 9274` |
+| `circle images` | `--token [--page] [--page-size]` | `nazhi circle images --token "$T" --page 1` |
+| `circle dict` | `--token --cate-code` | `nazhi circle dict --token "$T" --cate-code 23` |
 | `self-eval submit` | `--token` `--comment` 或 stdin / `--payload`（二者不可同时提供） | `echo 评语 \| nazhi self-eval submit --token "$T"` |
 | `self-eval status` | `--token` | `nazhi self-eval status --token "$T"` |
 | `self-eval grad-status` | `--token` | `nazhi self-eval grad-status --token "$T"` |

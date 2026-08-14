@@ -122,7 +122,9 @@ nazhi
 │   ├── teacher                  获取教师代写的写实记录
 │   ├── public                   获取公示的全部写实记录
 │   ├── withdrawn                获取被撤回的写实记录
-│   └── edit                     修改已提交的写实记录
+│   ├── edit                     修改已提交的写实记录
+│   ├── dimensions              获取写实维度列表
+│   └── circle-type              获取任务写实元数据
 ├── self-eval
 │   ├── submit                   提交自我评价
 │   ├── status                   查询评价状态 + 教师评语
@@ -131,7 +133,11 @@ nazhi
 ├── circle
 │   ├── delete                   删除写实记录
 │   ├── comment                  添加写实评论
-│   └── like                     点赞/取消点赞
+│   ├── like                     点赞/取消点赞
+│   ├── types                    按维度获取写实类别
+│   ├── tasks                    按类别获取写实任务
+│   ├── images                   分页获取写实图片
+│   └── dict                     按分类获取系统字典
 ├── honor
 │   ├── types                    获取荣誉类型列表
 │   ├── type-options             获取荣誉类型下拉（dataList）

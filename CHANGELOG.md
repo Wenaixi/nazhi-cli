@@ -9,6 +9,8 @@
 - CLI `nazhi self-eval grad-status` / `grad-submit`：透传前端毕业评价查询与提交。查询走 `QuerySelfGradEvaluationJSON` 保留 `dataMap.student_comment` / `isGrad` 原始字段；提交走 `SubmitSelfGradEvaluation` 单层 `{studentComment}`。
 - CLI `nazhi honor levels --type-id`：透传 SDK `GetHonorLevel`，对齐前端按荣誉类型联动加载级别。
 - CLI `nazhi honor type-options` / `level-options`：分别透传 SDK `GetHonorTypeOptions` 的 `dataList` 类型选项与 `GetHonorTypeForSelect` 的 `returnData` 通用等级选项，避免两种下拉语义混用。
+- CLI `nazhi task dimensions`、`task circle-type --task-id`：`nazhi task dimensions` 透传 SDK `GetDimensions`；`task circle-type` 透传 SDK `GetCircleTypeByTaskID`，自动拒绝非正整数 `--task-id`，不发请求。
+- CLI `nazhi circle types --dimension-id [--pid]`、`circle tasks --type-id`、`circle images [--page] [--page-size]`、`circle dict --cate-code`：分别透传 SDK `GetCircleTypes`/`GetCircleTasks`/`GetCircleImages`/`GetDictList`，正整数 flag 在非法时立即走参数错误路径（退出码 3）。
 - CLI 登录可接入 Nazhi-auto 同款硅基流动 Qwen3-Omni：设置 `NAZHI_OCR_API_KEY` 或 `SILICONFLOW_API_KEY` 后通过 `WithCustomOCR` 注入；密钥不入库。
 
 ### 测试

@@ -9,8 +9,8 @@
 | `FetchTasks` | 全维度任务列表（并发） | `nazhi task list` |
 | `SubmitTask` | 新增写实 | `nazhi task submit` |
 | `EditCircle` | 修改写实 | `nazhi task edit` |
-| `GetCircleTypeByTaskID` | 提交元数据 | — |
-| `GetDimensions` | 维度列表 | — |
+| `GetCircleTypeByTaskID` | 提交元数据 | `task circle-type --task-id` |
+| `GetDimensions` | 维度列表 | `task dimensions` |
 
 ## 使用方法
 
