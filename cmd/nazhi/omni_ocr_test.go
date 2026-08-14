@@ -21,14 +21,32 @@ func TestCleanCaptchaTextAndFormat(t *testing.T) {
 }
 
 func TestOmniOCRFromEnvRequiresKey(t *testing.T) {
+	t.Setenv("NAZHI_SILICONFLOW_API_KEY", "")
 	t.Setenv("NAZHI_OCR_API_KEY", "")
 	t.Setenv("SILICONFLOW_API_KEY", "")
 	if omniOCRFromEnv() != nil {
 		t.Fatal("未配置密钥时不应构造 Omni OCR")
 	}
-	t.Setenv("NAZHI_OCR_API_KEY", "sk-test-not-real")
+	t.Setenv("NAZHI_SILICONFLOW_API_KEY", "sk-test-not-real")
 	if omniOCRFromEnv() == nil {
-		t.Fatal("配置密钥后应构造 Omni OCR")
+		t.Fatal("配置 Nazhi-auto 正式密钥后应构造 Omni OCR")
+	}
+}
+
+func TestOmniOCRFromEnvPrefersNazhiAutoKey(t *testing.T) {
+	t.Setenv("NAZHI_SILICONFLOW_API_KEY", "sk-primary")
+	t.Setenv("NAZHI_OCR_API_KEY", "sk-legacy-ocr")
+	t.Setenv("SILICONFLOW_API_KEY", "sk-legacy-siliconflow")
+
+	ocr := omniOCRFromEnv()
+	if ocr == nil || ocr.apiKey != "sk-primary" {
+		t.Fatalf("应优先使用 NAZHI_SILICONFLOW_API_KEY，实际识别器=%#v", ocr)
+	}
+
+	t.Setenv("NAZHI_SILICONFLOW_API_KEY", "")
+	ocr = omniOCRFromEnv()
+	if ocr == nil || ocr.apiKey != "sk-legacy-ocr" {
+		t.Fatalf("正式密钥为空时应兼容 NAZHI_OCR_API_KEY，实际识别器=%#v", ocr)
 	}
 }
 

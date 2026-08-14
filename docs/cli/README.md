@@ -23,9 +23,11 @@ nazhi-cli：统一 JSON envelope 输出，便于脚本。字段级 API 见 [SDK 
 | `NAZHI_BASE_URL` | 业务 API | 业务命令（默认见发布说明） |
 | `NAZHI_UPLOAD_URL` | 上传服 | file upload |
 | `NAZHI_TIMEOUT` | 超时秒 | 全局（upload/download 默认更长） |
-| `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY` | 硅基流动 Qwen3-Omni 验证码识别 | `login` |
+| `NAZHI_SILICONFLOW_API_KEY` | Nazhi-auto 同款硅基流动 Qwen3-Omni 验证码识别（正式配置，必填） | `login` |
+| `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY` | 视觉模型密钥兼容别名 | `login` |
+| `NAZHI_OCR_BASE_URL` / `NAZHI_OCR_MODEL` | 可选覆盖视觉模型地址 / 模型名 | `login` |
 
-`file upload` / `file download` **不读**业务 token。可用 `.env`（已 gitignore）或 CI secrets。
+`login` 使用注入的视觉识别器；未配置视觉模型密钥时返回 503 和 `ErrOCRNotConfigured`。`file upload` / `file download` **不读**业务 token。可用 `.env`（已 gitignore）或 CI secrets。
 
 ## 命令树
 
@@ -63,7 +65,7 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 
 | 命令 | 关键 flag | 示例 |
 |------|-----------|------|
-| `login` | `-u` `-p` | `nazhi login -u 2025001 -p '***'` |
+| `login` | `-u` `-p` | `NAZHI_SILICONFLOW_API_KEY=sk-... nazhi login -u 学号 -p '***'` |
 | `session activate` | `--token` | `nazhi session activate --token "$T"` |
 | `whoami` / `user info` | `--token` | `nazhi whoami --token "$T"` |
 | `user update` | `--token --payload` | `nazhi user update --token "$T" --payload '{"telephone":"13800138000"}'` |
@@ -214,7 +216,7 @@ CLI 是 SDK 薄壳：下列行为在命令里**不用**手填，由 SDK 完成�
 
 | 场景 | CLI 侧 | SDK 自动 |
 |------|--------|----------|
-| `login` | 学号/密码（`NAZHI_*` 或 `-u/-p`） | 空 schoolId → 按学号查学校；验证码 OCR |
+| `login` | 学号/密码（`NAZHI_*` 或 `-u/-p`） | 空 schoolId → 按学号查学校；调用视觉识别器处理验证码 |
 | `whoami` / `user info` | token | Session 预热；若 school 不全则用**平台返回的学号**补 schoolId/schoolName |
 | `task submit` / `edit` | payload 里 taskId+content+活动字段 | 任务元数据 id；hours 半自动；ImagePaths 上传；**不**默认 address/level |
 | `honor add` | typeId/level/agency/getDate | typeName 反查；name 回落 typeName；score=0 |

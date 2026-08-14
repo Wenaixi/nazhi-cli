@@ -2,6 +2,14 @@
 
 ## [未发布]
 
+### 破坏性变更
+
+- SDK 移除本地验证码识别器、相关模型/原生运行库及构建选项；所有 `Login` 调用方必须通过 `WithCustomOCR` 注入视觉识别器。CLI 默认使用硅基流动 Qwen3-Omni，纯 Go 构建不再需要 CGO 或额外模型文件。
+
+### 文档
+
+- 同步 README、CLI/SDK 分册、CI、Makefile 与 `CLAUDE.md`，明确验证码识别依赖注入契约和纯 Go 构建矩阵。
+
 ### 新增（本轮审计）
 
 - CLI `nazhi honor update`：保留 SDK `UpdateHonor` 能力，对象 payload 走 `parseJSONObjectPayload`，自动空 typeName 反查（`GetHonorTypeOptions`）；典型案例批量删除 `nazhi typical-case delete-batch --payload '[1,2,3]'`：保留 SDK `DeleteBatchTypicalCase` 能力，纯 ID 数组 payload 校验非空/正整数。
@@ -11,7 +19,7 @@
 - CLI `nazhi honor type-options` / `level-options`：分别透传 SDK `GetHonorTypeOptions` 的 `dataList` 类型选项与 `GetHonorTypeForSelect` 的 `returnData` 通用等级选项，避免两种下拉语义混用。
 - CLI `nazhi task dimensions`、`task circle-type --task-id`：`nazhi task dimensions` 透传 SDK `GetDimensions`；`task circle-type` 透传 SDK `GetCircleTypeByTaskID`，自动拒绝非正整数 `--task-id`，不发请求。
 - CLI `nazhi circle types --dimension-id [--pid]`、`circle tasks --type-id`、`circle images [--page] [--page-size]`、`circle dict --cate-code`：分别透传 SDK `GetCircleTypes`/`GetCircleTasks`/`GetCircleImages`/`GetDictList`，正整数 flag 在非法时立即走参数错误路径（退出码 3）。
-- CLI 登录可接入 Nazhi-auto 同款硅基流动 Qwen3-Omni：设置 `NAZHI_OCR_API_KEY` 或 `SILICONFLOW_API_KEY` 后通过 `WithCustomOCR` 注入；密钥不入库。
+- CLI 登录可接入 Nazhi-auto 同款硅基流动 Qwen3-Omni：设置 `NAZHI_SILICONFLOW_API_KEY`（兼容 `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY`）后通过 `WithCustomOCR` 注入；密钥不入库。
 
 ### 测试
 
@@ -76,7 +84,7 @@
 - `AddHonor` 空 `Name` 时回落 `TypeName`（对齐前端新增表单不传 name）
 - `AddHonorPayload.UnmarshalJSON` 部分解码时保留未提供字段，证书附件 ID 继续兼容 number/string，并区分缺失与显式 null
 - `GetCircleTypes` 对 `pid` 做 `url.QueryEscape`
-- `WithOCRConcurrency` 不再覆盖 `WithCustomOCR` 注入的识别器
+- 历史识别并发 Option 不再覆盖 `WithCustomOCR` 注入的识别器
 - 参数错误改用 `printParamError(400)`→exit 3（缺 token / payload 解析失败等）
 - 写实列表 `Get*CirclesJSON` 部分页失败时输出 `envelope.Partial(207)` 保留已合并数据
 - **CircleRecord 混用命名解析**：`imgList`/`imgPreViewList`/`commentList`/`likeStatus`/`ifMySelf`/`auditRemark`/`creationTimeStr`/`showName`/`imgPath`/`studentId` 对齐平台真实 JSON（此前 snake_case tag 导致结构化 API 静默丢字段；CLI `*JSON` 透传不受影响）
@@ -237,7 +245,7 @@
 
 ### 移除
 
-- `WithFallbackOCR` / `WithFallbackConcurrency` Option — 不再有两阶段 cascade
+- 历史后备识别 Option 不再有两阶段 cascade
 - `Client.fallbackOCR` / `Client.fallbackConc` 字段 — `Client` 结构体减负
 - `defaultFallbackOCR` / `safeFallbackRecognize` — 死代码删除
 - `ocr_fallback_test.go` — 5 个 cascade 测试全部删除

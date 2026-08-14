@@ -35,6 +35,8 @@ debug-*
 *.bak
 
 # ─── 工具 / 状态 ──────────────────────────
+# 本地 live-smoke 验证输出
+artifacts/
 # OMC 多智能体编排状态
 .omc/
 .omc.*

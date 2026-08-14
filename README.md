@@ -8,7 +8,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 
-一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 SSO 登录（OCR 自动识别验证码）、Session 激活、任务管理、自我评价、文件上传等完整功能。所有 CLI 命令统一 envelope 输出，便于脚本解析。
+一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 SSO 登录（调用视觉识别器自动处理验证码）、Session 激活、任务管理、自我评价、文件上传等完整功能。所有 CLI 命令统一 envelope 输出，便于脚本解析。
 
 ## 仓库一览
 
@@ -24,14 +24,13 @@
 
 ## 特色
 
-- **跨平台 OCR** — Windows / Linux / macOS × amd64 / arm64 共 5 个组合，onnxruntime 原生库 `//go:embed` 进二进制
-- **开箱即用** — OCR 模型 + 字符集嵌入，零下载、零配置（默认 `-tags ddddocr` 构建）
-- **可选 CGO-free 构建** — `go build` 不带 tag 时仅依赖纯 Go，外部 OCR 通过 `WithCustomOCR` 注入
+- **视觉模型验证码识别** — 登录验证码通过 `WithCustomOCR` 注入 Nazhi-auto 同款硅基流动 Qwen3-Omni，支持多图重试
+- **纯 Go 构建** — SDK 不内置本地验证码识别器、模型或原生运行库，无 CGO、无额外模型文件
+- **统一配置** — CLI 正式读取 `NAZHI_SILICONFLOW_API_KEY`，兼容 `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY`
 - **HAR 验证 4 步 Session 激活** — `pkg/client/session.go` 的 `sessionManager` 状态机 + DCL fast-path + 同 token backoff 缓存
 - **完整错误链** — 15 个哨兵错误（`ErrNetwork` / `ErrRateLimited` / `ErrRetryable` 等），`errors.Is` 精确分支
 - **Cookie + Header 双重 Token 注入** — 业务服务器要求 `X-Auth-Token` 双形态存在，SDK 一次性处理
 - **并发安全** — 每个 `*Client` 独立 cookie jar，atomic.Pointer 保护 baseURL 预解析热路径无锁
-- **Windows OCR 自愈** — DLL 句柄未释放降级（不再污染 stderr）+ 启动时 best-effort 清扫历史 temp 目录
 - **HAR 驱动测试 + PII 守卫** — 真实抓包做 fixture，自带 SHA-256 哈希反 PII 泄露自反性陷阱
 
 ## 安装
@@ -46,7 +45,7 @@
 | Linux | amd64 / arm64 | `nazhi-linux-amd64` / `nazhi-linux-arm64` |
 | macOS | arm64 (Apple Silicon) | `nazhi-darwin-arm64` |
 
-> macOS 仅 arm64（Microsoft 已停发 onnxruntime macOS x86_64）。
+> 各平台发布包均为纯 Go 二进制；验证码视觉模型通过运行时 API 配置，不随二进制打包。
 
 ### `go install`
 
@@ -59,23 +58,19 @@ go install github.com/Wenaixi/nazhi-cli/cmd/nazhi@latest
 ```bash
 git clone https://github.com/Wenaixi/nazhi-cli.git
 cd nazhi-cli
-make build           # 当前平台（**已知坑：不含 OCR**，见下）
-make release         # 全平台（CI 等价，含 OCR + CGO）
+make build           # 当前平台纯 Go 构建
+make release         # 全平台纯 Go 构建（CI 等价）
 ```
 
-> **注意：`make build` 已知坑**：`build-*` target 都未带 `-tags=ddddocr`，本机构建出的二进制 `c.ocr=nil`，
-> `nazhi login` 会立即返回 `ErrOCRNotConfigured`。本地想跑通登录必须显式带 tag：
->
-> ```bash
-> go build -tags=ddddocr -o bin/nazhi.exe ./cmd/nazhi
-> ```
->
-> 只有 CI 的 `build` / `release` job 显式带了 `-tags=ddddocr`。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+> **登录需要视觉模型密钥**：运行 `nazhi login` 前设置 `NAZHI_SILICONFLOW_API_KEY`。
+> 该变量对应 Nazhi-auto 的正式配置；CLI 仍兼容 `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY`。
+> 未配置视觉识别器时不会退回本地实现，而是返回 `ErrOCRNotConfigured`。
 
 ## 快速开始
 
 ```bash
-# 1. 登录拿 token（envelope 输出，提取 .data.token）
+# 1. 配置 Nazhi-auto 同款视觉模型并登录
+export NAZHI_SILICONFLOW_API_KEY=sk-...
 export NAZHI_USERNAME=学号
 export NAZHI_PASSWORD=密码
 TOKEN=$(nazhi login | jq -r .data.token)
@@ -110,7 +105,7 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 
 ```
 nazhi
-├── login                       SSO 登录（全自动 OCR）
+├── login                       SSO 登录（视觉识别器自动处理验证码）
 ├── session
 │   └── activate                 激活业务 Session（HAR 4 步）
 ├── whoami                      获取当前用户信息（含 schoolId）
@@ -236,16 +231,18 @@ import (
     "github.com/Wenaixi/nazhi-cli/pkg/tokenparse" // SSO token 解析（独立可用）
 )
 
+recognizer := newMyCaptchaRecognizer()
 c, err := client.New(
     client.WithSSOBase("https://www.nazhisoft.com"),   // 可省，默认就是这个
     client.WithBaseURL("http://139.159.205.146:8280"), // 可省，默认就是这个
     client.WithTimeout(30 * time.Second),
     client.WithSessionBackoff(5 * time.Second), // 调 Session 激活失败冷却窗口
+    client.WithCustomOCR(recognizer), // Login 必需
 )
 if err != nil { log.Fatalf("Client 初始化失败：%v", err) }
 defer c.Close()
 
-// 登录（含 OCR 自动识别）
+// 登录（调用视觉识别器自动处理验证码）
 resp, err := c.Login(ctx, types.LoginRequest{
     Username: os.Getenv("NAZHI_USERNAME"),
     Password: os.Getenv("NAZHI_PASSWORD"),
@@ -284,7 +281,7 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 
 ```bash
 make build              # 当前平台（见上"已知坑"）
-make release           # 全平台（含 OCR + CGO）
+make release           # 全平台纯 Go 构建
 
 make test              # 单元测试（race）
 make test-verbose      # 详细测试输出
@@ -334,10 +331,8 @@ PII 自反性陷阱（详见 [SECURITY.md](SECURITY.md)）。
 
 ## 致谢
 
-- [ddddocr](https://github.com/sml2h3/ddddocr) — OCR 引擎
-- [Microsoft onnxruntime](https://github.com/microsoft/onnxruntime) — 模型推理
+- [硅基流动](https://siliconflow.cn/) — Qwen3-Omni 视觉模型服务
 - [cobra](https://github.com/spf13/cobra) — CLI 框架
-- [yangbin1322/go-ddddocr](https://github.com/yangbin1322/go-ddddocr) — Go 绑定
 
 ---
 

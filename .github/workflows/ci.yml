@@ -8,7 +8,7 @@
 # 关键设计:
 #   - 检测 (check) 和跨平台构建 (build) 并行，最大化 CI 速度
 #   - 集成测试只在 tag 发布时跑（保护真实凭据）
-#   - 每个平台用 native runner（onnxruntime_go 强制 CGO）
+#   - 每个平台使用对应 runner，发布二进制不依赖 CGO 或本地模型
 
 name: CI
 
@@ -80,11 +80,8 @@ jobs:
             exit 1
           fi
 
-      - name: 单元测试（race 检测，!ddddocr 默认模式）
+      - name: 单元测试（race 检测）
         run: go test -count=1 -race -v -timeout=15m ./pkg/...
-
-      - name: 单元测试（ddddocr 模式，验证 WithCustomOCR 旁路不依赖内嵌 OCR）
-        run: go test -tags=ddddocr -count=1 -race -v -timeout=15m ./pkg/...
 
       - name: 集成测试编译验证（不跑真实环境）
         run: go test -tags=integration -run=^$ ./test/integration/...
@@ -101,42 +98,26 @@ jobs:
             goos: linux
             goarch: amd64
             ext: ""
-            cgo: "1"
-          # Linux (arm64) cross-compile from ubuntu-latest (amd64 runner)：
-          # 不依赖 GitHub `ubuntu-22.04-arm64` runner 资源池（实测 10+ 分钟分配不到）。
-          # apt 装 gcc-aarch64-linux-gnu 作为 C cross compiler，CC 指向它。
-          # 运行时用户需自行安装 libonnxruntime.so.1.25.0 aarch64（运行时 dlopen）。
           - name: Linux (arm64)
             runner: ubuntu-latest
             goos: linux
             goarch: arm64
             ext: ""
-            cgo: "1"
-            cross: "aarch64-linux-gnu-"
           - name: macOS (arm64)
             runner: macos-latest
             goos: darwin
             goarch: arm64
             ext: ""
-            cgo: "1"
           - name: Windows (amd64)
             runner: windows-latest
             goos: windows
             goarch: amd64
             ext: ".exe"
-            # onnxruntime_go 强制 CGO → Windows 也需要 CGO_ENABLED=1
-            # windows-latest 默认已装 MinGW gcc
-            cgo: "1"
-          # Windows (arm64) cross-compile from windows-latest (amd64 runner)：
-          # windows-11-arm runner 的 MinGW gcc 是 x86_64 版，编译 AArch64 汇编失败。
-          # 用 zig cc 自带 aarch64-windows-gnu 工具链 cross-compile，绕过 runner 限制。
           - name: Windows (arm64)
             runner: windows-latest
             goos: windows
             goarch: arm64
             ext: ".exe"
-            cgo: "1"
-            cross: "zig"
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -162,36 +143,15 @@ jobs:
           echo "version=$VER" >> "$GITHUB_OUTPUT"
           echo "构建 nazhi v$VER — ${{ matrix.goos }}/${{ matrix.goarch }}"
 
-      - name: 安装交叉编译工具链（仅 Linux arm64 需要）
-        if: ${{ matrix.cross != '' && matrix.cross != 'zig' }}
-        shell: bash
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
-
-      - name: 安装 zig（仅 Windows arm64 需要）
-        if: ${{ matrix.cross == 'zig' }}
-        shell: bash
-        run: |
-          choco install zig --version=0.13.0 -y --no-progress
-          echo "C:\ProgramData\chocolatey\lib\zig" >> $GITHUB_PATH
-          zig version
-
       - name: 编译
         shell: bash
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          CGO_ENABLED: ${{ matrix.cgo }}
-          CC: ${{ matrix.cross == 'zig' && 'zig cc -target aarch64-windows-gnu' || (matrix.cross != '' && format('{0}gcc', matrix.cross) || '') }}
-          CXX: ${{ matrix.cross == 'zig' && 'zig c++ -target aarch64-windows-gnu' || (matrix.cross != '' && format('{0}g++', matrix.cross) || '') }}
+          CGO_ENABLED: "0"
         run: |
           mkdir -p bin
-          # v0.3.5+ OCR 可选构建：默认 release 必须带 -tags ddddocr,ddddocr_embed，
-          # 否则 defaultOCR() 返回 nil，CLI 调 Login() 会立即返回 ErrOCRNotConfigured。
-          # CGO-free 用户（Nazhi-auto 等）需自行用 -tags !ddddocr 显式构建纯 Go 二进制。
-          # ddddocr_embed 控制模型文件嵌入，单独 ddddocr 需 WithOCRModelDir 提供外部模型目录。
-          go build -tags="ddddocr,ddddocr_embed" -ldflags="-s -w" \
+          go build -ldflags="-s -w" \
             -o "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
             ./cmd/nazhi
 

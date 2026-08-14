@@ -21,7 +21,9 @@ import (
 //   NAZHI_BASE_URL     — 业务 API 根地址（session/whoami/task/self-eval）
 //   NAZHI_TIMEOUT      — HTTP 超时（秒，所有命令）
 //   NAZHI_UPLOAD_URL   — 文件上传 API 根地址（file upload）
-// 推荐在 CI/集成测试中通过 `.env` 文件或 secret 注入。
+//   NAZHI_SILICONFLOW_API_KEY — Nazhi-auto 同款硅基流动视觉模型密钥（login，推荐）
+//   NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY — 兼容旧配置名（login）
+// 推荐在 CI/集成测试中通过 secret 注入，不要把密钥写入仓库。
 
 // urlOptDef 描述一种 URL 类型对应的 flag 名、环境变量名和 Option 构造函数。
 type urlOptDef struct {
@@ -121,7 +123,11 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 // omniOCRFromEnv 读取硅基流动 Qwen3-Omni 配置。
 // 密钥只来自环境变量，禁止写入仓库或文档示例真值。
 func omniOCRFromEnv() *omniOCR {
-	key := strings.TrimSpace(os.Getenv("NAZHI_OCR_API_KEY"))
+	// Nazhi-auto 的正式配置名优先，旧名称仅作兼容，不改变视觉模型请求契约。
+	key := strings.TrimSpace(os.Getenv("NAZHI_SILICONFLOW_API_KEY"))
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("NAZHI_OCR_API_KEY"))
+	}
 	if key == "" {
 		key = strings.TrimSpace(os.Getenv("SILICONFLOW_API_KEY"))
 	}

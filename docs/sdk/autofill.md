@@ -12,7 +12,7 @@
 
 | 域 | 自动行为摘要 | 分册 |
 |----|--------------|------|
-| 认证 | 空 `SchoolID`→按学号查学校；验证码 OCR | [auth.md](./auth.md) |
+| 认证 | 空 `SchoolID`→按学号查学校；调用方注入视觉识别器处理验证码 | [auth.md](./auth.md) |
 | Session | HAR 4 步；缓存 UserInfo；同 token 快速路径 / 失败 backoff | [session.md](./session.md) |
 | 用户读 | Session 预热复用；`schoolId`/`schoolName` 用**学号**走 SSO 补全；`className` 只移除首个“级”字，不按年级前缀删除 | [user.md](./user.md) |
 | 用户写 | 中文性别/团员/民族/证件→数字；忽略全国学籍号；更新后清缓存 | [user.md](./user.md) |
@@ -31,8 +31,8 @@
 | 条件 | SDK 行为 | 源码 |
 |------|----------|------|
 | `LoginRequest.SchoolID == ""` | `GetSchoolID(ctx, Username)`，用返回的 `schoolId` 登录 | `auth.go` Login |
-| 始终 | `InitSession` → 并发 OCR 验证码（调用方**无** Captcha 字段） | 同上 |
-| `c.ocr == nil` | 直接 `ErrOCRNotConfigured` | 同上 |
+| 始终 | `InitSession` → 注入的视觉识别器处理验证码（调用方**无** Captcha 字段） | 同上 |
+| 未注入验证码识别器 | 直接 `ErrOCRNotConfigured` | 同上 |
 
 `Username` 即登录学号，**不会**被 SDK 改成别的默认学号；学校 ID 才是「按学号自动查」。
 

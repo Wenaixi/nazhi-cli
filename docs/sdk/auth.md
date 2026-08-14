@@ -6,17 +6,19 @@ SSO 登录与学校信息。对应 `pkg/client/auth.go`。
 
 | 方法 | 说明 | CLI |
 |------|------|-----|
-| `Login` | SSO 登录（内部 OCR 验证码） | `nazhi login` |
+| `Login` | SSO 登录（调用方注入视觉识别器处理验证码） | `nazhi login` |
 | `InitSession` | 建立 JSESSIONID Cookie | —（Login 内部调用） |
 | `GetSchoolID` | 按学号查学校信息 | —（Login 内部调用） |
 
 ## 使用方法
 
 ```go
+recognizer := newMyCaptchaRecognizer()
 c, err := client.New(
     client.WithSSOBase("https://www.nazhisoft.com"),
     client.WithBaseURL("http://139.159.205.146:8280"),
     client.WithTimeout(30*time.Second),
+    client.WithCustomOCR(recognizer),
 )
 if err != nil { log.Fatal(err) }
 defer c.Close()
@@ -29,7 +31,7 @@ if err != nil { log.Fatal(err) }
 token := resp.Token // 后续业务接口使用
 ```
 
-构建需 `-tags=ddddocr`（或 `WithCustomOCR`），否则 `Login` 返回 `ErrOCRNotConfigured`。
+SDK 不提供默认验证码识别器。调用方必须通过 `WithCustomOCR` 注入实现；CLI 默认注入 Nazhi-auto 同款硅基流动 Qwen3-Omni。未注入时 `Login` 返回 `ErrOCRNotConfigured`。
 
 ---
 
@@ -47,7 +49,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 |------|----------|
 | `Username`（学号）、`Password` | `InitSession`（建 JSESSIONID） |
 | 可选 `SchoolID` | **空则** `GetSchoolID(ctx, Username)`，用返回的 schoolId 拼登录表单 |
-| — | 拉验证码图 + OCR（可多图重试 / FallbackOCR）；`LoginRequest` **无** Captcha 字段 |
+| — | 拉验证码图 + 注入的视觉识别器（每张图一次，可多图重试）；`LoginRequest` **无** Captcha 字段 |
 | — | POST validate → 解析 JWT token / expiresAt |
 
 **说明**：学号必须由调用方提供（或环境变量 `NAZHI_USERNAME`），SDK **不会**默认某个学号。  
@@ -77,7 +79,7 @@ resp, err := c.Login(ctx, types.LoginRequest{
 ### 错误 / 注意
 
 - `ErrLoginRejected`：凭据或验证码错误  
-- `ErrOCRNotConfigured`：未启用 OCR  
+- `ErrOCRNotConfigured`：未注入验证码识别器；必须配置 `WithCustomOCR`
 - `ErrNetwork`：网络失败  
 
 ---

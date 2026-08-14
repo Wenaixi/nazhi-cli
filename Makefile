@@ -1,4 +1,4 @@
-.PHONY: build build-ocr build-linux build-darwin build-windows test test-verbose test-integration lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
+.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
 
 # ─── 版本 ───
 
@@ -6,25 +6,23 @@ VERSION := $(shell grep -E '^\s*var\s+Version\s*=' internal/version/version.go |
 LDFLAGS := -ldflags="-s -w"
 
 # ─── 构建 ───
+# SDK 不内置本地验证码识别器；纯 Go 构建，无 CGO 依赖。
+# 验证码识别必须通过 NAZHI_SILICONFLOW_API_KEY 注入 Nazhi-auto 同款视觉模型（详见 docs/cli/README.md）。
 
 build: clean-bin
 	go build $(LDFLAGS) -o bin/nazhi.exe ./cmd/nazhi
-	@echo "构建完成: bin/nazhi.exe"
-
-build-ocr:
-	go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-ocr.exe ./cmd/nazhi
-	@echo "OCR 构建完成: bin/nazhi-ocr.exe (含 ddddocr)"
+	@echo "构建完成: bin/nazhi.exe（纯 Go；login 需设置 NAZHI_SILICONFLOW_API_KEY）"
 
 build-linux:
-	GOOS=linux GOARCH=amd64 go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
+	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
 	@echo "Linux amd64: bin/nazhi-linux-amd64"
 
 build-darwin:
-	GOOS=darwin GOARCH=arm64 go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
+	GOOS=darwin GOARCH=arm64 go build $(LDFLAGS) -o bin/nazhi-darwin-arm64 ./cmd/nazhi
 	@echo "macOS arm64: bin/nazhi-darwin-arm64"
 
 build-windows:
-	GOOS=windows GOARCH=amd64 go build -tags="ddddocr,ddddocr_embed" $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
+	GOOS=windows GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-windows-amd64.exe ./cmd/nazhi
 	@echo "Windows amd64: bin/nazhi-windows-amd64.exe"
 
 # ─── 测试 ───
@@ -85,7 +83,7 @@ install:
 
 # ─── 发布 ───
 
-release: test vet build-ocr build-linux build-darwin build-windows
+release: test vet build build-linux build-darwin build-windows
 	@echo ""
 	@echo "═══════════════════════════"
 	@echo "  nazhi-cli v$(VERSION) 跨平台构建完成"
@@ -106,8 +104,7 @@ clean:
 help:
 	@echo "nazhi-cli v$(VERSION) — 构建命令"
 	@echo "═══════════════════════════════════════"
-	@echo "  make build        编译 CLI → bin/nazhi.exe"
-	@echo "  make build-ocr    编译 CLI（含 OCR） → bin/nazhi-ocr.exe"
+	@echo "  make build        编译 CLI（纯 Go，OCR 走视觉模型） → bin/nazhi.exe"
 	@echo "  make build-linux  交叉编译 Linux amd64"
 	@echo "  make build-darwin 交叉编译 macOS arm64"
 	@echo "  make build-windows 交叉编译 Windows amd64"

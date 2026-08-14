@@ -37,7 +37,7 @@ go get github.com/Wenaixi/nazhi-cli/pkg/client
 go get github.com/Wenaixi/nazhi-cli/pkg/types
 ```
 
-Go 版本见仓库 `go.mod`（当前 1.26.1）。SDK 不内置本地 OCR，`Login` 必须通过 `WithCustomOCR` 注入识别器；CLI 使用 `NAZHI_SILICONFLOW_API_KEY` 接入 Nazhi-auto 同款硅基流动 Qwen3-Omni。
+Go 版本见仓库 `go.mod`（当前 1.26.1）。SDK 不内置本地验证码识别器，`Login` 必须通过 `WithCustomOCR` 注入视觉识别器；CLI 使用 `NAZHI_SILICONFLOW_API_KEY` 接入 Nazhi-auto 同款硅基流动 Qwen3-Omni。
 
 ---
 
@@ -57,11 +57,14 @@ import (
 )
 
 func main() {
+	// 实现 CaptchaRecognizer 的视觉模型或远程识别器由调用方提供。
+	recognizer := newMyCaptchaRecognizer()
 	c, err := client.New(
 		client.WithSSOBase("https://www.nazhisoft.com"),
 		client.WithBaseURL("http://139.159.205.146:8280"),
 		client.WithUploadURL("http://doc.nazhisoft.com"),
 		client.WithTimeout(30*time.Second),
+		client.WithCustomOCR(recognizer),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -111,7 +114,7 @@ c, err := client.New(
 | `WithLogger` | slog 风格日志 |
 | `WithSessionBackoff` | Session 失败冷却 |
 
-构造失败常见原因：cookie jar 初始化失败。用完 `defer c.Close()` 释放 OCR/HTTP 资源。
+构造失败常见原因：cookie jar 初始化失败。用完 `defer c.Close()` 释放视觉识别器和 HTTP 资源。
 
 ---
 
@@ -165,7 +168,7 @@ if err != nil {
 	case errors.Is(err, client.ErrLoginRejected):
 		// 重新登录
 	case errors.Is(err, client.ErrOCRNotConfigured):
-		// 换 release 构建或 WithCustomOCR
+		// 配置视觉模型或通过 WithCustomOCR 注入
 	case errors.Is(err, client.ErrSessionBackoff):
 		// 等待冷却
 	case errors.Is(err, client.ErrInvalidPayload):
@@ -189,7 +192,7 @@ if err != nil {
 | `ErrSessionBackoff` | Session 冷却 |
 | `ErrUploadRejected` / `ErrFileTooLarge` | 上传失败/过大 |
 | `ErrInvalidPayload` | 入参非法 |
-| `ErrOCRNotConfigured` / `ErrOCRPanic` | OCR |
+| `ErrOCRNotConfigured` / `ErrOCRPanic` | 未注入识别器 / 识别器 panic |
 | `ErrRateLimited` / `ErrServiceUnavailable` / `ErrTimeout` | HTTP |
 | `ErrInvalidResponse` | 异常 4xx |
 | `ErrRetryable` | 可重试（如 cancel） |
@@ -212,7 +215,7 @@ tok, err = tokenparse.ExtractFromReturnData(bodyBytes)
 ## 资源释放
 
 ```go
-defer c.Close() // OCR 池、HTTP 客户端等
+defer c.Close() // 注入的识别器、HTTP 客户端等
 ```
 
 ---
