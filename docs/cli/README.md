@@ -15,6 +15,8 @@ nazhi-cli：统一 JSON envelope 输出，便于脚本。字段级 API 见 [SDK 
 
 ## 环境变量速查
 
+> 已完成一次脱敏云端登录冒烟：设置 `NAZHI_SILICONFLOW_API_KEY` 后，CLI 成功完成 SSO 登录并返回 200 envelope。真实密钥、账号和 token 不写入仓库。
+
 | 变量 | 用途 | 适用 |
 |------|------|------|
 | `NAZHI_USERNAME` / `NAZHI_PASSWORD` | 登录 | `login` |

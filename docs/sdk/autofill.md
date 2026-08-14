@@ -12,7 +12,7 @@
 
 | 域 | 自动行为摘要 | 分册 |
 |----|--------------|------|
-| 认证 | 空 `SchoolID`→按学号查学校；调用方注入视觉识别器处理验证码 | [auth.md](./auth.md) |
+| 认证 | 空 `SchoolID`→按学号查学校；调用方注入视觉识别器处理验证码；CLI 已验证云端 Qwen3-Omni 登录链路 | [auth.md](./auth.md) |
 | Session | HAR 4 步；缓存 UserInfo；同 token 快速路径 / 失败 backoff | [session.md](./session.md) |
 | 用户读 | Session 预热复用；`schoolId`/`schoolName` 用**学号**走 SSO 补全；`className` 只移除首个“级”字，不按年级前缀删除 | [user.md](./user.md) |
 | 用户写 | 中文性别/团员/民族/证件→数字；忽略全国学籍号；更新后清缓存 | [user.md](./user.md) |

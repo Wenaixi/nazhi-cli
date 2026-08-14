@@ -10,7 +10,10 @@
 
 - 同步 README、CLI/SDK 分册、CI、Makefile 与 `CLAUDE.md`，明确验证码识别依赖注入契约和纯 Go 构建矩阵。
 
-### 新增（本轮审计）
+### 本轮审计与删除
+
+- 前端源码复核后深度删除违规功能：移除 `ViolationRecord`/`ViolationType`、SDK 客户端方法、CLI 命令及专属测试；前端历史调用点不再属于当前 SDK 契约。
+- 完成一次脱敏云端登录冒烟：CLI 使用本机运行时注入的 SiliconFlow Qwen3-Omni 密钥成功返回 200 envelope 和 token；密钥、账号和 token 未写入输出或仓库。
 
 - CLI `nazhi honor update`：保留 SDK `UpdateHonor` 能力，对象 payload 走 `parseJSONObjectPayload`，自动空 typeName 反查（`GetHonorTypeOptions`）；典型案例批量删除 `nazhi typical-case delete-batch --payload '[1,2,3]'`：保留 SDK `DeleteBatchTypicalCase` 能力，纯 ID 数组 payload 校验非空/正整数。
 - SDK `types.UserUpdateInput` 新增 `Birthday` 字段（对应前端 `updateMyInfo.birthday` 键）；`UpdateMyInfoStructured` 写入 wire key `birthday`，`Birthday` 优先、`BirthdayStr`（兼容旧调用）仅在 `Birthday` 为空时生效。SDK 原样透传，**不**做日期或时区转换（前端实际发送 ISO 8601 UTC）。
@@ -113,7 +116,7 @@
 - `CircleComment` — 新增写实评论类型
 - `UserInfo` 扩充 8 字段：telephone、genderName、birthdayStr、youthLeagueFlag、nation、familyAddress、hobbies、idCard、idType
 - `ExamResult`、`TermInfo`、`ExamInitInfo`、`ExamType`、`Course` — 新增成绩管理类型
-- `ViolationRecord`、`ViolationType` — 新增违规记录类型
+- `ViolationRecord`、`ViolationType` — 历史版本曾新增的违规类型，当前版本已删除
 - `Notification`、`NotificationListResult` — 新增通知消息类型
 - `BonusInfo`、`BonusRank`、`BonusDetail` — 新增积分商城类型
 - `DemocraticActivity`、`SelfEvaluationItem`、`MutualEvaluation`、`DemocraticResult`、`MutualPersonInfo`、`ClassStudent` — 新增民主评价类型
@@ -123,7 +126,7 @@
 - `circle.go` — 写实管理扩展：DeleteCircle、AddCircleComment、SetCircleLike、GetCircleImages、GetCircleTasks、GetCircleTypes、GetDimensionsBySchool、GetDictList
 - `exam.go` — 成绩管理：GetExamInitInfo、QueryStudentExam（**v1.3.0 已删除，不再维护**）
 - `democratic.go` — 民主评价：GetDemocraticActivities、GetDemocraticActivityByID、GetSelfEvaluationData、GetMutualPersonInfo、GetDemocraticResult、GetMutualEvaluationDetail、AddOrUpdateSelfEvaluation、AddOrUpdateMutualEvaluation（**v1.3.0 已删除，不再维护**）
-- `violation.go` — 违规记录：GetViolationList、GetViolationTypes、UpdateHonor（**v1.3.0 已删除，不再维护**）
+- `violation.go` — 历史版本的违规记录实现，当前版本已删除文件、方法和测试
 - `notification.go` — 通知管理：GetUnreadNotifications、GetNotificationByID、ReadNotification、GetAllNotifications（**v1.3.0 已删除，不再维护**）
 - `bonus.go` — 积分商城：GetMonthBonus、GetHistoryBonus、GetBonusRank、GetBonusDetail（**v1.3.0 已删除，不再维护**）
 - `file_bag.go` — 档案查看：GetTermList、GetStudentInfoForTerm（**v1.3.0 已删除，不再维护**）
@@ -133,7 +136,7 @@
 
 - `nazhi circle` — 写实管理（delete、comment、like）
 - `nazhi exam` — 成绩管理（query）（**v1.3.0 已删除，不再维护**）
-- `nazhi violation` — 违规记录（list、types）（**v1.3.0 已删除，不再维护**）
+- `nazhi violation` — 历史版本的违规查询命令，当前版本已删除命令树和专属测试
 - `nazhi notification` — 通知管理（unread、read）（**v1.3.0 已删除，不再维护**）
 - `nazhi bonus` — 积分管理（month、rank）（**v1.3.0 已删除，不再维护**）
 - `nazhi user` — 用户管理（update）
