@@ -57,18 +57,14 @@ func TestLoginCmd_ErrOCRNotConfigured_ActionableOutput(t *testing.T) {
 		"v1.4.0",
 		"NAZHI_OCR_API_KEY",
 		"SiliconFlow", // SDK i18n 英文部分
-		"硅基流动",     // 中文部分
-		"Qwen3-Omni", // 默认模型名
+		"硅基流动",        // 中文部分
+		"Qwen3-Omni",  // 默认模型名
 	}
 	lower := lowerASCII(env.Message)
 	for _, w := range want {
 		if !containsCI(lower, lowerASCII(w)) {
 			t.Errorf("message 应包含 %q，实际: %s", w, env.Message)
 		}
-	}
-	// v1.4.0 后不应再提及 ddddocr build tag
-	if containsCI(lower, "-tags ddddocr") {
-		t.Errorf("v1.4.0 后不应再提及 -tags ddddocr，实际: %s", env.Message)
 	}
 }
 

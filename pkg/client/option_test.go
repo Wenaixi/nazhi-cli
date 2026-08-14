@@ -21,7 +21,7 @@ import (
 //   - WithLogger / WithCustomOCR nil 守卫
 //   - WithSessionBackoff 正/零/负值处理
 //
-// v1.4.0 起 SDK 不再提供 ddddocr / WithOCRConcurrency / WithOCRModelDir 占位实现。
+// v1.4.0 起 SDK 不再提供本地识别器或相关构建选项。
 // 选项测试聚焦 OCR 注入契约：未注入即 Login 返回 ErrOCRNotConfigured。
 type mockCaptchaRecognizer struct{ closed bool }
 
@@ -214,7 +214,7 @@ func TestWithLogger_NilRejected(t *testing.T) {
 func TestWithSessionBackoff_ZeroRejected(t *testing.T) {
 	var logBuf bytes.Buffer
 	c, _ := New(
-		WithSessionBackoff(5 * time.Second),
+		WithSessionBackoff(5*time.Second),
 		WithLogger(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))),
 	)
 	WithSessionBackoff(0)(c)
@@ -227,7 +227,7 @@ func TestWithSessionBackoff_ZeroRejected(t *testing.T) {
 func TestWithSessionBackoff_NegativeRejected(t *testing.T) {
 	var logBuf bytes.Buffer
 	c, _ := New(
-		WithSessionBackoff(5 * time.Second),
+		WithSessionBackoff(5*time.Second),
 		WithLogger(slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelDebug}))),
 	)
 	WithSessionBackoff(-1 * time.Second)(c)

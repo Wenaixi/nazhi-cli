@@ -94,7 +94,7 @@ func TestOCRRetry_SucceedsOnFirstImage(t *testing.T) {
 }
 
 // TestOCRRetry_FailsAcrossImages 验证跨图重试：每张图 OCR 1 次后换图
-// （ddddocr 确定性下同图重试无意义，1×99 策略）。
+// （视觉识别器对同图结果通常稳定，失败时优先更换验证码图片）。
 // 期望：3 次失败后第 4 张图成功 = 4 imageFetches + 4 recognizeCalls。
 func TestOCRRetry_FailsAcrossImages(t *testing.T) {
 	var imageFetches int32
@@ -134,7 +134,7 @@ func TestOCRRetry_FailsAcrossImages(t *testing.T) {
 }
 
 // TestOCRRetry_Fails2ThenSucceedsAfter2Images 验证：前 2 张图各 1 次失败，
-// 第 3 张图第 1 次就成功（1×99 策略下"attempt 3"语义变为"第 3 张图"）。
+// 第 3 张图第 1 次就成功（当前每张图片只尝试一次，"attempt 3"即第 3 张图）。
 // 期望：3 imageFetches + 3 recognizeCalls。
 func TestOCRRetry_Fails2ThenSucceedsAfter2Images(t *testing.T) {
 	var imageFetches int32
@@ -172,8 +172,8 @@ func TestOCRRetry_Fails2ThenSucceedsAfter2Images(t *testing.T) {
 	}
 }
 
-// TestOCRRetry_AllImagesFail 验证最坏情况：11 张图全 9 次都失败。
-// 期望：11 次图片获取 + 99 次 OCR 调用 + 错误信息。
+// TestOCRRetry_AllImagesFail 验证最坏情况：9 张图全部识别失败。
+// 期望：9 次图片获取 + 9 次视觉识别器调用 + 错误信息。
 func TestOCRRetry_AllImagesFail(t *testing.T) {
 	var imageFetches int32
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -191,7 +191,7 @@ func TestOCRRetry_AllImagesFail(t *testing.T) {
 	}))
 	defer sso.Close()
 
-	// 全部失败（远超 99 次）
+	// 全部失败（远超最大尝试次数）
 	mock := &countMockOCR{failBeforeSuccess: 9999, returnText: "never"}
 	c := newClientForOCRTest(sso.URL, mock)
 	c.ocr = mock
@@ -267,7 +267,7 @@ func (m *blankThenSuccessMock) Recognize(_ []byte) (string, error) {
 func (m *blankThenSuccessMock) Close() error { return nil }
 
 // TestOCRRetry_ImageFetchFails 验证：图片获取失败也换图。
-// 期望：尝试 11 次图片获取都失败。
+// 期望：达到最大尝试次数的图片获取都失败。
 func TestOCRRetry_ImageFetchFails(t *testing.T) {
 	var imageFetches int32
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -302,7 +302,7 @@ func TestOCRRetry_ImageFetchFails(t *testing.T) {
 }
 
 // TestOCRRetry_Constants 兜底测试：常量值符合预期（1 × 9 = 9）。
-// ddddocr 确定性下同图重试无意义，把所有重试预算分配给换图。
+// 视觉识别器对同图结果通常稳定，把重试预算分配给更换验证码图片。
 func TestOCRRetry_Constants(t *testing.T) {
 	if maxOCRImagesTotal != 9 {
 		t.Errorf("maxOCRImagesTotal = %d, want 9", maxOCRImagesTotal)

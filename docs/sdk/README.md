@@ -37,7 +37,7 @@ go get github.com/Wenaixi/nazhi-cli/pkg/client
 go get github.com/Wenaixi/nazhi-cli/pkg/types
 ```
 
-Go 版本见仓库 `go.mod`（当前 1.26.1）。`Login` 需 `-tags=ddddocr` 或 `WithCustomOCR`。
+Go 版本见仓库 `go.mod`（当前 1.26.1）。SDK 不内置本地 OCR，`Login` 必须通过 `WithCustomOCR` 注入识别器；CLI 使用 `NAZHI_SILICONFLOW_API_KEY` 接入 Nazhi-auto 同款硅基流动 Qwen3-Omni。
 
 ---
 
@@ -97,7 +97,7 @@ c, err := client.New(
 	client.WithBaseURL("http://139.159.205.146:8280"),
 	client.WithUploadURL("http://doc.nazhisoft.com"),
 	client.WithTimeout(30*time.Second),
-	client.WithCustomOCR(myOCR), // 可选
+	client.WithCustomOCR(myOCR), // Login 必需
 )
 ```
 
@@ -107,8 +107,7 @@ c, err := client.New(
 | `WithBaseURL` | 业务 API 根地址 |
 | `WithUploadURL` | 文件上传根地址 |
 | `WithTimeout` | HTTP 超时 |
-| `WithCustomOCR` | 注入验证码识别器 |
-| `WithFallbackOCR` | ddddocr 降级 |
+| `WithCustomOCR` | 注入视觉模型或其它验证码识别器（Login 必填） |
 | `WithLogger` | slog 风格日志 |
 | `WithSessionBackoff` | Session 失败冷却 |
 

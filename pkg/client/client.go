@@ -19,7 +19,7 @@ import (
 
 // CaptchaRecognizer 是验证码识别器接口。
 //
-// 自 v1.4.0 起 SDK 不再内置 ddddocr 等本地识别器，调用方必须通过 WithCustomOCR
+// 自 v1.4.0 起 SDK 不再内置本地识别器，调用方必须通过 WithCustomOCR
 // 注入识别器（如 AI 视觉模型、远程服务、单元测试 mock 等）。
 //
 // 注意：实现必须同时实现 Close() error，因为 Client.Close() 会
@@ -277,7 +277,7 @@ func WithSubmittedPageSize(n int) Option {
 //	    nazhicli.WithCustomOCR(myRecognizer),
 //	)
 //
-// 自 v1.4.0 起 SDK 不提供默认 OCR（移除 ddddocr / onnxruntime 依赖）。
+// 自 v1.4.0 起 SDK 不提供默认验证码识别器。
 // 调用方必须在 New() 之前或之后第一时间注入 WithCustomOCR，否则 Login() 会立即
 // 返回 ErrOCRNotConfigured。cmd/nazhi 默认通过 omni_ocr.go 注入硅基流动
 // Qwen3-Omni 视觉识别器。

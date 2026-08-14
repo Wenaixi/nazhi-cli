@@ -22,9 +22,6 @@ coverage_pkg
 /release/
 
 # ─── 临时文件 / 下载 ──────────────────────
-# OCR 原生库下载临时目录
-tmp_onnx_download/
-tmp_dl2/
 
 # 测试 / 调试临时文件
 captcha.jpg

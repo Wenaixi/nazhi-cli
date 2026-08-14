@@ -42,9 +42,8 @@ var (
 	// 触发场景：v1.4.0 起 SDK 不内置任何 OCR；调用方未通过 WithCustomOCR
 	// 注入识别器，此时调用 Login() 必失败（safeOCRRecognize 检测 c.ocr == nil）。
 	//
-	// 修复动机：从 v1.4.0 起移除 ddddocr / onnxruntime 全部依赖，SDK 不再
-	// 提供默认 OCR。所有调用方（含 cmd/nazhi）必须通过 WithCustomOCR 注入
-	// 识别器（典型为硅基流动 Qwen3-Omni 视觉模型）。
+	// SDK 不提供默认验证码识别器。所有调用方（含 cmd/nazhi）必须通过
+	// WithCustomOCR 注入识别器（典型为硅基流动 Qwen3-Omni 视觉模型）。
 	//
 	// 错误消息 i18n key 为「errors.ocr_not_configured」。中英双语并列——
 	// 英文部分是 SDK 用户编程接口可读的稳定契约
