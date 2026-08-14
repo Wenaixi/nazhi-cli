@@ -38,8 +38,8 @@ nazhi
 ├── task list | submit | edit | submitted|done | teacher | withdrawn | public
 ├── circle delete | comment | like
 ├── self-eval submit | status | grad-status | grad-submit
-├── honor types | list | add | delete | update | levels
-├── typical-case submit | list | update | delete
+├── honor types | type-options | level-options | list | add | delete | update | levels
+├── typical-case submit | list | update | delete | delete-batch
 ├── file upload | download
 ├── version
 └── completion
@@ -78,7 +78,10 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `self-eval status` | `--token` | `nazhi self-eval status --token "$T"` |
 | `self-eval grad-status` | `--token` | `nazhi self-eval grad-status --token "$T"` |
 | `self-eval grad-submit` | `--token --comment` 或 stdin | `nazhi self-eval grad-submit --token "$T" --comment "毕业感言"` |
-| `honor types\|list` | `--token` list 可 `--key` | `nazhi honor list --token "$T" --page 1` |
+| `honor types` | `--token` | `nazhi honor types --token "$T"` |
+| `honor type-options` | `--token` | 类型下拉，读取 `dataList` |
+| `honor level-options` | `--token` | 通用等级下拉，读取 `returnData` |
+| `honor list` | `--token` list 可 `--key` | `nazhi honor list --token "$T" --page 1` |
 | `honor add` | `--token --payload` | `@honor.json` |
 | `honor delete` | `--token --id` | `nazhi honor delete --token "$T" --id 1` |
 | `honor update` | `--token --payload` | `@honor-update.json` |
@@ -87,6 +90,7 @@ stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 | `typical-case list` | `--token` `[--status] [--page-size]` | 默认 status=3、page-size=10（与前端一致） |
 | `typical-case update` | `--token --payload` | 含 `id` 的 JSON |
 | `typical-case delete` | `--token --id` | `nazhi typical-case delete --token "$T" --id 1` |
+| `typical-case delete-batch` | `--token --payload` | `nazhi typical-case delete-batch --token "$T" --payload '[1,2,3]'` |
 | `file upload` | 路径 / `--file`（无 token） | `nazhi file upload -f ./a.jpg` |
 | `file download` | `--id --output`（无 token） | `nazhi file download --id 5139876 -o ./a.jpg` |
 | `version` / `completion` | | `nazhi version` |

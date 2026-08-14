@@ -102,7 +102,7 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 
 更详细的环境变量与命令说明见 [CLI 参考](docs/cli/README.md)。
 
-> 自我评价支持纯文本和结构化 `--payload` 两种提交方式；结构化表单会由 SDK 双层包装为 `studentComment`。毕业评价的查询/提交仅提供 Go SDK 方法，当前 CLI 不提供对应命令。荣誉删除使用 GET，并通过 `id` 查询参数传递记录 ID。详见 [SDK 自评](docs/sdk/self-eval.md) 与 [SDK 荣誉](docs/sdk/honor.md)。
+> 自我评价支持纯文本和结构化 `--payload` 两种提交方式；结构化表单会由 SDK 双层包装为 `studentComment`。毕业评价通过 `self-eval grad-status/grad-submit` 透传 SDK 查询与提交能力。荣誉下拉分为类型选项 `honor type-options`、通用等级 `honor level-options` 和按类型联动等级 `honor levels --type-id`；荣誉删除使用 GET，并通过 `id` 查询参数传递记录 ID。详见 [SDK 自评](docs/sdk/self-eval.md) 与 [SDK 荣誉](docs/sdk/honor.md)。
 
 > 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON；`hours` 的 number/string 均兼容且可保留小数，`level`、`checkResult`、`playRole` 的未加引号 number 必须是有限整数，`1.0`/`1e0` 等会规范为标准十进制代码字符串，小数、非有限值和溢出值会被拒绝，string 按原值保留。`--payload -` 从 stdin 读取时上限为 16 MiB，超限会按参数错误处理，不会静默截断。CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名，规范字段优先。任务元数据和图片由 SDK 自动补齐；Hours 是否可省略取决于任务元数据，空地址和空等级不会被 SDK 自动替换。详见 [SDK 任务文档](docs/sdk/task.md)。
 
@@ -125,21 +125,28 @@ nazhi
 │   └── edit                     修改已提交的写实记录
 ├── self-eval
 │   ├── submit                   提交自我评价
-│   └── status                   查询评价状态 + 教师评语
+│   ├── status                   查询评价状态 + 教师评语
+│   ├── grad-status              查询毕业评价原始状态
+│   └── grad-submit              提交毕业评价
 ├── circle
 │   ├── delete                   删除写实记录
 │   ├── comment                  添加写实评论
 │   └── like                     点赞/取消点赞
 ├── honor
 │   ├── types                    获取荣誉类型列表
+│   ├── type-options             获取荣誉类型下拉（dataList）
+│   ├── level-options             获取通用等级下拉（returnData）
 │   ├── list                     获取已申报荣誉记录
 │   ├── add                      申报荣誉（支持 @payload.json）
+│   ├── update                   更新荣誉记录
+│   ├── levels                   按类型获取联动等级
 │   └── delete                   删除荣誉记录
 ├── typical-case
 │   ├── submit                   提交典型案例
 │   ├── list                     获取典型案例（可 --status 筛审核状态）
 │   ├── update                   更新典型案例
-│   └── delete                   删除典型案例
+│   ├── delete                   删除典型案例
+│   └── delete-batch             批量删除典型案例
 ├── user
 │   ├── info                     查看个人信息（whoami 别名）
 │   └── update                   更新个人信息
