@@ -14,14 +14,17 @@ import (
 //
 //	nazhi login -u <username> -p <password> [--sso-base <url>] [--timeout <秒>]
 //
-// 验证码由内置 OCR 全自动识别，无需人工干预。
+// 验证码由硅基流动 Qwen3-Omni 视觉模型识别（通过 NAZHI_OCR_API_KEY 或 SILICONFLOW_API_KEY 注入）。
+// v1.4.0 起 SDK 不内置任何 OCR，必须配置 API key，否则 login 直接返回 503 引导。
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "SSO 登录纳智综合评价系统",
 	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → OCR 自动识别验证码 → Login。
 
-	验证码优先使用环境变量中的硅基流动 Qwen3-Omni（NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY）；未配置时回退到当前构建的默认识别器。`,
-	Example: `  nazhi login -u 学号 -p 密码                       # 全自动 OCR
+	验证码必须配置硅基流动 Qwen3-Omni 视觉模型 API key（NAZHI_OCR_API_KEY 或 SILICONFLOW_API_KEY）。
+v1.4.0 起 SDK 不再内置 ddddocr，必须通过环境变量注入视觉模型。未配置时 login 直接 503 退出。`,
+	Example: `  export NAZHI_OCR_API_KEY=sk-...             # 先设置视觉模型 key
+  nazhi login -u 学号 -p 密码                       # 全自动 OCR 识别验证码
 	  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// username/password 用 applyURLFlag 统一收口
@@ -51,7 +54,7 @@ var loginCmd = &cobra.Command{
 			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
 			switch {
 			case errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic):
-				printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。可设置 NAZHI_OCR_API_KEY（或 SILICONFLOW_API_KEY）使用硅基流动 Qwen3-Omni，或通过 SDK WithCustomOCR 注入识别器。"))
+				printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。v1.4.0 起 SDK 不再内置 OCR，必须设置环境变量 NAZHI_OCR_API_KEY（或 SILICONFLOW_API_KEY）接入硅基流动 Qwen3-Omni 视觉模型，或通过 SDK WithCustomOCR 注入自定义识别器。"))
 			case errors.Is(err, client.ErrLoginRejected):
 				printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error())))
 			default:
