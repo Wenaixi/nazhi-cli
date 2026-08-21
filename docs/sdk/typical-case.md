@@ -102,7 +102,7 @@ func (c *Client) GetTypicalCaseList(ctx context.Context, token string, pageNo, p
 }
 ```
 
-列表中 type/role/level 为 **整数**；提交请求体为 **字符串**。
+列表中 `type`/`role`/`level`/`attachmentId` 解码兼容 **number / 数字字符串 / `1.0` / `null` / 空串**（`TypicalCaseRecord.UnmarshalJSON` 归一为 `int`/`int64`，避免 `DecodeDataList` 整页失败）；提交请求体仍为 **字符串**。
 
 ---
 

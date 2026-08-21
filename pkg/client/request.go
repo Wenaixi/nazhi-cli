@@ -264,9 +264,11 @@ func doBizGetDecode[T any](c *Client, ctx context.Context, token, opName, path s
 			c.logDebug("%s doBizGetDecode fallback: %v", opName, err)
 		}
 	}
-	// 用 errors.Join 收集最后一个解码器错误，让调用方能 errors.Is 穿透获取有用信息
+	// 用 sentinel ErrAllDecodersFailed 标记空结果，让调用方可用 errors.Is 精确识别，
+	// 避免依赖字符串匹配（旧实现用 strings.Contains("所有解码器均失败") 脆弱）。
+	// lastErr 为 nil 时为纯空成功；非 nil 时 Join 实际解码错误供排错。
 	return nil, errors.Join(
-		fmt.Errorf("%s: 所有解码器均失败", opName),
+		fmt.Errorf("%s: %w", opName, ErrAllDecodersFailed),
 		lastErr,
 	)
 }

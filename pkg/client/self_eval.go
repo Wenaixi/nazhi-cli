@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -91,8 +92,9 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 		},
 	)
 	if err != nil {
-		// 业务成功但无评价内容：doBizGetDecode 在所有解码器返回 (nil,nil) 时
-		// 报「所有解码器均失败」。对本接口这是合法空成功，归一为 (nil, nil)。
+		// 业务成功但无评价内容：doBizGetDecode 在所有解码器均返回 (nil,nil) 时
+		// 返回 ErrAllDecodersFailed。仅当无真实解码错误（纯空）时归一为 (nil,nil)，
+		// 有解码错误则透传，便于排错。
 		if isEmptyDecodeFailure(err) {
 			return nil, nil
 		}
@@ -101,39 +103,41 @@ func (c *Client) QuerySelfEvaluation(ctx context.Context, token string) (*types.
 	return v, nil
 }
 
-// isEmptyDecodeFailure 判断 err 是否为 doBizGetDecode 在业务成功、解码器
-// 全返回 (nil,nil) 时的空结果错误（无 lastErr 附加）。
+// isEmptyDecodeFailure 判断 err 是否为 doBizGetDecode 的纯空结果（无 lastErr）。
 //
-// 解码器真正失败（JSON 类型不匹配等）时 errors.Join 会附带 lastErr，
-// 本函数返回 false，保留原错误给调用方。
+// 语义：
+//
+//	业务成功但未提交评价时，所有解码器返回 (nil,nil)，doBizGetDecode 返回
+//	包含 ErrAllDecodersFailed 的 Join 错误且无真实解码子错误 → 本函数 true，
+//	调用方归一为 (nil,nil) 空成功。
+//
+//	若解码器有真实错误（JSON 类型不匹配等），Join 会附带 lastErr → false，
+//	保留错误给调用方排错。
+//
+// 实现：用 errors.Is 匹配哨兵，避免字符串匹配的脆弱性（旧实现曾用
+// strings.Contains("所有解码器均失败")，任何包含该短语的业务错误都会被误判）。
 func isEmptyDecodeFailure(err error) bool {
 	if err == nil {
 		return false
 	}
-	// doBizGetDecode 空结果：fmt.Errorf("%s: 所有解码器均失败", opName) 且无 Join 子错误
-	// 有解码错误时为 errors.Join(fmt.Errorf(...), lastErr)，Unwrap 非空。
-	msg := err.Error()
-	if !strings.Contains(msg, "所有解码器均失败") {
+	if !errors.Is(err, ErrAllDecodersFailed) {
 		return false
 	}
-	// 若 Join 了子错误，Error() 会用 "\n" 拼接多段；纯空失败通常单段。
-	// 更稳妥：检查是否只有一条、且 Unwrap/Is 无业务哨兵。
-	type multi interface{ Unwrap() []error }
-	if m, ok := err.(multi); ok {
-		subs := m.Unwrap()
-		// Join(fmtErr, nil) 时可能只剩一条；Join(fmtErr, lastErr) 为 2 条
-		for _, sub := range subs {
+	// 区分纯空（无子错误）vs 真实解码失败（有子错误）。
+	// errors.Join 的多错误用 Unwrap() []error 暴露。
+	type multiUnwrapper interface{ Unwrap() []error }
+	if m, ok := err.(multiUnwrapper); ok {
+		for _, sub := range m.Unwrap() {
 			if sub == nil {
 				continue
 			}
-			// 跳过「所有解码器均失败」本身，若还有其他子错误则非空失败
-			if !strings.Contains(sub.Error(), "所有解码器均失败") {
-				return false
+			if errors.Is(sub, ErrAllDecodersFailed) {
+				continue
 			}
+			// 存在非哨兵子错误 → 真实解码失败，非空
+			return false
 		}
-		return true
 	}
-	// 非 Join：直接匹配消息
 	return true
 }
 
@@ -158,18 +162,52 @@ func normalizeSelfEvalStatus(m map[string]any) *types.SelfEvalStatus {
 	if len(m) == 0 {
 		return nil
 	}
-	// 字段名兜底：优先使用 struct tag 定义的标准 key（id/studentComment/teacherComment），
-	// 同时兼容 API 可能返回的 snake_case 或语义变体（content/comment 等为已知别名）。
-	// 如果服务端改了字段名，应在 types 层处理而非在此猜测。
+	// 字段别名策略（已收窄，WARN-4）：
+	//
+	// - 主路径：types.SelfEvalStatus 的 JSON tag 为 studentComment/teacherComment，
+	//   同时兼容平台真实返回的 snake_case（student_comment/teacher_comment），
+	//   前端 mainLeft.vue / selfgaintloss.vue 均以 dataMap.student_comment 为准。
+	// - 已验证别名：content / teacherRemark 为历史测试与旧平台字段，保留兼容。
+	// - 已移除的过宽别名：selfEvaluation / evaluationContent 无前端或抓包依据，
+	//   属过度猜测，已收窄移除；若未来服务端新增字段，应在 types 层显式处理，
+	//   而非在此无限制扩张别名表。
 	status := &types.SelfEvalStatus{
 		ID:             firstInt64(m, "id", "platformId", "selfEvalId"),
-		StudentComment: firstString(m, "studentComment", "student_comment", "content", "selfEvaluation", "evaluationContent"),
+		StudentComment: firstString(m, "studentComment", "student_comment", "content"),
 		TeacherComment: firstString(m, "teacherComment", "teacher_comment", "teacherRemark"),
 	}
 	if status.ID == 0 && status.StudentComment == "" && status.TeacherComment == "" {
 		return nil
 	}
 	return status
+}
+
+// ParseStudentComment 解析结构化自评的二次 JSON（WARN-1 显式 helper）。
+//
+// 对应前端 selfgaintloss.vue：querySelfEvaluation 返回的 dataMap.student_comment
+// 本身是 JSON.stringify(form) 的字符串，需二次 JSON.parse 才能得到表单对象。
+// 普通文本自评（mainLeft.vue）直接为字符串，无需二次解析。
+//
+// 入参 comment 为 QuerySelfEvaluation 返回的 SelfEvalStatus.StudentComment。
+// 返回：
+//   - 若 comment 为空或非 JSON 对象字符串，返回 (nil, nil) 或原错误；
+//   - 若为结构化 JSON 字符串，返回解析后的 map。
+//
+// 调用方可通过返回值 nil 判断为普通文本自评。
+func ParseStudentComment(comment string) (map[string]any, error) {
+	trimmed := strings.TrimSpace(comment)
+	if trimmed == "" {
+		return nil, nil
+	}
+	// 结构化自评为 JSON 对象字符串；普通文本通常不以 "{" 开头
+	if !strings.HasPrefix(trimmed, "{") {
+		return nil, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal([]byte(trimmed), &m); err != nil {
+		return nil, fmt.Errorf("ParseStudentComment 解析失败: %w", err)
+	}
+	return m, nil
 }
 
 func firstString(m map[string]any, keys ...string) string {

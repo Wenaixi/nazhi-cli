@@ -87,6 +87,17 @@ func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHo
 
 前端「荣誉名称」UI = typeId 下拉，不是手填 name。
 
+### 批量提交开销权衡
+
+`AddHonor` / `UpdateHonor` 当 `typeName` 为空且 `typeId>0` 时会额外发起一次
+`GET /api/studentMoralEduNew/getHonorTypeForSelect`（`GetHonorTypeOptions`，读 `dataList`）
+反查 `typeName`。单次提交多 1 个 RTT，批量循环提交时为 N+1。
+
+- **追求最少网络往返**：调用方自行缓存 `GetHonorTypeOptions` 结果，批量提交时显式传入 `typeName`，SDK 不再发起补全 GET。
+- **追求调用简洁**：仅传 `typeId`，由 SDK 自动补全，接受每次额外 GET 开销。
+
+当前保持按需补全策略，未做 SDK 侧批量缓存，以保持语义简单；如需极致批量性能，可在外层自行做 `typeId→label` 缓存后透传。
+
 ### 请求示例
 
 ```go

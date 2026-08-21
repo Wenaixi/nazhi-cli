@@ -120,12 +120,48 @@ res, err = c.EditCircle(ctx, token, types.TaskEditInput{
 }
 ```
 
+### 校验策略（有意设计，不复制前端 14 分支）
+
+`TaskSubmitInput.Validate()` / `TaskEditInput.Validate()` 仅校验 `TaskID>0` 且 `Content` 非空（编辑另校验 `ID>0`）。
+**不**复刻前端 `checkData()` 的 14 分支条件必填；是否满足活动类型必填由调用方保证，与前端保持“前端强校验、SDK 弱校验、服务端终审”一致。
+
+因此调用方提交前需按 `targetName`（活动类型 1-14）自行补齐下表字段，否则服务端将以 `ErrBusinessRejected` 拒绝。前端源码位置：`managementRightBottom.vue` / `managementRightTop.vue` / `yhmanagement/*` 的 `checkData()`。
+
+#### targetName 1-14 必填字段速查（对齐前端 `checkData`）
+
+> 每行均隐含 `Content` 必填；`rank`/`level` 仅在部分类型为“成对校验”：`rank` 非空则 `level` 必填，`level` 非空则 `rank` 必填，见标注。
+
+| targetName | 活动类型（前端注释） | 必填字段 | 备注 |
+|------------|---------------------|----------|------|
+| 1 | 思想品德-党团/社团/志愿/公益 | `name`、`address`、`hours`、`playRole` |  |
+| 2 | 学业水平-学科竞赛成绩 | `activityName`、`hostName`、`obtainTime` | `rank`/`level` 成对校验 |
+| 3 | 身心健康-体育比赛项目 | `sportsName`、`hostName`、`obtainTime` | `rank`/`level` 成对校验 |
+| 4 | 艺术素养-艺术活动项目 | `name`、`hostName`、`obtainTime` | `rank`/`level` 成对校验 |
+| 5 | 艺术素养-学生艺术团队 | `teamName`、`orgName`、`checkResult`、`rank`、`circleBeginDate`、`circleEndDate` | `rank` 单独必填 |
+| 6 | 实践创新-勤工俭学/军训/研学/社会调查/生产劳动/参观体验 | `orgName`、`address`、`hours`、`checkResult` |  |
+| 7 | 实践创新-科技创新/研究性学习成果 | `resultsName`、`hostName`、`obtainTime` | `rank`/`level` 成对校验 |
+| 8 | 实践创新-创造发明成果 | `resultsName`、`patentType`、`obtainTime`、`patentNum` |  |
+| 9 | 劳动素养-日常生活/生产/服务性劳动 | `likeSpecialty1` |  |
+| 10 | 劳动素养-劳动（组织/地点/时长/级别） | `orgName`、`address`、`hours`、`level` |  |
+| 11 | 劳动素养-时间+地点 | `obtainTime`、`address` |  |
+| 12 | 劳动素养-劳动特长 | `specialtyTechnology` |  |
+| 13 | 劳动素养-劳动成果 | `resultsName`、`address`、`obtainTime` |  |
+| 14 | 劳动素养-劳动竞赛情况 | `sportsName`、`hostName`、`obtainTime` | `rank`/`level` 成对校验 |
+
+> 说明：上表字段名与 `TaskAddCirclePayload` JSON 键（camelCase）一致：`circleBeginDate`/`circleEndDate`/`checkResult`/`patentType`/`patentNum`/`likeSpecialty1`/`specialtyTechnology` 等。`hours` 仍走半自动规则：`meta.hours>0` 可空用预设，否则必填。
+
+#### Go 直调 vs CLI 的 number/string 兼容边界
+
+- **Go 直调**：`TaskSubmitInput` / `TaskEditInput` 的 `Hours`、`Level`、`CheckResult`、`PlayRole` 等均为 `string`。若上游为 `number`，调用方须自行 `fmt.Sprintf("%v", v)` 转字符串后再赋值；SDK 不做隐式转换。
+- **CLI 边界**：`--payload` 的 JSON 中上述字段的 `number` 兼容仅在 `cmd/nazhi` 私有 helper 生效（有限整数归一为十进制字符串，小数/非有限值拒绝；`hours` 允许小数 number）。此兼容不透传到 SDK 层。
+
 ### 错误 / 注意
 
 - 缺 content / taskId → `ErrInvalidPayload`  
 - 任务 hours≤0 且用户未填 Hours → `ErrInvalidPayload`  
 - 任务备注含「照片/图片/pdf」且无图 → `ErrInvalidPayload`  
 - 业务拒绝 → `ErrBusinessRejected`（`TaskResult` 可能仍带 code/msg）  
+- 未满足上表 14 分支必填 → 前端会在 `checkData` 拦截；SDK 仅做最小校验，缺字段由服务端以 `ErrBusinessRejected` 返回  
 - 总表：[autofill.md](./autofill.md)  
 
 ---

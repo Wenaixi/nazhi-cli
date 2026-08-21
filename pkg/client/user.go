@@ -48,6 +48,7 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 // 而 doBizGetDecode/doBizAndDecode 内部固定使用 bizHeaders()（Referer=/homepage）。
 func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInfo, error) {
 	headers := c.bizHeaders(token)
+	// 固定 /modify 为 SDK 约定，非前端精确值，服务端不校验（前端实际为页面路径，服务端不校验 Referer）。
 	headers["Referer"] = c.bizURL("/modify")
 
 	bodyBytes, err := c.httpDo(ctx, http.MethodGet,

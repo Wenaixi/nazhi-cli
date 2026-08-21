@@ -145,6 +145,14 @@ var (
 	// 避免错误地把 404 等当成业务拒绝走重登录流程。
 	ErrInvalidResponse = errors.New("invalid response: HTTP non-200 non-429")
 
+	// ErrAllDecodersFailed 表示 doBizGetDecode 的所有解码器均未命中（业务成功但空数据）。
+	//
+	// 触发场景：服务端 code=1 但 returnData/dataMap/dataList 全为空或归一化为 nil。
+	// QuerySelfEvaluation 在此场景下将本哨兵归一为 (nil,nil) 空成功，而非错误。
+	// SDK 外部可通过 errors.Is(err, ErrAllDecodersFailed) 精确识别“空成功”链路，
+	// 避免依赖错误字符串匹配（旧实现曾用 strings.Contains("所有解码器均失败")，脆弱）。
+	ErrAllDecodersFailed = errors.New("all decoders failed: no decoder produced a value")
+
 	// ErrRetryable 表示「context 取消导致的失败，可重试」。
 	//
 	// 触发场景：FetchTasks 中部分维度因 ctx cancel 而失败（cancelledCount > 0），

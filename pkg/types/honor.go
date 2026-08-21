@@ -32,6 +32,12 @@ type HonorType struct {
 //
 // v1.4.1：补 Status 整型（前端 scope.row.status != 1 控制编辑/删除）；
 // Approved 仍保留兼容（测试夹具与部分响应可能带 approved bool）。
+//
+// 设计取舍（审计 07 WARN 回复）：服务端下发的 HonorRecord 可能携带 dimension_id / auditor_name 等
+// 报告单展示用只读字段，前端 performanceM.vue / performanceBox.vue 荣誉表格仅展示
+// type_name / level_name / score / ifshow / statusName 等，未用于提交逻辑或状态分支判断。
+// 为保持类型精简与可维护性，本结构体暂未映射这些只读展示字段，按需扩展。
+// 简言之：未映射只读展示字段，按需扩展。
 type HonorRecord struct {
 	ID               int64    `json:"id"`
 	TypeName         string   `json:"type_name"`

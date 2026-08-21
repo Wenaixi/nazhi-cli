@@ -23,7 +23,8 @@ import (
 
 // multipartBufPool 复用 multipart 构造过程的字节缓冲，避免每次 UploadFile
 // 都分配 5MB+ 的 bytes.Buffer。F8.3 优化。
-// MaxAttachmentSize 是前端典型案例附件提示的 2MB 上限。
+// MaxAttachmentSize 是非图片附件的上限（2MB，与前端一致）。
+// 图片走压缩路径，上限为 MaxImageSize（5MB，SDK 放宽）；两者区分校验，避免文案混淆。
 const MaxAttachmentSize = 2 * 1024 * 1024
 
 var directUploadExtensions = map[string]struct{}{
@@ -56,7 +57,7 @@ func isDirectUploadAttachment(filePath string) bool {
 //
 // ⚠️ 关键约束：本方法不发送任何 Token / Cookie / Authorization 头。
 // 文件服务器（doc.nazhisoft.com）是独立公共服务，不需要业务域鉴权。
-// SDK 内部使用独立的 clean http.Client（无 cookie jar），杜绝任何鉴权头泄露。
+// SDK 内部使用独立的 clean http.Client（无 cookie jar），全程不携带任何鉴权头。
 //
 // ⚠️ 域隔离约束：syncCookieToken 只在 c.baseURL 域写入 X-Auth-Token cookie，
 // 而 UploadFile 走 c.uploadURL 域（独立文件服务器）。
@@ -64,7 +65,11 @@ func isDirectUploadAttachment(filePath string) bool {
 // 则 syncCookieToken 写入的 cookie 在上传请求中不会泄漏（newCleanClient 无 cookie jar）。
 // 但调用方应注意不要在业务 Client 的 baseURL 域上传敏感文件。
 //
-// 上传前自动预处理：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB。
+// 上传前自动预处理：
+//   - 图片：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB（MaxImageSize，SDK 放宽）
+//   - 非图片附件（.mp4/.txt/.doc/.docx/.wps/.rar/.zip 等前端允许格式）：原样直传，上限 2MB（MaxAttachmentSize，与前端一致）
+//
+// 统一说明：图片压缩后 5MB（SDK 放宽），非图片附件 2MB（与前端一致）
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.UploadFileResult, error) {
 	// 1. 准备上传字节。图片继续走预处理；非图片附件按前端允许格式原样直传。

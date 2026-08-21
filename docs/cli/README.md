@@ -63,6 +63,15 @@ nazhi
 
 stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
 
+> 双层 code 对照（易混淆提醒）：业务层 `UnifiedResponse.code==1` 等价 CLI 信封层 `envelope.code==200`，同名不同层，切勿混用。
+>
+> | 层次 | 类型 | 成功值 | 失败值 | 位置 |
+> |------|------|--------|--------|------|
+> | CLI 信封 | envelope.code | 200 | 4xx/5xx | pkg/envelope.Envelope.Code（HTTP 风格） |
+> | 业务响应 | UnifiedResponse.code | 1 | 非 1 | pkg/types.UnifiedResponse.Code |
+>
+> 脚本判成功请以 `jq '.status=="success"'` 或 `jq '.code==200'` 为准，不要用 `jq '.code==1'` 去判断外层信封。
+
 ## 命令速查
 
 | 命令 | 关键 flag | 示例 |
@@ -181,6 +190,8 @@ nazhi file upload -f ./photo.png          # 无 --token
 nazhi file download --id 5139876 -o ./out.jpg
 ```
 
+> 统一说明：图片压缩后 5MB（SDK 放宽），非图片附件 2MB（与前端一致）。
+
 ---
 
 ## 完整工作流（最短）
@@ -224,7 +235,7 @@ CLI 是 SDK 薄壳：下列行为在命令里**不用**手填，由 SDK 完成�
 | `honor add` | typeId/level/agency/getDate | typeName 反查；name 回落 typeName；score=0 |
 | `typical-case submit` | type/role/level 代码 + 正文 | *Name 按 code；type2=社会调查报告，level1=国际 |
 | `user update` | 友好 JSON 键 | 中文→代码；忽略全国学籍号 |
-| `file upload` | 本地路径 | 转 JPG≤5MB；**无** token |
+| `file upload` | 本地路径 | 图片压缩后 ≤5MB（SDK 放宽），非图片附件 ≤2MB（与前端一致）；**不携带**任何鉴权头 |
 | 多数业务命令 | token | 内部 `ActivateSession` |
 
 **不会**自动：用默认学号登录、把学号写进写实 body、空地址填学校名、空 level 填 `"5"`。

@@ -30,6 +30,7 @@ var loginCmd = &cobra.Command{
 		// username/password 用 applyURLFlag 统一收口
 		// 语义：flag 显式传递 → 用 flag 值（含显式空字符串）；未传 → env fallback。
 		// 与 client_builder.go token 读取对称。
+		// 登录专用，不走 buildClientOpts
 		username := applyURLFlag(cmd, "username", "NAZHI_USERNAME")
 		password := applyURLFlag(cmd, "password", "NAZHI_PASSWORD")
 

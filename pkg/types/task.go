@@ -108,6 +108,14 @@ type TaskInput interface {
 // SDK 自动：circleTaskId/circleTypeId/dimensionId（元数据）、pictureList（上传）。
 // 不再发明：空 Address/OrgName 不填学校名、空 Level 不默认 "5"（与前端一致）。
 // CircleDate/TermName 前端无 v-model，非用户输入，仅兼容保留。
+//
+// Go 直调提醒：本结构体全部活动字段均为 string（含 Hours/Level/PlayRole/CheckResult 等）；
+// Go 调用方如源数据为 number，须自行转为 string 后再赋值（例如 fmt.Sprintf("%v", v)），
+// number→string 的兼容仅在 CLI --payload 边界生效（cmd/nazhi 私有 JSON helper），SDK 侧不做自动类型转换。
+//
+// 校验策略（有意设计）：Validate 仅校验 TaskID>0 && Content 非空，不复制前端 14 分支条件必填；
+// 调用方需按活动类型（targetName 1-14）自行保证必填字段，与前端 checkData 对齐；
+// 服务端仍会做最终业务校验，缺字段将以 ErrBusinessRejected 返回。
 type TaskSubmitInput struct {
 	TaskID     int64
 	Content    string

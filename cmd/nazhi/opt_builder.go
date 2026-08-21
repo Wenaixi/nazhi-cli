@@ -24,6 +24,7 @@ import (
 //   NAZHI_SILICONFLOW_API_KEY — Nazhi-auto 同款硅基流动视觉模型密钥（login，推荐）
 //   NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY — 兼容旧配置名（login）
 // 推荐在 CI/集成测试中通过 secret 注入，不要把密钥写入仓库。
+// NAZHI_USERNAME/NAZHI_PASSWORD 见 login.go（登录专用）
 
 // urlOptDef 描述一种 URL 类型对应的 flag 名、环境变量名和 Option 构造函数。
 type urlOptDef struct {

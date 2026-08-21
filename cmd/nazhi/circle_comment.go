@@ -40,8 +40,13 @@ var circleCommentCmd = &cobra.Command{
 		}
 
 		printVerbose("正在添加评论...")
-		if err := c.AddCircleComment(cmd.Context(), token, id, content); err != nil {
+		comment, err := c.AddCircleComment(cmd.Context(), token, id, content)
+		if err != nil {
 			printError(fmt.Errorf("添加评论失败: %w", err))
+			return
+		}
+		if comment != nil {
+			printEnvelope(envelope.Success(comment))
 			return
 		}
 		printEnvelope(envelope.Empty("评论成功"))
