@@ -116,3 +116,19 @@ help:
 	@echo "  make release      发布全平台构建"
 	@echo "  make clean        清理构建产物"
 	@echo "  make help         显示此帮助"
+# ─── E2E 究极大测试（读真写模拟，可随时开真） ───────────────────────
+# 默认读真写模拟；无 NAZHI_USERNAME 时自动 Skip 真读，离线仍绿。
+# NAZHI_E2E_LIVE_WRITE=1 时写走真域；文件上传默认真域（无鉴权安全）。
+.PHONY: e2e e2e-mixed e2e-live
+
+e2e: ## 一键 E2E（mixed：读真写模拟）
+	go test -count=1 -race -v ./test/e2e/...
+	@echo "e2e 完成（有 NAZHI_USERNAME 时含真读，无则仅 mock）"
+
+e2e-mixed: e2e ## 别名：读真写模拟
+
+e2e-live: ## 全真 E2E（写也走真域，需二次确认）
+	@echo "LIVE WRITE ENABLED"
+	NAZHI_E2E_LIVE_WRITE=1 go test -count=1 -race -v ./test/e2e/...
+	@echo "e2e-live 完成"
+
