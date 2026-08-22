@@ -1,0 +1,5 @@
+﻿{
+  \"note\": \"write mock expectations aligned with pkg/types\",
+  \"addHonor\": { \"required\": [\"typeId\", \"level\", \"getDate\"] },
+  \"addTypicalCase\": { \"required\": [\"title\", \"type\", \"role\", \"level\"] }
+}

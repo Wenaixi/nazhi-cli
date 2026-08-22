@@ -379,13 +379,44 @@ func newMockWriteServer() *httptest.Server {
 	register("/api/studentMoralEduNew/addSelfGradEvaluation", withJSONCheck(writeOK))
 	register("/api/studentInfo/updateMyInfo", withJSONCheck(writeOK))
 
-	// 兜底：未注册路径返回 404，便于发现遗漏
-	// 用自定义 handler 包一层以保持 mux 行为
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 先让 mux 尝试匹配
-		mux.ServeHTTP(w, r)
+
+	// --- Session 激活链路（复用 integration 的最小 stub） ---
+	register("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte("<html><body>home</body></html>"))
 	})
-	return httptest.NewServer(handler)
+	register("/api/studentInfo/getMenu", func(w http.ResponseWriter, r *http.Request) {
+		appendRecorded(RecordedWrite{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"成功\",\"returnData\":{\"menus\":[]}}"))
+	})
+	register("/api/studentInfo/getMyInfo", func(w http.ResponseWriter, r *http.Request) {
+		appendRecorded(RecordedWrite{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"成功\",\"returnData\":{\"name\":\"E2E用户\",\"studentNumber\":\"TEST001\",\"schoolName\":\"测试学校\",\"className\":\"测试班级\",\"seat\":1}}"))
+	})
+	// 文件上传最小 stub（供 WriteMock 的 SubmitTask 图片链路不 panic）
+	register("/common/upload/uploadImage", func(w http.ResponseWriter, r *http.Request) {
+		appendRecorded(RecordedWrite{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"成功\",\"returnData\":{\"id\":99999,\"name\":\"e2e.jpg\"}}"))
+	})
+	// 任务元数据 stub（SubmitTask/EditCircle 的 getCircleTypeByTaskId）
+	register("/api/studentCircleNew/getCircleTypeByTaskId", func(w http.ResponseWriter, r *http.Request) {
+		appendRecorded(RecordedWrite{Method: r.Method, Path: r.URL.Path, Query: r.URL.RawQuery})
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"成功\",\"dataMap\":{\"taskId\":1,\"circleTypeId\":3694,\"dimensionId\":13,\"hours\":4,\"type\":4,\"taskName\":\"E2E任务\"}}"))
+	})
+	register("/api/studentCircleNew/getDimensions", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"成功\",\"dataList\":[{\"id\":13,\"name\":\"社会实践\"}]}"))
+	})
+	register("/api/studentCircleNew/getHonorTypeForSelect", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"成功\",\"dataList\":[{\"label\":\"校三好学生\",\"value\":1148}],\"returnData\":[{\"label\":\"校\",\"value\":5}]}"))
+	})
+
+	return httptest.NewServer(mux)
 }
 
 // e2eOmniOCR 复刻 cmd/nazhi/omni_ocr.go 的最小实现，供 harness 登录使用。
