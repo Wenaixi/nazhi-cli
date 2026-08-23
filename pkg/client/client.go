@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 )
 
 // CaptchaRecognizer 是验证码识别器接口。
@@ -327,6 +328,23 @@ func (c *Client) bizURL(path string) string {
 	return c.baseURL + path
 }
 
+// logWithLevel 是结构化日志统一出口，携带 trace_id 并做敏感脱敏。
+func (c *Client) logWithLevel(ctx context.Context, lvl slog.Level, format string, args ...any) {
+	if c.logger == nil {
+		return
+	}
+	if !c.logger.Enabled(ctx, lvl) {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	msg = logx.RedactBody(msg)
+	if tid := logx.TraceIDFrom(ctx); tid != "" {
+		c.logger.Log(ctx, lvl, msg, slog.String("trace_id", tid))
+	} else {
+		c.logger.Log(ctx, lvl, msg)
+	}
+}
+
 // logDebug 输出 debug 日志（通过 slog Debug 级别）。
 //
 // 用 fmt.Sprintf 先格式化再传给 slog。
@@ -337,13 +355,37 @@ func (c *Client) bizURL(path string) string {
 //   - LevelEnabled 提前检查，非 Debug 级别时跳过 fmt.Sprintf 分配
 //     （OCR 热路径会反复调用此函数，无 debug 级别时应避免无谓格式化分配）
 func (c *Client) logDebug(format string, args ...any) {
-	if c.logger == nil {
-		return
-	}
-	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
-		return
-	}
-	c.logger.Debug(fmt.Sprintf(format, args...))
+	c.logWithLevel(context.Background(), slog.LevelDebug, format, args...)
+}
+
+// logDebugCtx 是携带 context 的 debug 日志，用于透传 trace_id。
+func (c *Client) logDebugCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelDebug, format, args...)
+}
+
+// logInfoCtx 输出 info 级别日志并携带 trace_id。
+func (c *Client) logInfoCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
+}
+
+// logWarnCtx 输出 warn 级别日志并携带 trace_id。
+func (c *Client) logWarnCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelWarn, format, args...)
+}
+
+// logErrorCtx 输出 error 级别日志并携带 trace_id。
+func (c *Client) logErrorCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelError, format, args...)
+}
+
+// LogDebugForTest 暴露给白盒测试的 debug 入口（携带 ctx）。
+func (c *Client) LogDebugForTest(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelDebug, format, args...)
+}
+
+// LogInfoForTest 暴露给白盒测试的 info 入口（携带 ctx）。
+func (c *Client) LogInfoForTest(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
 }
 
 // logSafeBody 截断 bytes 到 100 字符用于日志，防止敏感信息泄露。

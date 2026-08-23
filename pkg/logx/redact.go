@@ -36,7 +36,7 @@ func RedactHeader(k, v string) string {
 }
 
 // 匹配 JSON 中敏感 key 的值，大小写不敏感。
-var kvRe = regexp.MustCompile(`(?i)"(token|x-auth-token|authorization|password|passwd|captcha)"s*:s*"[^"]*"`)
+var kvRe = regexp.MustCompile(`(?i)"(token|x-auth-token|authorization|password|passwd|captcha)"\s*:\s*"[^"]*"`)
 
 // RedactBody 对 body 中的敏感 JSON 键值做掩码，并截断到 256 字符。
 func RedactBody(s string) string {
