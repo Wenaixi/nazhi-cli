@@ -418,6 +418,14 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 
 // ─── 资源释放 ───
 
+// Enabled 暴露 logger 的 Enabled 供测试校验级别（不影响生产行为）。
+func (c *Client) Enabled(ctx context.Context, lvl slog.Level) bool {
+	if c.logger == nil {
+		return false
+	}
+	return c.logger.Enabled(ctx, lvl)
+}
+
 // Close 释放 Client 持有的资源：
 //   - 通过 WithCustomOCR 注入的验证码识别器
 //   - HTTP Transport 的空闲 keep-alive 连接
