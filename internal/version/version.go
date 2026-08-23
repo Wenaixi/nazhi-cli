@@ -57,4 +57,8 @@ package version
 //	1.3.1 — 写实任务全量兼容与稳定性加固：按前端 checkData 精确化 hours 校验（仅 target 1/6/10 必填，
 //	        其余预设为 0 时允许空 hours）、14 类任务字段透传与 30 键必现、撤回/我发布的统一 EditCircle、
 //	        CLI 数值归一与别名兼容、nil context/traceId 防护与 multiWriter 边界加固、穷举回归全绿
-var Version = "1.3.1"
+//	1.4.0 — 预设值预览能力：PreviewSubmitPayload/PreviewEditPayload 与 CLI task preview（纯组装不发请求、
+//	        不上传 ImagePaths）；写实等级/审核常量对齐原生字典；AddTypicalCasePayload 数字兼容；
+//	        FetchTasks 迁移 ParallelDims + CLI assembly 深 Module 收敛；预览/提交线上 JSON 等价不变式测试；
+//	        integration 真读链路 OCR 注入与 HAR stub 修复
+var Version = "1.4.0"

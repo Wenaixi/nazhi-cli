@@ -1,9 +1,14 @@
 # CHANGELOG
 
-## [未发布]
+## [1.4.0] - 2026-08-24
 
 ### 新增
 
+- SDK `PreviewSubmitPayload` / `PreviewEditPayload` 与 CLI `nazhi task preview [--edit]`：与 SubmitTask/EditCircle 共用 buildTaskPayload 组装链路、不发请求，如实暴露任务预设（circleTaskId/circleTypeId/dimensionId/hours/pictureList），空 address/orgName/level 保持空串不发明默认值；预览为纯组装不上传 ImagePaths。
+- `types` 新增写实等级常量 TaskLevelNational..Grade（1..6）+ TaskLevelName、审核情况 CheckResultExcellent..Poor + CheckResultName，对齐原生字典 cateCode=23。
+- `AddTypicalCasePayload.UnmarshalJSON` 兼容前端表单回传的 type/role/level 数字与 "1.0" 浮点格式（flexStringFromNumber），attachmentId 兼容空字符串。
+- FetchTasks 迁移至 ParallelDims 泛型并发 helper（行为等价由回归测试锁定）；CLI 组装层收敛为 assembly 深 Module（ProcessScope 统一进程级资源管理）。
+- 集成测试真读链路注入 OCR（env/Nazhi-auto 配置 fallback），SubmitTask HAR 场景改用动态生成图片夹具。
 - 日志系统增强（全流程可追踪）：新增 pkg/logx 薄封装（基于 stdlib slog，零新依赖）提供 Level/Format/File 解析、脱敏与 traceId 上下文；CLI 新增 --log-level debug/info/warn/error、--log-format text/json、--log-file 路径三旗标及对应 NAZHI_LOG_LEVEL/FORMAT/FILE 环境变量，兼容旧 --verbose（等价 debug，仅当未显式传 --log-level 时生效）；--quiet 仅静默 stderr，文件仍落盘便于 CI 留痕；SDK 在 request.go 统一 HTTP 生命周期打点并经 context 透传到 auth/session/file 全链，错误按 ClassifyError 定级；敏感字段统一脱敏，验证码原文永不落地。
 
 ### 破坏性变更
