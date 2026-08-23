@@ -86,7 +86,8 @@ func requireLive(t interface {
 }
 
 // IsLiveWrite 报告写是否走真域。
-func IsLiveWrite() bool { return liveWrite }
+// 已禁用全真写，永远返回 false（写永远 mock）。
+func IsLiveWrite() bool { return false }
 
 // IsLiveAvailable 报告是否可走真域读。
 func IsLiveAvailable() bool { return liveAvailable && liveToken != "" }
@@ -107,7 +108,10 @@ func TestMain(m *testing.M) {
 	if uploadBase == "" {
 		uploadBase = defaultUploadBase
 	}
-	liveWrite = strings.TrimSpace(os.Getenv("NAZHI_E2E_LIVE_WRITE")) == "1"
+	liveWrite = false
+	if strings.TrimSpace(os.Getenv("NAZHI_E2E_LIVE_WRITE")) == "1" {
+		fmt.Fprintf(os.Stderr, "[e2e] WARN: NAZHI_E2E_LIVE_WRITE 已禁用 — 写操作永远走本地 mock，不会污染线上数据\n")
+	}
 	liveUploadEnv := strings.TrimSpace(os.Getenv("NAZHI_E2E_LIVE_UPLOAD"))
 	liveUpload = liveUploadEnv != "0" // 默认 1
 	if liveUploadEnv == "" {
@@ -224,9 +228,7 @@ func TestMain(m *testing.M) {
 				}
 			}
 		}
-		if liveAvailable && liveWrite {
-			fmt.Fprintf(os.Stderr, "[e2e] LIVE WRITE ENABLED — 写将走真域\n")
-		}
+		// 写永远 mock，不存在 LIVE WRITE 分支
 	}
 
 	fmt.Fprintf(os.Stderr, "[e2e] mode mixed liveAvailable=%v liveWrite=%v liveUpload=%v mock=%s\n", liveAvailable, liveWrite, liveUpload, mockSrv.URL)

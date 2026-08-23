@@ -127,8 +127,4 @@ e2e: ## 一键 E2E（mixed：读真写模拟）
 
 e2e-mixed: e2e ## 别名：读真写模拟
 
-e2e-live: ## 全真 E2E（写也走真域，需二次确认）
-	@echo "LIVE WRITE ENABLED"
-	NAZHI_E2E_LIVE_WRITE=1 go test -count=1 -race -v ./test/e2e/...
-	@echo "e2e-live 完成"
-
+# e2e-live 已移除：写操作永远 mock，不支持全真（防污染线上数据）
