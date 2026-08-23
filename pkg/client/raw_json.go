@@ -213,10 +213,7 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 // 避免串行循环在数据量大时慢 2-5 倍。
 // key 透传到 getStudentCircle 的 key 查询参数。
 func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType int, key string, methodName string) (json.RawMessage, error) {
-	pageSize := c.submittedPageSize
-	if pageSize <= 0 {
-		pageSize = defaultSubmittedPageSize
-	}
+	pageSize := c.effectivePageSize()
 
 	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, key)
 	if err != nil {
@@ -268,10 +265,7 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 // 避免全量翻页再截断造成的多余请求。
 // key 透传到 getStudentCircle 的 key 查询参数。
 func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, limit int, circleType int, key string, methodName string) (json.RawMessage, *types.PageBean, error) {
-	pageSize := c.submittedPageSize
-	if pageSize <= 0 {
-		pageSize = defaultSubmittedPageSize
-	}
+	pageSize := c.effectivePageSize()
 
 	if limit <= 0 {
 		raw, err := c.getCirclesJSON(ctx, token, circleType, key, methodName)
