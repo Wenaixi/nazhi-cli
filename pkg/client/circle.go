@@ -9,6 +9,24 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
+// fetchMapList 是 circle 域的通用 DataList 拉取 helper，收敛 4 处重复闭包。
+// 把 \"doBizGetDecode + DecodeDataList[map]\" 的样板收进一处，调用方只给 path。
+func (c *Client) fetchMapList(ctx context.Context, token, opName, path string) ([]map[string]any, error) {
+	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, opName, path,
+		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
+			data, err := types.DecodeDataList[map[string]any](resp)
+			if err != nil {
+				return nil, err
+			}
+			return &data, nil
+		},
+	)
+	if err != nil {
+		return nil, err
+	}
+	return *v, nil
+}
+
 // DeleteCircle 删除一条写实记录。
 // GET /api/studentCircleNew/deleteCircle?id=
 func (c *Client) DeleteCircle(ctx context.Context, token string, circleID int64) error {
@@ -60,74 +78,26 @@ func (c *Client) GetCircleTypes(ctx context.Context, token string, dimensionID i
 	if pid != "" {
 		path += "&pid=" + url.QueryEscape(pid)
 	}
-	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleTypes", path,
-		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
-			data, err := types.DecodeDataList[map[string]any](resp)
-			if err != nil {
-				return nil, err
-			}
-			return &data, nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return *v, nil
+	return c.fetchMapList(ctx, token, "GetCircleTypes", path)
 }
 
 // GetCircleTasks 获取指定类别下的写实任务。
 // GET /api/studentCircleNew/getCircleTask?typeId=
 func (c *Client) GetCircleTasks(ctx context.Context, token string, typeID int64) ([]map[string]any, error) {
 	path := "/api/studentCircleNew/getCircleTask?typeId=" + strconv.FormatInt(typeID, 10)
-	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleTasks", path,
-		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
-			data, err := types.DecodeDataList[map[string]any](resp)
-			if err != nil {
-				return nil, err
-			}
-			return &data, nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return *v, nil
+	return c.fetchMapList(ctx, token, "GetCircleTasks", path)
 }
 
 // GetCircleImages 获取当前用户上传的写实图片列表。
 // GET /api/studentCircleNew/getCircleImg?pageNo=&pageSize=
 func (c *Client) GetCircleImages(ctx context.Context, token string, pageNo, pageSize int) ([]map[string]any, error) {
 	path := "/api/studentCircleNew/getCircleImg?pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize)
-	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetCircleImages", path,
-		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
-			data, err := types.DecodeDataList[map[string]any](resp)
-			if err != nil {
-				return nil, err
-			}
-			return &data, nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return *v, nil
+	return c.fetchMapList(ctx, token, "GetCircleImages", path)
 }
 
 // GetDictList 获取系统字典列表。
 // GET /api/common/sys/dict/list?cateCode=
 func (c *Client) GetDictList(ctx context.Context, token string, cateCode int) ([]map[string]any, error) {
 	path := "/api/common/sys/dict/list?cateCode=" + strconv.Itoa(cateCode)
-	v, err := doBizGetDecode[[]map[string]any](c, ctx, token, "GetDictList", path,
-		func(resp types.UnifiedResponse) (*[]map[string]any, error) {
-			data, err := types.DecodeDataList[map[string]any](resp)
-			if err != nil {
-				return nil, err
-			}
-			return &data, nil
-		},
-	)
-	if err != nil {
-		return nil, err
-	}
-	return *v, nil
+	return c.fetchMapList(ctx, token, "GetDictList", path)
 }
