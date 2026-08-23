@@ -13,12 +13,23 @@ import (
 
 // ─── 通用辅助函数（带 type 参数）───
 
+func buildCirclePath(circleType, pageNo, pageSize int, key string) string {
+	return "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key=" + url.QueryEscape(key)
+}
+
+func (c *Client) effectivePageSize() int {
+	if c.submittedPageSize > 0 {
+		return c.submittedPageSize
+	}
+	return defaultSubmittedPageSize
+}
+
 // fetchCirclePage 拉取一页写实记录，同时返回分页信息。
 // circleType 对应 getStudentCircle 接口的 type 参数：
 //
 //	1=公示/全部, 2=教师写实, 3=我发布的, 4=被撤回
 func (c *Client) fetchCirclePage(ctx context.Context, token string, pageNo, pageSize int, circleType int, key string) ([]types.CircleRecord, *types.PageBean, error) {
-	path := "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key=" + url.QueryEscape(key)
+	path := buildCirclePath(circleType, pageNo, pageSize, key)
 
 	resp, err := c.doBizAndDecode(ctx, token, "fetchCirclePage", path, http.MethodGet, nil)
 	if err != nil {
@@ -42,7 +53,7 @@ func (c *Client) fetchCirclePage(ctx context.Context, token string, pageNo, page
 
 // fetchCirclePageJSON 拉取一页写实记录，返回原始 dataList 字节。
 func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, pageSize int, circleType int, key string) (*types.PageBean, []byte, error) {
-	path := "/api/studentCircleNew/getStudentCircle?type=" + strconv.Itoa(circleType) + "&pageNo=" + strconv.Itoa(pageNo) + "&pageSize=" + strconv.Itoa(pageSize) + "&key=" + url.QueryEscape(key)
+	path := buildCirclePath(circleType, pageNo, pageSize, key)
 
 	resp, err := c.doBizAndDecode(ctx, token, "fetchCirclePageJSON", path, http.MethodGet, nil)
 	if err != nil {
@@ -71,10 +82,7 @@ type pageResult struct {
 }
 
 func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleType int, key string) ([]types.CircleRecord, error) {
-	pageSize := c.submittedPageSize
-	if pageSize <= 0 {
-		pageSize = defaultSubmittedPageSize
-	}
+	pageSize := c.effectivePageSize()
 
 	page1, pb, err := c.fetchCirclePage(ctx, token, 1, pageSize, circleType, key)
 	if err != nil {
