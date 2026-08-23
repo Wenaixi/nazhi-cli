@@ -137,7 +137,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		if err != nil {
 			return fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
 		}
-		c.logDebug("OCR 识别完成（%d 字符）", len(captcha))
+		c.logDebugCtx(ctx, "OCR 识别完成（%d 字符）", len(captcha))
 		return nil
 	})
 
@@ -170,19 +170,19 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if httpResp.StatusCode == http.StatusOK {
 		loginResp, err := types.DecodeResponse(bodyBytes)
 		if err != nil {
-			c.logDebug("Login 200 响应 body 解析失败: %v body=%s", err, bodySnippet)
+			c.logDebugCtx(ctx, "Login 200 响应 body 解析失败: %v body=%s", err, bodySnippet)
 			return nil, fmt.Errorf("%w: 响应 body JSON 解析失败: %w", ErrLoginRejected, err)
 		}
 		if err := types.CheckCode(loginResp); err != nil {
 			return nil, fmt.Errorf("登录失败: %w", errors.Join(ErrLoginRejected, err))
 		}
 		if loginResp.ReturnData == nil || bytes.Equal(bytes.TrimSpace(*loginResp.ReturnData), []byte("null")) {
-			c.logDebug("Login 200 响应 returnData 为 null body=%s", bodySnippet)
+			c.logDebugCtx(ctx, "Login 200 响应 returnData 为 null body=%s", bodySnippet)
 			return nil, fmt.Errorf("%w: returnData 为 null", ErrLoginRejected)
 		}
 		token, expiresAt, err := tokenparse.ExtractFromReturnData(*loginResp.ReturnData)
 		if err != nil {
-			c.logDebug("Login 200 响应 extractToken 失败: %v body=%s", err, bodySnippet)
+			c.logDebugCtx(ctx, "Login 200 响应 extractToken 失败: %v body=%s", err, bodySnippet)
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err)
 		}
 		c.warnIfExpiresAtFallback(expiresAt, "200")
@@ -196,7 +196,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		}
 		token, expiresAt, locErr := tokenparse.ExtractFromLocation(location)
 		if locErr != nil {
-			c.logDebug("Login 302: Location 头解析失败: %v location=%s", locErr, location)
+			c.logDebugCtx(ctx, "Login 302: Location 头解析失败: %v location=%s", locErr, location)
 			return nil, fmt.Errorf("%w: Location 头解析失败: %w", ErrLoginRejected, locErr)
 		}
 		if token == "" {
@@ -208,7 +208,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 
 	errResp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		c.logDebug("Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, bodySnippet)
+		c.logDebugCtx(ctx, "Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, bodySnippet)
 	} else if err := types.CheckCode(errResp); err != nil {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
@@ -308,31 +308,31 @@ func (c *Client) ocrRetryLoop(ctx context.Context, recognizeFn func([]byte) (str
 	var lastErr error
 	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
 		if ctxErr := ctx.Err(); ctxErr != nil {
-			c.logDebug("OCR 循环顶部检测到 ctx cancel（img=%d）: %v", imgIdx+1, ctxErr)
+			c.logDebugCtx(ctx, "OCR 循环顶部检测到 ctx cancel（img=%d）: %v", imgIdx+1, ctxErr)
 			return "", fmt.Errorf("OCR 识别被 ctx cancel（已重试 %d 次）: %w", imgIdx, ctxErr)
 		}
 		imgBytes, err := c.fetchCaptchaImage(ctx)
 		if err != nil {
 			lastErr = err
-			c.logDebug("OCR 获取第 %d 张验证码失败: %v", imgIdx+1, err)
+			c.logDebugCtx(ctx, "OCR 获取第 %d 张验证码失败: %v", imgIdx+1, err)
 			continue
 		}
 		text, err := recognizeFn(imgBytes)
 		switch {
 		case err != nil:
 			lastErr = err
-			c.logDebug("OCR 第 %d 张图失败: %v", imgIdx+1, err)
+			c.logDebugCtx(ctx, "OCR 第 %d 张图失败: %v", imgIdx+1, err)
 		case text == "":
 			lastErr = fmt.Errorf("空白结果")
-			c.logDebug("OCR 第 %d 张图结果为空白", imgIdx+1)
+			c.logDebugCtx(ctx, "OCR 第 %d 张图结果为空白", imgIdx+1)
 		default:
-			c.logDebug("OCR 识别成功: img=%d result_len=%d", imgIdx+1, len(text))
+			c.logDebugCtx(ctx, "OCR 识别成功: img=%d result_len=%d", imgIdx+1, len(text))
 			// 验证码预校验：服务端确认该验证码有效后再返回。
 			// 校验失败（code≠1）不是 OCR 读错了，而是服务端不认这张图的验证码，
 			// 需要换图重试。
 			if err := c.validateCaptcha(ctx, text); err != nil {
 				lastErr = err
-				c.logDebug("验证码校验失败(img=%d): %v", imgIdx+1, err)
+				c.logDebugCtx(ctx, "验证码校验失败(img=%d): %v", imgIdx+1, err)
 				continue
 			}
 			return text, nil

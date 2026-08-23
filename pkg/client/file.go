@@ -92,7 +92,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		if mimeType == "" {
 			mimeType = "application/octet-stream"
 		}
-		c.logDebug("非图片附件原样上传: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
+		c.logDebugCtx(ctx, "非图片附件原样上传: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 	} else {
 		fileData, mimeType, err = c.prepareImageForUpload(filePath)
 		if err != nil {
@@ -111,7 +111,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 				errors.Join(ErrFileTooLarge, ErrImageTooLarge))
 		}
 		formName = strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath)) + ".jpg"
-		c.logDebug("图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
+		c.logDebugCtx(ctx, "图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 	}
 
 	// 2. 构造 multipart 请求体
@@ -361,7 +361,7 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 	if err := writeDownloadToFile(ctx, resp.Body, dst); err != nil {
 		return err
 	}
-	c.logDebug("DownloadFile 完成: id=%d → %s (host=%s)", attachmentID, dst, hostOf(resp.Request.URL))
+	c.logDebugCtx(ctx, "DownloadFile 完成: id=%d → %s (host=%s)", attachmentID, dst, hostOf(resp.Request.URL))
 	return nil
 }
 
