@@ -2,61 +2,96 @@ package main
 
 import (
 	"errors"
+	"io"
 	"sync"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// pendingClients 跟踪本次进程内构造的所有 Client，main 退出前统一 Close()。
-// 解决 "Client 包装了 *ocr.Pool 但不暴露 Close() → 临时目录泄漏" 的问题
-// 。
+// 兼容层：旧测试直接读写 pendingClients/pendingLogFiles，需保留包级变量。
+// 实现上委托给 defaultScope（assembly.go 定义），保持单一真相来源。
 var (
 	pendingClientsMu  sync.Mutex
 	pendingClients    []*client.Client
 	pendingLogFilesMu sync.Mutex
-	pendingLogFiles   []interface{ Close() error }
+	pendingLogFiles   []io.Closer
 )
 
-// trackClient 把 Client 加入待清理列表。
-// 由 buildClient / buildBizClient 内部调用，业务侧无需感知。
 func trackClient(c *client.Client) {
+	defaultScope.TrackClient(c)
+	// 同步到旧全局以兼容直接读 pendingClients 的测试
 	pendingClientsMu.Lock()
 	pendingClients = append(pendingClients, c)
 	pendingClientsMu.Unlock()
 }
 
-func trackLogFile(f interface{ Close() error }) {
+func trackLogFile(f io.Closer) {
+	defaultScope.TrackLogFile(f)
 	pendingLogFilesMu.Lock()
 	pendingLogFiles = append(pendingLogFiles, f)
 	pendingLogFilesMu.Unlock()
 }
 
 func closeLogFiles() error {
+	defaultScope.filesMu.Lock()
+	scoped := defaultScope.files
+	defaultScope.files = nil
+	defaultScope.filesMu.Unlock()
 	pendingLogFilesMu.Lock()
-	files := pendingLogFiles
+	legacys := pendingLogFiles
 	pendingLogFiles = nil
 	pendingLogFilesMu.Unlock()
+	seen := make(map[io.Closer]struct{}, len(scoped)+len(legacys))
+	ordered := make([]io.Closer, 0, len(scoped)+len(legacys))
+	for i := len(scoped) - 1; i >= 0; i-- {
+		if _, ok := seen[scoped[i]]; !ok {
+			seen[scoped[i]] = struct{}{}
+			ordered = append(ordered, scoped[i])
+		}
+	}
+	for i := len(legacys) - 1; i >= 0; i-- {
+		if _, ok := seen[legacys[i]]; !ok {
+			seen[legacys[i]] = struct{}{}
+			ordered = append(ordered, legacys[i])
+		}
+	}
 	var firstErr error
-	for i := len(files) - 1; i >= 0; i-- {
-		if err := files[i].Close(); err != nil {
+	for _, f := range ordered {
+		if err := f.Close(); err != nil {
 			firstErr = errors.Join(firstErr, err)
 		}
 	}
 	return firstErr
 }
 
-// closeAllClients 关闭所有待清理 Client，返回聚合错误。
-// 在 main 函数退出前调用一次 (defer)，保证 ONNX session + 临时目录 + keep-alive 连接全部释放。
 func closeAllClients() error {
+	// 收集去重：defaultScope 与旧全局可能持有同一指针（trackClient 双写），去重后只关一次
+	defaultScope.clientsMu.Lock()
+	scoped := defaultScope.clients
+	defaultScope.clients = nil
+	defaultScope.clientsMu.Unlock()
 	pendingClientsMu.Lock()
-	clients := pendingClients
+	legacys := pendingClients
 	pendingClients = nil
 	pendingClientsMu.Unlock()
-
-	// 收集所有 Close 错误而非只保留第一个。
+	seen := make(map[*client.Client]struct{}, len(scoped)+len(legacys))
+	ordered := make([]*client.Client, 0, len(scoped)+len(legacys))
+	// 保持 LIFO：先 scoped 逆序，再 legacy 逆序，去重后仍 LIFO
+	for i := len(scoped) - 1; i >= 0; i-- {
+		if _, ok := seen[scoped[i]]; !ok {
+			seen[scoped[i]] = struct{}{}
+			ordered = append(ordered, scoped[i])
+		}
+	}
+	for i := len(legacys) - 1; i >= 0; i-- {
+		if _, ok := seen[legacys[i]]; !ok {
+			seen[legacys[i]] = struct{}{}
+			ordered = append(ordered, legacys[i])
+		}
+	}
 	var firstErr error
-	for i := len(clients) - 1; i >= 0; i-- {
-		if err := clients[i].Close(); err != nil {
+	for _, c := range ordered {
+		if err := c.Close(); err != nil {
 			firstErr = errors.Join(firstErr, err)
 		}
 	}
