@@ -18,11 +18,17 @@ type ctxKey struct{}
 
 // WithTraceID 将 traceId 写入 context。
 func WithTraceID(ctx context.Context, id string) context.Context {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	return context.WithValue(ctx, ctxKey{}, id)
 }
 
 // TraceIDFrom 从 context 读取 traceId。
 func TraceIDFrom(ctx context.Context) string {
+	if ctx == nil {
+		return ""
+	}
 	v, _ := ctx.Value(ctxKey{}).(string)
 	return v
 }
@@ -71,10 +77,14 @@ type multiWriter struct {
 func (m *multiWriter) Write(p []byte) (int, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	var firstErr error
 	for _, w := range m.ws {
-		if _, err := w.Write(p); err != nil {
-			return 0, err
+		if _, err := w.Write(p); err != nil && firstErr == nil {
+			firstErr = err
 		}
+	}
+	if firstErr != nil {
+		return 0, firstErr
 	}
 	return len(p), nil
 }

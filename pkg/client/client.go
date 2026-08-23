@@ -333,6 +333,9 @@ func (c *Client) logWithLevel(ctx context.Context, lvl slog.Level, format string
 	if c.logger == nil {
 		return
 	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	if !c.logger.Enabled(ctx, lvl) {
 		return
 	}

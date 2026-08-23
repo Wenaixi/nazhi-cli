@@ -30,10 +30,12 @@ var rootCmd = &cobra.Command{
 	所有命令输出 JSON 格式，便于脚本解析。`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		tid := logx.NewTraceID()
-		ctx := logx.WithTraceID(cmd.Context(), tid)
+		parent := cmd.Context()
+		if parent == nil {
+			parent = context.Background()
+		}
+		ctx := logx.WithTraceID(parent, tid)
 		cmd.SetContext(ctx)
-		// 同时让后续通过 context.Background() 创建的 ctx 也能间接携带（不强求）
-		_ = context.WithValue(context.Background(), struct{}{}, tid)
 	},
 	Run: func(cmd *cobra.Command, args []string) {
 		_ = cmd.Help()
