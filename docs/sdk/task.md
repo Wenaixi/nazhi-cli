@@ -11,6 +11,7 @@
 | `EditCircle` | 修改写实 | `nazhi task edit` |
 | `GetCircleTypeByTaskID` | 提交元数据 | `task circle-type --task-id` |
 | `GetDimensions` | 维度列表 | `task dimensions` |
+| `PreviewSubmitPayload` / `PreviewEditPayload` | 预览最终 payload（不发请求，暴露预设值） | `nazhi task preview [--edit]` |
 
 ## 使用方法
 

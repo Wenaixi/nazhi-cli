@@ -503,6 +503,25 @@ func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskS
 //
 // 真实网页在打开任务提交通道前会先请求 getCircleTypeByTaskId，再用返回的 dataMap
 // 填充 addCircle 请求体。SDK 暴露该方法，避免调用方手工猜测 circleTypeId。
+// PreviewSubmitPayload 预览提交时的最终 payload（不发请求，仅用于“暴露预设值”）。
+//
+// 语义与 SubmitTask 完全一致：内部走同样的 GetCircleTypeByTaskID → parseHours → 图片合并 → 30 字段组装，
+// 但不会 POST /api/studentCircleNew/addCircle。调用方可据此检查：
+//   - 预设的 circleTaskId/circleTypeId/dimensionId/hours 是否如预期
+//   - 空的 address/level 是否保持为空（不会被偷填成学校名/"5"）
+//   - 14 类任务各自必填的字段是否已就位
+//
+// 对齐前端：前端是 JSON.stringify(form) 原样发送，SDK 预览也是 Trim 后原样 + 预设回填，不发明默认值。
+func (c *Client) PreviewSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
+	return c.buildTaskPayload(ctx, token, input, "PreviewSubmitPayload")
+}
+
+// PreviewEditPayload 预览编辑时的最终 payload（不发请求）。
+// 与 EditCircle 共用同一 build 链路，区别仅在于会携带 id。
+func (c *Client) PreviewEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
+	return c.buildTaskPayload(ctx, token, input, "PreviewEditPayload")
+}
+
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*types.TaskCircleTypeInfo, error) {
 	path := "/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10)
 	return doBizGetDecode[types.TaskCircleTypeInfo](c, ctx, token, "GetCircleTypeByTaskID", path,

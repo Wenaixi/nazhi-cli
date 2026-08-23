@@ -16,7 +16,7 @@
 | Session | HAR 4 步；缓存 UserInfo；同 token 快速路径 / 失败 backoff | [session.md](./session.md) |
 | 用户读 | Session 预热复用；`schoolId`/`schoolName` 用**学号**走 SSO 补全；`className` 只移除首个“级”字，不按年级前缀删除 | [user.md](./user.md) |
 | 用户写 | 中文性别/团员/民族/证件→数字；忽略全国学籍号；更新后清缓存 | [user.md](./user.md) |
-| 写实提交 | 任务元数据 id；学时半自动；本地图上传；**不**填学校名/默认 level | [task.md](./task.md) |
+| 写实提交 | 任务元数据 id；学时半自动；本地图上传；**不**填学校名/默认 level；`Preview*` 暴露预设值 | [task.md](./task.md) |
 | 写实列表 | 自动翻页合并；`key` 透传 | [circle-list.md](./circle-list.md) |
 | 荣誉 | typeName 反查；name 回落 typeName；score 默认 0 | [honor.md](./honor.md) |
 | 典型案例 | typeName/roleName/levelName 按 code；Update 支持 number code | [typical-case.md](./typical-case.md) |
@@ -78,6 +78,7 @@
 | `circleDate` / `termName` | 兼容可空 | 不自动造值（前端无 v-model） |
 | 学号 / 姓名 / 学校 | 不出现在 Input | 不写入 payload（服务端靠 token） |
 | 14 分支必填 | 调用方按 `targetName` 1-14 自行保证（见 [task.md 速查表](./task.md#targetname-1-14-必填字段速查对齐前端-checkdata)） | SDK `Validate` 仅校验 `TaskID>0 && Content` 非空，不复制前端 `checkData` 14 分支；缺字段由服务端 `ErrBusinessRejected` 返回 |
+| 预览（不发请求） | `PreviewSubmitPayload` / `PreviewEditPayload`：与提交同链路组装，空 `address/level` 保持 ""，预设的 `circleTaskId/circleTypeId/dimensionId/hours/pictureList` 如实暴露 | CLI `nazhi task preview [--edit]` 同理 |
 
 ---
 
