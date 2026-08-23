@@ -15,8 +15,11 @@
 package integration
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -61,15 +64,116 @@ func loadCreds(t *testing.T) (string, string, string, string) {
 	return username, password, ssoBase, bizBase
 }
 
+// resolveOCRKey 解析验证码识别密钥：环境变量优先，回落 Nazhi-auto 本地配置。
+// 与 e2e harness 同源逻辑（_test 符号无法跨包复用，测试代码允许这份轻度重复）。
+func resolveOCRKey() string {
+	for _, k := range []string{"NAZHI_SILICONFLOW_API_KEY", "NAZHI_OCR_API_KEY", "SILICONFLOW_API_KEY"} {
+		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
+			return v
+		}
+	}
+	for _, p := range []string{
+		"E:/newCC/life-new2026/Nazhi-auto/backend/data/settings.yaml",
+		"E:/newCC/life-new2026/Nazhi-auto/data/settings.yaml",
+	} {
+		data, err := os.ReadFile(p)
+		if err != nil {
+			continue
+		}
+		idx := strings.Index(string(data), "sk-")
+		if idx < 0 {
+			continue
+		}
+		tail := data[idx:]
+		end := len(tail)
+		for i, r := range tail {
+			if r == '"' || r == '\'' || r == ' ' || r == '\t' || r == '\n' || r == '\r' {
+				if i > 3 {
+					end = i
+					break
+				}
+			}
+		}
+		return strings.Trim(string(tail[:end]), "\"' ")
+	}
+	return ""
+}
+
+// miniOmniOCR 是硅基流动 Qwen3-Omni 验证码识别的最小实现，
+// 复刻 cmd/nazhi/omni_ocr.go 与 e2e harness 的同源逻辑（_test 符号无法跨包复用）。
+type miniOmniOCR struct {
+	apiKey string
+	http   *http.Client
+}
+
+func (o *miniOmniOCR) Recognize(img []byte) (string, error) {
+	if o == nil || o.apiKey == "" {
+		return "", fmt.Errorf("Omni OCR 未配置 API Key")
+	}
+	if len(img) == 0 {
+		return "", nil
+	}
+	body := map[string]any{
+		"model": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
+		"messages": []any{
+			map[string]any{"role": "system", "content": "Output 4 alphanumeric characters."},
+			map[string]any{"role": "user", "content": []any{
+				map[string]any{"type": "image_url", "image_url": map[string]string{"url": "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(img)}},
+			}},
+		},
+		"temperature": 0,
+		"max_tokens":  256,
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return "", err
+	}
+	req, _ := http.NewRequest(http.MethodPost, "https://api.siliconflow.cn/v1/chat/completions", bytes.NewReader(raw))
+	req.Header.Set("Authorization", "Bearer "+o.apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := o.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	// 用 map 解码避免匿名 struct 的 tag 书写；choices[0].message.content 可能是 string 或分段数组
+	var parsed struct {
+		Choices []map[string]any `json:"choices"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+		return "", err
+	}
+	if len(parsed.Choices) == 0 {
+		return "", fmt.Errorf("Omni OCR 无返回")
+	}
+	msg, _ := parsed.Choices[0]["message"].(map[string]any)
+	if msg == nil {
+		return "", fmt.Errorf("Omni OCR 响应缺 message")
+	}
+	// content 可能是 string 或分段数组，统一 fmt 后只保留字母数字
+	content := strings.TrimSpace(fmt.Sprintf("%v", msg["content"]))
+	return strings.Join(strings.FieldsFunc(content, func(r rune) bool {
+		return !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z'))
+	}), ""), nil
+}
+
+// Close 实现 client.CaptchaRecognizer 接口（HTTP 客户端无资源需释放）。
+func (o *miniOmniOCR) Close() error { return nil }
+
 // newClient 构造一个真实环境 Client。
+// 检测到 OCR 密钥时自动注入视觉识别器（环境变量或 Nazhi-auto 配置）。
 func newClient(t *testing.T, ssoBase, bizBase string) *client.Client {
 	t.Helper()
-	c, _ := client.New(
+	opts := []client.Option{
 		client.WithSSOBase(ssoBase),
 		client.WithBaseURL(bizBase),
 		client.WithUploadURL(defaultUploadBase),
 		client.WithTimeout(apiTimeout),
-	)
+	}
+	if k := resolveOCRKey(); k != "" {
+		opts = append(opts, client.WithCustomOCR(&miniOmniOCR{apiKey: k, http: &http.Client{Timeout: 45 * time.Second}}))
+	}
+	c, _ := client.New(opts...)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
 }
@@ -214,13 +318,20 @@ func startHARMockServer(t *testing.T, fixtures map[string]harFixture) *harMockSe
 	}
 
 	// ActivateSession 必需的 stub（仅当 HAR 未提供时）
+	// 按 fixture 的 Path 字段判断，兼容 GET_api_x 与 GET__api_x 两种键名风格
 	hasFixture := func(path string) bool {
-		_, ok := fixtures["GET_"+strings.TrimPrefix(path, "/")]
-		return ok
+		for _, fx := range fixtures {
+			if fx.Path == path {
+				return true
+			}
+		}
+		return false
 	}
 	activateStubs := map[string]string{
-		"/":                          `<html><body>home</body></html>`,
-		"/api/studentInfo/getMyInfo": `{"code":1,"msg":"成功","returnData":{"name":"测试用户","studentNumber":"TEST001","schoolName":"测试学校","className":"测试班级","seat":1}}`,
+		"/":                        `<html><body>home</body></html>`,
+		"/api/studentInfo/getMenu": `{"code":1,"msg":"ok"}`,
+		"/api/studentCircleNew/getCircleTypeByTaskId": `{"code":1,"msg":"ok","dataMap":{"task_id":16513,"circle_type_id":10,"dimension_id":3,"hours":32,"task_name":"stub","type_name":"stub","dimension_name":"stub","remark":"","type":1}}`,
+		"/api/studentInfo/getMyInfo":                  `{"code":1,"msg":"成功","returnData":{"name":"测试用户","studentNumber":"TEST001","schoolName":"测试学校","className":"测试班级","seat":1}}`,
 	}
 	for path, body := range activateStubs {
 		path := path
@@ -482,7 +593,7 @@ func TestHAR_SubmitTask(t *testing.T) {
 	input := types.TaskSubmitInput{
 		TaskID:     16493,
 		Content:    "通过参加爱党等相关活动...（真实内容约 100 字）",
-		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		ImagePaths: []string{createTestImage(t)},
 		Address:    "学校操场",
 		Level:      "5",
 		PlayRole:   "3",
@@ -577,7 +688,7 @@ func TestHAR_SubmitTask_Military(t *testing.T) {
 	input := types.TaskSubmitInput{
 		TaskID:     16513,
 		Content:    "通过军训，我学会了坚持和团队合作...（真实心得约 100 字）",
-		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		ImagePaths: []string{createTestImage(t)},
 		Address:    "示例中学",
 	}
 
@@ -609,7 +720,7 @@ func TestHAR_SubmitTask_ClassMeeting(t *testing.T) {
 	input := types.TaskSubmitInput{
 		TaskID:     16324,
 		Content:    "今天班会我们讨论了诚信考试的重要性...（真实心得）",
-		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		ImagePaths: []string{createTestImage(t)},
 		Address:    "高一(8)班",
 		PlayRole:   types.PlayRoleParticipant,
 	}
@@ -642,7 +753,7 @@ func TestHAR_SubmitTask_Labor(t *testing.T) {
 	input := types.TaskSubmitInput{
 		TaskID:     16512,
 		Content:    "通过参加校园劳动，我体会到...（真实心得约 100 字）",
-		ImagePaths: []string{"./har-fixture-photo.jpg"},
+		ImagePaths: []string{createTestImage(t)},
 		Address:    "示例中学",
 		Level:      "5",
 	}
