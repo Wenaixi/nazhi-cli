@@ -240,7 +240,7 @@ func TestIsContextError(t *testing.T) {
 
 // TestParseHours_InvalidNonEmpty 非空且 ParseFloat 失败应返回 ErrInvalidPayload。
 func TestParseHours_InvalidNonEmpty(t *testing.T) {
-	_, err := parseHours("abc", 1.5)
+	_, err := parseHours("abc", 1.5, 6)
 	if err == nil {
 		t.Fatal("非法 hours 应返回 error")
 	}
@@ -252,7 +252,7 @@ func TestParseHours_InvalidNonEmpty(t *testing.T) {
 func TestParseHours_RejectsNonFinite(t *testing.T) {
 	for _, input := range []string{"NaN", "+Inf", "-Inf"} {
 		t.Run(input, func(t *testing.T) {
-			_, err := parseHours(input, 1.5)
+			_, err := parseHours(input, 1.5, 6)
 			if err == nil {
 				t.Fatal("非有限 hours 应返回 error")
 			}
@@ -265,7 +265,7 @@ func TestParseHours_RejectsNonFinite(t *testing.T) {
 
 // TestParseHours_EmptyFallsBackWhenMetaPositive 空串且任务预设 >0 → 用元数据（前端只读自动填）。
 func TestParseHours_EmptyFallsBackWhenMetaPositive(t *testing.T) {
-	got, err := parseHours("  ", 2.5)
+	got, err := parseHours("  ", 2.5, 6)
 	if err != nil {
 		t.Fatalf("空串+meta>0 不应 error: %v", err)
 	}
@@ -276,14 +276,14 @@ func TestParseHours_EmptyFallsBackWhenMetaPositive(t *testing.T) {
 
 // TestParseHours_EmptyMetaZeroRequiresUser 任务预设 ≤0 且用户空 → 对齐前端 checkData 拦截。
 func TestParseHours_EmptyMetaZeroRequiresUser(t *testing.T) {
-	_, err := parseHours("", 0)
+	_, err := parseHours("", 0, 6)
 	if err == nil {
 		t.Fatal("meta.Hours=0 且用户空应返回 error")
 	}
 	if !errors.Is(err, ErrInvalidPayload) {
 		t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
 	}
-	_, err = parseHours("  ", 0)
+	_, err = parseHours("  ", 0, 6)
 	if err == nil || !errors.Is(err, ErrInvalidPayload) {
 		t.Fatalf("空白串+meta=0 也应 ErrInvalidPayload，实际: %v", err)
 	}
@@ -291,7 +291,7 @@ func TestParseHours_EmptyMetaZeroRequiresUser(t *testing.T) {
 
 // TestParseHours_ExplicitOverridesMeta 用户显式 hours 优先于任务预设。
 func TestParseHours_ExplicitOverridesMeta(t *testing.T) {
-	got, err := parseHours("3.5", 1.0)
+	got, err := parseHours("3.5", 1.0, 6)
 	if err != nil {
 		t.Fatalf("合法 hours 不应 error: %v", err)
 	}
@@ -299,7 +299,7 @@ func TestParseHours_ExplicitOverridesMeta(t *testing.T) {
 		t.Fatalf("期望 3.5，得到 %v", got)
 	}
 	// 任务无预设时用户手填也应成功
-	got, err = parseHours("1.5", 0)
+	got, err = parseHours("1.5", 0, 6)
 	if err != nil {
 		t.Fatalf("meta=0 但用户填了不应 error: %v", err)
 	}

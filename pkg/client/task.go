@@ -312,13 +312,18 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 //   - 用户非空：解析为 float；非法则 ErrInvalidPayload
 //   - 用户空且 metaHours > 0：用任务预设（前端只读自动填）
 //   - 用户空且 metaHours <= 0：ErrInvalidPayload（前端可编辑且 checkData 常要求非空）
-func parseHours(userInput string, metaHours float64) (float64, error) {
+var hoursRequiredTarget = map[int]bool{1: true, 6: true, 10: true}
+
+func parseHours(userInput string, metaHours float64, targetType int) (float64, error) {
 	h := strings.TrimSpace(userInput)
 	if h == "" {
 		if metaHours > 0 {
 			return metaHours, nil
 		}
-		return 0, fmt.Errorf("%w: hours 必填（任务未预设学时，须由调用方填写）", ErrInvalidPayload)
+		if hoursRequiredTarget[targetType] {
+			return 0, fmt.Errorf("%w: hours 必填（任务未预设学时，须由调用方填写）", ErrInvalidPayload)
+		}
+		return 0, nil
 	}
 	parsed, err := strconv.ParseFloat(h, 64)
 	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
@@ -346,7 +351,7 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
 	}
 
-	hours, err := parseHours(input.GetHours(), meta.Hours)
+	hours, err := parseHours(input.GetHours(), meta.Hours, meta.Type)
 	if err != nil {
 		return nil, err
 	}
