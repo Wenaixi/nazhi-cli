@@ -41,15 +41,65 @@ type AddTypicalCasePayload struct {
 
 // UnmarshalJSON 兼容前端表单初始 attachmentId:""。
 // 空字符串/null 表示尚未上传附件，归一为零值；数字仍按原值保留。
+func flexStringFromNumber(raw json.RawMessage, field string) (string, bool, error) {
+	if len(raw) == 0 {
+		return "", false, nil
+	}
+	data := bytes.TrimSpace(raw)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		return "", false, nil
+	}
+	if data[0] == '"' {
+		var s string
+		if err := json.Unmarshal(data, &s); err != nil {
+			return "", false, fmt.Errorf("%s: %w", field, err)
+		}
+		return strings.TrimSpace(s), true, nil
+	}
+	var n json.Number
+	if err := json.Unmarshal(data, &n); err != nil {
+		return "", false, fmt.Errorf("%s: 期望字符串或数字，得到 %s: %w", field, string(data), err)
+	}
+	if i, err := n.Int64(); err == nil {
+		return strconv.FormatInt(i, 10), true, nil
+	}
+	f, err := n.Float64()
+	if err != nil {
+		return "", false, fmt.Errorf("%s: 无法解析 number %q: %w", field, n.String(), err)
+	}
+	if f != float64(int64(f)) {
+		return "", false, fmt.Errorf("%s: 期望整数，得到 %v", field, f)
+	}
+	return strconv.FormatInt(int64(f), 10), true, nil
+}
+
 func (p *AddTypicalCasePayload) UnmarshalJSON(data []byte) error {
 	type payloadAlias AddTypicalCasePayload
 	var raw struct {
+		Type         json.RawMessage `json:"type"`
+		Role         json.RawMessage `json:"role"`
+		Level        json.RawMessage `json:"level"`
 		AttachmentID json.RawMessage `json:"attachmentId"`
 		*payloadAlias
 	}
 	raw.payloadAlias = (*payloadAlias)(p)
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
+	}
+	if v, ok, err := flexStringFromNumber(raw.Type, "type"); err != nil {
+		return err
+	} else if ok {
+		p.Type = v
+	}
+	if v, ok, err := flexStringFromNumber(raw.Role, "role"); err != nil {
+		return err
+	} else if ok {
+		p.Role = v
+	}
+	if v, ok, err := flexStringFromNumber(raw.Level, "level"); err != nil {
+		return err
+	} else if ok {
+		p.Level = v
 	}
 	id := bytes.TrimSpace(raw.AttachmentID)
 	if len(id) == 0 {

@@ -26,12 +26,12 @@ const (
 //
 // SDK 约定：空串原样发送，不发明 "5"；展示名与字典名以服务端为准，此处常量仅为调用方显式赋值时的可读别名。
 const (
-	TaskLevelNational    = "1" // 国家
-	TaskLevelProvince    = "2" // 省
-	TaskLevelCity        = "3" // 地区/市
-	TaskLevelCounty      = "4" // 区/县/街道/社区
-	TaskLevelSchool      = "5" // 校
-	TaskLevelGrade       = "6" // 年段
+	TaskLevelNational = "1" // 国家
+	TaskLevelProvince = "2" // 省
+	TaskLevelCity     = "3" // 地区/市
+	TaskLevelCounty   = "4" // 区/县/街道/社区
+	TaskLevelSchool   = "5" // 校
+	TaskLevelGrade    = "6" // 年段
 )
 
 // TaskLevelName 返回等级代码对应的展示名（1..6），未知返回空串。
@@ -61,9 +61,9 @@ func TaskLevelName(code string) string {
 //   - 表单中部分 targetName 用 radio（1/3），部分用 select；展示映射一致。
 const (
 	CheckResultExcellent = "1" // 优秀
-	CheckResultGood       = "2" // 良
-	CheckResultPass       = "3" // 合格
-	CheckResultPoor       = "4" // 差
+	CheckResultGood      = "2" // 良
+	CheckResultPass      = "3" // 合格
+	CheckResultPoor      = "4" // 差
 )
 
 // CheckResultName 返回审核情况代码的展示名。

@@ -512,14 +512,103 @@ func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskS
 //   - 14 类任务各自必填的字段是否已就位
 //
 // 对齐前端：前端是 JSON.stringify(form) 原样发送，SDK 预览也是 Trim 后原样 + 预设回填，不发明默认值。
-func (c *Client) PreviewSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildTaskPayload(ctx, token, input, "PreviewSubmitPayload")
+func (c *Client) buildPreviewPayload(ctx context.Context, token string, input types.TaskInput, callerName string) (*types.TaskAddCirclePayload, error) {
+	if err := input.Validate(); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
+	}
+	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
+	if err != nil {
+		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
+	}
+	hours, err := parseHours(input.GetHours(), meta.Hours, meta.Type)
+	if err != nil {
+		return nil, err
+	}
+	pictureList := make([]int64, 0, len(input.GetImageIDs()))
+	for _, id := range input.GetImageIDs() {
+		if id <= 0 {
+			continue
+		}
+		pictureList = append(pictureList, id)
+	}
+	address := input.GetAddress()
+	playRole := input.GetPlayRole()
+	level := input.GetLevel()
+	name := input.GetName()
+	hostName := input.GetHostName()
+	circleDate := input.GetCircleDate()
+	rank := input.GetRank()
+	activityName := input.GetActivityName()
+	sportsName := input.GetSportsName()
+	teamName := input.GetTeamName()
+	orgName := input.GetOrgName()
+	resultsName := input.GetResultsName()
+	obtainTime := input.GetObtainTime()
+	specialtyTechnology := input.GetSpecialtyTechnology()
+	likeSpecialty1 := input.GetLikeSpecialty1()
+	likeSpecialty2 := input.GetLikeSpecialty2()
+	likeSpecialty3 := input.GetLikeSpecialty3()
+	// 对齐 buildTaskPayload 的 Trim 语义：空串保持空，不发明
+	address = strings.TrimSpace(address)
+	playRole = strings.TrimSpace(playRole)
+	level = strings.TrimSpace(level)
+	name = strings.TrimSpace(name)
+	hostName = strings.TrimSpace(hostName)
+	circleDate = strings.TrimSpace(circleDate)
+	rank = strings.TrimSpace(rank)
+	activityName = strings.TrimSpace(activityName)
+	sportsName = strings.TrimSpace(sportsName)
+	teamName = strings.TrimSpace(teamName)
+	orgName = strings.TrimSpace(orgName)
+	resultsName = strings.TrimSpace(resultsName)
+	obtainTime = strings.TrimSpace(obtainTime)
+	specialtyTechnology = strings.TrimSpace(specialtyTechnology)
+	likeSpecialty1 = strings.TrimSpace(likeSpecialty1)
+	likeSpecialty2 = strings.TrimSpace(likeSpecialty2)
+	likeSpecialty3 = strings.TrimSpace(likeSpecialty3)
+	payload := &types.TaskAddCirclePayload{
+		ID:                  input.GetID(),
+		Name:                name,
+		HostName:            hostName,
+		CircleDate:          circleDate,
+		Rank:                rank,
+		Level:               level,
+		Content:             strings.TrimSpace(input.GetContent()),
+		PictureList:         pictureList,
+		CircleTaskID:        meta.TaskID,
+		CircleTypeID:        meta.CircleTypeID,
+		DimensionID:         meta.DimensionID,
+		Hours:               hours,
+		CircleBeginDate:     strings.TrimSpace(input.GetCircleBeginDate()),
+		CircleEndDate:       strings.TrimSpace(input.GetCircleEndDate()),
+		CheckResult:         strings.TrimSpace(input.GetCheckResult()),
+		PatentType:          strings.TrimSpace(input.GetPatentType()),
+		PatentNum:           strings.TrimSpace(input.GetPatentNum()),
+		Address:             address,
+		TermName:            strings.TrimSpace(input.GetTermName()),
+		ActivityName:        activityName,
+		SportsName:          sportsName,
+		TeamName:            teamName,
+		OrgName:             orgName,
+		ResultsName:         resultsName,
+		ObtainTime:          obtainTime,
+		SpecialtyTechnology: specialtyTechnology,
+		PlayRole:            playRole,
+		LikeSpecialty1:      likeSpecialty1,
+		LikeSpecialty2:      likeSpecialty2,
+		LikeSpecialty3:      likeSpecialty3,
+	}
+	return payload, nil
 }
 
-// PreviewEditPayload 预览编辑时的最终 payload（不发请求）。
-// 与 EditCircle 共用同一 build 链路，区别仅在于会携带 id。
+func (c *Client) PreviewSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
+	return c.buildPreviewPayload(ctx, token, input, "PreviewSubmitPayload")
+}
+
+// PreviewEditPayload 预览编辑时的最终 payload（不发请求，纯预览不上传）。
+// 与 EditCircle 共用同一字段映射，但不执行 UploadFile，避免本地文件副作用。
 func (c *Client) PreviewEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildTaskPayload(ctx, token, input, "PreviewEditPayload")
+	return c.buildPreviewPayload(ctx, token, input, "PreviewEditPayload")
 }
 
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*types.TaskCircleTypeInfo, error) {
