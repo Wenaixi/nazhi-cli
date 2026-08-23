@@ -56,7 +56,13 @@ func metaEx(t *testing.T, hours float64, typeVal int, remark string) string {
 }
 
 func TestParseHours_Exhaustive(t *testing.T) {
-	cases := []struct{ name, user string; meta float64; target int; wantErr bool; wantVal float64 }{
+	cases := []struct {
+		name, user string
+		meta       float64
+		target     int
+		wantErr    bool
+		wantVal    float64
+	}{
 		{"meta pos empty required", "", 2, 1, false, 2},
 		{"meta pos empty non-required", "", 2, 2, false, 2},
 		{"meta zero empty required 1", "", 0, 1, true, 0},
@@ -85,12 +91,20 @@ func TestParseHours_Exhaustive(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			got, err := parseHours(tc.user, tc.meta, tc.target)
 			if tc.wantErr {
-				if err == nil { t.Fatalf("want err got %v", got) }
-				if !errors.Is(err, ErrInvalidPayload) { t.Fatalf("want ErrInvalidPayload got %v", err) }
+				if err == nil {
+					t.Fatalf("want err got %v", got)
+				}
+				if !errors.Is(err, ErrInvalidPayload) {
+					t.Fatalf("want ErrInvalidPayload got %v", err)
+				}
 				return
 			}
-			if err != nil { t.Fatalf("unexpected %v", err) }
-			if got != tc.wantVal { t.Fatalf("want %v got %v", tc.wantVal, got) }
+			if err != nil {
+				t.Fatalf("unexpected %v", err)
+			}
+			if got != tc.wantVal {
+				t.Fatalf("want %v got %v", tc.wantVal, got)
+			}
 		})
 	}
 }
@@ -102,17 +116,33 @@ func TestBuildTaskPayload_30KeysAlwaysPresentExhaustive(t *testing.T) {
 	c, _ := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL), WithTimeout(5*1000*1000*1000))
 	defer c.Close()
 	_, err := c.SubmitTask(t.Context(), "tok", types.TaskSubmitInput{TaskID: 1001, Content: "c"})
-	if err != nil { t.Fatalf("30 keys %v", err) }
+	if err != nil {
+		t.Fatalf("30 keys %v", err)
+	}
 	b, _ := json.Marshal(cap)
 	var m map[string]json.RawMessage
-	if err := json.Unmarshal(b, &m); err != nil { t.Fatalf("%v", err) }
-	required := []string{"name","hostName","circleDate","rank","level","content","pictureList","circleTaskId","circleTypeId","dimensionId","hours","circleBeginDate","circleEndDate","checkResult","patentType","patentNum","address","termName","activityName","sportsName","teamName","orgName","resultsName","obtainTime","specialtyTechnology","playRole","likeSpecialty1","likeSpecialty2","likeSpecialty3"}
-	for _, k := range required { if _, ok := m[k]; !ok { t.Fatalf("missing %s in %s", k, string(b)) } }
-	if _, ok := m["id"]; ok { t.Fatalf("submit should not have id") }
+	if err := json.Unmarshal(b, &m); err != nil {
+		t.Fatalf("%v", err)
+	}
+	required := []string{"name", "hostName", "circleDate", "rank", "level", "content", "pictureList", "circleTaskId", "circleTypeId", "dimensionId", "hours", "circleBeginDate", "circleEndDate", "checkResult", "patentType", "patentNum", "address", "termName", "activityName", "sportsName", "teamName", "orgName", "resultsName", "obtainTime", "specialtyTechnology", "playRole", "likeSpecialty1", "likeSpecialty2", "likeSpecialty3"}
+	for _, k := range required {
+		if _, ok := m[k]; !ok {
+			t.Fatalf("missing %s in %s", k, string(b))
+		}
+	}
+	if _, ok := m["id"]; ok {
+		t.Fatalf("submit should not have id")
+	}
 }
 
 func TestBuildTaskPayload_All14_TemplateFieldsCarriedExhaustive(t *testing.T) {
-	cases := []struct{ name string; typeVal int; hours float64; in types.TaskSubmitInput; want map[string]string }{
+	cases := []struct {
+		name    string
+		typeVal int
+		hours   float64
+		in      types.TaskSubmitInput
+		want    map[string]string
+	}{
 		{"1", 1, 0, types.TaskSubmitInput{TaskID: 1001, Content: "c", Name: "act", Address: "loc", Hours: "2", PlayRole: "1"}, map[string]string{"name": "act", "playRole": "1"}},
 		{"4-art", 4, 0, types.TaskSubmitInput{TaskID: 1001, Content: "c", Name: "sing", HostName: "org", ObtainTime: "2026-04-15", Rank: "A", Level: "5", Hours: "1"}, map[string]string{"level": "5"}},
 		{"6-practice", 6, 0, types.TaskSubmitInput{TaskID: 1001, Content: "c", OrgName: "comm", Address: "base", Hours: "120", CheckResult: "2"}, map[string]string{"checkResult": "2"}},
@@ -127,11 +157,17 @@ func TestBuildTaskPayload_All14_TemplateFieldsCarriedExhaustive(t *testing.T) {
 			c, _ := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL), WithTimeout(5*1000*1000*1000))
 			defer c.Close()
 			_, err := c.SubmitTask(t.Context(), "tok", tc.in)
-			if err != nil { t.Fatalf("%s %v", tc.name, err) }
+			if err != nil {
+				t.Fatalf("%s %v", tc.name, err)
+			}
 			b, _ := json.Marshal(cap)
 			var m map[string]any
 			_ = json.Unmarshal(b, &m)
-			for k, want := range tc.want { if fmt.Sprint(m[k]) != want { t.Fatalf("%s %s want %q got %v", tc.name, k, want, m[k]) } }
+			for k, want := range tc.want {
+				if fmt.Sprint(m[k]) != want {
+					t.Fatalf("%s %s want %q got %v", tc.name, k, want, m[k])
+				}
+			}
 		})
 	}
 }
@@ -141,11 +177,14 @@ func TestBuildTaskPayload_GetCircleTypeFailureExhaustive(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/", "/api/studentInfo/getMenu":
-			w.WriteHeader(200); _, _ = w.Write([]byte("{\"code\":1,\"msg\":\"ok\"}"))
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"ok\"}"))
 		case "/api/studentInfo/getMyInfo":
-			w.WriteHeader(200); _, _ = w.Write([]byte("{\"code\":1,\"msg\":\"ok\",\"returnData\":{\"name\":\"a\"}}"))
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"ok\",\"returnData\":{\"name\":\"a\"}}"))
 		case "/api/studentCircleNew/getCircleTypeByTaskId":
-			w.WriteHeader(200); _, _ = w.Write([]byte("{\"code\":500,\"msg\":\"not found\"}"))
+			w.WriteHeader(200)
+			_, _ = w.Write([]byte("{\"code\":500,\"msg\":\"not found\"}"))
 		default:
 			w.WriteHeader(500)
 		}
@@ -154,6 +193,10 @@ func TestBuildTaskPayload_GetCircleTypeFailureExhaustive(t *testing.T) {
 	c, _ := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL), WithTimeout(5*1000*1000*1000))
 	defer c.Close()
 	_, err := c.SubmitTask(t.Context(), "tok", types.TaskSubmitInput{TaskID: 9999, Content: "c"})
-	if err == nil { t.Fatal("should fail") }
-	if !strings.Contains(err.Error(), "SubmitTask") { t.Fatalf("should contain caller %v", err) }
+	if err == nil {
+		t.Fatal("should fail")
+	}
+	if !strings.Contains(err.Error(), "SubmitTask") {
+		t.Fatalf("should contain caller %v", err)
+	}
 }

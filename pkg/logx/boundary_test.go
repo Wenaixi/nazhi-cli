@@ -14,7 +14,11 @@ import (
 )
 
 func TestBoundary_ParseLevel_Edge(t *testing.T) {
-	cases := []struct{ in string; want slog.Level; ok bool }{
+	cases := []struct {
+		in   string
+		want slog.Level
+		ok   bool
+	}{
 		{"debug", slog.LevelDebug, true},
 		{"DEBUG", slog.LevelDebug, true},
 		{" debug ", slog.LevelDebug, true},
@@ -97,7 +101,10 @@ func TestBoundary_TraceContext_NilAndEmpty(t *testing.T) {
 
 func TestBoundary_RedactHeader_Edge(t *testing.T) {
 	// sensitive case-insensitive
-	cases := []struct{ k, v, wantContains string; wantNot string }{
+	cases := []struct {
+		k, v, wantContains string
+		wantNot            string
+	}{
 		{"X-Auth-Token", "eyJhbGciOiJIUzI1NiJ9.payload", "***", "eyJhbGci"},
 		{"x-auth-token", "short", "***", ""},
 		{"Authorization", "Bearer abc123", "***", "Bearer"},
@@ -276,4 +283,5 @@ func TestBoundary_MultiWriter_OneFailsOthersStillWrite(t *testing.T) {
 }
 
 type failingWriter struct{}
+
 func (f *failingWriter) Write(p []byte) (int, error) { return 0, os.ErrPermission }

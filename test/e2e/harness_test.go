@@ -174,7 +174,7 @@ func TestMain(m *testing.M) {
 				fmt.Fprintf(os.Stderr, "[e2e] token 缓存同步失败: %v\n", err3)
 			}
 		} else {
-				siliconKey := resolveSiliconKey()
+			siliconKey := resolveSiliconKey()
 			if siliconKey == "" {
 				fmt.Fprintf(os.Stderr, "[e2e] 缺 NAZHI_SILICONFLOW_API_KEY 且未找到 Nazhi-auto fallback，live 将 Skip（write mock 仍可用）\n")
 				liveAvailable = false
@@ -260,8 +260,8 @@ func resolveSiliconKey() string {
 	}
 	// fallback: 读 Nazhi-auto 配置
 	candidates := []string{
-			`E:/newCC/life-new2026/Nazhi-auto/backend/data/settings.yaml`,
-			`E:/newCC/life-new2026/Nazhi-auto/data/settings.yaml`,
+		`E:/newCC/life-new2026/Nazhi-auto/backend/data/settings.yaml`,
+		`E:/newCC/life-new2026/Nazhi-auto/data/settings.yaml`,
 	}
 	for _, p := range candidates {
 		data, err := os.ReadFile(p)
@@ -380,7 +380,6 @@ func newMockWriteServer() *httptest.Server {
 	register("/api/studentMoralEduNew/addSelfEvaluation", withJSONCheck(writeOK))
 	register("/api/studentMoralEduNew/addSelfGradEvaluation", withJSONCheck(writeOK))
 	register("/api/studentInfo/updateMyInfo", withJSONCheck(writeOK))
-
 
 	// --- Session 激活链路（复用 integration 的最小 stub） ---
 	register("/", func(w http.ResponseWriter, r *http.Request) {

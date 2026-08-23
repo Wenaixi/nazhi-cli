@@ -26,7 +26,13 @@ func newMiniCmd() *cobra.Command {
 // 1. 无效 level/format 仅 warn 回落不阻断
 func TestBoundary_CLI_InvalidLevelAndFormat_Fallback(t *testing.T) {
 	origLevel, origFormat, origFile, origVerbose, origQuiet := cliLogLevel, cliLogFormat, cliLogFile, verbose, quiet
-	defer func() { cliLogLevel = origLevel; cliLogFormat = origFormat; cliLogFile = origFile; verbose = origVerbose; quiet = origQuiet }()
+	defer func() {
+		cliLogLevel = origLevel
+		cliLogFormat = origFormat
+		cliLogFile = origFile
+		verbose = origVerbose
+		quiet = origQuiet
+	}()
 	quiet = false
 	verbose = false
 	cliLogFile = ""
@@ -111,7 +117,13 @@ func TestBoundary_CLI_VerboseOnlyWhenNoExplicitLevel(t *testing.T) {
 // 4. 无效 log-file 仅 warn 不阻断 build
 func TestBoundary_CLI_InvalidLogFile_NotBlock(t *testing.T) {
 	origLevel, origFormat, origFile, origVerbose, origQuiet := cliLogLevel, cliLogFormat, cliLogFile, verbose, quiet
-	defer func() { cliLogLevel = origLevel; cliLogFormat = origFormat; cliLogFile = origFile; verbose = origVerbose; quiet = origQuiet }()
+	defer func() {
+		cliLogLevel = origLevel
+		cliLogFormat = origFormat
+		cliLogFile = origFile
+		verbose = origVerbose
+		quiet = origQuiet
+	}()
 	quiet = false
 	verbose = false
 	cliLogLevel = "warn"
@@ -136,7 +148,13 @@ func TestBoundary_CLI_InvalidLogFile_NotBlock(t *testing.T) {
 // 5. quiet+file 仍落地 且 stderr 静默（通过 buildClientOpts 直接测 writer 数）
 func TestBoundary_CLI_QuietWithFile_StillWrites(t *testing.T) {
 	origLevel, origFormat, origFile, origVerbose, origQuiet := cliLogLevel, cliLogFormat, cliLogFile, verbose, quiet
-	defer func() { cliLogLevel = origLevel; cliLogFormat = origFormat; cliLogFile = origFile; verbose = origVerbose; quiet = origQuiet }()
+	defer func() {
+		cliLogLevel = origLevel
+		cliLogFormat = origFormat
+		cliLogFile = origFile
+		verbose = origVerbose
+		quiet = origQuiet
+	}()
 	dir := t.TempDir()
 	p := filepath.Join(dir, "quiet-file.log")
 	cliLogLevel = "debug"
@@ -168,7 +186,13 @@ func TestBoundary_CLI_QuietWithFile_StillWrites(t *testing.T) {
 // 6. json 格式每行含 trace_id 与 level
 func TestBoundary_CLI_JSONFormat_ContainsTraceAndLevel(t *testing.T) {
 	origLevel, origFormat, origFile, origVerbose, origQuiet := cliLogLevel, cliLogFormat, cliLogFile, verbose, quiet
-	defer func() { cliLogLevel = origLevel; cliLogFormat = origFormat; cliLogFile = origFile; verbose = origVerbose; quiet = origQuiet }()
+	defer func() {
+		cliLogLevel = origLevel
+		cliLogFormat = origFormat
+		cliLogFile = origFile
+		verbose = origVerbose
+		quiet = origQuiet
+	}()
 	dir := t.TempDir()
 	p := filepath.Join(dir, "json.log")
 	cliLogLevel = "debug"
@@ -206,7 +230,13 @@ func TestBoundary_CLI_TextFormat_ContainsTrace(t *testing.T) {
 // 8. NAZHI_LOG_FILE env 生效当 flag 为空
 func TestBoundary_CLI_LogFileEnv_WhenFlagEmpty(t *testing.T) {
 	origLevel, origFormat, origFile, origVerbose, origQuiet := cliLogLevel, cliLogFormat, cliLogFile, verbose, quiet
-	defer func() { cliLogLevel = origLevel; cliLogFormat = origFormat; cliLogFile = origFile; verbose = origVerbose; quiet = origQuiet }()
+	defer func() {
+		cliLogLevel = origLevel
+		cliLogFormat = origFormat
+		cliLogFile = origFile
+		verbose = origVerbose
+		quiet = origQuiet
+	}()
 	dir := t.TempDir()
 	p := filepath.Join(dir, "env-file.log")
 	cliLogLevel = "debug"

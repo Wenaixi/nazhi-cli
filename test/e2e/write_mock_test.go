@@ -23,11 +23,11 @@ func TestE2E_WriteMock(t *testing.T) {
 		{"honor/AddHonor", func(t *testing.T) {
 			ClearRecordedWrites()
 			err := mockClient.AddHonor(ctx, "fake-token", types.AddHonorPayload{
-				TypeID:   1148,
-				TypeName: "校三好学生",
-				Level:    5,
-				Name:     "校三好学生",
-				GetDate:  "2026-05-25",
+				TypeID:           1148,
+				TypeName:         "校三好学生",
+				Level:            5,
+				Name:             "校三好学生",
+				GetDate:          "2026-05-25",
 				EvaluationAgency: "福清一中",
 			})
 			if err != nil {
