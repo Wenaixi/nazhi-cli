@@ -110,11 +110,12 @@ func isNil(v any) bool {
 	if v == nil {
 		return true
 	}
-	switch rv := reflect.ValueOf(v); rv.Kind() { //nolint:exhaustive
+	switch rv := reflect.ValueOf(v); rv.Kind() {
 	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return rv.IsNil()
+	default:
+		return false
 	}
-	return false
 }
 
 // ─── Option 构造器 ───
@@ -364,21 +365,6 @@ func (c *Client) logDebug(format string, args ...any) {
 // logDebugCtx 是携带 context 的 debug 日志，用于透传 trace_id。
 func (c *Client) logDebugCtx(ctx context.Context, format string, args ...any) {
 	c.logWithLevel(ctx, slog.LevelDebug, format, args...)
-}
-
-// logInfoCtx 输出 info 级别日志并携带 trace_id。
-func (c *Client) logInfoCtx(ctx context.Context, format string, args ...any) { //nolint:unused
-	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
-}
-
-// logWarnCtx 输出 warn 级别日志并携带 trace_id。
-func (c *Client) logWarnCtx(ctx context.Context, format string, args ...any) { //nolint:unused
-	c.logWithLevel(ctx, slog.LevelWarn, format, args...)
-}
-
-// logErrorCtx 输出 error 级别日志并携带 trace_id。
-func (c *Client) logErrorCtx(ctx context.Context, format string, args ...any) { //nolint:unused
-	c.logWithLevel(ctx, slog.LevelError, format, args...)
 }
 
 // LogDebugForTest 暴露给白盒测试的 debug 入口（携带 ctx）。

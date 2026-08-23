@@ -195,13 +195,6 @@ func (c *Client) PeekSubmittedTotal(ctx context.Context, token string, key strin
 	return pb.TotalNum, nil
 }
 
-// fetchSubmittedPageJSON 拉取一页已提交写实记录，返回原始 dataList 字节。
-//
-// 已弃用：请使用 fetchCirclePageJSON。
-func (c *Client) fetchSubmittedPageJSON(ctx context.Context, token string, pageNo, pageSize int) (*types.PageBean, []byte, error) { //nolint:unused
-	return c.fetchCirclePageJSON(ctx, token, pageNo, pageSize, 3, "")
-}
-
 // ─── type=4: 被撤回的写实 ───
 
 // GetWithdrawnCircles 获取被撤回的全部写实记录。

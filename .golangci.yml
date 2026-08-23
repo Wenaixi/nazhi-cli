@@ -40,6 +40,7 @@ issues:
     - path: pkg/types/.*\.go
       linters:
         - revive
+      text: "var-naming"
 
   # 显式排除通常不检查的返回值
   exclude-functions:

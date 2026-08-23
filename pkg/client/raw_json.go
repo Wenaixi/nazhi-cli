@@ -40,17 +40,6 @@ func rawListBytes(resp types.UnifiedResponse) []byte {
 	return *resp.DataList
 }
 
-// rawObjectBytes 返回对象的原始字节（returnData 优先，dataMap 兜底）。
-func rawObjectBytes(resp types.UnifiedResponse) []byte { //nolint:unused
-	switch {
-	case resp.ReturnData != nil:
-		return *resp.ReturnData
-	case resp.DataMap != nil:
-		return *resp.DataMap
-	}
-	return nil
-}
-
 // rawSingleObjectBytes 返回单个对象的原始 JSON。
 // 用于 QuerySelfEvaluation 这种"returnData 优先，dataList[0] 兜底"的接口。
 //
