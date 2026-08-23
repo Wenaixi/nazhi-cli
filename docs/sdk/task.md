@@ -75,8 +75,8 @@ CLI 的 `--payload` 可直接接收真实前端表单 JSON：`hours` 兼容可�
 | 类别 | 字段 | 谁填 |
 |------|------|------|
 | 必填用户 | `TaskID`、`Content`；Edit 另需 `ID` | 调用方 |
-| 活动用户 | name / address / level / playRole / hostName / rank / activityName / sportsName / teamName / orgName / resultsName / obtainTime / specialtyTechnology / likeSpecialty1–3 / checkResult / patentType / patentNum / circleBeginDate / circleEndDate | 调用方按任务类型；**空串原样，不发明值** |
-| 半自动 | `Hours`（字符串） | 用户提供有效值时优先；用户空值且 meta.hours>0 → **SDK 用任务预设**；用户空值且 meta≤0 → `ErrInvalidPayload`；非法值 → `ErrInvalidPayload` |
+| 活动用户 | name / address / level / playRole / hostName / rank / activityName / sportsName / teamName / orgName / resultsName / obtainTime / specialtyTechnology / likeSpecialty1–3 / checkResult / patentType / patentNum / circleBeginDate / circleEndDate | 调用方按任务类型；**空串原样，不发明值**（`level` 1=国家 2=省 3=地区/市 4=区/县/街道/社区 5=校 6=年段，对齐前端 `switch(map.level)` 与字典 `cateCode=23`；`checkResult` 1=优秀 2=良 3=合格 4=差，对齐 `switch(map.check_result)`） |
+| 半自动 | `Hours`（字符串） | 用户提供有效值时优先；用户空值且 meta.hours>0 → **SDK 用任务预设**（前端 `getCircleTypeByTaskId` 中 `parseFloat(dataMap.hours)>0` 时 `hoursStatus=true` 并 `form.hours=dataMap.hours` 只读）；用户空值且 meta≤0 → `ErrInvalidPayload`；非法值 → `ErrInvalidPayload` |
 | 纯 SDK | `circleTaskId`、`circleTypeId`、`dimensionId` | `GetCircleTypeByTaskID(TaskID)` |
 | 纯 SDK | `pictureList` | `ImageIDs` + 对每个 `ImagePaths` 调 `UploadFile` |
 | 兼容非用户 | `CircleDate`、`TermName` | 前端无 v-model；可空保留，勿当必填 |
@@ -86,6 +86,8 @@ CLI 的 `--payload` 可直接接收真实前端表单 JSON：`hours` 兼容可�
 
 - 空 `Address` / `OrgName` → ~~学校名~~ **不会**  
 - 空 `Level` → ~~`"5"`~~ **不会**  
+
+> 等级常量：`types.TaskLevelNational/Province/City/County/School/Grade`（"1".."6"）与 `TaskLevelName(code)`、`CheckResultName(code)` 可用于可读赋值与展示，对齐前端原生 `src` 展示映射；真实字典以 `GET /api/common/sys/dict/list?cateCode=23` 为准。  
 
 写实等级字典（`GetDictList(cateCode=23)`，常见）：`1` 国家 … `5` 校 `6` 年段（以服务端为准）。
 

@@ -16,6 +16,72 @@ const (
 	PlayRoleParticipant     = "3" // 参与者
 )
 
+// 写实等级常量（对应服务端 level，对齐前端管理端字典与展示映射）。
+//
+// 前端来源（原生 src 对照）：
+//   - 获取字典：GET /api/common/sys/dict/list?cateCode=23 → 填充下拉（level 列表）
+//   - 展示映射：managementRightBottom.vue / yhmanagement 同步的 switch(map.level)
+//     1=国家  2=省  3=地区/市  4=区/县/街道/社区  5=校  6=年段
+//   - 提交校验：checkData 中 rank/level 成对校验（部分 targetName）
+//
+// SDK 约定：空串原样发送，不发明 "5"；展示名与字典名以服务端为准，此处常量仅为调用方显式赋值时的可读别名。
+const (
+	TaskLevelNational    = "1" // 国家
+	TaskLevelProvince    = "2" // 省
+	TaskLevelCity        = "3" // 地区/市
+	TaskLevelCounty      = "4" // 区/县/街道/社区
+	TaskLevelSchool      = "5" // 校
+	TaskLevelGrade       = "6" // 年段
+)
+
+// TaskLevelName 返回等级代码对应的展示名（1..6），未知返回空串。
+func TaskLevelName(code string) string {
+	switch code {
+	case TaskLevelNational:
+		return "国家"
+	case TaskLevelProvince:
+		return "省"
+	case TaskLevelCity:
+		return "地区/市"
+	case TaskLevelCounty:
+		return "区/县/街道/社区"
+	case TaskLevelSchool:
+		return "校"
+	case TaskLevelGrade:
+		return "年段"
+	default:
+		return ""
+	}
+}
+
+// 审核情况常量（对应服务端 checkResult，前端写实表单）。
+//
+// 前端来源（原生 src）：
+//   - managementRightTop/Bottom 的 switch(map.check_result): 1=优秀 2=良 3=合格 4=差
+//   - 表单中部分 targetName 用 radio（1/3），部分用 select；展示映射一致。
+const (
+	CheckResultExcellent = "1" // 优秀
+	CheckResultGood       = "2" // 良
+	CheckResultPass       = "3" // 合格
+	CheckResultPoor       = "4" // 差
+)
+
+// CheckResultName 返回审核情况代码的展示名。
+func CheckResultName(code string) string {
+	switch code {
+	case CheckResultExcellent:
+		return "优秀"
+	case CheckResultGood:
+		return "良"
+	case CheckResultPass:
+		return "合格"
+	case CheckResultPoor:
+		return "差"
+	default:
+		return ""
+	}
+}
+
 // Task 是面向调用方的精简任务条目。
 //
 // v2.0.0 变更：时间字段改为 string，保留服务端原始日期格式（如 "2026-01-12"）。
