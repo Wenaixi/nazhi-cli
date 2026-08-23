@@ -6,8 +6,11 @@ nazhi-cli：统一 JSON envelope 输出，便于脚本。字段级 API 见 [SDK 
 
 | 标志 | 说明 |
 |------|------|
-| `-v, --verbose` | 详细日志 → stderr |
-| `--quiet` | 关闭 stderr（含错误 JSON） |
+| `-v, --verbose` | 详细日志 → stderr（等价 `--log-level debug`，兼容旧用法） |
+| `--log-level` | 日志级别 `debug/info/warn/error` 默认 `warn`（也可 `NAZHI_LOG_LEVEL`） |
+| `--log-format` | 日志格式 `text/json` 默认 `text`（也可 `NAZHI_LOG_FORMAT`） |
+| `--log-file` | 日志落盘路径（也可 `NAZHI_LOG_FILE`）；**--quiet 仍会写入文件** |
+| `--quiet` | 关闭 stderr（含错误 JSON 与日志），但不影响 `--log-file` 落盘 |
 | `-h, --help` | 帮助 |
 | `--version` | 版本 |
 
@@ -28,6 +31,9 @@ nazhi-cli：统一 JSON envelope 输出，便于脚本。字段级 API 见 [SDK 
 | `NAZHI_SILICONFLOW_API_KEY` | Nazhi-auto 同款硅基流动 Qwen3-Omni 验证码识别（正式配置，必填） | `login` |
 | `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY` | 视觉模型密钥兼容别名 | `login` |
 | `NAZHI_OCR_BASE_URL` / `NAZHI_OCR_MODEL` | 可选覆盖视觉模型地址 / 模型名 | `login` |
+| `NAZHI_LOG_LEVEL` | 日志级别 `debug/info/warn/error` | 全局 |
+| `NAZHI_LOG_FORMAT` | 日志格式 `text/json` | 全局 |
+| `NAZHI_LOG_FILE` | 日志落盘路径 | 全局 |
 
 `login` 使用注入的视觉识别器；未配置视觉模型密钥时返回 503 和 `ErrOCRNotConfigured`。`file upload` / `file download` **不读**业务 token。可用 `.env`（已 gitignore）或 CI secrets。
 
@@ -61,7 +67,11 @@ nazhi
 | partial | 部分成功 | 1 |
 | error | 失败 | 1 业务 / 2 5xx 网络 / 3 参数(400) |
 
-stdout = envelope；stderr = 错误 JSON（非 quiet）+ verbose 日志。
+stdout = envelope；stderr = 错误 JSON（非 quiet）+ 结构化日志（受 --log-level/--log-format 控制）。
+
+**日志落盘与 --quiet 语义**：`--log-file`（或 `NAZHI_LOG_FILE`）时日志同时写入文件与 stderr；`--quiet` 仅静默 stderr，文件仍持续写入，便于 CI 留痕。日志级别优先级：`--log-level flag > NAZHI_LOG_LEVEL > 默认为 warn`；`--verbose` 仅当未显式传 `--log-level` 时等价 `debug`。所有日志经脱敏（token/X-Auth-Token/password/captcha 与 Referer 中的 token= 查询串统一掩码），body 截断默认 256。
+
+**全链追踪**：每次命令自动生成 `trace_id`（12 hex），贯穿 SDK 所有 HTTP 打点（→ 开始 / ← 结束含 status/duration/body 摘要），可通过 `--log-format json` 在每行 JSON 中查看 `trace_id` 字段串联全链。
 
 > 双层 code 对照（易混淆提醒）：业务层 `UnifiedResponse.code==1` 等价 CLI 信封层 `envelope.code==200`，同名不同层，切勿混用。
 >

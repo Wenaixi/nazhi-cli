@@ -268,6 +268,9 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 | `NAZHI_USERNAME` | 学号 | `login` | — |
 | `NAZHI_PASSWORD` | 密码 | `login` | — |
 | `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — |
+| `NAZHI_LOG_LEVEL` | 日志级别 debug/info/warn/error | 全局 | `warn` |
+| `NAZHI_LOG_FORMAT` | 日志格式 text/json | 全局 | `text` |
+| `NAZHI_LOG_FILE` | 日志落盘路径（quiet 仍写入） | 全局 | — |
 | `NAZHI_SSO_BASE` | SSO 根地址 | `login` | `https://www.nazhisoft.com` |
 | `NAZHI_BASE_URL` | 业务 API 根地址 | `session`、`whoami`、`task`、`self-eval`、`honor` | `http://139.159.205.146:8280` |
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` |

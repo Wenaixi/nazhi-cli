@@ -111,10 +111,32 @@ c, err := client.New(
 | `WithUploadURL` | 文件上传根地址 |
 | `WithTimeout` | HTTP 超时 |
 | `WithCustomOCR` | 注入视觉模型或其它验证码识别器（Login 必填） |
-| `WithLogger` | slog 风格日志 |
+| `WithLogger` | 注入 `log/slog` 风格日志；推荐用 `pkg/logx.NewLogger(level, format, writers...)` 组装 |
 | `WithSessionBackoff` | Session 失败冷却 |
 
 构造失败常见原因：cookie jar 初始化失败。用完 `defer c.Close()` 释放视觉识别器和 HTTP 资源。
+
+### 结构化日志与全链追踪（pkg/logx）
+
+```go
+import (
+  "context"
+  "log/slog"
+  "github.com/Wenaixi/nazhi-cli/pkg/logx"
+)
+// 按级别/格式/落盘组装 logger
+lg := logx.NewLogger(slog.LevelDebug, "json", os.Stderr)
+// 或同时落盘：lg := logx.NewLogger(slog.LevelDebug, "json", os.Stderr, fw) fw, _ := logx.NewFileWriter("/tmp/nazhi.log")
+c, _ := client.New(client.WithLogger(lg))
+// 每次业务调用携带 trace_id 串联全链
+ctx := logx.WithTraceID(context.Background(), logx.NewTraceID())
+_, _ = c.ActivateSession(ctx, token)
+_, _ = c.GetMyInfo(ctx, token)
+// 日志每行含 trace_id；敏感字段（token/password/captcha 与 Referer token=）自动脱敏
+```
+
+日志级别：`debug/info/warn/error`（默认 `warn`）；格式：`text/json`。CLI 通过 `--log-level/--log-format/--log-file`（或 `NAZHI_LOG_LEVEL/FORMAT/FILE`）透传到 SDK。
+
 
 ---
 

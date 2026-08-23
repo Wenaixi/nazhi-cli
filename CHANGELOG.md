@@ -2,6 +2,10 @@
 
 ## [未发布]
 
+### 新增
+
+- 日志系统增强（全流程可追踪）：新增 pkg/logx 薄封装（基于 stdlib slog，零新依赖）提供 Level/Format/File 解析、脱敏与 traceId 上下文；CLI 新增 --log-level debug/info/warn/error、--log-format text/json、--log-file 路径三旗标及对应 NAZHI_LOG_LEVEL/FORMAT/FILE 环境变量，兼容旧 --verbose（等价 debug，仅当未显式传 --log-level 时生效）；--quiet 仅静默 stderr，文件仍落盘便于 CI 留痕；SDK 在 request.go 统一 HTTP 生命周期打点并经 context 透传到 auth/session/file 全链，错误按 ClassifyError 定级；敏感字段统一脱敏，验证码原文永不落地。
+
 ### 破坏性变更
 
 - SDK 移除本地验证码识别器、相关模型/原生运行库及构建选项；所有 `Login` 调用方必须通过 `WithCustomOCR` 注入视觉识别器。CLI 默认使用硅基流动 Qwen3-Omni，纯 Go 构建不再需要 CGO 或额外模型文件。
