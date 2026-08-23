@@ -98,3 +98,6 @@ pnpm-lock.yaml
 .e2e_token
 test/e2e/.e2e_token
 test/e2e/.token_cache
+
+# superpowers 计划目录（本地草稿，不入库）
+.superpowers/
