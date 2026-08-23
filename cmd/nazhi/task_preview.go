@@ -8,9 +8,9 @@ import (
 )
 
 var taskPreviewCmd = &cobra.Command{
-	Use:   "preview",
-	Short: "Preview task payload without submitting",
-	Long: "Preview the final JSON payload for a task submit/edit without calling addCircle/editCircle.\n\nExposes SDK presets: circleTaskId/circleTypeId/dimensionId from GetCircleTypeByTaskId, hours auto-filled when task preset >0 and user leaves it empty, and pictureList merged from ImageIDs/ImagePaths. Empty address/orgName/level stay empty and are never filled with school name or \"5\". All user fields are Trimmed and sent as-is, matching frontend JSON.stringify(form).",
+	Use:     "preview",
+	Short:   "Preview task payload without submitting",
+	Long:    "Preview the final JSON payload for a task submit/edit without calling addCircle/editCircle.\n\nExposes SDK presets: circleTaskId/circleTypeId/dimensionId from GetCircleTypeByTaskId, hours auto-filled when task preset >0 and user leaves it empty, and pictureList merged from ImageIDs/ImagePaths. Empty address/orgName/level stay empty and are never filled with school name or \"5\". All user fields are Trimmed and sent as-is, matching frontend JSON.stringify(form).",
 	Example: "  nazhi task preview --token xxx --payload '{\"taskId\":18154,\"content\":\"heart\"}'\n  nazhi task preview --token xxx --payload @task.json\n  echo '{\"id\":5400001,\"taskId\":18154,\"content\":\"fix\"}' | nazhi task preview --token xxx --payload - --edit",
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")

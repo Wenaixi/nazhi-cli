@@ -3,7 +3,7 @@ package e2e
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
+
 	"time"
 )
 
@@ -20,7 +20,7 @@ func tokenCachePath() string {
 	if p := os.Getenv("NAZHI_E2E_TOKEN_CACHE"); p != "" {
 		return p
 	}
-	return filepath.Join(".e2e_token")
+	return ".e2e_token"
 }
 
 func loadTokenCache(path string) (*TokenCacheEntry, error) {

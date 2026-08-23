@@ -202,11 +202,8 @@ func TestE2E_WriteMock(t *testing.T) {
 		// mock 的 getCircleTypeByTaskId 未注册，预期失败（非 panic 即可）
 		if err == nil {
 			t.Logf("SubmitTask 意外成功（mock 可能已兜底）")
-		} else {
-			// 允许 ErrBusinessRejected / network / 任意非 panic
-			if contains(err.Error(), "panic") {
-				t.Fatalf("不应 panic: %v", err)
-			}
+		} else if contains(err.Error(), "panic") {
+			t.Fatalf("不应 panic: %v", err)
 		}
 		// 即使失败也不应产生未处理的 panic，上层已保证
 		_ = client.ErrBusinessRejected // 引用避免 unused

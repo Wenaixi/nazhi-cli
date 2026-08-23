@@ -111,7 +111,8 @@ func TestUploadFile_FormFilename_UsesBaseJpg(t *testing.T) {
 		t.Errorf("filename 不应含路径分隔符，实际 %q", filename)
 	}
 	if filepath.Base(tmpfile) == filename {
-		// 旧 bug 可能是 fullpath+".jpg"，也可能 basename 仍带 .png
+		// 已正确使用 basename，无需额外断言
+		t.Logf("filename 使用 basename：%q", filename)
 	}
 	if !strings.HasSuffix(strings.ToLower(filename), ".jpg") {
 		t.Errorf("filename 应统一 .jpg 扩展名，实际 %q", filename)

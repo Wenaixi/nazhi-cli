@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -127,7 +128,7 @@ func readStdinWithTimeout(ctx context.Context, timeoutSec int) (string, error) {
 	case <-ctx.Done():
 		return "", ctx.Err()
 	case res := <-ch:
-		if res.err != nil && res.err != io.EOF {
+		if res.err != nil && !errors.Is(res.err, io.EOF) { //nolint:errorlint // io.EOF 哨兵用 errors.Is 更健壮，显式处理包装错误
 			return "", res.err
 		}
 		return res.text, nil

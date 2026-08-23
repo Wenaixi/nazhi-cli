@@ -294,7 +294,7 @@ func resolveSiliconKey() string {
 			}
 			if strings.Contains(line, "siliconflow_key") && strings.Contains(line, "sk-") {
 				idx := strings.Index(line, "sk-")
-				tail := line[idx:]
+				tail := line[idx:] //nolint:gocritic // idx>=0 已由 Contains 保证，非 off-by-one
 				end := len(tail)
 				for i, r := range tail {
 					if r == '"' || r == '\'' || r == ' ' {

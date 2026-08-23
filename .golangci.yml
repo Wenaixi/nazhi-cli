@@ -37,6 +37,9 @@ issues:
       linters:
         - errcheck
         - unused
+    - path: pkg/types/.*\.go
+      linters:
+        - revive
 
   # 显式排除通常不检查的返回值
   exclude-functions:

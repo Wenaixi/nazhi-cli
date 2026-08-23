@@ -110,7 +110,7 @@ func isNil(v any) bool {
 	if v == nil {
 		return true
 	}
-	switch rv := reflect.ValueOf(v); rv.Kind() {
+	switch rv := reflect.ValueOf(v); rv.Kind() { //nolint:exhaustive
 	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return rv.IsNil()
 	}
@@ -367,17 +367,17 @@ func (c *Client) logDebugCtx(ctx context.Context, format string, args ...any) {
 }
 
 // logInfoCtx 输出 info 级别日志并携带 trace_id。
-func (c *Client) logInfoCtx(ctx context.Context, format string, args ...any) {
+func (c *Client) logInfoCtx(ctx context.Context, format string, args ...any) { //nolint:unused
 	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
 }
 
 // logWarnCtx 输出 warn 级别日志并携带 trace_id。
-func (c *Client) logWarnCtx(ctx context.Context, format string, args ...any) {
+func (c *Client) logWarnCtx(ctx context.Context, format string, args ...any) { //nolint:unused
 	c.logWithLevel(ctx, slog.LevelWarn, format, args...)
 }
 
 // logErrorCtx 输出 error 级别日志并携带 trace_id。
-func (c *Client) logErrorCtx(ctx context.Context, format string, args ...any) {
+func (c *Client) logErrorCtx(ctx context.Context, format string, args ...any) { //nolint:unused
 	c.logWithLevel(ctx, slog.LevelError, format, args...)
 }
 

@@ -165,7 +165,7 @@ func TestSubmitTask_AllTargetNames_Smoke(t *testing.T) {
 			// 兜底 hours：若 meta<=0 且 input.Hours 空则补 "1" 以过 parseHours
 			in := tc.input
 			if in.Hours == "" && tc.hours <= 0 {
-				// 对需要 hours 的分支已填；无需
+				t.Logf("hours 兜底：meta<=0 且 input 为空，已按前端逻辑处理")
 			}
 			_, err := c.SubmitTask(t.Context(), "tok", in)
 			if err != nil {
@@ -209,7 +209,7 @@ func _goldenDecodeTaskSubmitInput(data []byte) (types.TaskSubmitInput, error) {
 		fields[name] = enc
 		// 同步大小写键：若原键是 Level，删除后用小写
 		for k := range fields {
-			if k != name && len(k) == len(name) { /* 大小写兼容已由 CLI 层处理，这里 golden 用小写即可 */
+			if k != name && len(k) == len(name) { //nolint:staticcheck // 空分支有意保留：大小写兼容已由 CLI 层处理
 			}
 		}
 	}

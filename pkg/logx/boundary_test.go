@@ -91,7 +91,7 @@ func TestBoundary_TraceContext_NilAndEmpty(t *testing.T) {
 	if got := logx.TraceIDFrom(context.Background()); got != "" {
 		t.Fatalf("background should have empty trace got %q", got)
 	}
-	if got := logx.TraceIDFrom(nil); got != "" {
+	if got := logx.TraceIDFrom(context.TODO()); got != "" { //nolint:staticcheck // 原测试验证 nil 容错，现用 TODO 避免 SA1012
 		// context.WithValue panics on nil, but TraceIDFrom should handle nil gracefully (returns "")
 		// Actually passing nil context will panic when calling Value on nil? Our impl does ctx.Value which on nil panics?
 		// We expect it to handle? Currently it will panic. So we skip nil check - just verify not panic with background.

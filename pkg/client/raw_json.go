@@ -41,7 +41,7 @@ func rawListBytes(resp types.UnifiedResponse) []byte {
 }
 
 // rawObjectBytes 返回对象的原始字节（returnData 优先，dataMap 兜底）。
-func rawObjectBytes(resp types.UnifiedResponse) []byte {
+func rawObjectBytes(resp types.UnifiedResponse) []byte { //nolint:unused
 	switch {
 	case resp.ReturnData != nil:
 		return *resp.ReturnData

@@ -249,7 +249,7 @@ func TestDecodeTaskInputJSON_Exhaustive_IdField(t *testing.T) {
 	}
 	// id as string should fail (strict)
 	if _, err := decodeTaskEditInput([]byte(`{"id":"5400001","taskId":1,"content":"c"}`)); err == nil {
-		// json unmarshal string into int64 will fail – that's expected
+		t.Fatal("id string should fail but got nil")
 	}
 }
 
