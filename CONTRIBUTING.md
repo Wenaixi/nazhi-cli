@@ -12,7 +12,7 @@
 ## 环境要求
 
 - Go 1.26+（见 `go.mod`）
-- 交叉编译无需额外依赖（ONNX Runtime DLL 已内嵌）
+- 交叉编译无需 CGO 或本地模型依赖；验证码识别由运行时注入视觉模型完成
 - 首次贡献推荐本地跑通 `make build` 与 `make test`
 
 ## 当前版本
@@ -21,8 +21,8 @@
 
 | 版本 | 状态 | 备注 |
 |---|---|---|
-| `0.5.0` | 当前活跃维护 | honor 荣誉申报全功能 + GetSubmittedCircles + 全面清理 + 文档全面同步 |
-| `0.4.0` | 仅安全修复 | 架构深化 + OCR 三轮修复 |
+| `1.3.0` | 当前活跃维护 | 前端字段对齐、视觉识别依赖注入、纯 Go 构建与文档同步 |
+| `0.4.0` | 历史版本 | 架构深化与安全修复 |
 | `< 0.3` | 不再支持 | 强制升级 |
 
 新功能开发默认向 `main` 提 PR，因为修复横跨多个 commit，main 上的版本号由发版时统一切。
@@ -30,8 +30,8 @@
 ## 本地开发
 
 ```bash
-# 构建（含 OCR，CI release 用此命令）
-go build -tags=ddddocr -o bin/nazhi.exe ./cmd/nazhi
+# 构建（纯 Go；登录时通过 NAZHI_SILICONFLOW_API_KEY 注入视觉模型）
+go build -o bin/nazhi.exe ./cmd/nazhi
 
 # 运行测试（race 检测）
 make test
@@ -42,14 +42,12 @@ make lint
 make fmt
 ```
 
-> **注意** `make build` 不带 `-tags=ddddocr`，产出的二进制 `c.ocr=nil`，
-> `nazhi login` 会立即返回 `ErrOCRNotConfigured`。本地想跑通登录必须显式带 tag。
-> Makefile / CI 的 `release` job 都已带 tag，无需手动加。
+> **验证码识别说明**：SDK 不内置本地识别器。`nazhi login` 必须通过 `NAZHI_SILICONFLOW_API_KEY` 注入 Nazhi-auto 同款硅基流动 Qwen3-Omni 视觉模型；未配置时返回 `ErrOCRNotConfigured`。CLI 兼容 `NAZHI_OCR_API_KEY` 和 `SILICONFLOW_API_KEY` 旧别名。
 
 ## 提交规范
 
 提交信息遵循 [Conventional Commits](https://www.conventionalcommits.org/)。
-本仓库常用 scope：`pkg/client`、`pkg/types`、`pkg/tokenparse`、`cmd/nazhi`、`internal/ocr`、`docs`、`ci`、`deps`。
+本仓库常用 scope：`pkg/client`、`pkg/types`、`pkg/tokenparse`、`cmd/nazhi`、`docs`、`ci`、`deps`。
 
 ```
 feat(pkg/client): 添加新接口或 Option
@@ -63,9 +61,9 @@ chore(deps): 依赖升级
 
 实战提交示例（真实历史 commit 风格）：
 
-- `fix(ocr): 降级限定 Windows 平台，避免 Linux EIO/EPIPE 误吞`
-- `fix(cookie_sync): 修正 RawData nil 测试为 group A 实现的空 body 场景`
-- `merge: 修复 Windows OCR tempdir 清理 DLL 占用降级（TDD）`
+- `refactor(captcha): 统一视觉识别器测试语义`
+- `chore(captcha): 移除本地识别依赖与构建标签`
+- `docs: 同步视觉识别注入与纯 Go 构建说明`
 
 > 中文描述也可以接受，但保持一行能概括为佳。BREAKING CHANGE 在 body 末尾
 > 用 `BREAKING: xxx` 单独成段说明。

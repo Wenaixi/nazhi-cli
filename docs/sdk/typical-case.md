@@ -37,7 +37,7 @@ err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
 | 字段 | 用户 | SDK |
 |------|------|-----|
 | title / type / role / level / teacherName / partnerName / remark / content | 必填侧（对齐前端） | — |
-| attachmentId / attachmentName | 可选；证书图需先 `UploadFile` 再填 id | SDK **不**从本地路径代传（与荣誉一致） |
+| `attachmentId` / `attachmentName` | 可选；证书图需先 `UploadFile` 再填 id | SDK **不**从本地路径代传（与荣誉一致）；前端初始 `attachmentId:""` 会按无附件处理并省略；通过 `json.Unmarshal` 复用已有 payload 时，未出现在 JSON 中的字段保留原值 |
 | typeName / roleName / levelName | 可空 | 空则按 code 映射（下表）；**已填不覆盖** |
 | Update 的 map | type/role/level 可为 **string 或 number** | 均能补 *Name |
 
@@ -77,7 +77,7 @@ err := c.AddTypicalCase(ctx, token, types.AddTypicalCasePayload{
 func (c *Client) GetTypicalCaseList(ctx context.Context, token string, pageNo, pageSize int, status ...int) (*types.TypicalCaseListResult, error)
 ```
 
-`status` 变参默认 **3=全部**（0 未审 / 1 通过 / 2 驳回 / 3 全部）；与前端列表默认一致。
+`status` 变参默认 **3=全部**（0 未审 / 1 通过 / 2 驳回 / 3 全部）；与前端列表默认一致。CLI `typical-case list` 默认每页 **10** 条，与前端 `pageSize=10` 一致。SDK 方法的 `pageSize` 仍由调用方显式传入。
 ### 响应示例
 
 ```json
@@ -102,7 +102,7 @@ func (c *Client) GetTypicalCaseList(ctx context.Context, token string, pageNo, p
 }
 ```
 
-列表中 type/role/level 为 **整数**；提交请求体为 **字符串**。
+列表中 `type`/`role`/`level`/`attachmentId` 解码兼容 **number / 数字字符串 / `1.0` / `null` / 空串**（`TypicalCaseRecord.UnmarshalJSON` 归一为 `int`/`int64`，避免 `DecodeDataList` 整页失败）；提交请求体仍为 **字符串**。
 
 ---
 

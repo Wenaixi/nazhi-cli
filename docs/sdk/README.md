@@ -37,7 +37,7 @@ go get github.com/Wenaixi/nazhi-cli/pkg/client
 go get github.com/Wenaixi/nazhi-cli/pkg/types
 ```
 
-Go 版本见仓库 `go.mod`（当前 1.26.1）。`Login` 需 `-tags=ddddocr` 或 `WithCustomOCR`。
+Go 版本见仓库 `go.mod`（当前 1.26.1）。SDK 不内置本地验证码识别器，`Login` 必须通过 `WithCustomOCR` 注入视觉识别器；CLI 使用 `NAZHI_SILICONFLOW_API_KEY` 接入 Nazhi-auto 同款硅基流动 Qwen3-Omni。
 
 ---
 
@@ -57,11 +57,14 @@ import (
 )
 
 func main() {
+	// 实现 CaptchaRecognizer 的视觉模型或远程识别器由调用方提供。
+	recognizer := newMyCaptchaRecognizer()
 	c, err := client.New(
 		client.WithSSOBase("https://www.nazhisoft.com"),
 		client.WithBaseURL("http://139.159.205.146:8280"),
 		client.WithUploadURL("http://doc.nazhisoft.com"),
 		client.WithTimeout(30*time.Second),
+		client.WithCustomOCR(recognizer),
 	)
 	if err != nil {
 		log.Fatal(err)
@@ -97,7 +100,7 @@ c, err := client.New(
 	client.WithBaseURL("http://139.159.205.146:8280"),
 	client.WithUploadURL("http://doc.nazhisoft.com"),
 	client.WithTimeout(30*time.Second),
-	client.WithCustomOCR(myOCR), // 可选
+	client.WithCustomOCR(myOCR), // Login 必需
 )
 ```
 
@@ -107,12 +110,33 @@ c, err := client.New(
 | `WithBaseURL` | 业务 API 根地址 |
 | `WithUploadURL` | 文件上传根地址 |
 | `WithTimeout` | HTTP 超时 |
-| `WithCustomOCR` | 注入验证码识别器 |
-| `WithFallbackOCR` | ddddocr 降级 |
-| `WithLogger` | slog 风格日志 |
+| `WithCustomOCR` | 注入视觉模型或其它验证码识别器（Login 必填） |
+| `WithLogger` | 注入 `log/slog` 风格日志；推荐用 `pkg/logx.NewLogger(level, format, writers...)` 组装 |
 | `WithSessionBackoff` | Session 失败冷却 |
 
-构造失败常见原因：cookie jar 初始化失败。用完 `defer c.Close()` 释放 OCR/HTTP 资源。
+构造失败常见原因：cookie jar 初始化失败。用完 `defer c.Close()` 释放视觉识别器和 HTTP 资源。
+
+### 结构化日志与全链追踪（pkg/logx）
+
+```go
+import (
+  "context"
+  "log/slog"
+  "github.com/Wenaixi/nazhi-cli/pkg/logx"
+)
+// 按级别/格式/落盘组装 logger
+lg := logx.NewLogger(slog.LevelDebug, "json", os.Stderr)
+// 或同时落盘：lg := logx.NewLogger(slog.LevelDebug, "json", os.Stderr, fw) fw, _ := logx.NewFileWriter("/tmp/nazhi.log")
+c, _ := client.New(client.WithLogger(lg))
+// 每次业务调用携带 trace_id 串联全链
+ctx := logx.WithTraceID(context.Background(), logx.NewTraceID())
+_, _ = c.ActivateSession(ctx, token)
+_, _ = c.GetMyInfo(ctx, token)
+// 日志每行含 trace_id；敏感字段（token/password/captcha 与 Referer token=）自动脱敏
+```
+
+日志级别：`debug/info/warn/error`（默认 `warn`）；格式：`text/json`。CLI 通过 `--log-level/--log-format/--log-file`（或 `NAZHI_LOG_LEVEL/FORMAT/FILE`）透传到 SDK。
+
 
 ---
 
@@ -150,6 +174,8 @@ c, err := client.New(
 2. 前端/SDK 能自动填的 → 调用方可不填（任务元数据、typeName、*Name、score=0、学校信息用学号补全等）  
 3. **禁止发明默认**：写实空 Address/OrgName/Level 原样发送（不填学校名、不默认 `"5"`）  
 4. Hours：任务预设 >0 可空；≤0 须用户填  
+5. 写实 CLI payload 对 `hours` 兼容可为小数的 number 与 string；`level`、`checkResult`、`playRole` 的未加引号 number 仅接受有限整数，并将 `1.0`、`1e0` 等合法整数规范为标准十进制代码字符串，string 按原值保留；小数、非有限值和溢出值会被拒绝。CLI 通过 `cmd/nazhi` 私有 JSON helper 解码后，SDK 按提交字段语义处理；真实前端的 `circleTaskId` / `pictureList` 分别归一为 `taskId` / `imageIDs`。
+6. 用户资料 `className` 后处理遵循前端规则，仅移除首个“级”字，不按 `gradeName` 删除前缀；无“级”字时原样保留。
 
 **完整对照表（含「学号 → 自动补 schoolId/schoolName」）见 [autofill.md](./autofill.md)。**  
 各域文档内另有「用户输入 vs SDK 自动」小节。
@@ -164,7 +190,7 @@ if err != nil {
 	case errors.Is(err, client.ErrLoginRejected):
 		// 重新登录
 	case errors.Is(err, client.ErrOCRNotConfigured):
-		// 换 release 构建或 WithCustomOCR
+		// 配置视觉模型或通过 WithCustomOCR 注入
 	case errors.Is(err, client.ErrSessionBackoff):
 		// 等待冷却
 	case errors.Is(err, client.ErrInvalidPayload):
@@ -188,7 +214,7 @@ if err != nil {
 | `ErrSessionBackoff` | Session 冷却 |
 | `ErrUploadRejected` / `ErrFileTooLarge` | 上传失败/过大 |
 | `ErrInvalidPayload` | 入参非法 |
-| `ErrOCRNotConfigured` / `ErrOCRPanic` | OCR |
+| `ErrOCRNotConfigured` / `ErrOCRPanic` | 未注入识别器 / 识别器 panic |
 | `ErrRateLimited` / `ErrServiceUnavailable` / `ErrTimeout` | HTTP |
 | `ErrInvalidResponse` | 异常 4xx |
 | `ErrRetryable` | 可重试（如 cancel） |
@@ -211,7 +237,7 @@ tok, err = tokenparse.ExtractFromReturnData(bodyBytes)
 ## 资源释放
 
 ```go
-defer c.Close() // OCR 池、HTTP 客户端等
+defer c.Close() // 注入的识别器、HTTP 客户端等
 ```
 
 ---

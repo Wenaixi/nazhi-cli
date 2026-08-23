@@ -169,6 +169,57 @@ func TestSelfEvalStatus_CamelJSON(t *testing.T) {
 	}
 }
 
+// TestSelfEvalStatus_RejectsInvalidIDType 保证已知字段类型错误不会被静默吞掉。
+func TestSelfEvalStatus_RejectsInvalidIDType(t *testing.T) {
+	for _, raw := range []string{
+		`{"id":"not-an-integer"}`,
+		`{"id":1.5}`,
+		`{"id":true}`,
+	} {
+		t.Run(raw, func(t *testing.T) {
+			var st SelfEvalStatus
+			if err := json.Unmarshal([]byte(raw), &st); err == nil {
+				t.Fatalf("invalid id type should return an error, got status=%+v", st)
+			}
+		})
+	}
+}
+
+// TestSelfEvalStatus_PartialDecodePreservesExistingComments 验证部分 JSON 解码保留未提供的评论字段。
+func TestSelfEvalStatus_PartialDecodePreservesExistingComments(t *testing.T) {
+	st := SelfEvalStatus{
+		ID:             1,
+		StudentComment: "旧学生评语",
+		TeacherComment: "旧教师评语",
+	}
+	if err := json.Unmarshal([]byte(`{"id":2}`), &st); err != nil {
+		t.Fatalf("Unmarshal SelfEvalStatus: %v", err)
+	}
+	if st.ID != 2 {
+		t.Errorf("ID: got %d, want 2", st.ID)
+	}
+	if st.StudentComment != "旧学生评语" || st.TeacherComment != "旧教师评语" {
+		t.Errorf("缺失评论字段应保留旧值，got student=%q teacher=%q", st.StudentComment, st.TeacherComment)
+	}
+}
+
+// TestSelfEvalStatus_RejectsInvalidCommentTypes 保证评论字段类型错误不会被静默转换为空字符串。
+func TestSelfEvalStatus_RejectsInvalidCommentTypes(t *testing.T) {
+	for _, raw := range []string{
+		`{"student_comment":123}`,
+		`{"student_comment":{}}`,
+		`{"teacher_comment":123}`,
+		`{"teacher_comment":{}}`,
+	} {
+		t.Run(raw, func(t *testing.T) {
+			var st SelfEvalStatus
+			if err := json.Unmarshal([]byte(raw), &st); err == nil {
+				t.Fatalf("invalid comment type should return an error, got status=%+v", st)
+			}
+		})
+	}
+}
+
 // TestHonorRecord_FrontendStatus 验证荣誉列表 status 整型字段（前端 scope.row.status）。
 func TestHonorRecord_FrontendStatus(t *testing.T) {
 	raw := `{

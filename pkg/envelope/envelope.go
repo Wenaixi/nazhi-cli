@@ -6,6 +6,21 @@
 //   - Message 字段：人类可读提示
 //   - Data 字段：业务负载（任意类型）
 //
+// 双层 code 对照（易混淆提醒）：
+//
+// 本包的 envelope.code 是 CLI 外层 HTTP 风格码，业务成功固定为 200；
+// 平台原始业务响应为 pkg/types.UnifiedResponse.code，业务成功固定为 1。
+// 两层 code 同名不同层，切勿混用 jq .code 判成功。
+//
+//	| 层次 | 类型 | 成功值 | 失败值 | 位置 |
+//	|------|------|--------|--------|------|
+//	| CLI 信封 | envelope.code | 200 | 4xx/5xx | 本包 Envelope.Code |
+//	| 业务响应 | UnifiedResponse.code | 1 | 非 1 | pkg/types.UnifiedResponse.Code |
+//
+// 对照：UnifiedResponse.code==1 等价 envelope.code==200。
+// 脚本判成功请以 envelope.status=="success" 或 envelope.code==200 为准，
+// 不要直接用业务层的 jq .code==1 逻辑去判断外层信封。
+//
 // 退出码三分契约（见 ExitCode 方法）：
 //   - 0: 成功
 //   - 1: partial / 业务错误 (4xx 非 400)

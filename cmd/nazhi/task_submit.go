@@ -1,18 +1,11 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
-
-// parsePayload 解析 --payload 参数，委托公共 helper 处理 @file.json / - / 原始字符串。
-func parsePayload(raw string) ([]byte, error) {
-	return parsePayloadFromArg(raw)
-}
 
 // taskSubmitCmd 表示 nazhi task submit 命令。
 //
@@ -39,14 +32,14 @@ var taskSubmitCmd = &cobra.Command{
 			return
 		}
 
-		payloadBytes, err := parsePayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
 		}
 
-		var input types.TaskSubmitInput
-		if err := json.Unmarshal(payloadBytes, &input); err != nil {
+		input, err := decodeTaskSubmitInput(payloadBytes)
+		if err != nil {
 			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}

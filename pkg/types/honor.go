@@ -1,5 +1,12 @@
 package types
 
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"strconv"
+)
+
 // HonorType 一种可申报的荣誉类型（来自 getHonorType 接口）。
 //
 // 前端 performanceM.vue 德育说明表列使用 snake_case：
@@ -25,6 +32,12 @@ type HonorType struct {
 //
 // v1.4.1：补 Status 整型（前端 scope.row.status != 1 控制编辑/删除）；
 // Approved 仍保留兼容（测试夹具与部分响应可能带 approved bool）。
+//
+// 设计取舍（审计 07 WARN 回复）：服务端下发的 HonorRecord 可能携带 dimension_id / auditor_name 等
+// 报告单展示用只读字段，前端 performanceM.vue / performanceBox.vue 荣誉表格仅展示
+// type_name / level_name / score / ifshow / statusName 等，未用于提交逻辑或状态分支判断。
+// 为保持类型精简与可维护性，本结构体暂未映射这些只读展示字段，按需扩展。
+// 简言之：未映射只读展示字段，按需扩展。
 type HonorRecord struct {
 	ID               int64    `json:"id"`
 	TypeName         string   `json:"type_name"`
@@ -71,6 +84,45 @@ type AddHonorPayload struct {
 	CertImgAttachmentID string `json:"certImgAttachmentId"`
 	// Score 分值。前端 form 默认 0 且无 v-model；零值也会序列化进请求体。
 	Score int `json:"score"`
+}
+
+// UnmarshalJSON 兼容前端上传成功后返回的 number 类型 certImgAttachmentId，
+// 同时保留调用方传入的字符串形式。
+func (p *AddHonorPayload) UnmarshalJSON(data []byte) error {
+	type payloadAlias AddHonorPayload
+	var raw struct {
+		*payloadAlias
+		CertImgAttachmentID json.RawMessage `json:"certImgAttachmentId"`
+	}
+	raw.payloadAlias = (*payloadAlias)(p)
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	value := bytes.TrimSpace(raw.CertImgAttachmentID)
+	if len(value) == 0 {
+		return nil
+	}
+	if bytes.Equal(value, []byte("null")) {
+		p.CertImgAttachmentID = ""
+		return nil
+	}
+	var text string
+	if value[0] == '"' {
+		if err := json.Unmarshal(value, &text); err != nil {
+			return fmt.Errorf("certImgAttachmentId: %w", err)
+		}
+		p.CertImgAttachmentID = text
+		return nil
+	}
+	var number json.Number
+	if err := json.Unmarshal(value, &number); err != nil {
+		return fmt.Errorf("certImgAttachmentId: 期望字符串或数字: %w", err)
+	}
+	if _, err := strconv.ParseInt(number.String(), 10, 64); err != nil {
+		return fmt.Errorf("certImgAttachmentId: 非法数字 %q: %w", number.String(), err)
+	}
+	p.CertImgAttachmentID = number.String()
+	return nil
 }
 
 // HonorSelectOption 是下拉选择选项。

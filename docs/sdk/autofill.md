@@ -1,6 +1,7 @@
 # SDK 自动补全与默认行为总表
 
-本文对照 `pkg/client` 源码，列出**所有**「调用方可不填 / 由 SDK 自动完成」的行为。  
+本文对照 `pkg/client`、`pkg/types` 与 `cmd/nazhi` 的业务和 payload 解码逻辑，列出**所有**「调用方可不填 / 由 SDK 或输入层自动完成」的行为。
+
 原则：前端用户 v-model 才暴露；前端/SDK 能自动填的不要求调用方填；**禁止**发明前端没有的默认（如空地址→学校名）。
 
 > 写入口细则见各域分册；本页是索引与对照表。
@@ -11,9 +12,9 @@
 
 | 域 | 自动行为摘要 | 分册 |
 |----|--------------|------|
-| 认证 | 空 `SchoolID`→按学号查学校；验证码 OCR | [auth.md](./auth.md) |
+| 认证 | 空 `SchoolID`→按学号查学校；调用方注入视觉识别器处理验证码；CLI 已验证云端 Qwen3-Omni 登录链路 | [auth.md](./auth.md) |
 | Session | HAR 4 步；缓存 UserInfo；同 token 快速路径 / 失败 backoff | [session.md](./session.md) |
-| 用户读 | Session 预热复用；`schoolId`/`schoolName` 用**学号**走 SSO 补全；班级名去年级前缀 | [user.md](./user.md) |
+| 用户读 | Session 预热复用；`schoolId`/`schoolName` 用**学号**走 SSO 补全；`className` 只移除首个“级”字，不按年级前缀删除 | [user.md](./user.md) |
 | 用户写 | 中文性别/团员/民族/证件→数字；忽略全国学籍号；更新后清缓存 | [user.md](./user.md) |
 | 写实提交 | 任务元数据 id；学时半自动；本地图上传；**不**填学校名/默认 level | [task.md](./task.md) |
 | 写实列表 | 自动翻页合并；`key` 透传 | [circle-list.md](./circle-list.md) |
@@ -30,8 +31,8 @@
 | 条件 | SDK 行为 | 源码 |
 |------|----------|------|
 | `LoginRequest.SchoolID == ""` | `GetSchoolID(ctx, Username)`，用返回的 `schoolId` 登录 | `auth.go` Login |
-| 始终 | `InitSession` → 并发 OCR 验证码（调用方**无** Captcha 字段） | 同上 |
-| `c.ocr == nil` | 直接 `ErrOCRNotConfigured` | 同上 |
+| 始终 | `InitSession` → 注入的视觉识别器处理验证码（调用方**无** Captcha 字段） | 同上 |
+| 未注入验证码识别器 | 直接 `ErrOCRNotConfigured` | 同上 |
 
 `Username` 即登录学号，**不会**被 SDK 改成别的默认学号；学校 ID 才是「按学号自动查」。
 
@@ -43,7 +44,7 @@
 |------|----------|------|
 | 调用 `GetMyInfo` | 先 `ActivateSession`；若本次激活拿到 UserInfo 则**不再**打第二遍 getMyInfo | `user.go` |
 | `StudentNumber != ""` 且 (`SchoolID==0` **或** `SchoolName==""`) | `GetSchoolID(ctx, StudentNumber)` 补 `schoolId` / `schoolName` | `postProcessUserInfo` |
-| `ClassName` 以 `GradeName` 为前缀 | 去掉年级前缀（如「高一(8)班」在已有 gradeName 时整理 className） | 同上 |
+| `ClassName` | 前端规则：移除首个“级”字；不按 `GradeName` 删除前缀，无“级”字时原样保留 | 同上 |
 
 说明：
 
@@ -68,13 +69,15 @@
 
 | 字段/步骤 | 用户 | SDK |
 |-----------|------|-----|
-| `circleTaskId` / `circleTypeId` / `dimensionId` | 只传 `TaskID` | `GetCircleTypeByTaskID` |
-| `hours` | 可空字符串 | meta.hours>0 → 用预设；meta≤0 且空 → `ErrInvalidPayload`；非空优先用户 |
-| `pictureList` | `ImagePaths` 和/或 `ImageIDs` | 路径逐个 `UploadFile` 合并 id |
+| `circleTaskId` / `circleTypeId` / `dimensionId` | 只传 `TaskID`；CLI 也兼容前端 `circleTaskId` 别名 | `GetCircleTypeByTaskID` |
+| `hours` | 可空；前端编辑回填可能是 number | meta.hours>0 → 用预设；meta≤0 且空 → `ErrInvalidPayload`；用户提供有效值时优先；非法值 → `ErrInvalidPayload`；CLI 的 JSON payload 由 `cmd/nazhi` 私有 helper 兼容 number/string |
+| `level` / `checkResult` / `playRole` | 按任务类型填写或由编辑记录回填 | 用户仍负责字段取值；CLI 的 JSON payload 对未加引号 number 仅接受有限整数，并将 `1.0`、`1e0` 等合法整数规范为标准十进制代码字符串；小数、非有限值和溢出值拒绝；string 按原值保留，进入 client 前只做表示类型归一，不根据学校或任务猜测字段值；Go 直调时 number→string 需调用方自行转换，SDK 不自动兼容 |
+| `pictureList` | CLI 可直接接收前端字段；SDK 输入为 `ImagePaths` 和/或 `ImageIDs` | 路径逐个 `UploadFile` 合并 id |
 | 备注要求图 | — | remark 含「照片/图片/pdf」且无图 → `ErrInvalidPayload` |
 | `address` / `orgName` / `level` / 其它活动字段 | 手填；空串**原样** | **不**填学校名、**不**默认 `"5"` |
 | `circleDate` / `termName` | 兼容可空 | 不自动造值（前端无 v-model） |
 | 学号 / 姓名 / 学校 | 不出现在 Input | 不写入 payload（服务端靠 token） |
+| 14 分支必填 | 调用方按 `targetName` 1-14 自行保证（见 [task.md 速查表](./task.md#targetname-1-14-必填字段速查对齐前端-checkdata)） | SDK `Validate` 仅校验 `TaskID>0 && Content` 非空，不复制前端 `checkData` 14 分支；缺字段由服务端 `ErrBusinessRejected` 返回 |
 
 ---
 
@@ -94,8 +97,8 @@
 
 | 字段 | 用户 | SDK |
 |------|------|-----|
-| title / type / role / level / teacher… / content / 附件 id | 填 code 与正文 | — |
-| typeName / roleName / levelName | 可空 | 按 code 映射（见下表）；已填不覆盖 |
+| title / type / role / level / teacher… / content / 附件 id | 填 code 与正文；附件可省略 | — |
+| typeName / roleName / levelName | 可空 | 按 code 映射（见下表）；已填不覆盖；前端初始空 `attachmentId` 归一为零值并省略 |
 | Update `type`/`role`/`level` | string 或 number | 均能补 *Name |
 
 | code | typeName | roleName | levelName |

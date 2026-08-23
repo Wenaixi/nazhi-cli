@@ -76,6 +76,80 @@ func TestSelfEvalSubmitCmd_WithComment(t *testing.T) {
 	}
 }
 
+// TestSelfEvalSubmitCmd_PayloadAndCommentAreMutuallyExclusive 验证显式同时提供
+// --payload 与 --comment 时返回参数错误，而不是静默优先其中一个。
+func TestSelfEvalSubmitCmd_PayloadAndCommentAreMutuallyExclusive(t *testing.T) {
+	cmd := makeSelfEvalSubmitTestCmd(t, "文本评价")
+	cmd.Flags().String("payload", "", "")
+	if err := cmd.Flags().Set("payload", `{"bxqhzr":"本学期目标"}`); err != nil {
+		t.Fatalf("设置 payload flag 失败: %v", err)
+	}
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+	selfEvalSubmitCmd.Run(cmd, nil)
+	restore()
+	stdout := stdoutBuf.String()
+	stderr := stderrBuf.String()
+
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("同时提供 payload 和 comment 应触发 pendingExitCode=3，实际 %d", got)
+	}
+	if !strings.Contains(stderr, `"code": 400`) {
+		t.Errorf("stderr 应包含参数错误 code=400，实际: %q", stderr)
+	}
+	if !strings.Contains(stderr, "--payload 与 --comment 不能同时提供") {
+		t.Errorf("stderr 应说明两个参数互斥，实际: %q", stderr)
+	}
+	if strings.Contains(stdout, `"code": 204`) {
+		t.Errorf("参数冲突时不应输出成功 envelope，实际: %q", stdout)
+	}
+}
+
+// TestSelfEvalSubmitCmd_ExplicitEmptyPayloadIsParameterError 验证显式 --payload= 不会退回纯文本 stdin 模式。
+func TestSelfEvalSubmitCmd_ExplicitEmptyPayloadIsParameterError(t *testing.T) {
+	cmd := makeSelfEvalSubmitTestCmd(t, "")
+	cmd.Flags().String("payload", "", "")
+	if err := cmd.Flags().Set("payload", ""); err != nil {
+		t.Fatalf("设置空 payload flag 失败: %v", err)
+	}
+
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	originalStdin := os.Stdin
+	os.Stdin = r
+	_, _ = w.WriteString("不应被当作纯文本评价提交")
+	_ = w.Close()
+	t.Cleanup(func() {
+		os.Stdin = originalStdin
+		_ = r.Close()
+	})
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	stdoutBuf, stderrBuf, restore := captureStdio(t)
+	selfEvalSubmitCmd.Run(cmd, nil)
+	restore()
+
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Fatalf("显式空 payload 应触发 pendingExitCode=3，实际 %d；stdout=%q stderr=%q", got, stdoutBuf.String(), stderrBuf.String())
+	}
+	if !strings.Contains(stderrBuf.String(), `"code": 400`) {
+		t.Fatalf("显式空 payload 应输出参数错误，实际 stderr=%q", stderrBuf.String())
+	}
+	if !strings.Contains(stderrBuf.String(), "--payload") {
+		t.Fatalf("参数错误应指明 payload，实际 stderr=%q", stderrBuf.String())
+	}
+	if strings.Contains(stdoutBuf.String(), `"code": 204`) {
+		t.Fatalf("显式空 payload 不应落入纯文本提交成功路径，实际 stdout=%q", stdoutBuf.String())
+	}
+}
+
 // TestSelfEvalSubmitCmd_StdinPipe 验证 --comment "" 时从 stdin 读取评价内容。
 // 测试环境下 stdin 是管道，ReadString(0) 读到 EOF 返回写入的内容。
 func TestSelfEvalSubmitCmd_StdinPipe(t *testing.T) {

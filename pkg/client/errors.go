@@ -39,27 +39,26 @@ var (
 
 	// ErrOCRNotConfigured 表示 Client 未配置验证码识别器。
 	//
-	// 触发场景：构建时未加 -tags ddddocr（OCR 包未导入，c.ocr 默认 nil）
-	// 且调用方未用 WithCustomOCR 注入自定义识别器，此时调用 Login() 必失败。
+	// 触发场景：v1.4.0 起 SDK 不内置任何 OCR；调用方未通过 WithCustomOCR
+	// 注入识别器，此时调用 Login() 必失败（safeOCRRecognize 检测 c.ocr == nil）。
 	//
-	// 修复动机：CGO-free 消费者（如 Nazhi-auto CGO_ENABLED=0 构建）无法使用
-	// ddddocr 内置识别器，必须通过 WithCustomOCR 注入 AI/外部识别器。
-	// 该哨兵让 SDK 用户能 errors.Is 精确识别「没配 OCR」 vs 「OCR 识别失败」。
+	// SDK 不提供默认验证码识别器。所有调用方（含 cmd/nazhi）必须通过
+	// WithCustomOCR 注入识别器（典型为硅基流动 Qwen3-Omni 视觉模型）。
 	//
-	// H3 修复：错误消息改为中文 actionable，i18n key 为
-	// 「errors.ocr_not_configured」。中英双语并列——英文部分是 SDK 用户
-	// 编程接口可读的稳定契约（errors.Is(err, ErrOCRNotConfigured).Error() 输出），
+	// 错误消息 i18n key 为「errors.ocr_not_configured」。中英双语并列——
+	// 英文部分是 SDK 用户编程接口可读的稳定契约
+	// （errors.Is(err, ErrOCRNotConfigured).Error() 输出），
 	// 中文部分是给中文 CLI 用户的 actionable 指引（cmd/nazhi/login.go 用
 	// errors.Is 分支渲染 envelope 时只取中文部分）。
 	//
 	// SDK 用户建议用 errors.Is(err, ErrOCRNotConfigured) 而非字符串匹配。
 	ErrOCRNotConfigured = errors.New(
-		"errors.ocr_not_configured: OCR 识别器未配置：当前构建未启用 -tags ddddocr。" +
-			"请使用预编译 release 二进制（nazhi-cli releases 页面），或通过 SDK 调用 " +
-			"client.WithCustomOCR(myRecognizer) 注入自定义识别器。" +
-			" (OCR recognizer not configured: current build lacks -tags ddddocr. " +
-			"Use the prebuilt release binary from GitHub releases, or inject a custom " +
-			"recognizer via client.WithCustomOCR(myRecognizer).)",
+		"errors.ocr_not_configured: OCR 识别器未配置：v1.4.0 起 SDK 不内置 OCR。" +
+			"请通过 SDK 调用 client.WithCustomOCR(myRecognizer) 注入识别器" +
+			"（典型为硅基流动 Qwen3-Omni 视觉模型）。" +
+			" (OCR recognizer not configured: as of v1.4.0 SDK no longer ships a built-in OCR. " +
+			"Inject your recognizer via client.WithCustomOCR(myRecognizer); " +
+			"the CLI uses SiliconFlow Qwen3-Omni by default.)",
 	)
 
 	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。
@@ -88,8 +87,8 @@ var (
 
 	// ErrOCRPanic OCR 识别器 Recognize panic（被 safeOCRRecognize recover）。
 	//
-	// Recognize 实现（mock / CGO ddddocr）
-	// 可能在不可预见的边界条件下 panic（如 nil deref / CGO 崩溃）。
+	// Recognize 实现（mock / AI 服务 / 第三方 SDK）
+	// 可能在不可预见的边界条件下 panic（如 nil deref / AI 服务 panic）。
 	// safeOCRRecognize 用 defer recover 捕获 panic 并包装为本哨兵，
 	// 避免 panic 扩散到 Login 流程、crash 整个进程。
 	ErrOCRPanic = errors.New("OCR recognizer panic: recovered")
@@ -145,6 +144,14 @@ var (
 	// 让 SDK 用户能精确识别「HTTP 层错误」与「业务层错误」，
 	// 避免错误地把 404 等当成业务拒绝走重登录流程。
 	ErrInvalidResponse = errors.New("invalid response: HTTP non-200 non-429")
+
+	// ErrAllDecodersFailed 表示 doBizGetDecode 的所有解码器均未命中（业务成功但空数据）。
+	//
+	// 触发场景：服务端 code=1 但 returnData/dataMap/dataList 全为空或归一化为 nil。
+	// QuerySelfEvaluation 在此场景下将本哨兵归一为 (nil,nil) 空成功，而非错误。
+	// SDK 外部可通过 errors.Is(err, ErrAllDecodersFailed) 精确识别“空成功”链路，
+	// 避免依赖错误字符串匹配（旧实现曾用 strings.Contains("所有解码器均失败")，脆弱）。
+	ErrAllDecodersFailed = errors.New("all decoders failed: no decoder produced a value")
 
 	// ErrRetryable 表示「context 取消导致的失败，可重试」。
 	//

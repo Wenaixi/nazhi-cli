@@ -19,7 +19,7 @@ var fileUploadCmd = &cobra.Command{
 
 注意：本命令不接受 --token 参数。
 文件上传服务器（doc.nazhisoft.com）是独立公共服务，不需要业务域鉴权。
-SDK 内部会主动清除 Authorization / X-Auth-Token / Cookie 三个 Header。`,
+SDK 内部不产生任何鉴权头（独立 clean http.Client，无 cookie jar，不携带 Authorization / X-Auth-Token / Cookie）。`,
 	Example: `  nazhi file upload -f ./photo.jpg
   nazhi file upload -f ./photo.jpg --upload-url http://doc.nazhisoft.com`,
 	Run: func(cmd *cobra.Command, args []string) {

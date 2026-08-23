@@ -15,22 +15,21 @@ import (
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 )
 
-// CaptchaRecognizer 由 build tag 决定：
-//   - !ddddocr: nil 默认（见 client_ocr_disabled.go），调用方必须 WithCustomOCR
-//   - ddddocr:  ocr.NewPool(0) 默认（见 client_ocr_enabled.go）
-
 // CaptchaRecognizer 是验证码识别器接口。
-// *ocr.Pool 实现了该接口，测试时可注入 mock。
+//
+// 自 v1.4.0 起 SDK 不再内置本地识别器，调用方必须通过 WithCustomOCR
+// 注入识别器（如 AI 视觉模型、远程服务、单元测试 mock 等）。
 //
 // 注意：实现必须同时实现 Close() error，因为 Client.Close() 会
 // 无条件调用 c.ocr.Close()（见 c.ocr != nil 检查后的路径）。
 // 即使实现不做资源清理，Close() 也必须存在且返回 nil。
 type CaptchaRecognizer interface {
 	Recognize([]byte) (string, error)
-	// Close 释放识别器占用的资源 (ONNX session + 临时目录)。
-	// 默认 *ocr.Pool 已实现; 所有实现（含 mock）必须提供 Close 方法。
+	// Close 释放识别器占用的资源。
+	// 所有实现（含 mock）必须提供 Close 方法。
 	Close() error
 }
 
@@ -51,8 +50,7 @@ type Client struct {
 	uploadURL     string       // 文件上传服务器地址
 	http          *http.Client // 独立 cookie jar
 	logger        *slog.Logger
-	ocr           CaptchaRecognizer // 验证码识别器（默认启用进程级 OCR 单例）
-	ocrModelDir   string            // 外部 ddddocr 模型目录，非空时 OCR 从该目录加载模型/库文件
+	ocr           CaptchaRecognizer // 验证码识别器，调用方必须通过 WithCustomOCR 注入
 	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// submittedPageSize 是 GetSubmittedCircles 每页请求条数。
@@ -107,21 +105,22 @@ func withNilGuard[T any](name string, setter func(*Client, T)) func(T) Option {
 	}
 }
 
-// isNil 安全检查任意值是否为 nil，处理 typed nil 指针/接口。
+// isNil 通用 nil 检查：支持指针、接口、map、slice、chan、func。
 func isNil(v any) bool {
 	if v == nil {
 		return true
 	}
-	rv := reflect.ValueOf(v)
-	switch rv.Kind() { //nolint:exhaustive
+	switch rv := reflect.ValueOf(v); rv.Kind() {
 	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return rv.IsNil()
-	default:
-		return false
 	}
+	return false
 }
 
-// WithSSOBase 设置 SSO 根地址。
+// ─── Option 构造器 ───
+
+// WithSSOBase 设置 SSO 根地址（用于 login 流程）。
+// 默认值由 defaultSSOBase 常量提供（见 client_defaults.go）。
 var WithSSOBase = withURLGuard("WithSSOBase", func(c *Client, v string) { c.ssoBaseURL = v })
 
 // WithBaseURL 设置业务 API 根地址。
@@ -129,6 +128,27 @@ var WithBaseURL = withURLGuard("WithBaseURL", func(c *Client, v string) { c.base
 
 // WithUploadURL 设置文件上传服务器地址。
 var WithUploadURL = withURLGuard("WithUploadURL", func(c *Client, v string) { c.uploadURL = v })
+
+// WithTimeout 设置 HTTP 客户端超时（包括连接、TLS 握手、响应体读取）。
+//
+// 行为约定：
+//   - c.http == nil：拒绝设置并 warn（外部 WithHTTPClient(nil) 误用，
+//     静默 return 会让调用方完全感知不到 timeout 未生效）
+//   - d > 0：设置超时
+//   - d = 0：拒绝设置并 warn，保持当前 Timeout（防止静默把已有
+//     正数超时清零为 net/http 默认"无超时"，请求可能永久挂起）
+//   - d < 0：拒绝设置并 warn，保持当前 Timeout（防止意外把超时改小）
+func WithTimeout(d time.Duration) Option {
+	base := withDurationGuard("WithTimeout", func(c *Client, v time.Duration) { c.http.Timeout = v })(d)
+	return func(c *Client) {
+		if c.http == nil {
+			c.logger.Warn("WithTimeout: c.http 为 nil，跳过设置",
+				"tip", "确保在 WithTimeout 之前未传入 WithHTTPClient(nil)")
+			return
+		}
+		base(c)
+	}
+}
 
 // withDurationGuard 生成 Duration 型 Option 的守卫工厂。
 // 与 withURLGuard 对称，消除 WithTimeout / WithSessionBackoff 中重复的 d<0 / d==0 守卫。
@@ -155,27 +175,6 @@ func withDurationGuard(name string, setter func(*Client, time.Duration)) func(ti
 		return func(c *Client) {
 			setter(c, d)
 		}
-	}
-}
-
-// WithTimeout 设置 HTTP 客户端超时（包括连接、TLS 握手、响应体读取）。
-//
-// 行为约定：
-//   - c.http == nil：拒绝设置并 warn（外部 WithHTTPClient(nil) 误用，
-//     静默 return 会让调用方完全感知不到 timeout 未生效）
-//   - d > 0：设置超时
-//   - d = 0：拒绝设置并 warn，保持当前 Timeout（防止静默把已有
-//     正数超时清零为 net/http 默认"无超时"，请求可能永久挂起）
-//   - d < 0：拒绝设置并 warn，保持当前 Timeout（防止意外把超时改小）
-func WithTimeout(d time.Duration) Option {
-	base := withDurationGuard("WithTimeout", func(c *Client, v time.Duration) { c.http.Timeout = v })(d)
-	return func(c *Client) {
-		if c.http == nil {
-			c.logger.Warn("WithTimeout: c.http 为 nil，跳过设置",
-				"tip", "确保在 WithTimeout 之前未传入 WithHTTPClient(nil)")
-			return
-		}
-		base(c)
 	}
 }
 
@@ -218,34 +217,20 @@ var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client
 
 // WithCustomOCR 注入自定义验证码识别器。
 //
+// 自 v1.4.0 起 SDK 不再提供内置 OCR，所有调用方（含 CLI）必须通过本 Option
+// 注入识别器。注入时机无要求，建议在 New() 之后第一时间注入以避免 Login 阶段
+// 才补注的竞争窗口。
+//
 // 适用场景：
-//   - 测试时注入 mock 验证码识别器
-//   - CGO-free 构建（!ddddocr）时注入外部识别器（如 AI 服务）
+//   - CLI 默认通过 cmd/nazhi/omni_ocr.go 注入硅基流动 Qwen3-Omni 识别器
+//   - 单元测试注入 mock 识别器（如 cmd/nazhi/*_test.go 的 fakeOCR）
+//   - 第三方集成注入自研识别器
 //
 // 行为约定：
 //   - r == nil：拒绝设置并 warn，保持当前值（防止 nil 静默覆盖
 //     已注入的识别器，导致后续 Login 返回 ErrOCRNotConfigured）
 //   - 否则：替换识别器
 var WithCustomOCR = withNilGuard[CaptchaRecognizer]("WithCustomOCR", func(c *Client, r CaptchaRecognizer) { c.ocr = r })
-
-// WithOCRConcurrency 设置 OCR 实例池预分配数量。
-//
-// 行为约定：
-//   - 0 或 1 = 默认懒加载单实例（与原单例行为一致，1 路串行识别）
-//   - N > 1 = 预分配 N 个 OCR 结构体，ONNX session 惰性初始化，
-//     首次调用 Recognize 时触发完整模型加载
-//   - n < 0：拒绝设置并 warn，保持当前 c.ocr（防止负数被静默截 0
-//     后用默认值覆盖调用方已注入的自定义识别器，如 WithCustomOCR mock）
-//   - ddddocr 构建：若 c.ocr 已是 WithCustomOCR 注入的非 *ocr.Pool 识别器，
-//     n>=0 时 no-op，不得 NewPool 覆盖 mock；仅对 *ocr.Pool 调整并发
-//
-// 内存代价：每个 ONNX session 约 50MB（模型 + 原生库），N=4 约 200MB。
-// 业务场景：批量调用 Login() 时才需要调高；单次 Login 用 1 实例足够。
-//
-// 实现按 build tag 分发：见 client_ocr_enabled.go（ddddocr）和
-// client_ocr_disabled.go（!ddddocr — 仅返回 warn 占位实现）。
-//
-// 函数签名在两个文件中保持一致（(int) Option），保证 Option 接口契约。
 
 // WithToken 预置 X-Auth-Token（同时写入 Header 和 Cookie）。
 //
@@ -283,33 +268,6 @@ func WithSubmittedPageSize(n int) Option {
 	}
 }
 
-// WithOCRModelDir 设置外部 ddddocr 模型目录。
-//
-// 非空时，内置 ddddocr OCR 初始化时从该目录加载模型文件和 ONNX Runtime
-// 原生库（.dll/.so/.dylib），而非使用 //go:embed 嵌入的数据。
-//
-// 适用场景：
-//   - 嵌入的模型文件被移除以减小二进制体积
-//   - 运行时替换/升级模型版本
-//
-// 行为约定：
-//   - dir 为空字符串：拒绝设置并 warn，保持当前值
-//   - dir 非空：存储路径，延迟到 OCR 首次 Recognize 时生效
-func WithOCRModelDir(dir string) Option {
-	return func(c *Client) {
-		if strings.TrimSpace(dir) == "" {
-			c.logger.Warn("WithOCRModelDir: 空字符串被拒绝，保持当前值")
-			return
-		}
-		c.ocrModelDir = dir
-
-		// 如果 c.ocr 已经是 ddddocr Pool，且当前没有外部目录设置，则注入
-		if pool, ok := c.ocr.(interface{ SetModelDir(string) }); ok {
-			pool.SetModelDir(dir)
-		}
-	}
-}
-
 // ─── 构造 ───
 
 // New 创建 Client。使用 Option 模式配置：
@@ -317,10 +275,13 @@ func WithOCRModelDir(dir string) Option {
 //	client := nazhicli.New(
 //	    nazhicli.WithSSOBase("https://www.nazhisoft.com"),
 //	    nazhicli.WithTimeout(15*time.Second),
+//	    nazhicli.WithCustomOCR(myRecognizer),
 //	)
 //
-// OCR 验证码识别器默认启用进程级 Pool 单实例（与原单例行为一致）。
-// 批量并发场景可用 WithOCRConcurrency(N) 预热 N 个独立 session 实例。
+// 自 v1.4.0 起 SDK 不提供默认验证码识别器。
+// 调用方必须在 New() 之前或之后第一时间注入 WithCustomOCR，否则 Login() 会立即
+// 返回 ErrOCRNotConfigured。cmd/nazhi 默认通过 omni_ocr.go 注入硅基流动
+// Qwen3-Omni 视觉识别器。
 //
 // Option 处理顺序：所有 Options 跑完后，若有 WithToken 注入，则在最终 c.http.Jar /
 // c.ssoBaseURL / c.baseURL 已知的前提下统一 syncCookieToken（避免顺序敏感性 bug）。
@@ -336,19 +297,12 @@ func New(opts ...Option) (*Client, error) {
 		uploadURL:         defaultUploadURL,
 		http:              newHTTPClient(),
 		logger:            slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:               defaultOCR(),
+		ocr:               nil, // 必须通过 WithCustomOCR 注入，参见上面注释
 		sm:                &sessionManager{},
 		submittedPageSize: defaultSubmittedPageSize,
 	}
 	for _, opt := range opts {
 		opt(c)
-	}
-	// 所有 Options 跑完后传入 OCR 模型目录到 default OCR（如果在 WithOCRModelDir
-	// 之后 defaultOCR 才被构造的情况，如 WithOCRModelDir 先于 WithCustomOCR 调用）
-	if c.ocrModelDir != "" {
-		if pool, ok := c.ocr.(interface{ SetModelDir(string) }); ok {
-			pool.SetModelDir(c.ocrModelDir)
-		}
 	}
 	// 所有 Options 跑完后预解析 baseURL（F6）并统一注入 cookie
 	// 预解析必须在 syncCookieToken 之前，以免 syncCookieToken 懒解析报错
@@ -374,6 +328,26 @@ func (c *Client) bizURL(path string) string {
 	return c.baseURL + path
 }
 
+// logWithLevel 是结构化日志统一出口，携带 trace_id 并做敏感脱敏。
+func (c *Client) logWithLevel(ctx context.Context, lvl slog.Level, format string, args ...any) {
+	if c.logger == nil {
+		return
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if !c.logger.Enabled(ctx, lvl) {
+		return
+	}
+	msg := fmt.Sprintf(format, args...)
+	msg = logx.RedactBody(msg)
+	if tid := logx.TraceIDFrom(ctx); tid != "" {
+		c.logger.Log(ctx, lvl, msg, slog.String("trace_id", tid))
+	} else {
+		c.logger.Log(ctx, lvl, msg)
+	}
+}
+
 // logDebug 输出 debug 日志（通过 slog Debug 级别）。
 //
 // 用 fmt.Sprintf 先格式化再传给 slog。
@@ -384,13 +358,37 @@ func (c *Client) bizURL(path string) string {
 //   - LevelEnabled 提前检查，非 Debug 级别时跳过 fmt.Sprintf 分配
 //     （OCR 热路径会反复调用此函数，无 debug 级别时应避免无谓格式化分配）
 func (c *Client) logDebug(format string, args ...any) {
-	if c.logger == nil {
-		return
-	}
-	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
-		return
-	}
-	c.logger.Debug(fmt.Sprintf(format, args...))
+	c.logWithLevel(context.Background(), slog.LevelDebug, format, args...)
+}
+
+// logDebugCtx 是携带 context 的 debug 日志，用于透传 trace_id。
+func (c *Client) logDebugCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelDebug, format, args...)
+}
+
+// logInfoCtx 输出 info 级别日志并携带 trace_id。
+func (c *Client) logInfoCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
+}
+
+// logWarnCtx 输出 warn 级别日志并携带 trace_id。
+func (c *Client) logWarnCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelWarn, format, args...)
+}
+
+// logErrorCtx 输出 error 级别日志并携带 trace_id。
+func (c *Client) logErrorCtx(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelError, format, args...)
+}
+
+// LogDebugForTest 暴露给白盒测试的 debug 入口（携带 ctx）。
+func (c *Client) LogDebugForTest(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelDebug, format, args...)
+}
+
+// LogInfoForTest 暴露给白盒测试的 info 入口（携带 ctx）。
+func (c *Client) LogInfoForTest(ctx context.Context, format string, args ...any) {
+	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
 }
 
 // logSafeBody 截断 bytes 到 100 字符用于日志，防止敏感信息泄露。
@@ -405,8 +403,8 @@ func logSafeBody(body []byte) string {
 // safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
 //
 // Recognize 实现可能在不可预见的边界条件下
-// panic（如 mock 实现有 bug、CGO 层崩溃），如果 panic 不处理会 crash 整个进程。
-// safeOCRRecognize 包装 Recognize 调用，捕获 panic 并返回 ErrOCRPanic 哨兵。
+// panic（如 mock 实现有 bug、AI 服务 panic）。safeOCRRecognize 包装
+// Recognize 调用，捕获 panic 并返回 ErrOCRPanic 哨兵。
 //
 // 注意：c.ocr 为 nil 时直接返回错误（避免 nil deref），而非默默 success。
 func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
@@ -423,8 +421,16 @@ func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
 
 // ─── 资源释放 ───
 
+// Enabled 暴露 logger 的 Enabled 供测试校验级别（不影响生产行为）。
+func (c *Client) Enabled(ctx context.Context, lvl slog.Level) bool {
+	if c.logger == nil {
+		return false
+	}
+	return c.logger.Enabled(ctx, lvl)
+}
+
 // Close 释放 Client 持有的资源：
-//   - 底层 OCR 识别器（ONNX session + 临时目录）
+//   - 通过 WithCustomOCR 注入的验证码识别器
 //   - HTTP Transport 的空闲 keep-alive 连接
 //   - sessionManager backoff 状态
 func (c *Client) Close() error {

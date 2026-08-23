@@ -39,7 +39,7 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 |------|------|
 | Session 预热 | 先 `ActivateSession`；若本次激活已返回 UserInfo，**直接复用**，不再打第二遍 getMyInfo |
 | 学号补学校 | 响应里已有 `studentNumber`，且 `schoolId==0` **或** `schoolName==""` 时：用**该学号**调 `GetSchoolID`（SSO 公开接口）补全 `schoolId` / `schoolName` |
-| 班级名 | 若 `className` 以 `gradeName` 为前缀，去掉前缀（年级信息已在 gradeName） |
+| 班级名 | 按前端规则移除 `className` 中首个“级”字；不按 `gradeName` 删除前缀 |
 
 **学号不会被 SDK 改写或伪造**；平台返回什么学号就用什么去补学校。写实提交也**不会**把学号塞进 addCircle body。
 
@@ -63,7 +63,7 @@ info, err := c.GetMyInfo(ctx, token)
   "gradeId": 1,
   "gradeName": "高一",
   "classId": 8,
-  "className": "（8）班",
+  "className": "高一(8)班",
   "seat": 12,
   "telephone": "13800138000",
   "genderName": "男",
@@ -71,6 +71,8 @@ info, err := c.GetMyInfo(ctx, token)
   "familyAddress": "福建省福州市"
 }
 ```
+
+`className` 与前端 `userBox.vue`、`modifyBox.vue`、`header.vue` 一致，只移除首个“级”字。例如服务端返回 `高一(8)班`，因其中不含“级”字，SDK 原样返回 `高一(8)班`；CLI 仍使用原有 `className` 字段，不改变 JSON wire schema。
 
 ### 错误 / 注意
 
@@ -97,6 +99,8 @@ func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input
 | NationalStudentNumber | **故意忽略，不写入**（前端只读全国学籍号） |
 
 零值/空串跳过，避免覆盖服务端（**密码例外**：`StudentUuid` 始终带 key，空串表示不改密码）。
+
+生日字段兼容：types.UserUpdateInput 同时提供前端生日字段（JSON 键 birthday）与 BirthdayStr（兼容旧调用）。SDK 写入 wire key birthday，前者优先、后者仅在前者为空时生效。前端 modifyBox.vue 提交时把生日 Date 直接 JSON.stringify，会得到形如 2009-12-11T00:00:00.000Z 的 ISO 8601 UTC 字符串；SDK 原样透传，**不**做日期或时区转换，服务端解析格式以实测为准。
 
 | GenderName | → gender |
 |------------|----------|

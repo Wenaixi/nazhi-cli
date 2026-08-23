@@ -3,51 +3,82 @@
 package main
 
 import (
-	"bytes"
+	"context"
+	"log/slog"
 	"testing"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/spf13/cobra"
 )
 
-// TestBuildClientOpts_Verbose_SetsDebugLogger
-// verbose=true 时 buildClientOpts 返回的 opts 链中应包含
-// WithLogger(slog.LevelDebug) 选项，使得 SDK 的 c.logDebug 不再被
-// slog LevelWarn 过滤。
-// 修复前（v0.3.4-）：verbose flag 只影响 CLI 层 printVerbose 输出
-// SDK 层 c.logDebug 调用默认 slog LevelWarn handler 静默过滤。
-// 用户 nazhi login -v 看到 CLI 层日志但看不到 SDK 内部细节。
-// 修复后：--verbose 让 Client logger 改为 LevelDebug，c.logDebug 写入 stderr。
+// TestBuildClientOpts_Verbose_SetsDebugLogger 验证 verbose 与 log-level 的联动：
+// - verbose=true 且未显式传 log-level 时应为 Debug
+// - verbose=false 默认应为 Warn（不启用 Debug）
+// - 显式 --log-level 时 verbose 不应覆盖
 func TestBuildClientOpts_Verbose_SetsDebugLogger(t *testing.T) {
-	// 保存原始 verbose 值
 	origVerbose := verbose
-	defer func() { verbose = origVerbose }()
+	origLevel := cliLogLevel
+	origFile := cliLogFile
+	origQuiet := quiet
+	defer func() {
+		verbose = origVerbose
+		cliLogLevel = origLevel
+		cliLogFile = origFile
+		quiet = origQuiet
+	}()
 
-	cmd := &cobra.Command{Use: "test"}
-	cmd.Flags().String("token", "", "")
-	cmd.Flags().String("sso-base", "", "")
-	cmd.Flags().Int("timeout", 5, "")
+	newCmd := func() *cobra.Command {
+		c := &cobra.Command{Use: "test"}
+		c.Flags().String("token", "", "")
+		c.Flags().String("base-url", "", "")
+		c.Flags().String("sso-base", "", "")
+		c.Flags().Int("timeout", 5, "")
+		return c
+	}
 
-	// verbose=true 时
+	quiet = false
+	cliLogFile = ""
+
+	// verbose=true 且无显式 level => Debug
 	verbose = true
-	opts1, _, err1 := buildClientOpts(cmd, "base", "NAZHI_TIMEOUT", false)
+	cliLogLevel = ""
+	t.Setenv("NAZHI_LOG_LEVEL", "")
+	cmd1 := newCmd()
+	opts1, _, err1 := buildClientOpts(cmd1, "base", "NAZHI_TIMEOUT", false)
 	if err1 != nil {
 		t.Fatalf("buildClientOpts with verbose=true 失败: %v", err1)
 	}
+	c1, _ := client.New(opts1...)
+	if !c1.Enabled(context.Background(), slog.LevelDebug) {
+		t.Errorf("verbose=true 时 logger 应启用 Debug")
+	}
 
-	// verbose=false 时
+	// verbose=false 默认 => Warn（不启用 Debug）
 	verbose = false
-	opts2, _, err2 := buildClientOpts(cmd, "base", "NAZHI_TIMEOUT", false)
+	cliLogLevel = ""
+	cmd2 := newCmd()
+	opts2, _, err2 := buildClientOpts(cmd2, "base", "NAZHI_TIMEOUT", false)
 	if err2 != nil {
 		t.Fatalf("buildClientOpts with verbose=false 失败: %v", err2)
 	}
-
-	// 验证 verbose=true 时 opts 列表比 verbose=false 多一个 WithLogger 选项
-	// (因为 verbose 全局变量在测试中不是并发安全的，但我们顺序执行)
-	if len(opts1) <= len(opts2) {
-		t.Errorf("verbose=true 时 opts 应比 verbose=false 多（多了 WithLogger 选项）: verbose=true %d, verbose=false %d",
-			len(opts1), len(opts2))
+	c2, _ := client.New(opts2...)
+	if c2.Enabled(context.Background(), slog.LevelDebug) {
+		t.Errorf("verbose=false 时 logger 不应启用 Debug（应为 Warn）")
 	}
 
-	// 验证 verbose=false 时 opts 数量正常
-	_ = bytes.NewBuffer
+	// 显式 --log-level info 时 verbose 不应覆盖为 Debug
+	verbose = true
+	cliLogLevel = "info"
+	cmd3 := newCmd()
+	opts3, _, err3 := buildClientOpts(cmd3, "base", "NAZHI_TIMEOUT", false)
+	if err3 != nil {
+		t.Fatalf("buildClientOpts with verbose+log-level 失败: %v", err3)
+	}
+	c3, _ := client.New(opts3...)
+	if c3.Enabled(context.Background(), slog.LevelDebug) {
+		t.Errorf("显式 --log-level info 时 verbose 不应覆盖为 Debug")
+	}
+	if !c3.Enabled(context.Background(), slog.LevelInfo) {
+		t.Errorf("显式 --log-level info 时 logger 应启用 Info")
+	}
 }

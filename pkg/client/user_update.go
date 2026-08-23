@@ -85,7 +85,8 @@ func (c *Client) InvalidateCachedUserInfo() {
 //   - NationName → nation
 //   - IdCardType → idType
 //
-// 用户可编辑透传：Telephone / FamilyAddress / Hobbies / IDCard / BirthdayStr / Seat / StudentUuid
+// 用户可编辑透传：Telephone / FamilyAddress / Hobbies / IDCard / Birthday / BirthdayStr / Seat / StudentUuid
+// Birthday 优先对应前端 birthday 键；BirthdayStr 仅作为旧调用兼容字段。
 // 可选高级：Name→studentName、StudentNumber
 // 不写入：NationalStudentNumber（前端只读，Structured 忽略以免误改学籍）
 func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input types.UserUpdateInput) error {
@@ -111,12 +112,16 @@ func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input
 		updates["hobbies"] = input.Hobbies
 	}
 
-	// 证件号与生日（直接透传）
+	// 证件号与生日（直接透传）。Birthday 优先，BirthdayStr 兼容旧调用。
 	if input.IDCard != "" {
 		updates["idCard"] = input.IDCard
 	}
-	if input.BirthdayStr != "" {
-		updates["birthday"] = input.BirthdayStr
+	birthday := input.Birthday
+	if birthday == "" {
+		birthday = input.BirthdayStr
+	}
+	if birthday != "" {
+		updates["birthday"] = birthday
 	}
 
 	// 座号

@@ -105,7 +105,7 @@ func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 	const totalRecords = 250
 	const totalPages = 3 // ceil(250/100)
 
-	var callCount int
+	var callCount atomic.Int32
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
 			// 按请求的 pageNo 生成页，避免并发翻页时用 callCount 当页号错位
@@ -113,7 +113,7 @@ func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 			if pageNo < 1 {
 				pageNo = 1
 			}
-			callCount++
+			callCount.Add(1)
 			totalPage := totalPages
 			totalNum := totalRecords
 
@@ -161,8 +161,8 @@ func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 	if len(circles) != totalRecords {
 		t.Fatalf("期望 %d 条记录（分页合并），实际 %d", totalRecords, len(circles))
 	}
-	if callCount != totalPages {
-		t.Errorf("期望 %d 次 API 调用，实际 %d", totalPages, callCount)
+	if callCount.Load() != int32(totalPages) {
+		t.Errorf("期望 %d 次 API 调用，实际 %d", totalPages, callCount.Load())
 	}
 }
 
@@ -220,12 +220,12 @@ func TestGetSubmittedCircles_BizError(t *testing.T) {
 
 // TestGetSubmittedCircles_TotalPageGTR1ButNoData 验证总页数多但第二页没数据（容错场景）。
 func TestGetSubmittedCircles_TotalPageGTR1ButNoData(t *testing.T) {
-	var callCount int
+	var callCount atomic.Int32
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/api/studentCircleNew/getStudentCircle" {
-			callCount++
+			callCount.Add(1)
 			w.Header().Set("Content-Type", "application/json")
-			if callCount == 1 {
+			if callCount.Load() == 1 {
 				records := []map[string]any{
 					submittedRecord(1, "任务1", 0),
 				}

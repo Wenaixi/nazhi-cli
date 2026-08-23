@@ -30,18 +30,28 @@ var selfEvalSubmitCmd = &cobra.Command{
   nazhi self-eval submit --token eyJhbGciOiJIUzI1NiJ9.xxx --comment "-"
   nazhi self-eval submit --token xxx --payload '{"bxqhzr":"会做人目标","bxqbx":"表现","bxqys":"优势"}'`,
 	Run: func(cmd *cobra.Command, args []string) {
+		payloadRaw, _ := cmd.Flags().GetString("payload")
+		comment, _ := cmd.Flags().GetString("comment")
+		payloadMode := cmd.Flags().Changed("payload")
+
+		if payloadMode && payloadRaw == "" {
+			printParamError(fmt.Errorf("--payload 不能为空"))
+			return
+		}
+		if payloadMode && cmd.Flags().Changed("comment") {
+			printParamError(fmt.Errorf("--payload 与 --comment 不能同时提供"))
+			return
+		}
+
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
 			printParamError(err)
 			return
 		}
 
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-		comment, _ := cmd.Flags().GetString("comment")
-
-		// 结构化模式：--payload 优先
-		if payloadRaw != "" {
-			payloadBytes, err := parsePayloadFromArg(payloadRaw)
+		// 结构化模式：--payload
+		if payloadMode {
+			payloadBytes, err := parseJSONObjectPayload(payloadRaw)
 			if err != nil {
 				printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 				return

@@ -6,7 +6,7 @@
 
 | 方法 | 说明 | CLI |
 |------|------|-----|
-| `UploadFile` | 上传图片（预处理为 JPG≤5MB） | `nazhi file upload` |
+| `UploadFile` | 上传图片/附件（图片压缩后 ≤5MB，SDK 放宽；非图片附件 ≤2MB，与前端一致） | `nazhi file upload` |
 | `DownloadFile` | 按附件 id 下载到本地 | `nazhi file download` |
 
 ## 使用方法
@@ -34,10 +34,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 
 | 用户 | SDK 自动 |
 |------|----------|
-| 本地文件路径 | 解码 → 白底扁平化 → 缩放 → JPEG；目标体积 ≤5MB |
+| 本地文件路径 | 图片：解码 → 白底扁平化 → 缩放 → JPEG，目标体积 ≤5MB（MaxImageSize，SDK 放宽）；非图片附件（.mp4/.txt/.doc/.docx/.wps/.rar/.zip 等）：原样直传，上限 2MB（MaxAttachmentSize，与前端一致） |
 | — | multipart 字段名与 `bussinessType=12&groupName=other`（拼写与平台一致） |
 | — | 上传文件名 = `basename(path)` 改 `.jpg`（不含目录） |
-| — | **剥离** Authorization / X-Auth-Token / Cookie（独立 clean client） |
+| — | **不携带**任何鉴权头（独立 clean client，无 cookie jar；不产生 Authorization / X-Auth-Token / Cookie） |
 
 ### 请求示例
 
@@ -50,15 +50,16 @@ r, err := c.UploadFile(ctx, "./shot.png")
 
 ```json
 {
-  "attachmentId": 5139876,
-  "attachmentName": "shot.jpg",
-  "url": ""
+  "attachmentID": 5139876,
+  "attachmentName": "shot.jpg"
 }
 ```
 
+> 统一说明：图片压缩后 5MB（SDK 放宽），非图片附件 2MB（与前端一致）。
+
 ### 错误 / 注意
 
-- `ErrFileTooLarge` / `ErrImageTooLarge`：压缩后仍超限  
+- `ErrFileTooLarge` / `ErrImageTooLarge`：超限（图片压缩后仍 >5MB；非图片附件 >2MB）
 - `ErrUploadRejected`：服务端拒绝  
 - 写实 `SubmitTask` 的 `ImagePaths` 会在内部自动调 Upload；荣誉/典型案例证书需调用方先 Upload 再填 id  
 - 总表：[autofill.md](./autofill.md)  
@@ -71,7 +72,7 @@ r, err := c.UploadFile(ctx, "./shot.png")
 func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst string) error
 ```
 
-跟随 302；写到 `dst` 路径。成功 `nil`。
+跟随 HTTP 重定向；写到 `dst` 路径。成功 `nil`。
 
 ## 相关类型
 

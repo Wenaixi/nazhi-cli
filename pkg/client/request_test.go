@@ -196,7 +196,7 @@ func TestLogRequestHeaders_NilLogger_NoPanic(t *testing.T) {
 
 	// 未修复前：c.logger.Enabled(...) 因 c.logger==nil 而 panic
 	// 修复后应正常返回
-	c.logRequestHeaders(req)
+	c.logRequestHeaders(context.Background(), req)
 }
 
 // ─── do_biz_void_test.go: doBizVoid helper 单元测试 ───

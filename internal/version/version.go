@@ -17,7 +17,7 @@ package version
 //	        ErrBusinessRejected 哨兵 / LoginResponse.UserInfo 删除 / drainAndClose 辅助函数 / Transport Clone
 //	0.3.4 — Token 过期时间解析 / 死字段删除 / 5+1 处 ErrBusinessRejected 统一包装 / 6 个 Option 守卫 /
 //	        buildClient 统一 / trackInit sync.Map / printPrompt / whoami 空状态 / session backoff / FetchTasks partial 失败处理
-//	0.3.5 — OCR 可选构建（build tag: ddddocr）/ multipart 终止边界 / GIF 黑底修复 / 压缩死循环 /
+//	0.3.5 — OCR 可选构建 / multipart 终止边界 / GIF 黑底修复 / 压缩死循环 /
 //	        os.Exit 资源泄漏 / PII 守卫扩展 / 自定义 Transport 16 conns/host / 4 个错误哨兵 /
 //	        flagChanged token 守卫 / 顶层 panic recover / context cancel 检查 / 文档清理
 //	0.4.0 — review-tdd 第 15/16 轮全面修复 + 架构深化（sessionManager 收口 / HTTP helper 私有化 /
@@ -54,4 +54,7 @@ package version
 //	        - 新增 CLI 命令：circle、user
 //	        - 删除模块（源码清理，不再维护）：exam、democratic、violation、
 //	          notification、bonus、file_bag（含对应 CLI 命令、SDK 方法、类型定义）
-var Version = "1.3.0"
+//	1.3.1 — 写实任务全量兼容与稳定性加固：按前端 checkData 精确化 hours 校验（仅 target 1/6/10 必填，
+//	        其余预设为 0 时允许空 hours）、14 类任务字段透传与 30 键必现、撤回/我发布的统一 EditCircle、
+//	        CLI 数值归一与别名兼容、nil context/traceId 防护与 multiWriter 边界加固、穷举回归全绿
+var Version = "1.3.1"

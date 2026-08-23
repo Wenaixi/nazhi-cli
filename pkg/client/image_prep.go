@@ -16,6 +16,7 @@ import (
 
 	"github.com/disintegration/imaging"
 	// WEBP 解码器通过 image.RegisterFormat 注册，image.Decode 自动派发
+	_ "golang.org/x/image/bmp"
 	_ "golang.org/x/image/webp"
 )
 

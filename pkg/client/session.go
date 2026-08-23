@@ -312,7 +312,7 @@ func (sm *sessionManager) tryActivate(
 // 持锁 4 步契约：cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP
 // 会竞态写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
 //
-// 对同 token：DCL fast path 保证只有首次 goroutine 持锁执行 4 步，
+// 对同 token：locked fast path（原称 DCL，实际为持锁检查，无无锁预检）保证只有首次 goroutine 持锁执行 4 步，
 // 后续 goroutine 直接从缓存返回（不阻塞）。
 // 对不同 token：串行激活（不会死锁，约 200-500ms 内释放）。
 func (sm *sessionManager) Activate(

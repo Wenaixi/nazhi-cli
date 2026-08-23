@@ -1,17 +1,52 @@
 # CHANGELOG
 
-所有重要变更都会记录在此文件。
+## [未发布]
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)，
-项目遵循 [Semantic Versioning](https://semver.org/lang/zh-CN/)。
+### 新增
 
-## [Unreleased]
+- 日志系统增强（全流程可追踪）：新增 pkg/logx 薄封装（基于 stdlib slog，零新依赖）提供 Level/Format/File 解析、脱敏与 traceId 上下文；CLI 新增 --log-level debug/info/warn/error、--log-format text/json、--log-file 路径三旗标及对应 NAZHI_LOG_LEVEL/FORMAT/FILE 环境变量，兼容旧 --verbose（等价 debug，仅当未显式传 --log-level 时生效）；--quiet 仅静默 stderr，文件仍落盘便于 CI 留痕；SDK 在 request.go 统一 HTTP 生命周期打点并经 context 透传到 auth/session/file 全链，错误按 ClassifyError 定级；敏感字段统一脱敏，验证码原文永不落地。
+
+### 破坏性变更
+
+- SDK 移除本地验证码识别器、相关模型/原生运行库及构建选项；所有 `Login` 调用方必须通过 `WithCustomOCR` 注入视觉识别器。CLI 默认使用硅基流动 Qwen3-Omni，纯 Go 构建不再需要 CGO 或额外模型文件。
+
+### 文档
+
+- 同步 README、CLI/SDK 分册、CI、Makefile 与 `CLAUDE.md`，明确验证码识别依赖注入契约和纯 Go 构建矩阵。
+
+### 本轮审计与删除
+
+- 前端源码复核后深度删除违规功能：移除 `ViolationRecord`/`ViolationType`、SDK 客户端方法、CLI 命令及专属测试；前端历史调用点不再属于当前 SDK 契约。
+- 完成一次脱敏云端登录冒烟：CLI 使用本机运行时注入的 SiliconFlow Qwen3-Omni 密钥成功返回 200 envelope 和 token；密钥、账号和 token 未写入输出或仓库。
+
+- CLI `nazhi honor update`：保留 SDK `UpdateHonor` 能力，对象 payload 走 `parseJSONObjectPayload`，自动空 typeName 反查（`GetHonorTypeOptions`）；典型案例批量删除 `nazhi typical-case delete-batch --payload '[1,2,3]'`：保留 SDK `DeleteBatchTypicalCase` 能力，纯 ID 数组 payload 校验非空/正整数。
+- SDK `types.UserUpdateInput` 新增 `Birthday` 字段（对应前端 `updateMyInfo.birthday` 键）；`UpdateMyInfoStructured` 写入 wire key `birthday`，`Birthday` 优先、`BirthdayStr`（兼容旧调用）仅在 `Birthday` 为空时生效。SDK 原样透传，**不**做日期或时区转换（前端实际发送 ISO 8601 UTC）。
+- CLI `nazhi self-eval grad-status` / `grad-submit`：透传前端毕业评价查询与提交。查询走 `QuerySelfGradEvaluationJSON` 保留 `dataMap.student_comment` / `isGrad` 原始字段；提交走 `SubmitSelfGradEvaluation` 单层 `{studentComment}`。
+- CLI `nazhi honor levels --type-id`：透传 SDK `GetHonorLevel`，对齐前端按荣誉类型联动加载级别。
+- CLI `nazhi honor type-options` / `level-options`：分别透传 SDK `GetHonorTypeOptions` 的 `dataList` 类型选项与 `GetHonorTypeForSelect` 的 `returnData` 通用等级选项，避免两种下拉语义混用。
+- CLI `nazhi task dimensions`、`task circle-type --task-id`：`nazhi task dimensions` 透传 SDK `GetDimensions`；`task circle-type` 透传 SDK `GetCircleTypeByTaskID`，自动拒绝非正整数 `--task-id`，不发请求。
+- CLI `nazhi circle types --dimension-id [--pid]`、`circle tasks --type-id`、`circle images [--page] [--page-size]`、`circle dict --cate-code`：分别透传 SDK `GetCircleTypes`/`GetCircleTasks`/`GetCircleImages`/`GetDictList`，正整数 flag 在非法时立即走参数错误路径（退出码 3）。
+- CLI 登录可接入 Nazhi-auto 同款硅基流动 Qwen3-Omni：设置 `NAZHI_SILICONFLOW_API_KEY`（兼容 `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY`）后通过 `WithCustomOCR` 注入；密钥不入库。
+
+### 测试
+
+- 集成守卫 `TestNoRealPII` 抽出 `piiSkipDir` 辅助函数并新增 `TestPiiSkipDirSkipsNestedGitRepo` 回归：自动跳过嵌套 git 仓库（worktree / 子模块等），避免旧 worktree 中残留的早期 PII 夹具持续误报 `go test ./...`；主仓库 `.git`、经典 `vendor` / `node_modules` 跳过规则保持不变。
+
+### 修复
+
+- SDK `GetMyInfo` 的 `className` 后处理与前端 `userBox`、`modifyBox`、`header` 对齐：只移除首个“级”字，不再按 `gradeName` 删除前缀。
+- CLI stdin payload 超过 16 MiB 时返回参数错误，避免读取限制造成静默截断。
+- CLI 写实 payload 将 `level`、`checkResult`、`playRole` 的合法整数 number 规范为标准十进制代码字符串，同时继续拒绝小数、非有限值和溢出值。
+- CLI `self-eval submit --payload=` 显式空值立即返回参数错误，不再误走 stdin/纯文本模式。
+- 修复写实列表分页测试夹具的并发计数竞态，`go test -race` 不再因测试自身的共享计数器误报。
 
 ### 文档
 
 - **docs 重组**：删除设计类单页（architecture / login-flow / OCR / env-vars / har-testing / migration_v2 / api-coverage）；SDK 按功能域分册（`docs/sdk/*.md`）；CLI 精简为单文件并并入环境变量速查
 - 根 README / 文档中心仅链 CLI + SDK 分册
 - **自动补全总表** [`docs/sdk/autofill.md`](docs/sdk/autofill.md)：对照源码列出 Login 按学号查学校、GetMyInfo 用学号补 schoolId/schoolName、写实 hours/元数据/图片、荣誉 typeName/name/score、典型案例 *Name、用户中文映射与禁止发明默认等；各域分册补「用户输入 vs SDK 自动」；CLI 增加「SDK 自动补全对照」节
+- 文件域 SDK 文档对齐 `UploadFileResult` 的 `attachmentID` / `attachmentName` 输出，并将 `DownloadFile` 文案改为“跟随 HTTP 重定向”
+- CLI 文件上传示例统一使用实际 flag：`nazhi file upload -f ...`
 
 ### 破坏性变更 (BREAKING)
 
@@ -37,8 +72,12 @@
 
 ### 修复
 
+- CLI 各现有对象型 `--payload` 入口拒绝顶层 `null`、数组等非对象 JSON，统一走参数错误路径（退出码 3），避免零值请求或错误请求发出
+- `AddTypicalCasePayload.UnmarshalJSON` 遵循标准部分解码语义：缺失字段保留实例原值，仅对 JSON 明确提供的空 `attachmentId` 归一为 0；避免 SDK 调用方复用 payload 时已有字段被意外清零
+- `AddTypicalCasePayload` 兼容前端初始 `attachmentId:""`：空字符串/null 归一为零值并省略，无附件的前端原始表单可直接提交
+- `nazhi typical-case list` 默认 `--page-size` 从 20 调整为前端一致的 10
+- 修正 `honor.go` 顶部 `deleteHonorById` 端点注释为真实 GET
 - `httpDo` 对非 2xx 走 `classifyHTTPStatus`，主业务路径可识别 429/5xx/4xx 哨兵错误
-- `UploadFile` 仅在真正过大时 `Join ErrFileTooLarge`；multipart 文件名改用 basename+.jpg；`multipartBufPool` 预分配 `MaxImageSize+1024`
 - `hasHostSuffix` 要求 exact 或以 `.`+suffix 结尾，防止 `evilnazhisoft.com` 受信绕过
 - `assembleCirclesJSON` 空首页不再产生 leading comma 非法 JSON
 - `getCirclesLimitJSON` 只请求 offset/limit 覆盖页，避免全量翻页再截断
@@ -50,8 +89,9 @@
 - `QuerySelfEvaluation` 未提交评价时返回 `(nil, nil)`，不再把空成功误判为「所有解码器均失败」
 - `UpdateHonor` 对称补全 `typeName`（与 `AddHonor` 共用 ensureHonorTypeName）
 - `AddHonor` 空 `Name` 时回落 `TypeName`（对齐前端新增表单不传 name）
+- `AddHonorPayload.UnmarshalJSON` 部分解码时保留未提供字段，证书附件 ID 继续兼容 number/string，并区分缺失与显式 null
 - `GetCircleTypes` 对 `pid` 做 `url.QueryEscape`
-- `WithOCRConcurrency` 不再覆盖 `WithCustomOCR` 注入的识别器
+- 历史识别并发 Option 不再覆盖 `WithCustomOCR` 注入的识别器
 - 参数错误改用 `printParamError(400)`→exit 3（缺 token / payload 解析失败等）
 - 写实列表 `Get*CirclesJSON` 部分页失败时输出 `envelope.Partial(207)` 保留已合并数据
 - **CircleRecord 混用命名解析**：`imgList`/`imgPreViewList`/`commentList`/`likeStatus`/`ifMySelf`/`auditRemark`/`creationTimeStr`/`showName`/`imgPath`/`studentId` 对齐平台真实 JSON（此前 snake_case tag 导致结构化 API 静默丢字段；CLI `*JSON` 透传不受影响）
@@ -61,10 +101,14 @@
 - **输入暴露原则**：用户手填字段进 Input；前端自动填字段由 SDK 补全（典型案例 *Name、荣誉 typeName/name/score）
 - **CircleRecord.PlayRole**：类型改为 `PlayRoleCode`，兼容列表 API 的 number 与表单 string（前端 `switch(map.play_role) case 1/2/3`）；序列化统一为字符串码
 - **SelfEvalStatus**：`UnmarshalJSON` 主解码 `student_comment`/`teacher_comment`（前端 mainLeft/selfgaintloss），兼容 camelCase；`QuerySelfEvaluation` 的 normalize 兜底仍保留
+- **荣誉/自评协议文档**：补充荣誉各方法的真实 HTTP method/path、删除荣誉的 GET+`id` 查询参数，以及自评/毕业评价的 endpoint、请求体层级、`dataMap` 字段和当前 CLI 能力边界
+- **荣誉/自评回归测试**：覆盖 `DeleteHonor` 的 GET+`id` query、结构化自评的双层 `studentComment` JSON 请求体，以及荣誉证书附件 ID 的 number/string 输入兼容
 - **parseHours / TaskSubmitInput.Hours**：对齐前端 `hoursStatus`——任务元数据 hours>0 时用户可空（SDK 用预设）；hours≤0 且用户空 → `ErrInvalidPayload`（不再静默提交 0）；显式 Hours 始终优先
 - **写实 Address/OrgName/Level**：去掉 SDK 发明的默认（空 Address/OrgName→学校名、空 Level→`"5"`）；与前端一致，空串原样提交；调用方须按活动类型自行填写
 - **典型案例 *Name 映射**：对齐 classiccanter el-option——type `"2"`→「社会调查报告」、level `"1"`→「国际」（此前误为「社会实践报告」/「国家」）
 - **UpdateTypicalCase 数字 code**：`fillTypicalCaseDisplayNamesMap` 支持 type/role/level 为 number 或 string（列表回填常为 number；此前仅 string 能自动补 *Name）
+- **写实 CLI payload 类型兼容**：CLI 私有 JSON 解码 helper 兼容前端编辑回填的 `hours` number/string（保留小数），并仅接受 `level`、`checkResult`、`playRole` 的有限整数 number；可接受数字在进入 client 前统一为提交字段使用的字符串，字符串按原值保留。同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs`，规范字段优先；`TaskSubmitInput` / `TaskEditInput` 公开 Go 字段和标准 JSON 解码语义保持不变
+- **写实提交默认行为说明**：历史版本中的 Address/OrgName 学校名回落与 Level 默认 `"5"` 仅代表旧行为；当前版本保持前端语义，空值不自动替换
 
 ## [1.3.0] - 2026-07-18
 
@@ -76,7 +120,7 @@
 - `CircleComment` — 新增写实评论类型
 - `UserInfo` 扩充 8 字段：telephone、genderName、birthdayStr、youthLeagueFlag、nation、familyAddress、hobbies、idCard、idType
 - `ExamResult`、`TermInfo`、`ExamInitInfo`、`ExamType`、`Course` — 新增成绩管理类型
-- `ViolationRecord`、`ViolationType` — 新增违规记录类型
+- `ViolationRecord`、`ViolationType` — 历史版本曾新增的违规类型，当前版本已删除
 - `Notification`、`NotificationListResult` — 新增通知消息类型
 - `BonusInfo`、`BonusRank`、`BonusDetail` — 新增积分商城类型
 - `DemocraticActivity`、`SelfEvaluationItem`、`MutualEvaluation`、`DemocraticResult`、`MutualPersonInfo`、`ClassStudent` — 新增民主评价类型
@@ -86,7 +130,7 @@
 - `circle.go` — 写实管理扩展：DeleteCircle、AddCircleComment、SetCircleLike、GetCircleImages、GetCircleTasks、GetCircleTypes、GetDimensionsBySchool、GetDictList
 - `exam.go` — 成绩管理：GetExamInitInfo、QueryStudentExam（**v1.3.0 已删除，不再维护**）
 - `democratic.go` — 民主评价：GetDemocraticActivities、GetDemocraticActivityByID、GetSelfEvaluationData、GetMutualPersonInfo、GetDemocraticResult、GetMutualEvaluationDetail、AddOrUpdateSelfEvaluation、AddOrUpdateMutualEvaluation（**v1.3.0 已删除，不再维护**）
-- `violation.go` — 违规记录：GetViolationList、GetViolationTypes、UpdateHonor（**v1.3.0 已删除，不再维护**）
+- `violation.go` — 历史版本的违规记录实现，当前版本已删除文件、方法和测试
 - `notification.go` — 通知管理：GetUnreadNotifications、GetNotificationByID、ReadNotification、GetAllNotifications（**v1.3.0 已删除，不再维护**）
 - `bonus.go` — 积分商城：GetMonthBonus、GetHistoryBonus、GetBonusRank、GetBonusDetail（**v1.3.0 已删除，不再维护**）
 - `file_bag.go` — 档案查看：GetTermList、GetStudentInfoForTerm（**v1.3.0 已删除，不再维护**）
@@ -96,7 +140,7 @@
 
 - `nazhi circle` — 写实管理（delete、comment、like）
 - `nazhi exam` — 成绩管理（query）（**v1.3.0 已删除，不再维护**）
-- `nazhi violation` — 违规记录（list、types）（**v1.3.0 已删除，不再维护**）
+- `nazhi violation` — 历史版本的违规查询命令，当前版本已删除命令树和专属测试
 - `nazhi notification` — 通知管理（unread、read）（**v1.3.0 已删除，不再维护**）
 - `nazhi bonus` — 积分管理（month、rank）（**v1.3.0 已删除，不再维护**）
 - `nazhi user` — 用户管理（update）
@@ -208,7 +252,7 @@
 
 ### 移除
 
-- `WithFallbackOCR` / `WithFallbackConcurrency` Option — 不再有两阶段 cascade
+- 历史后备识别 Option 不再有两阶段 cascade
 - `Client.fallbackOCR` / `Client.fallbackConc` 字段 — `Client` 结构体减负
 - `defaultFallbackOCR` / `safeFallbackRecognize` — 死代码删除
 - `ocr_fallback_test.go` — 5 个 cascade 测试全部删除

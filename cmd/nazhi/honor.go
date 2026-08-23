@@ -62,7 +62,7 @@ var honorListCmd = &cobra.Command{
 	Short: "获取已申报荣誉记录",
 	Long:  `获取当前用户已申报的全部荣誉记录（分页）。支持 --key 关键字筛选。`,
 	Example: `  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx
-		  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 20`,
+		  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -160,10 +160,80 @@ var honorDeleteCmd = &cobra.Command{
 	},
 }
 
+// honorUpdateCmd 表示 nazhi honor update 命令。
+var honorUpdateCmd = &cobra.Command{
+	Use:     "update",
+	Short:   "更新荣誉记录",
+	Long:    "更新一条未审核的荣誉记录。payload 必须是 updateHonor 请求体对象，可用 @file.json 或 - 读取。",
+	Example: "  nazhi honor update --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor-update.json",
+	Args:    cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		payloadRaw, _ := cmd.Flags().GetString("payload")
+		if payloadRaw == "" {
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
+			return
+		}
+
+		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		if err != nil {
+			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
+		}
+		var payload map[string]any
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
+			return
+		}
+		printVerbose("正在更新荣誉记录...")
+		if err := c.UpdateHonor(cmd.Context(), token, payload); err != nil {
+			printError(fmt.Errorf("更新荣誉记录失败: %w", err))
+			return
+		}
+		printEnvelope(envelope.Empty("荣誉记录更新成功"))
+	},
+}
+
+// honorLevelsCmd 表示 nazhi honor levels 命令。
+//
+// 对齐前端 performanceM.vue：用户先选手类型，再按 typeId 联动加载级别。
+var honorLevelsCmd = &cobra.Command{
+	Use:     "levels",
+	Short:   "按荣誉类型查询可用级别",
+	Long:    "查询指定荣誉类型的级别下拉。对应 SDK GetHonorLevel，前端 getHonorLevel?honorTypeId=。",
+	Example: "  nazhi honor levels --token eyJhbGciOiJIUzI1NiJ9.xxx --type-id 1147",
+	Args:    cobra.NoArgs,
+	Run: func(cmd *cobra.Command, args []string) {
+		typeID, _ := cmd.Flags().GetInt64("type-id")
+		if typeID <= 0 {
+			printEnvelope(envelope.Error(400, "--type-id 必须为正整数"))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
+			return
+		}
+		printVerbose("正在获取荣誉级别...")
+		opts, err := c.GetHonorLevel(cmd.Context(), token, typeID)
+		if err != nil {
+			printError(fmt.Errorf("获取荣誉级别失败: %w", err))
+			return
+		}
+		printEnvelope(envelope.Success(opts))
+	},
+}
+
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
-// 委托 parsePayloadFromArg 处理 @file.json / - / 原始字符串。
+// 委托 parseJSONObjectPayload 处理 @file.json / - / 原始字符串，并校验顶层对象。
 func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
-	payloadBytes, err := parsePayloadFromArg(raw)
+	payloadBytes, err := parseJSONObjectPayload(raw)
 	if err != nil {
 		return nil, fmt.Errorf("读取 payload 失败: %w", err)
 	}
@@ -185,7 +255,7 @@ func init() {
 	// honor list
 	honorCmd.AddCommand(honorListCmd)
 	honorListCmd.Flags().Int("page", 1, "页码（从 1 开始）")
-	honorListCmd.Flags().Int("page-size", 20, "每页条数")
+	honorListCmd.Flags().Int("page-size", 10, "每页条数")
 	honorListCmd.Flags().String("key", "", "搜索关键字（可空，对应 getHonorByStudentId 的 key）")
 	registerBizFlags(honorListCmd)
 
@@ -198,4 +268,14 @@ func init() {
 	honorCmd.AddCommand(honorDeleteCmd)
 	honorDeleteCmd.Flags().Int64("id", 0, "荣誉记录 ID（必填）")
 	registerBizFlags(honorDeleteCmd)
+
+	// honor update
+	honorCmd.AddCommand(honorUpdateCmd)
+	honorUpdateCmd.Flags().String("payload", "", "荣誉更新 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
+	registerBizFlags(honorUpdateCmd)
+
+	// honor levels
+	honorCmd.AddCommand(honorLevelsCmd)
+	honorLevelsCmd.Flags().Int64("type-id", 0, "荣誉类型 ID（必填，对应前端 getHonorLevel?honorTypeId=）")
+	registerBizFlags(honorLevelsCmd)
 }

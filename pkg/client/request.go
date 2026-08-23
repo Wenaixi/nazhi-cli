@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
@@ -38,6 +39,17 @@ func drainAndClose(body io.ReadCloser) {
 // HTTP 状态码分类的重复。
 //
 // defaultErr 用于非 429/5xx 的兜底（request.go: ErrInvalidResponse, file.go: ErrUploadRejected）。
+func levelForStatus(code int) slog.Level {
+	switch {
+	case code >= 500:
+		return slog.LevelError
+	case code >= 400:
+		return slog.LevelWarn
+	default:
+		return slog.LevelInfo
+	}
+}
+
 func classifyHTTPStatus(code int, defaultErr error) error {
 	switch {
 	case code == http.StatusTooManyRequests:
@@ -261,34 +273,32 @@ func doBizGetDecode[T any](c *Client, ctx context.Context, token, opName, path s
 		}
 		if err != nil {
 			lastErr = err
-			c.logDebug("%s doBizGetDecode fallback: %v", opName, err)
+			c.logDebugCtx(ctx, "%s doBizGetDecode fallback: %v", opName, err)
 		}
 	}
-	// 用 errors.Join 收集最后一个解码器错误，让调用方能 errors.Is 穿透获取有用信息
+	// 用 sentinel ErrAllDecodersFailed 标记空结果，让调用方可用 errors.Is 精确识别，
+	// 避免依赖字符串匹配（旧实现用 strings.Contains("所有解码器均失败") 脆弱）。
+	// lastErr 为 nil 时为纯空成功；非 nil 时 Join 实际解码错误供排错。
 	return nil, errors.Join(
-		fmt.Errorf("%s: 所有解码器均失败", opName),
+		fmt.Errorf("%s: %w", opName, ErrAllDecodersFailed),
 		lastErr,
 	)
 }
 
-// logRequestHeaders 在 debug 级别输出请求头，值长度 > 16 字符时自动截断脱敏。
-func (c *Client) logRequestHeaders(req *http.Request) {
+// logRequestHeaders 在 debug 级别输出请求头，敏感 header 自动脱敏。
+func (c *Client) logRequestHeaders(ctx context.Context, req *http.Request) {
 	if c.logger == nil {
 		return
 	}
-	if !c.logger.Enabled(context.Background(), slog.LevelDebug) {
+	if !c.logger.Enabled(ctx, slog.LevelDebug) {
 		return
 	}
 	for k, v := range req.Header {
 		if len(v) == 0 {
 			continue
 		}
-		val := v[0]
-		if len(val) > 16 {
-			c.logDebug("  Header: %s: %s...", k, val[:16])
-		} else {
-			c.logDebug("  Header: %s: %s", k, val)
-		}
+		red := logx.RedactHeader(k, v[0])
+		c.logDebugCtx(ctx, "  Header: %s: %s", k, red)
 	}
 }
 
@@ -300,18 +310,25 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 		return nil, err
 	}
 
-	c.logDebug("→ %s %s", method, url)
-	c.logRequestHeaders(req)
+	start := time.Now()
+	c.logDebugCtx(ctx, "→ %s %s", method, logx.RedactBody(url))
+	c.logRequestHeaders(ctx, req)
 
 	resp, err := c.http.Do(req)
 	if err != nil {
+		dur := time.Since(start)
+		lvl := slog.LevelError
+		if isTimeoutError(err) || errors.Is(err, context.Canceled) {
+			lvl = slog.LevelWarn
+		}
+		c.logWithLevel(ctx, lvl, "✗ %s %s dur=%s err=%v", method, logx.RedactBody(url), dur, err)
 		// A1 修复：检测超时错误并用 ErrTimeout 包装。
-		// 让 SDK 用户能 errors.Is(err, ErrTimeout) 区分「超时」vs「连不上」。
 		if isTimeoutError(err) {
 			return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrTimeout, url, err)
 		}
 		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)
 	}
+	_ = time.Since(start)
 	return resp, nil
 }
 
@@ -336,7 +353,7 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 		return nil, fmt.Errorf("%w: 读取响应体失败: %w", ErrNetwork, err)
 	}
 
-	c.logDebug("← %d (%d bytes)", resp.StatusCode, len(respBytes))
+	c.logWithLevel(ctx, levelForStatus(resp.StatusCode), "← %d %s (%d bytes) body=%s", resp.StatusCode, logx.RedactBody(url), len(respBytes), logx.RedactBody(logSafeBody(respBytes)))
 
 	// 非 2xx：返回 sentinel，不把 body 当作成功 JSON 交给上层解码。
 	// 2xx（含 201/204 等）视为传输成功，业务 code 仍由 DecodeResponse/CheckCode 判定。

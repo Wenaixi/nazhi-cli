@@ -14,6 +14,7 @@ CLI 与上游脚本需要 **平台原始 JSON** 时使用本族方法；`envelop
 | `ActivateSessionJSON` | `session activate` |
 | `GetMyInfoJSON` | `whoami` / `user info` |
 | `QuerySelfEvaluationJSON` | `self-eval status` |
+| `QuerySelfGradEvaluationJSON` | `self-eval grad-status` |
 | `GetHonorTypesJSON` / `GetHonorListJSON` | `honor types` / `list` |
 | `GetTypicalCaseListJSON` | `typical-case list` |
 

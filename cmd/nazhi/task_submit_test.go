@@ -73,6 +73,27 @@ func TestTaskSubmitCmd_InvalidPayloadJSON_Exit3(t *testing.T) {
 	}
 }
 
+// TestTaskSubmitCmd_TopLevelNull_Exit3 验证顶层 null payload 在解码前被拒绝。
+func TestTaskSubmitCmd_TopLevelNull_Exit3(t *testing.T) {
+	cmd := makeTaskSubmitTestCmd(t, "null")
+	cmd.Flags().String("address", "", "")
+	cmd.Flags().String("level", "", "")
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	_, stderrBuf, restore := captureStdio(t)
+	taskSubmitCmd.Run(cmd, nil)
+	restore()
+
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Fatalf("顶层 null 应 pendingExitCode=3，实际 %d；stderr=%q", got, stderrBuf.String())
+	}
+	if !strings.Contains(stderrBuf.String(), "顶层 JSON 必须为对象") {
+		t.Fatalf("stderr 应说明顶层 JSON 必须为对象，实际=%q", stderrBuf.String())
+	}
+}
+
 // TestTaskSubmitCmd_WithPayload 验证新最小输入模型能正确提交并输出 envelope。
 func TestTaskSubmitCmd_WithPayload(t *testing.T) {
 	payload := `{"taskId":1001,"content":"测试任务心得","address":"高一(8)班"}`

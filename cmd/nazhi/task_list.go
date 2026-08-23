@@ -18,7 +18,7 @@ import (
 // SDK 在进入 CLI 前就已完成字段语义整理：
 //   - circleTaskStatus → submitted
 //   - upPic → needPic
-//   - 日期字符串 → DateOnly / RFC3339 风格输出
+//   - 日期字段为 string 透传（服务端原始格式，如 "2026-01-12"）
 var taskListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "获取全维度任务列表",

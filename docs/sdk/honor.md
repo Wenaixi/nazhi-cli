@@ -4,16 +4,16 @@
 
 ## 方法一览
 
-| 方法 | 说明 | CLI |
-|------|------|-----|
-| `GetHonorTypes` | 荣誉类型说明表 | `honor types` |
-| `GetHonorTypeOptions` | 类型下拉（dataList） | — |
-| `GetHonorTypeForSelect` | 级别下拉（returnData） | — |
-| `GetHonorLevel` | 按 typeId 联动级别 | — |
-| `GetHonorList` | 已申报分页 | `honor list` |
-| `AddHonor` | 申报 | `honor add` |
-| `UpdateHonor` | 更新 | — |
-| `DeleteHonor` | 删除 | `honor delete` |
+| 方法 | HTTP 请求 | 说明 | CLI |
+|------|-----------|------|-----|
+| `GetHonorTypes` | `GET /api/studentMoralEduNew/getHonorType` | 荣誉类型说明表 | `honor types` |
+| `GetHonorTypeOptions` | `GET /api/studentMoralEduNew/getHonorTypeForSelect` | 类型下拉（读取 `dataList`） | `honor type-options` |
+| `GetHonorTypeForSelect` | `GET /api/studentMoralEduNew/getHonorTypeForSelect` | 级别下拉（读取 `returnData`） | `honor level-options` |
+| `GetHonorLevel` | `GET /api/studentMoralEduNew/getHonorLevel?honorTypeId=...` | 按 `typeId` 联动级别 | `honor levels` |
+| `GetHonorList` | `GET /api/studentMoralEduNew/getHonorByStudentId?pageNo=...&pageSize=...&key=...` | 已申报分页 | `honor list` |
+| `AddHonor` | `POST /api/studentMoralEduNew/addHonor` | 申报 | `honor add` |
+| `UpdateHonor` | `POST /api/studentMoralEduNew/updateHonor` | 更新（JSON map） | `honor update` |
+| `DeleteHonor` | `GET /api/studentMoralEduNew/deleteHonorById?id=...` | 删除 | `honor delete` |
 
 ## 使用方法
 
@@ -80,12 +80,23 @@ func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHo
 | typeId | 必填（选类型） | — |
 | level | 必填 | 前端会按 type 联动默认第一项；SDK **不**自动选 level，须调用方传 |
 | evaluationAgency / getDate | 必填 | — |
-| certImgAttachmentId | 可选；先 `UploadFile` | 无本地路径自动上传便利（与前端 upload success 写 id 一致） |
+| certImgAttachmentId | 可选；前端上传成功后为 number，也接受 string；先 `UploadFile` | 无本地路径自动上传便利（与前端 upload success 写 id 一致） |
 | typeName | 可空 | 空且 typeId>0 → `GetHonorTypeOptions`（**dataList** 类型选项）反查 label；找不到 → `ErrInvalidPayload` |
 | name | 可空 | 空 → **回落 typeName**（前端新增不传 name，学生名输入已注释） |
 | score | 可显式 | **默认 0** 且 `json:"score"` 无 omitempty，零值也会进请求体 |
 
 前端「荣誉名称」UI = typeId 下拉，不是手填 name。
+
+### 批量提交开销权衡
+
+`AddHonor` / `UpdateHonor` 当 `typeName` 为空且 `typeId>0` 时会额外发起一次
+`GET /api/studentMoralEduNew/getHonorTypeForSelect`（`GetHonorTypeOptions`，读 `dataList`）
+反查 `typeName`。单次提交多 1 个 RTT，批量循环提交时为 N+1。
+
+- **追求最少网络往返**：调用方自行缓存 `GetHonorTypeOptions` 结果，批量提交时显式传入 `typeName`，SDK 不再发起补全 GET。
+- **追求调用简洁**：仅传 `typeId`，由 SDK 自动补全，接受每次额外 GET 开销。
+
+当前保持按需补全策略，未做 SDK 侧批量缓存，以保持语义简单；如需极致批量性能，可在外层自行做 `typeId→label` 缓存后透传。
 
 ### 请求示例
 
@@ -123,8 +134,10 @@ err := c.UpdateHonor(ctx, token, map[string]any{
     "id": 1, "typeId": 1147, "level": 5,
     "evaluationAgency": "示例中学", "getDate": "2026-06-30",
 })
-err = c.DeleteHonor(ctx, token, 1)
+err = c.DeleteHonor(ctx, token, 1) // GET .../deleteHonorById?id=1
 ```
+
+`UpdateHonor` 接收前端更新表单的 JSON map；当 `typeId` 存在且 `typeName` 为空时，SDK 从 `getHonorTypeForSelect.dataList` 反查类型名称。`DeleteHonor` 不发送请求体，使用 GET，并通过 `id` 查询参数传递记录 ID。
 
 `GetHonorTypeForSelect` 返回的是**级别**下拉（returnData）；类型下拉请用 `GetHonorTypeOptions`（dataList）——反查 typeName 已走后者。
 

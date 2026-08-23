@@ -2,11 +2,14 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +23,10 @@ import (
 //   NAZHI_BASE_URL     — 业务 API 根地址（session/whoami/task/self-eval）
 //   NAZHI_TIMEOUT      — HTTP 超时（秒，所有命令）
 //   NAZHI_UPLOAD_URL   — 文件上传 API 根地址（file upload）
-// 推荐在 CI/集成测试中通过 `.env` 文件或 secret 注入。
+//   NAZHI_SILICONFLOW_API_KEY — Nazhi-auto 同款硅基流动视觉模型密钥（login，推荐）
+//   NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY — 兼容旧配置名（login）
+// 推荐在 CI/集成测试中通过 secret 注入，不要把密钥写入仓库。
+// NAZHI_USERNAME/NAZHI_PASSWORD 见 login.go（登录专用）
 
 // urlOptDef 描述一种 URL 类型对应的 flag 名、环境变量名和 Option 构造函数。
 type urlOptDef struct {
@@ -104,12 +110,74 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		return nil, "", fmt.Errorf("buildClientOpts: 未知 urlType %q（期望 sso/base/upload）", urlType)
 	}
 
-	// --verbose 时让 SDK logger 输出 Debug 级别日志
-	// 否则 c.logDebug 被 slog LevelWarn 过滤，用户看不到 SDK 内部细节。
-	if verbose && !quiet {
-		opts = append(opts, client.WithLogger(
-			slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})),
-		))
+	// 日志级别与格式与落盘：flag 大于 env 大于默认；--verbose 兼容为 debug
+	levelStr := strings.TrimSpace(cliLogLevel)
+	if levelStr == "" {
+		levelStr = strings.TrimSpace(os.Getenv("NAZHI_LOG_LEVEL"))
+	}
+	if verbose && levelStr == "" {
+		levelStr = "debug"
+	}
+	if levelStr == "" {
+		levelStr = "warn"
+	}
+	lvl, err := logx.ParseLevel(levelStr)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warn: %v，使用 warn 级别\n", err)
+		lvl = slog.LevelWarn
+	}
+	formatStr := strings.TrimSpace(cliLogFormat)
+	if formatStr == "" {
+		formatStr = strings.TrimSpace(os.Getenv("NAZHI_LOG_FORMAT"))
+	}
+	if formatStr == "" {
+		formatStr = "text"
+	}
+	if _, err := logx.ParseFormat(formatStr); err != nil {
+		fmt.Fprintf(os.Stderr, "warn: %v，使用 text 格式\n", err)
+		formatStr = "text"
+	}
+	filePath := strings.TrimSpace(cliLogFile)
+	if filePath == "" {
+		filePath = strings.TrimSpace(os.Getenv("NAZHI_LOG_FILE"))
+	}
+	var writers []io.Writer
+	if !quiet {
+		writers = append(writers, os.Stderr)
+	}
+	if filePath != "" {
+		if fw, ferr := logx.NewFileWriter(filePath); ferr == nil {
+			writers = append(writers, fw)
+			trackLogFile(fw)
+		} else {
+			fmt.Fprintf(os.Stderr, "warn: 无法打开 log-file %q: %v\n", filePath, ferr)
+		}
+	}
+	// quiet 且无文件时用 io.Discard 避免默认落到 stderr；否则按 writers 组装 logger
+	if len(writers) == 0 {
+		writers = []io.Writer{io.Discard}
+	}
+	lg := logx.NewLogger(lvl, formatStr, writers...)
+	opts = append(opts, client.WithLogger(lg))
+	if ocr := omniOCRFromEnv(); ocr != nil {
+		opts = append(opts, client.WithCustomOCR(ocr))
 	}
 	return opts, token, nil
+}
+
+// omniOCRFromEnv 读取硅基流动 Qwen3-Omni 配置。
+// 密钥只来自环境变量，禁止写入仓库或文档示例真值。
+func omniOCRFromEnv() *omniOCR {
+	// Nazhi-auto 的正式配置名优先，旧名称仅作兼容，不改变视觉模型请求契约。
+	key := strings.TrimSpace(os.Getenv("NAZHI_SILICONFLOW_API_KEY"))
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("NAZHI_OCR_API_KEY"))
+	}
+	if key == "" {
+		key = strings.TrimSpace(os.Getenv("SILICONFLOW_API_KEY"))
+	}
+	if key == "" {
+		return nil
+	}
+	return newOmniOCR(key, os.Getenv("NAZHI_OCR_BASE_URL"), os.Getenv("NAZHI_OCR_MODEL"))
 }

@@ -9,8 +9,8 @@
 | `SubmitSelfEvaluation` | 纯文本自评 | `self-eval submit` |
 | `SubmitSelfEvaluationStructured` | 结构化（诉得失 form） | `self-eval submit --payload` |
 | `QuerySelfEvaluation` | 查询自评+教师评语 | `self-eval status` |
-| `QuerySelfGradEvaluation` | 毕业评价查询 | — |
-| `SubmitSelfGradEvaluation` | 毕业评价提交 | — |
+| `QuerySelfGradEvaluation` / `QuerySelfGradEvaluationJSON` | 毕业评价查询 | `self-eval grad-status` |
+| `SubmitSelfGradEvaluation` | 毕业评价提交 | `self-eval grad-submit` |
 
 ## 使用方法
 
@@ -19,6 +19,20 @@ _ = c.SubmitSelfEvaluation(ctx, token, "本学期我认真完成了各项任务�
 st, err := c.QuerySelfEvaluation(ctx, token)
 // 未提交时 st == nil && err == nil
 ```
+
+---
+
+## 请求路径与响应约定
+
+| 方法 | HTTP 请求 | 请求体 / 返回值 |
+|------|-----------|----------------|
+| `SubmitSelfEvaluation` | `POST /api/studentMoralEduNew/addSelfEvaluation` | `{"studentComment":"评语"}`；成功返回 `nil` |
+| `SubmitSelfEvaluationStructured` | `POST /api/studentMoralEduNew/addSelfEvaluation` | `studentComment` 是 `JSON.stringify(form)` 后的字符串；成功返回 `nil` |
+| `QuerySelfEvaluation` | `GET /api/studentMoralEduNew/querySelfEvaluation` | 从 `dataMap` 读取 `student_comment`/`teacher_comment`；未提交返回 `nil, nil` |
+| `QuerySelfGradEvaluation` | `GET /api/studentMoralEduNew/querySelfGradEvaluation` | 从 `dataMap`/`returnData` 返回 `*map[string]any`；常见字段为 `student_comment`、`isGrad` |
+| `SubmitSelfGradEvaluation` | `POST /api/studentMoralEduNew/addSelfGradEvaluation` | `{"studentComment":"毕业评语"}`；成功返回 `nil` |
+
+纯文本与毕业评价提交均只有一层 `studentComment` 包装；结构化学期自评才会把表单 JSON 再嵌入该字段。CLI `self-eval grad-status` 透传 `QuerySelfGradEvaluationJSON` 原始对象；`self-eval grad-submit --comment` 透传 `SubmitSelfGradEvaluation`。
 
 ---
 

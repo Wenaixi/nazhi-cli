@@ -9,10 +9,10 @@
 | `DeleteCircle` | 删除写实 | `nazhi circle delete` |
 | `AddCircleComment` | 评论 | `nazhi circle comment` |
 | `SetCircleLike` | 点赞切换 | `nazhi circle like` |
-| `GetCircleTypes` | 维度下类别 | — |
-| `GetCircleTasks` | 类别下任务 | — |
-| `GetCircleImages` | 写实图片分页 | — |
-| `GetDictList` | 字典（如等级 cateCode=23） | — |
+| `GetCircleTypes` | 维度下类别 | `circle types --dimension-id [--pid]` |
+| `GetCircleTasks` | 类别下任务 | `circle tasks --type-id` |
+| `GetCircleImages` | 写实图片分页 | `circle images --page --page-size` |
+| `GetDictList` | 字典（如等级 cateCode=23） | `circle dict --cate-code` |
 
 ## 使用方法
 
@@ -60,7 +60,7 @@ err := c.AddCircleComment(ctx, token, 5400001, "加油")
 
 ### 响应示例
 
-成功 `nil`。
+成功 `nil`。真实前端会继续消费响应中的 `returnData` 并立即更新评论列表；当前已有 SDK 方法签名是 error-only，本轮保持该公开契约，不新增评论返回对象方法。
 
 ---
 

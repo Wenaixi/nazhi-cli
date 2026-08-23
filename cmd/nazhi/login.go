@@ -14,19 +14,23 @@ import (
 //
 //	nazhi login -u <username> -p <password> [--sso-base <url>] [--timeout <秒>]
 //
-// 验证码由内置 OCR 全自动识别，无需人工干预。
+// 验证码由硅基流动 Qwen3-Omni 视觉模型识别（通过 NAZHI_SILICONFLOW_API_KEY 注入，兼容旧别名）。
+// v1.4.0 起 SDK 不内置验证码识别器，必须配置视觉模型或注入自定义识别器，否则 login 直接返回 503 引导。
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "SSO 登录纳智综合评价系统",
-	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → OCR 自动识别验证码 → Login。
+	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → 视觉识别器处理验证码 → Login。
 
-	验证码由内置 OCR 全自动识别（模型已内嵌在二进制中，无需下载），无需人工干预。`,
-	Example: `  nazhi login -u 学号 -p 密码                       # 全自动 OCR
+	验证码必须配置 Nazhi-auto 同款硅基流动 Qwen3-Omni API key（NAZHI_SILICONFLOW_API_KEY）。
+兼容 NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY 旧别名；SDK 不内置本地验证码识别器，未配置时 login 直接 503 退出。`,
+	Example: `  export NAZHI_SILICONFLOW_API_KEY=sk-...      # 先设置视觉模型 key
+  nazhi login -u 学号 -p 密码                       # 视觉识别器自动处理验证码
 	  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// username/password 用 applyURLFlag 统一收口
 		// 语义：flag 显式传递 → 用 flag 值（含显式空字符串）；未传 → env fallback。
 		// 与 client_builder.go token 读取对称。
+		// 登录专用，不走 buildClientOpts
 		username := applyURLFlag(cmd, "username", "NAZHI_USERNAME")
 		password := applyURLFlag(cmd, "password", "NAZHI_PASSWORD")
 
@@ -42,7 +46,7 @@ var loginCmd = &cobra.Command{
 			return
 		}
 
-		printVerbose("正在自动识别验证码并登录（OCR）...")
+		printVerbose("正在调用视觉识别器处理验证码并登录...")
 		resp, err := c.Login(cmd.Context(), types.LoginRequest{
 			Username: username,
 			Password: password,
@@ -51,7 +55,7 @@ var loginCmd = &cobra.Command{
 			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
 			switch {
 			case errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic):
-				printEnvelope(envelope.Error(503, "登录失败：OCR 识别器未配置或出错。当前构建未启用 -tags ddddocr，请使用预编译 release 二进制，或通过 SDK 调 client.WithCustomOCR(myRecognizer) 注入识别器。"))
+				printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。请设置 Nazhi-auto 同款环境变量 NAZHI_SILICONFLOW_API_KEY 接入硅基流动 Qwen3-Omni 视觉模型（兼容 NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY），或通过 SDK WithCustomOCR 注入自定义识别器。"))
 			case errors.Is(err, client.ErrLoginRejected):
 				printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error())))
 			default:

@@ -22,9 +22,6 @@ coverage_pkg
 /release/
 
 # ─── 临时文件 / 下载 ──────────────────────
-# OCR 原生库下载临时目录
-tmp_onnx_download/
-tmp_dl2/
 
 # 测试 / 调试临时文件
 captcha.jpg
@@ -38,6 +35,8 @@ debug-*
 *.bak
 
 # ─── 工具 / 状态 ──────────────────────────
+# 本地 live-smoke 验证输出
+artifacts/
 # OMC 多智能体编排状态
 .omc/
 .omc.*
@@ -95,3 +94,7 @@ node_modules/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+# ─── E2E 究极大测试 token 缓存 ─────────────────────
+.e2e_token
+test/e2e/.e2e_token
+test/e2e/.token_cache
