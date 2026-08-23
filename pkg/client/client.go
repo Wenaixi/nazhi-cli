@@ -110,7 +110,7 @@ func isNil(v any) bool {
 	if v == nil {
 		return true
 	}
-	switch rv := reflect.ValueOf(v); rv.Kind() {
+	switch rv := reflect.ValueOf(v); rv.Kind() { //nolint:exhaustive
 	case reflect.Ptr, reflect.Interface, reflect.Map, reflect.Slice, reflect.Chan, reflect.Func:
 		return rv.IsNil()
 	default:

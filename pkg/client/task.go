@@ -199,7 +199,7 @@ func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimen
 }
 
 func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildTaskPayload(ctx, token, input, "SubmitTask")
+	return c.buildTaskPayload(ctx, token, input, "SubmitTask", c.UploadFile)
 }
 
 // parseHours 解析写实提交的时长，对齐前端 hoursStatus 逻辑：
@@ -226,16 +226,20 @@ func parseHours(userInput string, metaHours float64, targetType int) (float64, e
 	return parsed, nil
 }
 
-// buildTaskPayload 是 payload 构建的公共逻辑，供 SubmitTask 和 EditCircle 共用。
+// buildTaskPayload 是 payload 构建的公共逻辑，供 SubmitTask / EditCircle / Preview* 共用。
 //
 // 参数说明：
 //   - input: 实现 TaskInput 接口的输入（TaskSubmitInput 或 TaskEditInput）
 //   - callerName: 调用方名称，用于错误信息前缀
+//   - uploader: 图片上传钩子；传 nil 表示纯预览（跳过 ImagePaths 上传避免本地副作用，
+//     pictureList 仅合并 ImageIDs）。提交链路传 c.UploadFile。
+//
+// 不变式：preview 与 submit 的线上 JSON 必须等价（task_preview_parity_test.go 锁定）。
 //
 // 对齐前端（输入暴露原则）：
 //   - circleTaskId/circleTypeId/dimensionId/hours(预设>0)：SDK 从 getCircleTypeByTaskId 自动填
 //   - Address/OrgName/Level/PlayRole 等：用户填什么发什么；空串原样，不发明学校名或等级「5」
-func (c *Client) buildTaskPayload(ctx context.Context, token string, input types.TaskInput, callerName string) (*types.TaskAddCirclePayload, error) {
+func (c *Client) buildTaskPayload(ctx context.Context, token string, input types.TaskInput, callerName string, uploader func(context.Context, string) (*types.UploadFileResult, error)) (*types.TaskAddCirclePayload, error) {
 	if err := input.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
 	}
@@ -250,7 +254,7 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		return nil, err
 	}
 
-	// 处理图片：合并 ImageIDs + ImagePaths
+	// 处理图片：合并 ImageIDs（+提交链路时上传 ImagePaths）
 	pictureList := make([]int64, 0, len(input.GetImageIDs())+len(input.GetImagePaths()))
 	for _, id := range input.GetImageIDs() {
 		if id <= 0 {
@@ -258,18 +262,20 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		}
 		pictureList = append(pictureList, id)
 	}
-	for _, path := range input.GetImagePaths() {
-		if strings.TrimSpace(path) == "" {
-			continue
-		}
-		result, upErr := c.UploadFile(ctx, path)
-		if upErr != nil {
-			if len(pictureList) > 0 {
-				return nil, fmt.Errorf("%s 上传图片失败（已上传的 attachmentID: %v）: %w", callerName, pictureList, upErr)
+	if uploader != nil {
+		for _, path := range input.GetImagePaths() {
+			if strings.TrimSpace(path) == "" {
+				continue
 			}
-			return nil, fmt.Errorf("%s 上传图片失败: %w", callerName, upErr)
+			result, upErr := uploader(ctx, path)
+			if upErr != nil {
+				if len(pictureList) > 0 {
+					return nil, fmt.Errorf("%s 上传图片失败（已上传的 attachmentID: %v）: %w", callerName, pictureList, upErr)
+				}
+				return nil, fmt.Errorf("%s 上传图片失败: %w", callerName, upErr)
+			}
+			pictureList = append(pictureList, result.AttachmentID)
 		}
-		pictureList = append(pictureList, result.AttachmentID)
 	}
 
 	// 验证任务元数据中的图片要求
@@ -378,7 +384,7 @@ func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskE
 //   - buildTaskSubmitPayload: ID = nil（新增记录）
 //   - buildTaskEditPayload: ID = input.ID（修改已有记录）
 func (c *Client) buildTaskEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildTaskPayload(ctx, token, input, "EditCircle")
+	return c.buildTaskPayload(ctx, token, input, "EditCircle", c.UploadFile)
 }
 
 // 公开接口仅接收最少必要输入，SDK 内部自动补齐真实网页提交流程所需字段：
@@ -397,112 +403,16 @@ func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskS
 //
 // 真实网页在打开任务提交通道前会先请求 getCircleTypeByTaskId，再用返回的 dataMap
 // 填充 addCircle 请求体。SDK 暴露该方法，避免调用方手工猜测 circleTypeId。
-// PreviewSubmitPayload 预览提交时的最终 payload（不发请求，仅用于“暴露预设值”）。
-//
-// 语义与 SubmitTask 完全一致：内部走同样的 GetCircleTypeByTaskID → parseHours → 图片合并 → 30 字段组装，
-// 但不会 POST /api/studentCircleNew/addCircle。调用方可据此检查：
-//   - 预设的 circleTaskId/circleTypeId/dimensionId/hours 是否如预期
-//   - 空的 address/level 是否保持为空（不会被偷填成学校名/"5"）
-//   - 14 类任务各自必填的字段是否已就位
-//
-// 对齐前端：前端是 JSON.stringify(form) 原样发送，SDK 预览也是 Trim 后原样 + 预设回填，不发明默认值。
-func (c *Client) buildPreviewPayload(ctx context.Context, token string, input types.TaskInput, callerName string) (*types.TaskAddCirclePayload, error) {
-	if err := input.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
-	}
-	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
-	if err != nil {
-		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
-	}
-	hours, err := parseHours(input.GetHours(), meta.Hours, meta.Type)
-	if err != nil {
-		return nil, err
-	}
-	pictureList := make([]int64, 0, len(input.GetImageIDs()))
-	for _, id := range input.GetImageIDs() {
-		if id <= 0 {
-			continue
-		}
-		pictureList = append(pictureList, id)
-	}
-	address := input.GetAddress()
-	playRole := input.GetPlayRole()
-	level := input.GetLevel()
-	name := input.GetName()
-	hostName := input.GetHostName()
-	circleDate := input.GetCircleDate()
-	rank := input.GetRank()
-	activityName := input.GetActivityName()
-	sportsName := input.GetSportsName()
-	teamName := input.GetTeamName()
-	orgName := input.GetOrgName()
-	resultsName := input.GetResultsName()
-	obtainTime := input.GetObtainTime()
-	specialtyTechnology := input.GetSpecialtyTechnology()
-	likeSpecialty1 := input.GetLikeSpecialty1()
-	likeSpecialty2 := input.GetLikeSpecialty2()
-	likeSpecialty3 := input.GetLikeSpecialty3()
-	// 对齐 buildTaskPayload 的 Trim 语义：空串保持空，不发明
-	address = strings.TrimSpace(address)
-	playRole = strings.TrimSpace(playRole)
-	level = strings.TrimSpace(level)
-	name = strings.TrimSpace(name)
-	hostName = strings.TrimSpace(hostName)
-	circleDate = strings.TrimSpace(circleDate)
-	rank = strings.TrimSpace(rank)
-	activityName = strings.TrimSpace(activityName)
-	sportsName = strings.TrimSpace(sportsName)
-	teamName = strings.TrimSpace(teamName)
-	orgName = strings.TrimSpace(orgName)
-	resultsName = strings.TrimSpace(resultsName)
-	obtainTime = strings.TrimSpace(obtainTime)
-	specialtyTechnology = strings.TrimSpace(specialtyTechnology)
-	likeSpecialty1 = strings.TrimSpace(likeSpecialty1)
-	likeSpecialty2 = strings.TrimSpace(likeSpecialty2)
-	likeSpecialty3 = strings.TrimSpace(likeSpecialty3)
-	payload := &types.TaskAddCirclePayload{
-		ID:                  input.GetID(),
-		Name:                name,
-		HostName:            hostName,
-		CircleDate:          circleDate,
-		Rank:                rank,
-		Level:               level,
-		Content:             strings.TrimSpace(input.GetContent()),
-		PictureList:         pictureList,
-		CircleTaskID:        meta.TaskID,
-		CircleTypeID:        meta.CircleTypeID,
-		DimensionID:         meta.DimensionID,
-		Hours:               hours,
-		CircleBeginDate:     strings.TrimSpace(input.GetCircleBeginDate()),
-		CircleEndDate:       strings.TrimSpace(input.GetCircleEndDate()),
-		CheckResult:         strings.TrimSpace(input.GetCheckResult()),
-		PatentType:          strings.TrimSpace(input.GetPatentType()),
-		PatentNum:           strings.TrimSpace(input.GetPatentNum()),
-		Address:             address,
-		TermName:            strings.TrimSpace(input.GetTermName()),
-		ActivityName:        activityName,
-		SportsName:          sportsName,
-		TeamName:            teamName,
-		OrgName:             orgName,
-		ResultsName:         resultsName,
-		ObtainTime:          obtainTime,
-		SpecialtyTechnology: specialtyTechnology,
-		PlayRole:            playRole,
-		LikeSpecialty1:      likeSpecialty1,
-		LikeSpecialty2:      likeSpecialty2,
-		LikeSpecialty3:      likeSpecialty3,
-	}
-	return payload, nil
-}
-
+// PreviewSubmitPayload 预览提交时的最终 payload（不发请求）。
+// 与 SubmitTask 共用 buildTaskPayload 同一组装链路（等价不变式见 task_preview_parity_test.go），
+// 仅上传钩子为 nil：跳过 ImagePaths 上传避免本地文件副作用，pictureList 只含 ImageIDs。
 func (c *Client) PreviewSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildPreviewPayload(ctx, token, input, "PreviewSubmitPayload")
+	return c.buildTaskPayload(ctx, token, input, "PreviewSubmitPayload", nil)
 }
 
 // PreviewEditPayload 预览编辑时的最终 payload（不发请求，纯预览不上传）。
-// 与 EditCircle 共用同一字段映射，但不执行 UploadFile，避免本地文件副作用。
 func (c *Client) PreviewEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildPreviewPayload(ctx, token, input, "PreviewEditPayload")
+	return c.buildTaskPayload(ctx, token, input, "PreviewEditPayload", nil)
 }
 
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*types.TaskCircleTypeInfo, error) {
