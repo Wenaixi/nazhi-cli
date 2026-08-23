@@ -11,8 +11,10 @@ import (
 // 解决 "Client 包装了 *ocr.Pool 但不暴露 Close() → 临时目录泄漏" 的问题
 // 。
 var (
-	pendingClientsMu sync.Mutex
-	pendingClients   []*client.Client
+	pendingClientsMu  sync.Mutex
+	pendingClients    []*client.Client
+	pendingLogFilesMu sync.Mutex
+	pendingLogFiles   []interface{ Close() error }
 )
 
 // trackClient 把 Client 加入待清理列表。
@@ -21,6 +23,26 @@ func trackClient(c *client.Client) {
 	pendingClientsMu.Lock()
 	pendingClients = append(pendingClients, c)
 	pendingClientsMu.Unlock()
+}
+
+func trackLogFile(f interface{ Close() error }) {
+	pendingLogFilesMu.Lock()
+	pendingLogFiles = append(pendingLogFiles, f)
+	pendingLogFilesMu.Unlock()
+}
+
+func closeLogFiles() error {
+	pendingLogFilesMu.Lock()
+	files := pendingLogFiles
+	pendingLogFiles = nil
+	pendingLogFilesMu.Unlock()
+	var firstErr error
+	for i := len(files) - 1; i >= 0; i-- {
+		if err := files[i].Close(); err != nil {
+			firstErr = errors.Join(firstErr, err)
+		}
+	}
+	return firstErr
 }
 
 // closeAllClients 关闭所有待清理 Client，返回聚合错误。

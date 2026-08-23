@@ -1,18 +1,23 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 
 	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/Wenaixi/nazhi-cli/internal/version"
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/spf13/cobra"
 )
 
 var (
-	verbose bool
-	quiet   bool
+	verbose      bool
+	quiet        bool
+	cliLogLevel  string
+	cliLogFormat string
+	cliLogFile   string
 )
 
 var rootCmd = &cobra.Command{
@@ -23,6 +28,13 @@ var rootCmd = &cobra.Command{
 
 	提供登录、任务管理、自我评价、文件上传等完整功能。
 	所有命令输出 JSON 格式，便于脚本解析。`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		tid := logx.NewTraceID()
+		ctx := logx.WithTraceID(cmd.Context(), tid)
+		cmd.SetContext(ctx)
+		// 同时让后续通过 context.Background() 创建的 ctx 也能间接携带（不强求）
+		_ = context.WithValue(context.Background(), struct{}{}, tid)
+	},
 	Run: func(cmd *cobra.Command, args []string) {
 		_ = cmd.Help()
 	},
@@ -65,6 +77,9 @@ func main() {
 		if err := closeAllClients(); err != nil {
 			printError(fmt.Errorf("关闭 Client 资源失败: %w", err))
 		}
+		if err := closeLogFiles(); err != nil {
+			fmt.Fprintf(os.Stderr, "warn: 关闭日志文件失败: %v\n", err)
+		}
 	}()
 	// printError 不再 os.Exit，改为设 pendingExitCode。
 	// 这里把 Execute 返回 error 和 pendingExitCode 合并判断退出码。
@@ -88,6 +103,9 @@ func main() {
 		if err := closeAllClients(); err != nil {
 			printError(fmt.Errorf("关闭 Client 资源失败: %w", err))
 		}
+		if err := closeLogFiles(); err != nil {
+			fmt.Fprintf(os.Stderr, "warn: 关闭日志文件失败: %v\n", err)
+		}
 		// 三分退出码（1.0.0+）：
 		//   pendingExitCode 由 printEnvelope/printError 按 envelope.ExitCode() 设置：
 		//   0 成功 / 1 partial / 业务 / 2 服务端 / 3 参数。
@@ -107,6 +125,9 @@ func init() {
 	// 全局标志
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "详细日志输出到 stderr")
 	rootCmd.PersistentFlags().BoolVar(&quiet, "quiet", false, "静默模式，关闭所有 stderr 输出")
+	rootCmd.PersistentFlags().StringVar(&cliLogLevel, "log-level", "", "日志级别 debug/info/warn/error 默认 warn 也可通过 NAZHI_LOG_LEVEL 设置")
+	rootCmd.PersistentFlags().StringVar(&cliLogFormat, "log-format", "", "日志格式 text/json 默认 text 也可通过 NAZHI_LOG_FORMAT 设置")
+	rootCmd.PersistentFlags().StringVar(&cliLogFile, "log-file", "", "日志落盘路径 也可通过 NAZHI_LOG_FILE 设置")
 
 	// 一级命令
 	rootCmd.AddCommand(loginCmd)
