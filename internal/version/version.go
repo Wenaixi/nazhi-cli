@@ -54,4 +54,7 @@ package version
 //	        - 新增 CLI 命令：circle、user
 //	        - 删除模块（源码清理，不再维护）：exam、democratic、violation、
 //	          notification、bonus、file_bag（含对应 CLI 命令、SDK 方法、类型定义）
-var Version = "1.3.0"
+//	1.3.1 — 写实任务全量兼容与稳定性加固：按前端 checkData 精确化 hours 校验（仅 target 1/6/10 必填，
+//	        其余预设为 0 时允许空 hours）、14 类任务字段透传与 30 键必现、撤回/我发布的统一 EditCircle、
+//	        CLI 数值归一与别名兼容、nil context/traceId 防护与 multiWriter 边界加固、穷举回归全绿
+var Version = "1.3.1"
