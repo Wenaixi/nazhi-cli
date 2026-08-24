@@ -146,8 +146,11 @@ func (c *Client) DeleteHonor(ctx context.Context, token string, honorID int64) e
 }
 
 // ensureHonorTypeName 在 typeId 有值且 typeName 为空时，
-// 通过 GetHonorTypeOptions（dataList 荣誉类型选项）反查并返回 typeName。
+// 尽力通过 GetHonorTypeOptions（dataList 荣誉类型选项）反查并返回 typeName。
 // typeName 已非空时直接返回原值；typeId 无效或为 0 时返回空串与 nil。
+// 反查是尽力而为：选项表中找不到该 typeId（历史类型下架/改名）时保留
+// 原值照常提交，与前端 find 未命中不拦截的行为对齐；服务端是否接受
+// 空 typeName 由其显式业务错误裁决。
 func (c *Client) ensureHonorTypeName(ctx context.Context, token string, typeID int64, typeName string) (string, error) {
 	if typeName != "" || typeID <= 0 {
 		return typeName, nil
@@ -162,7 +165,8 @@ func (c *Client) ensureHonorTypeName(ctx context.Context, token string, typeID i
 			return opt.Label, nil
 		}
 	}
-	return "", fmt.Errorf("%w: typeId=%d 未找到对应的荣誉类型", ErrInvalidPayload, typeID)
+	c.logDebug("ensureHonorTypeName 反查未命中 typeId=%d，保留原 typeName 放行", typeID)
+	return typeName, nil
 }
 
 // AddHonor 申报一条荣誉。
