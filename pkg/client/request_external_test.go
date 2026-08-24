@@ -75,7 +75,7 @@ func TestNewHTTPClient_TransportIdleConnPoolShared(t *testing.T) {
 				done <- err
 				return
 			}
-			// F32a: drain body 后再 Close，让连接归还 keep-alive 池
+			// drain body 后再 Close，让连接归还 keep-alive 池
 			_, _ = io.Copy(io.Discard, resp.Body)
 			_ = resp.Body.Close()
 			done <- nil
