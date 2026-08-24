@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -30,10 +31,14 @@ func parsePayloadFromArg(raw string) ([]byte, error) {
 		return payload, nil
 	}
 	if raw == "-" {
-		payload, err := io.ReadAll(io.LimitReader(os.Stdin, maxPayloadSize+1))
-		if err != nil {
-			return nil, err
+		// 与 self-eval submit 的 stdin 保护对齐：交互终端下先给提示符，
+		// 再走带超时的读取——避免手滑写 - 时无提示无超时地永久阻塞。
+		printPrompt("请输入 payload JSON（Ctrl+D 结束）: ")
+		content, readErr := readStdinWithTimeout(context.Background(), 60)
+		if readErr != nil {
+			return nil, readErr
 		}
+		payload := []byte(content)
 		if len(payload) > maxPayloadSize {
 			return nil, fmt.Errorf("stdin payload 超过 16 MiB 上限")
 		}
