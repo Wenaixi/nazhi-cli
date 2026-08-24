@@ -63,7 +63,8 @@ func mapSentinelToHTTPCode(err error) int {
 		return 400
 	case errors.Is(err, client.ErrBusinessRejected),
 		errors.Is(err, client.ErrLoginRejected),
-		errors.Is(err, client.ErrInvalidResponse):
+		errors.Is(err, client.ErrInvalidResponse),
+		errors.Is(err, client.ErrUploadRejected):
 		return 422
 	case errors.Is(err, client.ErrRateLimited):
 		return 429
