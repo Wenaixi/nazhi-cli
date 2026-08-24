@@ -108,7 +108,7 @@ func main() {
 		if err := closeLogFiles(); err != nil {
 			fmt.Fprintf(os.Stderr, "warn: 关闭日志文件失败: %v\n", err)
 		}
-		// 三分退出码（1.0.0+）：
+		// 三分退出码：
 		//   pendingExitCode 由 printEnvelope/printError 按 envelope.ExitCode() 设置：
 		//   0 成功 / 1 partial / 业务 / 2 服务端 / 3 参数。
 		//nolint:gocritic

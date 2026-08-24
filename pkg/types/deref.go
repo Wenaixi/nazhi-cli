@@ -10,8 +10,7 @@ package types
 //   - pkg/client/auth.go Login() 中 UnifiedResponse.Msg 兜底
 //   - pkg/client/task.go 中任务状态和提交结果的 Msg 兜底
 //
-// 历史: refactor/review-tdd 从中发现 stringPtrOr → derefOr 重命名，避免
-// 与 cmp.Or 混淆后引发 nil panic。现在泛型化后所有 *T 类型都可使用。
+// 泛型化实现，所有 *T 类型通用；默认值防 nil 解引用 panic。
 func DerefOr[T any](s *T, def T) T {
 	if s == nil {
 		return def
