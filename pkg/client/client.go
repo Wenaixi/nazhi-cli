@@ -53,10 +53,6 @@ type Client struct {
 	ocr           CaptchaRecognizer // 验证码识别器，调用方必须通过 WithCustomOCR 注入
 	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
-	// uploadScanner 是可选的上传病毒扫描器（WithClamavScanner / WithUploadScanner 注入）。
-	// 非 nil 时 UploadFile 在发出任何网络请求前对完整上传字节扫描，fail-closed。
-	uploadScanner UploadScanner
-
 	// submittedPageSize 是 GetSubmittedCircles 每页请求条数。
 	// 默认 defaultSubmittedPageSize（500），服务端 pageSize 上限 500。
 	// 通过 WithSubmittedPageSize 可配置。

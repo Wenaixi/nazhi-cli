@@ -8,7 +8,7 @@
 
 ### 病毒扫描
 
-- 新增 WithClamavScanner Option（基于 github.com/PyYoshi/go-clamav v0.2.1 纯 Go clamd 客户端，stdlib-only 无 cgo）：注入后 UploadFile 在任何网络请求之前对完整上传字节做 clamd INSTREAM 扫描，检出/失败一律 fail-closed 拒绝（ErrVirusDetected / ErrScanUnavailable）。另暴露 WithUploadScanner 支持自定义实现。未注入时行为不变。scan_test.go 锁死干净放行、检出本地拒绝零请求、扫描故障 fail-closed 三契约。
+- 新增 WithClamavScanner Option：注入 clamd INSTREAM 扫描器后，UploadFile 在任何网络请求之前对完整上传字节做病毒扫描，检出/失败一律 fail-closed 拒绝（ErrVirusDetected / ErrScanUnavailable）。未注入时行为不变。
 
 ## [1.5.0] - 2026-08-24
 

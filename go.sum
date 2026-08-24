@@ -1,5 +1,3 @@
-github.com/PyYoshi/go-clamav v0.2.1 h1:YWl0JffxiZzuMvNWT5thNfalqhzkJqP7m+GanUgdqGw=
-github.com/PyYoshi/go-clamav v0.2.1/go.mod h1:gzgIXBuB33NI1/M1zwxtEwkgLCO43LqAsdsT137fsh4=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
 github.com/disintegration/imaging v1.6.2 h1:w1LecBlG2Lnp8B3jk5zSuNqd7b4DXhcjwek1ei82L+c=
 github.com/disintegration/imaging v1.6.2/go.mod h1:44/5580QXChDfwIclfc/PCwrr44amcmDAg8hxG0Ewe4=
