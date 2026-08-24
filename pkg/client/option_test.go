@@ -21,7 +21,7 @@ import (
 //   - WithLogger / WithCustomOCR nil 守卫
 //   - WithSessionBackoff 正/零/负值处理
 //
-// v1.4.0 起 SDK 不再提供本地识别器或相关构建选项。
+// SDK 不提供本地识别器或相关构建选项。
 // 选项测试聚焦 OCR 注入契约：未注入即 Login 返回 ErrOCRNotConfigured。
 type mockCaptchaRecognizer struct{ closed bool }
 
@@ -29,7 +29,7 @@ func (m *mockCaptchaRecognizer) Recognize([]byte) (string, error) { return "ok",
 func (m *mockCaptchaRecognizer) Close() error                     { m.closed = true; return nil }
 
 // TestWithCustomOCR_Nil_Rejects 验证 WithCustomOCR(nil) 拒绝并保留 c.ocr。
-// v1.4.0 起 OCR 必须由调用方注入，nil 注入会破坏 Login。
+// OCR 必须由调用方注入，nil 注入会破坏 Login。
 func TestWithCustomOCR_Nil_Rejects(t *testing.T) {
 	var logBuf bytes.Buffer
 	h := slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn})
@@ -54,7 +54,7 @@ func TestWithCustomOCR_Nil_Rejects(t *testing.T) {
 }
 
 // TestNew_WithoutOCR_Login_ReturnsConfiguredError 验证 New() 后不注入 OCR 直接 Login()
-// 返回 ErrOCRNotConfigured（v1.4.0+ 强制契约：必须 WithCustomOCR）。
+// 返回 ErrOCRNotConfigured（强制契约：必须 WithCustomOCR）。
 func TestNew_WithoutOCR_Login_ReturnsConfiguredError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

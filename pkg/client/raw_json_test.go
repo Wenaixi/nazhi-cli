@@ -381,7 +381,7 @@ func TestQuerySelfEvaluationJSON_FallbackDataList(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		body := map[string]any{
 			"code": 1,
-			// 模拟 v1.0.0 修复过的真实场景：returnData 是字符串 token，dataList 才是对象
+			// 模拟真实场景：returnData 是字符串 token，dataList 才是对象
 			"returnData": "some_token_string",
 			"dataList": []map[string]any{
 				{"id": 60001, "studentComment": "fallback 路径", "rawExtra2": "raw_from_dataList"},

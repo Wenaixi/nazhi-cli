@@ -25,13 +25,9 @@ type HonorType struct {
 
 // HonorRecord 一条已申报的荣誉记录（来自 getHonorByStudentId 接口）。
 //
-// v2.0.0 变更：GetDate 改为 string，保留服务端原始日期格式。
-//
-// v1.4.0 修复：JSON tag 修正为 snake_case 以匹配 API 实际返回的字段名，
-// 补充 honor_list 中前端用到的 type_id / cert_img_attachment_id / score / score_name 字段。
-//
-// v1.4.1：补 Status 整型（前端 scope.row.status != 1 控制编辑/删除）；
-// Approved 仍保留兼容（测试夹具与部分响应可能带 approved bool）。
+// GetDate 为 string，保留服务端原始日期格式。JSON tag 为 snake_case 以匹配 API 实际返回的字段名。
+// Status 为整型审核状态（前端 scope.row.status != 1 控制编辑/删除）；
+// Approved 兼容 bool/0/1 解码。
 //
 // 设计取舍（审计 07 WARN 回复）：服务端下发的 HonorRecord 可能携带 dimension_id / auditor_name 等
 // 报告单展示用只读字段，前端 performanceM.vue / performanceBox.vue 荣誉表格仅展示
@@ -50,14 +46,14 @@ type HonorRecord struct {
 	GetDate          string   `json:"get_date"`   // 原始日期字符串
 	EvaluationAgency string   `json:"evaluation_agency"`
 
-	// v1.4.0 新增：前端 performanceM.vue 中实际使用的字段
+	// 前端 performanceM.vue 中实际使用的字段
 	TypeID              int64  `json:"type_id,omitempty"`                // 荣誉类型 ID
 	CertImgAttachmentID string `json:"cert_img_attachment_id,omitempty"` // 证书图片附件 ID
 	// Score：列表实测 JSON number（常为 4.0）；禁止 int（encoding/json 拒 4.0→int）。
 	Score     float64 `json:"score,omitempty"`
 	ScoreName string  `json:"score_name,omitempty"` // 分数描述
 
-	// v1.4.1 新增：补齐前端表格列使用的字段
+	// 前端表格列使用的字段
 	IfShow      string `json:"ifshow,omitempty"`       // 是否报告单展示
 	StudentName string `json:"student_name,omitempty"` // 学生姓名
 	ClassName   string `json:"class_name,omitempty"`   // 班级名称

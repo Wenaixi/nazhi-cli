@@ -39,7 +39,7 @@ var (
 
 	// ErrOCRNotConfigured 表示 Client 未配置验证码识别器。
 	//
-	// 触发场景：v1.4.0 起 SDK 不内置任何 OCR；调用方未通过 WithCustomOCR
+	// 触发场景：SDK 不内置任何 OCR；调用方未通过 WithCustomOCR
 	// 注入识别器，此时调用 Login() 必失败（safeOCRRecognize 检测 c.ocr == nil）。
 	//
 	// SDK 不提供默认验证码识别器。所有调用方（含 cmd/nazhi）必须通过
@@ -53,10 +53,10 @@ var (
 	//
 	// SDK 用户建议用 errors.Is(err, ErrOCRNotConfigured) 而非字符串匹配。
 	ErrOCRNotConfigured = errors.New(
-		"errors.ocr_not_configured: OCR 识别器未配置：v1.4.0 起 SDK 不内置 OCR。" +
+		"errors.ocr_not_configured: OCR 识别器未配置：SDK 不内置 OCR。" +
 			"请通过 SDK 调用 client.WithCustomOCR(myRecognizer) 注入识别器" +
 			"（典型为硅基流动 Qwen3-Omni 视觉模型）。" +
-			" (OCR recognizer not configured: as of v1.4.0 SDK no longer ships a built-in OCR. " +
+			" (OCR recognizer not configured: SDK does not ship a built-in OCR. " +
 			"Inject your recognizer via client.WithCustomOCR(myRecognizer); " +
 			"the CLI uses SiliconFlow Qwen3-Omni by default.)",
 	)

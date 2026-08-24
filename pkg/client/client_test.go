@@ -453,7 +453,7 @@ func TestGetMyInfo(t *testing.T) {
 
 // TestGetMyInfo_FullFields 验证精简版 UserInfo (10 字段) 解析正确。
 //
-// ponytail: v1.0.0 精简后只测保留字段；删除字段由编译期保障（字段不存在）。
+// ponytail: 只测保留字段；删除字段由编译期保障（字段不存在）。
 func TestGetMyInfo_FullFields(t *testing.T) {
 	mockResponse := map[string]any{
 		"id":            100001,

@@ -14,7 +14,7 @@ import (
 
 // ─── 辅助 ───
 
-// honorRecordJSON 生成一条荣誉记录（v1.4.0 snake_case 字段名对齐 API）。
+// honorRecordJSON 生成一条荣誉记录（snake_case 字段名对齐 API）。
 func honorRecordJSON(id int64, name, statusName string) map[string]any {
 	return map[string]any{
 		"id":                id,

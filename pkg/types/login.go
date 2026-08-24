@@ -14,7 +14,7 @@ type LoginRequest struct {
 
 // LoginResponse 是 SSO 登录成功后的响应。
 //
-// 字段约定（v1.0.0 精简版）：仅保留登录 token + 过期时间。
+// 字段约定：仅保留登录 token + 过期时间。
 // 用户基本信息请通过 Client.GetMyInfo() 单独获取。
 type LoginResponse struct {
 	Token     string    `json:"token"     example:"eyJhbGciOiJIUzUxMiJ9..." description:"X-Auth-Token 凭证（后续业务接口必带）"`
@@ -30,5 +30,5 @@ type SchoolInfo struct {
 // UploadFileResult 是 UploadFile 的统一返回对象。
 type UploadFileResult struct {
 	AttachmentID   int64  `json:"attachmentID"`
-	AttachmentName string `json:"attachmentName,omitempty"` // 附件名称（v1.4.0 新增）
+	AttachmentName string `json:"attachmentName,omitempty"` // 附件名称
 }

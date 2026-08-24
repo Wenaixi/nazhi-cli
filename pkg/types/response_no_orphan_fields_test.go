@@ -8,7 +8,7 @@
 //   - IsAttendance int              `json:"isAttendance"`
 //   - DataInt      int              `json:"dataInt"`
 //
-// PageBean 原为孤儿字段，v0.4.1 起 DecodePageBean 活跃使用，不再列入孤儿名单。
+// PageBean 由 DecodePageBean 活跃使用，不列入孤儿名单。
 //
 // 这些字段仅在 json.Unmarshal 时被动填充，序列化为零值/空对象，
 // 增加结构体大小且对调用方零价值。修复后删除。
@@ -31,7 +31,7 @@ import (
 //
 // 6 个孤儿字段：dataString / note / insertID / updateCount / isAttendance / dataInt
 //
-// PageBean 已从孤儿名单移除（v0.4.1 起 DecodePageBean 活跃使用）。
+// PageBean 已从孤儿名单移除（DecodePageBean 活跃使用）。
 func TestUnifiedResponse_NoOrphanFields(t *testing.T) {
 	resp := UnifiedResponse{
 		Code: 1,

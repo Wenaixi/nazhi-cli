@@ -108,7 +108,7 @@ func TestWarnSyncCookieToken_NoPanicOnBadJar(t *testing.T) {
 
 // ─── buildLoginResponse 测试 ───
 //
-// v1.0.0 精简：LoginResponse 删除 RawData 字段（json:"-" 不参与序列化但消耗内存）。
+// LoginResponse 不含 RawData 字段。
 // 下游不再需要 rawData，全部依赖 token + expiresAt 两件套。
 // 原 RawData 相关测试（InvalidJsonBody/EmptyBody/PartialDecode）已废弃。
 

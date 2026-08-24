@@ -19,7 +19,7 @@ func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment
 	return err
 }
 
-// SubmitSelfEvaluationStructured 提交结构化自我评价（v1.4.0 新增）。
+// SubmitSelfEvaluationStructured 提交结构化自我评价。
 //
 // 对应前端 selfgaintloss.vue 的"诉得失"页面：会做人/会求知/会生活/会创造/表现/优势/劣势 + 下学期目标。
 // SDK 内部将 form 对象 JSON 序列化后，再包装为 {"studentComment": "<json>"} 提交。

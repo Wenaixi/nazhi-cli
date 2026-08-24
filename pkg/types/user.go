@@ -1,6 +1,6 @@
 package types
 
-// UserUpdateInput 是用户信息更新的结构化输入（v1.4.0 新增）。
+// UserUpdateInput 是用户信息更新的结构化输入。
 //
 // 对齐前端 modifyBox.vue：只暴露用户可编辑的 v-model 字段；
 // SDK 将中文友好值转为 API 数字代码。零值/空串跳过（密码除外）。
@@ -45,12 +45,9 @@ type UserUpdateInput struct {
 
 // UserInfo 是用户个人资料的精简核心视图。
 //
-// 字段裁剪原则（v1.0.0 起）：
-//   - 只保留业务 API 实际消费的核心身份/学校/班级字段
-//   - 联系方式、证件号、积分等敏感或运营字段已移除，避免不必要的 PII 暴露面
-//   - 生日/爱好/状态码等历史字段已移除
-//
-// v1.3.0 扩展：补齐前端 getMyInfo 响应的全部原始字段，新增字段使用 omitempty。
+// 字段裁剪原则：
+//   - 只保留业务 API 实际消费的核心身份/学校/班级字段，以及前端 getMyInfo 响应的原始字段（omitempty）
+//   - 联系方式、证件号、积分等敏感或运营字段按需保留，避免不必要的 PII 暴露面
 type UserInfo struct {
 	// 基础身份
 	ID                    int64  `json:"id"`
@@ -71,8 +68,7 @@ type UserInfo struct {
 	// 座号（恢复：班级场景高频需要）
 	Seat int `json:"seat"`
 
-	// v1.3.0 新增：前端 getMyInfo 响应的完整字段
-	// 所有新字段使用 omitempty，零值/null 时不在 JSON 输出中出现。
+	// 前端 getMyInfo 响应的完整字段（omitempty，零值/null 时不在 JSON 输出中出现）
 
 	// 联系方式
 	Telephone string `json:"telephone,omitempty"` // 电话号码
@@ -87,7 +83,7 @@ type UserInfo struct {
 	IDCard          string `json:"idCard,omitempty"`          // 身份证号
 	IDType          int    `json:"idType,omitempty"`          // 证件类型（数字）
 
-	// v1.4.0 新增：补齐前端 getMyInfo 响应的额外原始字段
+	// 前端 getMyInfo 响应的额外原始字段
 	RegistrationNumber string `json:"registrationNumber,omitempty"` // 中考报名号
 	// AdmissionDate 入学日期数组。平台返回 JSON number 列表（如 [2025,9,1]），
 	// 不是字符串列表；用 IntList 双兼容，避免解码失败被当成空用户。

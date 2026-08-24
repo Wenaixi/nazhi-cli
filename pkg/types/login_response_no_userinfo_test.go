@@ -8,7 +8,7 @@
 //
 // 修复后：删除 UserInfo 字段（登录响应收敛到 Token/ExpiresAt/RawData 三件套），
 // 用户基本信息由 Client.GetMyInfo() 单独提供。LoginResponse 签名变更属于
-// 破坏性 API 变更，CHANGELOG 在 v0.3.3 release note 标注 breaking。
+// 破坏性 API 变更，CHANGELOG 有标注。
 //
 // 验证策略：
 //  1. 类型不再有 UserInfo 字段（编译期保障）

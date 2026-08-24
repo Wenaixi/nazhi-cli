@@ -1,6 +1,6 @@
 // Package types 定义 nazhi-cli SDK 的全部公共类型。
 //
-// 设计原则（v1.0.0，2026-07 修正）：
+// 设计原则：
 //   - 全部响应字段统一 camelCase JSON tag（以平台真实键名为准，写实列表存在混用）
 //   - 状态字段重命名为业务相关名（submitted / approved）以避免歧义
 //   - 布尔字段优先 bool，平台混用 0/1 时用 FlexBool 兼容

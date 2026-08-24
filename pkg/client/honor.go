@@ -174,8 +174,6 @@ func (c *Client) ensureHonorTypeName(ctx context.Context, token string, typeID i
 //   - TypeName 空且 TypeID>0 → GetHonorTypeOptions 反查
 //   - Name 空 → 回落 TypeName（前端不传 name）
 //   - Score 始终随请求体发出（json:"score" 无 omitempty；默认 0 对齐前端 form）
-//
-// v1.4.0：typeName 反查；v2.0.0：改读 dataList 类型选项；本版补 score 字段。
 func (c *Client) AddHonor(ctx context.Context, token string, payload types.AddHonorPayload) error {
 	name, err := c.ensureHonorTypeName(ctx, token, payload.TypeID, payload.TypeName)
 	if err != nil {

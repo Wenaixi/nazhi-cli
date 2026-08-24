@@ -73,7 +73,7 @@ func (c *Client) InvalidateCachedUserInfo() {
 	c.sm.InvalidateCachedUserInfo()
 }
 
-// UpdateMyInfoStructured 使用面向用户的字段名更新个人信息（v1.4.0 新增）。
+// UpdateMyInfoStructured 使用面向用户的字段名更新个人信息。
 //
 // 与 UpdateMyInfo 的区别：接收友好字段名（如 GenderName="男"），
 // SDK 内部自动转换为 API 数字代码（如 gender=1）。

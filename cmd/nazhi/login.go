@@ -15,7 +15,7 @@ import (
 //	nazhi login -u <username> -p <password> [--sso-base <url>] [--timeout <秒>]
 //
 // 验证码由硅基流动 Qwen3-Omni 视觉模型识别（通过 NAZHI_SILICONFLOW_API_KEY 注入，兼容旧别名）。
-// v1.4.0 起 SDK 不内置验证码识别器，必须配置视觉模型或注入自定义识别器，否则 login 直接返回 503 引导。
+// SDK 不内置验证码识别器，必须配置视觉模型或注入自定义识别器，否则 login 直接返回 503 引导。
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "SSO 登录纳智综合评价系统",

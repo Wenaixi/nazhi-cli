@@ -15,7 +15,7 @@ import (
 // nazhi login 收到 ErrOCRNotConfigured 时输出 actionable envelope.Error
 // 而非通用 printError。
 //
-// v1.4.0 起 SDK 不内置 OCR，必须配置视觉模型 API key，否则直接 503 引导。
+// SDK 不内置 OCR，必须配置视觉模型 API key，否则直接 503 引导。
 // 测试策略：模拟 loginCmd.Run 的 err 分支，解析 stdout envelope 的 message
 // 字段（JSON 编码会转义中文，不能直接 strings.Contains 原始字节）。
 func TestLoginCmd_ErrOCRNotConfigured_ActionableOutput(t *testing.T) {
@@ -30,10 +30,10 @@ func TestLoginCmd_ErrOCRNotConfigured_ActionableOutput(t *testing.T) {
 
 	os.Stdout = wStdout
 
-	// 模拟 login.go 的 v1.4.0 ErrOCRNotConfigured 分支
+	// 模拟 login.go 的 ErrOCRNotConfigured 分支
 	err = client.ErrOCRNotConfigured
 	if errors.Is(err, client.ErrOCRNotConfigured) {
-		printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。v1.4.0 起 SDK 不再内置 OCR，必须设置环境变量 NAZHI_OCR_API_KEY（或 SILICONFLOW_API_KEY）接入硅基流动 Qwen3-Omni 视觉模型，或通过 SDK WithCustomOCR 注入自定义识别器。"))
+		printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。SDK 不再内置 OCR，必须设置环境变量 NAZHI_OCR_API_KEY（或 SILICONFLOW_API_KEY）接入硅基流动 Qwen3-Omni 视觉模型，或通过 SDK WithCustomOCR 注入自定义识别器。"))
 	}
 
 	_ = wStdout.Close()
@@ -54,7 +54,6 @@ func TestLoginCmd_ErrOCRNotConfigured_ActionableOutput(t *testing.T) {
 	}
 	want := []string{
 		"识别器未配置", // message 包含但不含 "OCR" 字面字
-		"v1.4.0",
 		"NAZHI_OCR_API_KEY",
 		"SiliconFlow", // SDK i18n 英文部分
 		"硅基流动",        // 中文部分
@@ -100,7 +99,7 @@ func TestLoginCmd_ErrOCRNotConfigured_SetsExitCode(t *testing.T) {
 	// 模拟 login.go 的 ErrOCRNotConfigured 分支
 	err = client.ErrOCRNotConfigured
 	if errors.Is(err, client.ErrOCRNotConfigured) {
-		printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。v1.4.0 起 SDK 不再内置 OCR，必须设置环境变量 NAZHI_OCR_API_KEY（或 SILICONFLOW_API_KEY）接入硅基流动 Qwen3-Omni 视觉模型，或通过 SDK WithCustomOCR 注入自定义识别器。"))
+		printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。SDK 不再内置 OCR，必须设置环境变量 NAZHI_OCR_API_KEY（或 SILICONFLOW_API_KEY）接入硅基流动 Qwen3-Omni 视觉模型，或通过 SDK WithCustomOCR 注入自定义识别器。"))
 	}
 
 	_ = wStdout.Close()

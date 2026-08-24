@@ -70,7 +70,6 @@ func (c *Client) warnSyncCookieToken(token, label string) {
 
 // buildLoginResponse 构建 LoginResponse，内部调用 warnSyncCookieToken。
 //
-// v1.0.0 精简：删除 RawData 字段（json:"-" 不参与序列化但消耗内存），
 // 调用方拿到 token + expiresAt 两件套足够。
 func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
 	c.warnSyncCookieToken(token, label)

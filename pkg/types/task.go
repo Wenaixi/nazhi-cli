@@ -82,9 +82,7 @@ func CheckResultName(code string) string {
 	}
 }
 
-// Task 是面向调用方的精简任务条目。
-//
-// v2.0.0 变更：时间字段改为 string，保留服务端原始日期格式（如 "2026-01-12"）。
+// Task 是面向调用方的精简任务条目。时间字段为 string，保留服务端原始日期格式（如 "2026-01-12"）。
 type Task struct {
 	ID               int64   `json:"id"`
 	Name             string  `json:"name"`
@@ -156,7 +154,6 @@ type TaskInput interface {
 	GetLikeSpecialty1() string
 	GetLikeSpecialty2() string
 	GetLikeSpecialty3() string
-	// 新增（v1.4.0）
 	GetHours() string
 	GetCircleBeginDate() string
 	GetCircleEndDate() string
@@ -339,13 +336,12 @@ type TaskEditInput struct {
 	LikeSpecialty1      string
 	LikeSpecialty2      string
 	LikeSpecialty3      string
-	// 新增（v1.4.0）
-	Hours           string
-	CircleBeginDate string
-	CircleEndDate   string
-	CheckResult     string
-	PatentType      string
-	PatentNum       string
+	Hours               string
+	CircleBeginDate     string
+	CircleEndDate       string
+	CheckResult         string
+	PatentType          string
+	PatentNum           string
 }
 
 func (in TaskEditInput) Validate() error {

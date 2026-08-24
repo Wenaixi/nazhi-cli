@@ -24,9 +24,7 @@ import (
 //   - `errors.Is(err, client.ErrBusinessRejected)` → 服务端主动拒绝（如 session 过期）
 //   - 其他 err                                      → 真正的网络/HTTP 故障
 //
-// 历史注：v0.3.4 及更早版本曾返回 (nil, nil) 表示空响应；v0.3.5 修复后
-// 改返 ErrEmptyUserInfo 哨兵，以便 cmd 层统一走 status envelope（避免
-// 误导性的 null 输出）。
+// 业务成功但无数据时返回 ErrEmptyUserInfo 哨兵，cmd 层可据此走 status envelope。
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error) {
 	// B10 修复：activateSessionIfNeeded 返回步骤 4 获取的 UserInfo（若激活由
 	// 步骤 4 完成），GetMyInfo 直接复用，避免重复的 getMyInfoRaw HTTP 请求。
@@ -89,8 +87,6 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 func (c *Client) postProcessUserInfo(ctx context.Context, v *types.UserInfo) {
 	// 学校信息 SSO 降级：当 schoolId 或 schoolName 任一缺失时，通过 GetSchoolID 公开 API
 	// 查询补全。GetSchoolID 无需 token，公开可用，条件放宽覆盖面。
-	//
-	// 旧逻辑 (v1.0.0)：仅 schoolId==0 时触发，schoolName 空但 schoolId 非零时静默保留空名。
 	if v.StudentNumber != "" && (v.SchoolID == 0 || v.SchoolName == "") {
 		if info, sErr := c.GetSchoolID(ctx, v.StudentNumber); sErr == nil {
 			if v.SchoolID == 0 {

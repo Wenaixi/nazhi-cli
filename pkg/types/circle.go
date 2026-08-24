@@ -16,11 +16,8 @@ type PageBean struct {
 //     ifMySelf、creationTimeStr、showName、imgPath、studentId
 //
 // JSON tag 必须以平台真实键名为准，禁止假设「全 snake 或全 camel」。
-// Go 字段名保持驼峰惯例。
-//
-// v1.3.0 扩展：补齐前端所有原始字段。
-// v2.0.0 变更：CircleDate 改为 string；Level/CheckResult 改为 int。
-// v1.4.1 修复：混用 camelCase 字段对齐真实 API（原错误写成全 snake 导致静默丢字段）。
+// Go 字段名保持驼峰惯例。日期字段为 string（保留服务端原始格式）；
+// Level/CheckResult 为 int；camelCase 与 snake_case 混用以真实 API 为准。
 type CircleRecord struct {
 	// 基础字段
 	ID       int64  `json:"id"`
