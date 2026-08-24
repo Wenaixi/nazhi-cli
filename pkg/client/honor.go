@@ -206,9 +206,9 @@ func (c *Client) UpdateHonor(ctx context.Context, token string, payload map[stri
 			if err != nil {
 				return fmt.Errorf("UpdateHonor %w", err)
 			}
-			if name != "" {
-				payload["typeName"] = name
-			}
+			// 未命中写空串而非省键：前端 form 恒发 "typeName":""，
+			// AddHonor 结构体路径未命中同为空串形态，三处口径一致。
+			payload["typeName"] = name
 		}
 	}
 	return c.doBizVoid(ctx, token, "UpdateHonor",
