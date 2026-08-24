@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"strings"
@@ -105,6 +106,9 @@ func newHTTPClient() *http.Client {
 			TLSHandshakeTimeout:   10 * time.Second,
 			ResponseHeaderTimeout: 15 * time.Second,
 			DisableCompression:    false,
+			// Dial 阶段独立超时：代理/对端 SYN 无响应时快速失败，
+			// 不占满上层 client.Timeout（假死连接事故的 SDK 侧加固）。
+			DialContext:           (&net.Dialer{Timeout: 15 * time.Second}).DialContext,
 		},
 	}
 }
