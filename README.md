@@ -7,18 +7,19 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 
-一站式命令行工具 + Go SDK，用于纳智综合评价系统的自动化操作。提供 SSO 登录（调用视觉识别器自动处理验证码）、Session 激活、任务管理、自我评价、文件上传等完整功能。所有 CLI 命令统一 envelope 输出，便于脚本解析。
+一站式命令行工具 + Go SDK，面向纳智综合评价系统的全流程自动化：SSO 登录（视觉识别器自动处理验证码）、Session 激活、写实记录全生命周期管理（查询 / 提交 / 编辑 / 删除 / 评论 / 点赞）、任务与元数据、荣誉申报、典型案例、自我评价与毕业评价、用户信息维护、文件上传下载。所有 CLI 命令输出统一 JSON envelope，便于脚本解析与自动化编排。
 
 ## 仓库一览
 
 | 入口 | 说明 |
 |---|---|
 | [快速开始](#快速开始) | 5 分钟登录并跑通业务 |
+| [命令概览](#命令概览) | 全部子命令速查树 |
+| [作为 Go SDK 使用](#作为-go-sdk-使用) | 在 Go 项目中集成 |
 | [源码指引](docs/README.md) | 功能 ↔ Go 源码 ↔ 前端源码 对照表 |
 | [前端参照库](reference/nazhi/) | 纳智前端源码完整镜像（grep 对照用） |
 | [开发指南](#开发) | 构建、测试、贡献流程 |
 | [CHANGELOG](CHANGELOG.md) | 全部版本变更日志 |
-| [CLAUDE.md](CLAUDE.md) | 项目记忆库（git 忽略，AI 协作专用） |
 
 ## 特色
 
@@ -26,7 +27,7 @@
 - **纯 Go 构建** — SDK 不内置本地验证码识别器、模型或原生运行库，无 CGO、无额外模型文件
 - **统一配置** — CLI 正式读取 `NAZHI_SILICONFLOW_API_KEY`，兼容 `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY`
 - **HAR 验证 4 步 Session 激活** — `pkg/client/session.go` 的 `sessionManager` 状态机 + DCL fast-path + 同 token backoff 缓存
-- **完整错误链** — 15 个哨兵错误（`ErrNetwork` / `ErrRateLimited` / `ErrRetryable` 等），`errors.Is` 精确分支
+- **完整错误链** — 16 个哨兵错误（`ErrNetwork` / `ErrRateLimited` / `ErrRetryable` 等），`errors.Is` 精确分支
 - **Cookie + Header 双重 Token 注入** — 业务服务器要求 `X-Auth-Token` 双形态存在，SDK 一次性处理
 - **并发安全** — 每个 `*Client` 独立 cookie jar，atomic.Pointer 保护 baseURL 预解析热路径无锁
 - **HAR 驱动测试 + PII 守卫** — 真实抓包做 fixture，自带 SHA-256 哈希反 PII 泄露自反性陷阱
@@ -46,6 +47,8 @@
 > 各平台发布包均为纯 Go 二进制；验证码视觉模型通过运行时 API 配置，不随二进制打包。
 
 ### `go install`
+
+要求 Go 1.26+（以仓库 `go.mod` 为准）。
 
 ```bash
 go install github.com/Wenaixi/nazhi-cli/cmd/nazhi@latest
@@ -95,9 +98,19 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 
 更详细的环境变量见下方[环境变量速查](#环境变量速查)；各命令的参数与输出字段直接跑 `nazhi <命令> --help` 或读 `cmd/nazhi/` 对应源文件。
 
-> 自我评价支持纯文本和结构化 `--payload` 两种提交方式；结构化表单会由 SDK 双层包装为 `studentComment`。毕业评价通过 `self-eval grad-status/grad-submit` 提交。荣誉下拉分为类型选项 `honor type-options`、通用等级 `honor level-options` 和按类型联动等级 `honor levels --type-id`。
+> 自我评价支持纯文本与结构化 `--payload` 两种提交；毕业评价走 `self-eval grad-status / grad-submit`。
+> 荣誉下拉分三类：类型选项 `honor type-options`、通用等级 `honor level-options`、按类型联动 `honor levels --type-id`。
 
-> 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON（参照 `reference/nazhi/src/components/management/managementRightBottom.vue` 的表单字段）；`hours` 的 number/string 均兼容且可保留小数，`level`、`checkResult`、`playRole` 的未加引号 number 必须是有限整数，string 按原值保留。`--payload -` 从 stdin 读取时上限为 16 MiB，超限会按参数错误处理，不会静默截断。CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名。任务元数据和图片由 SDK 自动补齐；空地址和空等级不会被 SDK 自动替换。
+<details>
+<summary><strong>写实 payload 兼容性细节（点开查看）</strong></summary>
+
+- `--payload` 可直接使用真实前端表单 JSON，字段参照 `reference/nazhi/src/components/management/managementRightBottom.vue`
+- 类型宽容：`hours` 接受 number/string 且可保留小数；`level` / `checkResult` / `playRole` 的裸 number 必须是有限整数，string 原值保留
+- 字段别名兼容：`circleTaskId` → `taskId`、`pictureList` → `imageIDs`（规范字段优先）
+- `--payload -` 从 stdin 读取，上限 16 MiB，超限按参数错误处理不静默截断
+- 任务元数据与图片由 SDK 自动补齐；空地址 / 空等级**不会**被自动替换（对齐前端行为）
+
+</details>
 
 ## 命令概览
 
@@ -188,18 +201,22 @@ nazhi
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `status` | string | `success` / `partial` / `error` |
-| `code` | int | 业务 code（1=成功）或 HTTP 状态码（200/401/500 等） |
+| `code` | int | HTTP 风格状态码：成功固定 `200`，失败为 4xx/5xx |
 | `message` | string | 错误或提示消息，成功时为空 |
 | `data` | any | 业务载荷（object / array / scalar） |
+
+> **双层 code 对照**：CLI 信封的 `envelope.code==200` 表示成功；平台原始业务响应
+> （`pkg/types.UnifiedResponse.code`）的成功值是 `1`。两层同名不同层——
+> 脚本判成功请用 `.status == "success"` 或 `.code == 200`，**不要**沿用业务层 `jq .code==1` 的习惯。
 
 退出码三分：
 
 | 退出码 | 含义 |
 |--------|------|
 | 0 | 成功（status=success） |
-| 1 | 业务错误（code != 1）或 partial 状态 |
-| 2 | 网络/服务端错误（HTTP 4xx/5xx） |
-| 3 | 参数错误（CLI flag 解析失败） |
+| 1 | partial 部分成功，或业务错误（HTTP 4xx 非 400） |
+| 2 | 网络/服务端错误（HTTP 5xx） |
+| 3 | 参数错误（HTTP 400，含 payload 解析失败） |
 
 jq 解析示例：
 
@@ -224,35 +241,63 @@ fi
 
 ```go
 import (
-    "github.com/Wenaixi/nazhi-cli/pkg/client"
-    "github.com/Wenaixi/nazhi-cli/pkg/types"
-    "github.com/Wenaixi/nazhi-cli/pkg/tokenparse" // SSO token 解析（独立可用）
+	"context"
+	"errors"
+	"log"
+	"os"
+	"time"
+
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
+	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse" // SSO token 解析（可独立使用）
 )
 
+// CaptchaRecognizer 由调用方实现（AI 视觉模型 / 远程服务 / 测试 mock）
 recognizer := newMyCaptchaRecognizer()
 c, err := client.New(
-    client.WithSSOBase("https://www.nazhisoft.com"),   // 可省，默认就是这个
-    client.WithBaseURL("http://139.159.205.146:8280"), // 可省，默认就是这个
-    client.WithTimeout(30 * time.Second),
-    client.WithSessionBackoff(5 * time.Second), // 调 Session 激活失败冷却窗口
-    client.WithCustomOCR(recognizer), // Login 必需
+	client.WithSSOBase("https://www.nazhisoft.com"),   // 可省，默认即此
+	client.WithBaseURL("http://139.159.205.146:8280"), // 可省，默认即此
+	client.WithTimeout(30*time.Second),
+	client.WithSessionBackoff(5*time.Second), // Session 激活失败冷却窗口
+	client.WithCustomOCR(recognizer),         // Login 必需，未注入返回 ErrOCRNotConfigured
 )
-if err != nil { log.Fatalf("Client 初始化失败：%v", err) }
+if err != nil {
+	log.Fatalf("Client 初始化失败：%v", err)
+}
 defer c.Close()
 
-// 登录（调用视觉识别器自动处理验证码）
+ctx := context.Background()
+
+// 登录（识别器自动处理验证码；凭据错返回 ErrLoginRejected）
 resp, err := c.Login(ctx, types.LoginRequest{
-    Username: os.Getenv("NAZHI_USERNAME"),
-    Password: os.Getenv("NAZHI_PASSWORD"),
+	Username: os.Getenv("NAZHI_USERNAME"),
+	Password: os.Getenv("NAZHI_PASSWORD"),
 })
+if err != nil {
+	log.Fatal(err)
+}
 token := resp.Token
 
-// 激活 Session（HAR 4 步）
-if _, err := c.ActivateSession(ctx, token); err != nil { log.Fatal(err) }
+// 激活业务 Session（HAR 对齐 4 步；冷却窗口内重复调用返回 ErrSessionBackoff）
+if _, err := c.ActivateSession(ctx, token); err != nil {
+	log.Fatal(err)
+}
 
-// 业务操作
+// 业务操作：全部方法先自动激活 Session，token 过期自动重试激活
 tasks, err := c.FetchTasks(ctx, token)
-c.SubmitSelfEvaluation(ctx, token, "很好的学期")
+if err != nil {
+	// 哨兵错误精确分支示例
+	if errors.Is(err, client.ErrBusinessRejected) {
+		log.Fatal("服务端拒绝：session 可能已过期")
+	}
+	log.Fatal(err)
+}
+_ = tasks
+
+err = c.SubmitSelfEvaluation(ctx, token, "很好的学期")
+if err != nil {
+	log.Fatal(err)
+}
 ```
 
 完整 API 与所有 Option 见各源码文件的包注释（`pkg/client`、`pkg/types`），功能↔文件对照见[源码指引](docs/README.md)。
@@ -263,6 +308,8 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 
 | 变量 | 作用 | 适用命令 | 默认值 |
 |---|---|---|---|
+| `NAZHI_SILICONFLOW_API_KEY` | 硅基流动 Qwen3-Omni 视觉模型密钥，**登录必填**（兼容别名见下） | `login` | — |
+| `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY` | 上者的兼容别名 | `login` | — |
 | `NAZHI_USERNAME` | 学号 | `login` | — |
 | `NAZHI_PASSWORD` | 密码 | `login` | — |
 | `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — |
@@ -281,7 +328,7 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 ### 常用命令
 
 ```bash
-make build              # 当前平台（见上"已知坑"）
+make build              # 当前平台纯 Go 构建
 make release           # 全平台纯 Go 构建
 
 make test              # 单元测试（race）
@@ -318,13 +365,14 @@ make test-integration
 
 ## 安全
 
-历史事故：早期版本曾有真实学号密码泄露到 git 历史（已用 `git-filter-repo`
-彻底清除并 force push）。如果您使用过早期版本，请在 SSO 平台修改密码。
+**历史凭据事件披露**：早期开发阶段曾有真实学号密码进入 git 历史，已用 `git-filter-repo`
+彻底清除对象库并重写。若您拉取过受影响时期的仓库副本（worktree / 本地克隆），请同步更新；
+使用过该凭据的用户应在纳智 SSO 平台修改密码。
 
-仓库测试与文档**绝不**包含真实 PII——`test/integration/har_pii_redacted_test.go` 用 SHA-256 哈希单向防御
-PII 自反性陷阱（详见 [SECURITY.md](SECURITY.md)）。
+**PII 防护承诺**：仓库测试与文档绝不包含真实姓名、学号、密码原文。
+`test/integration/har_pii_redacted_test.go` 以 SHA-256 摘要单向比对，防御守卫文件自身成为泄露源的自反性陷阱。
 
-`CLAUDE.md` 含架构细节和本地凭据，已 `.gitignore` 第 49 行隔离。
+漏洞报告流程与完整安全策略见 [SECURITY.md](SECURITY.md)。
 
 ## 协议
 
