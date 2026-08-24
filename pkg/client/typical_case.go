@@ -207,7 +207,12 @@ func (c *Client) DeleteTypicalCase(ctx context.Context, token string, id int64) 
 // POST /api/studentCircleNew/deleteBatchTypicalCase
 //
 // 请求体是纯 JSON 数组 [1, 2, 3]（前端源码确认）。
+// 空/nil 切片返回 ErrInvalidPayload 而非发出字面 null 请求体
+// （对齐前端 classiccanter.vue 的空数组守卫与 CLI 层参数校验口径）。
 func (c *Client) DeleteBatchTypicalCase(ctx context.Context, token string, ids []int64) error {
+	if len(ids) == 0 {
+		return fmt.Errorf("%w: 批量删除需要至少一个 id", ErrInvalidPayload)
+	}
 	return c.doBizVoid(ctx, token, "DeleteBatchTypicalCase",
 		"/api/studentCircleNew/deleteBatchTypicalCase", http.MethodPost, ids)
 }

@@ -22,6 +22,7 @@ import (
 var selfEvalSubmitCmd = &cobra.Command{
 	Use:   "submit",
 	Short: "提交自我评价",
+	Args:  cobra.NoArgs,
 	Long: `提交自我评价文本。支持两种模式：
 
   1. 纯文本模式：--comment 参数（默认）。如果 --comment 为空或为 "-"，则从 stdin 读取。
@@ -109,6 +110,9 @@ func init() {
 // readStdinWithTimeout 从 stdin 读取全部内容（读到 EOF），超过 timeoutSec 秒未完成则返回超时错误。
 // 当 stdin 是管道且对端未关闭时，原始 reader.ReadString(0) 会无限阻塞，
 // 此函数通过 goroutine + select 实现超时保护。
+//
+// ponytail: 超时/取消后后台 goroutine 仍阻塞在 ReadString 上无法回收——
+// os.Stdin 无中断读机制。CLI 单次进程无害；长驻宿主复用本回调时注意此天花板。
 func readStdinWithTimeout(ctx context.Context, timeoutSec int) (string, error) {
 	type result struct {
 		text string

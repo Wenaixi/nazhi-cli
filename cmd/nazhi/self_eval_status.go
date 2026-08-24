@@ -17,6 +17,7 @@ import (
 var selfEvalStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "查询自我评价状态",
+	Args:  cobra.NoArgs,
 	Long:  `查询自我评价提交状态以及教师评语。`,
 	Example: `  nazhi self-eval status --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi self-eval status --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,

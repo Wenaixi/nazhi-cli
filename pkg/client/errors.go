@@ -121,12 +121,11 @@ var (
 	// 主要用途：让 SDK 用户能 errors.Is 区分「超时」与「连不上」，
 	// 决定是否调大 timeout 或换网络。
 	//
-	// ponytail: reserved for future timeout wrapping — not dead code
 	ErrTimeout = errors.New("timeout: request exceeded deadline")
 
-	// ErrInvalidResponse 服务端返回非 200 状态码（4xx 排除 429）。
+	// ErrInvalidResponse 服务端返回非 200 状态码（4xx 排除 429；noRedirect 下 3xx 也归此类）。
 	//
-	// 触发场景：目标平台返回 4xx 但非 429（404/403/400 等）。
+	// 触发场景：目标平台返回 4xx 但非 429（404/403/400 等），或未跟随的重定向。
 	// 与 ErrBusinessRejected / ErrRateLimited 的语义边界：
 	//   - ErrInvalidResponse：HTTP 协议层错误（4xx），通常是请求语法错误或权限缺失
 	//   - ErrBusinessRejected：业务逻辑拒绝（HTTP 200 + code=0）
