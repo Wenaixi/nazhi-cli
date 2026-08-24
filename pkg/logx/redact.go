@@ -33,7 +33,7 @@ func RedactHeader(k, v string) string {
 		return maskValue(v)
 	}
 	if strings.EqualFold(k, "Referer") && tokenQueryRe.MatchString(v) {
-		return tokenQueryRe.ReplaceAllString(v, `${1}***`)
+		return tokenQueryRe.ReplaceAllString(v, `${1}=***`)
 	}
 	return v
 }
@@ -41,12 +41,13 @@ func RedactHeader(k, v string) string {
 // 匹配 JSON 中敏感 key 的值，大小写不敏感。
 var kvRe = regexp.MustCompile(`(?i)"(token|x-auth-token|authorization|password|passwd|captcha)"\s*:\s*"[^"]*"`)
 
-// 匹配 URL 查询串中的 token 参数。
-var tokenQueryRe = regexp.MustCompile(`(?i)(token=)[^&\s"]+`)
+// 匹配 URL 查询串中的敏感参数：token 与 userName（学号属 PII，SECURITY.md 守卫范围）。
+// 组1=键名（不含等号），组2=值；替换为 ${1}=*** 保留参数名便于排障。
+var tokenQueryRe = regexp.MustCompile(`(?i)((?:x-auth-)?token|username|user_name)=([^&\s"]+)`)
 
 // RedactBody 对 body 中的敏感 JSON 键值做掩码，对 URL token 查询串也掩码，并截断到 256 字符。
 func RedactBody(s string) string {
-	red := tokenQueryRe.ReplaceAllString(s, `${1}***`)
+	red := tokenQueryRe.ReplaceAllString(s, `${1}=***`)
 	red = kvRe.ReplaceAllStringFunc(red, func(m string) string {
 		idx := strings.Index(m, ":")
 		if idx < 0 {

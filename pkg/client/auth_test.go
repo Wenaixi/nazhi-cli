@@ -1647,3 +1647,61 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 		t.Errorf("body 摘要应包含原 body 关键内容（503/html）。实际 errMsg=%q", errMsg)
 	}
 }
+
+// TestLogin_GetSchoolIDError_DoesNotLeakUsername 验证错误路径 URL 脱敏：
+// GetSchoolID 把学号放在 GET 查询串与 Referer 中，当 SSO 返回非 2xx 时，
+// 错误消息会嵌入完整 URL。PII 守卫要求学号原文不得出现在错误信封中
+// （SECURITY.md 承诺），必须以 userName=*** 形式掩蔽。
+// 场景：getSchoolIdByStudentNumber 返回 500（SSO 宕机现实场景），
+// Login 未配置 SchoolID 时走 GetSchoolID 并发分支。
+func TestLogin_GetSchoolIDError_DoesNotLeakUsername(t *testing.T) {
+	const secretUser = "G350181200912110035"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("boom"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		}
+	}))
+	defer srv.Close()
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: secretUser,
+		Password: "p",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误，实际 nil")
+	}
+
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "GetSchoolID") {
+		t.Fatalf("期望错误来自 GetSchoolID 分支，实际 errMsg=%q", errMsg)
+	}
+	if strings.Contains(errMsg, secretUser) {
+		t.Errorf("错误消息泄漏了学号原文（PII 守卫违约）。实际 errMsg=%q", errMsg)
+	}
+	if !strings.Contains(errMsg, "userName=") {
+		t.Errorf("脱敏后错误消息仍应保留 userName= 参数名便于排障。实际 errMsg=%q", errMsg)
+	}
+	if strings.Contains(errMsg, "userName="+secretUser) {
+		t.Errorf("userName 参数值未掩蔽。实际 errMsg=%q", errMsg)
+	}
+}

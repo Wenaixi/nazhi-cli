@@ -358,7 +358,7 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: %s %s 返回状态码 %d body=%s",
-			sentinel, method, url, resp.StatusCode, logx.RedactBody(logSafeBody(respBytes)))
+			sentinel, method, logx.RedactBody(url), resp.StatusCode, logx.RedactBody(logSafeBody(respBytes)))
 	}
 	return respBytes, nil
 }
@@ -398,7 +398,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, url, err)
+		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, logx.RedactBody(url), err)
 	}
 	if resp.StatusCode != http.StatusOK {
 		// 按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过 errors.Is 精确识别
@@ -406,7 +406,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		// sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
-			sentinel, url, resp.StatusCode, logx.RedactBody(logSafeBody(bodyBytes)))
+			sentinel, logx.RedactBody(url), resp.StatusCode, logx.RedactBody(logSafeBody(bodyBytes)))
 	}
 	return bodyBytes, nil
 }
