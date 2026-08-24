@@ -1,4 +1,4 @@
-// Package version 提供 CLI 版本信息。
+﻿// Package version 提供 CLI 版本信息。
 package version
 
 // Version 是 nazhi CLI 的当前版本号。
@@ -61,4 +61,7 @@ package version
 //	        不上传 ImagePaths）；写实等级/审核常量对齐原生字典；AddTypicalCasePayload 数字兼容；
 //	        FetchTasks 迁移 ParallelDims + CLI assembly 深 Module 收敛；预览/提交线上 JSON 等价不变式测试；
 //	        integration 真读链路 OCR 注入与 HAR stub 修复
-var Version = "1.4.0"
+//`t1.4.1 — 工程化治理：注释与文档全面对照源码修正（envelope 双层 code 语义、jq 示例、哨兵数量等准确性硬伤）；
+//		ask submit/edit 补图片数量上限校验（≤2 张，对齐前端 el-upload :limit=2）；
+//		ask preview 帮助文本中文化；测试标识符与文件名去审计编号；README/docs/CLAUDE 记忆库同步刷新
+var Version = "1.4.1"

@@ -1,4 +1,16 @@
-# CHANGELOG
+﻿# CHANGELOG
+
+## [1.4.1] - 2026-08-24
+
+### 变更
+
+- `task submit` / `task edit` 新增图片数量上限校验：pictureList 合并后超过 2 张返回 ErrInvalidPayload，对齐前端 el-upload `:limit="2"` 约束。
+- CLI 帮助文本与错误文案专业化修正：task preview 全文中文化；file download 的 jq 批量下载示例兼容全量/limit 双模式输出形状；login 补充 NAZHI_OCR_BASE_URL / NAZHI_OCR_MODEL 可选变量披露。
+
+### 文档
+
+- README/源码指引对照前端源码全面复核修正：envelope 双层 code 判成功语义澄清、哨兵错误数量对齐源码、荣誉功能证据文件指向 performanceM.vue。
+- 工程注释治理：清除全部审计编号标记（注释与测试标识符）、历史修复叙事、失效引用；doc comment 与实现一致性修正。
 
 ## [1.4.0] - 2026-08-24
 
