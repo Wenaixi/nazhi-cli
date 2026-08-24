@@ -53,12 +53,13 @@ func printEnvelope(e *envelope.Envelope) {
 }
 
 // mapSentinelToHTTPCode 按错误链中的哨兵归类 HTTP 码：
-// 参数类 → 400（exit 3）；业务拒绝/服务端明确 4xx → 422（exit 1）；
+// 参数类（含本地文件超限 ErrFileTooLarge）→ 400（exit 3）；业务拒绝/服务端明确 4xx → 422（exit 1）；
 // 限流 → 429（exit 1）；网络/超时/5xx → 502（exit 2）；未识别保持 500。
 // 修复业务拒绝被压成退出码 2、与瞬时故障不可区分的问题。
 func mapSentinelToHTTPCode(err error) int {
 	switch {
-	case errors.Is(err, client.ErrInvalidPayload):
+	case errors.Is(err, client.ErrInvalidPayload),
+		errors.Is(err, client.ErrFileTooLarge):
 		return 400
 	case errors.Is(err, client.ErrBusinessRejected),
 		errors.Is(err, client.ErrLoginRejected),

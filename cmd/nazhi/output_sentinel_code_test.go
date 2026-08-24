@@ -54,6 +54,29 @@ func TestPrintError_InvalidPayload_ExitCode3(t *testing.T) {
 	}
 }
 
+// TestPrintError_FileTooLarge_ExitCode3 本地文件超限属调用方可控输入问题，
+// 应走 400（退出码 3），与服务端/网络故障（退出码 2）区分；
+// 否则脚本会把「换个小文件即可」的确定性失败当瞬时故障盲目重试。
+func TestPrintError_FileTooLarge_ExitCode3(t *testing.T) {
+	orig := pendingExitCode.Load()
+	defer pendingExitCode.Store(orig)
+	quiet = false
+
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr; _ = r.Close() }()
+
+	printError(fmt.Errorf("上传失败: %w", client.ErrFileTooLarge))
+
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("ErrFileTooLarge 应走 400(退出码 3), 实际 %d", got)
+	}
+}
+
 // TestPrintError_Network_StillExit2 网络类哨兵保持退出码 2 不变。
 func TestPrintError_Network_StillExit2(t *testing.T) {
 	orig := pendingExitCode.Load()
