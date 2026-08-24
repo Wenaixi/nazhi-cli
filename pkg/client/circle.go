@@ -41,7 +41,8 @@ func (c *Client) DeleteCircle(ctx context.Context, token string, circleID int64)
 // 前端在评论成功后执行 `commentList.unshift(response.data.returnData)`，
 // 服务端 returnData 即新创建的 Comment 对象。为保留该语义，SDK 解析
 // returnData 并返回；调用方可直接 unshift 到本地列表而无需重新查询。
-// 服务端未返回 returnData 或解析失败时返回 (nil, err)，调用方按错误处理。
+// 解析失败时返回 (nil, err)；code=1 而 returnData 缺失/null 时返回 (nil, nil)，
+// 调用方需自判 nil——与前端「拿到什么 unshift 什么」的宽容消费行为一致。
 func (c *Client) AddCircleComment(ctx context.Context, token string, circleID int64, content string) (*types.Comment, error) {
 	payload := map[string]any{
 		"circleId": circleID,
