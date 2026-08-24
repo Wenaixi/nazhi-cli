@@ -107,7 +107,9 @@ func extractExpFromJWT(token string) (time.Time, error) {
 	if len(parts) < 2 || parts[1] == "" {
 		return time.Time{}, errors.New("非 JWT 格式")
 	}
-	// base64url 解码（标准 JWT 使用无填充的 RawURLEncoding）
+	// base64url 解码（标准 JWT 使用无填充的 RawURLEncoding）。
+	// 注意：此处故意用 json.Unmarshal（数字解为 float64），与 ExtractFromReturnData
+	// 的 UseNumber 不同——exp 断言依赖 float64 类型，改动前先看 :120 的断言。
 	b, err := base64.RawURLEncoding.DecodeString(parts[1])
 	if err != nil {
 		return time.Time{}, fmt.Errorf("payload base64 解码失败: %w", err)

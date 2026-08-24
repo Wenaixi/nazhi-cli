@@ -35,14 +35,15 @@ func (s *SelfEvalStatus) UnmarshalJSON(data []byte) error {
 			return fmt.Errorf("SelfEvalStatus.id: %w", err)
 		}
 	}
-	studentComment, present, err := firstJSONString(raw, "studentComment", "student_comment")
+	// snake 主读（平台 dataMap 真实形态），camel 兼容——与 client.normalizeSelfEvalStatus 口径一致
+	studentComment, present, err := firstJSONString(raw, "student_comment", "studentComment")
 	if err != nil {
 		return fmt.Errorf("SelfEvalStatus.studentComment: %w", err)
 	}
 	if present {
 		s.StudentComment = studentComment
 	}
-	teacherComment, present, err := firstJSONString(raw, "teacherComment", "teacher_comment")
+	teacherComment, present, err := firstJSONString(raw, "teacher_comment", "teacherComment")
 	if err != nil {
 		return fmt.Errorf("SelfEvalStatus.teacherComment: %w", err)
 	}

@@ -43,14 +43,12 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
-	// 顶层 panic recover 契约：panic 转为与正常错误路径一致的退出码 1，
-	// 而非 Go runtime 默认的 exit 2 + 裸 stack trace（CI 会误判为服务端错误）。
-	// 处理顺序：recover → markError() 设 pendingExitCode=1 → printError 输出
-	// JSON envelope → debug.Stack() 写 stderr 辅助定位。
+	// 顶层 panic recover 契约：panic 经 printError 输出 JSON envelope 并以
+	// 退出码 2（printError 默认 HTTP 500 → ExitCode=2 服务端错误档）退出，
+	// 同时 debug.Stack() 写 stderr 辅助定位。
 	// recover 必须在 main 顶层 defer：cobra 内部不主动 recover Run 回调 panic。
 	defer func() {
 		if r := recover(); r != nil {
-			markError()
 			printError(fmt.Errorf("内部错误: %v", r))
 			// 借用 recoverx.RecoverPanic 统一输出 debug.Stack()，不关心返回的 error（printError 已覆盖）
 			_ = recoverx.RecoverPanic(r, nil, "main")

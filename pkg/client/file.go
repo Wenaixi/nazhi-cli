@@ -78,6 +78,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		err      error
 	)
 	if isDirectUploadAttachment(filePath) {
+		// 先 Stat 预检大小再读入内存，避免超大文件整体吃进内存后才被拒绝
+		if st, statErr := os.Stat(filePath); statErr == nil && st.Size() > MaxAttachmentSize {
+			return nil, fmt.Errorf("附件超过 %d 字节: %w", MaxAttachmentSize, ErrFileTooLarge)
+		}
 		fileData, err = os.ReadFile(filePath)
 		if err != nil {
 			return nil, fmt.Errorf("读取附件失败: %w", err)

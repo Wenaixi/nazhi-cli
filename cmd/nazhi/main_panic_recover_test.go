@@ -1,14 +1,12 @@
 // main_panic_recover_test.go 锚定。
 // 设计契约：cmd/nazhi/main.go 顶层 main() 函数必须有 panic recover 守卫，
-// 且 recover 后必须设 pendingExitCode=1，让 main 末尾的
-// `if pendingExitCode.Load() != 0 { os.Exit(1) }` 分支触发。
+// 且 recover 后经 printError（HTTP 500 → ExitCode=2）设置 pendingExitCode=2，
+// 进程以 exit 2（服务端错误档）退出。
 //
 // 历史：
 //   - 旧契约缺口：main.go 没有 panic recover 时，cobra Run 回调 panic 会
-//     让 Go runtime 直接打 stack trace + exit code 2，CI 无法区分「用户错误」
-//     与「程序 bug」。
-//   - 后续缺陷：main.go 加了 panic recover 但没调 markError()，
-//     panic 后 pendingExitCode=0，main 末尾 os.Exit(1) 分支不触发，
+//     让 Go runtime 直接打裸 stack trace，CI 无法携带 envelope 信息定位。
+//   - 更早缺陷：main.go 曾加 panic recover 但未设任何 pendingExitCode，
 //     进程以 exit 0 退出——CI 误判 panic 为成功。
 //
 // 修复契约
@@ -102,32 +100,30 @@ func TestMain_PanicRecover_ASTInspect(t *testing.T) {
 	}
 }
 
-// TestMain_PanicRecover_ExitCodeOne 锚定「统一 exit code 1」契约。
+// TestMain_PanicRecover_ExitCodeOne 锚定「panic → exit 2」契约。
 //
-// finding：原 main.go 顶层 defer recover 只把 debug.Stack() 写到 stderr，
-// 没调 markError()，panic 后 pendingExitCode 仍为 0，main 函数末尾
-// os.Exit(1) 分支不会触发，进程以 exit 0 退出，CI 误判成功。
+// 行为链：recover → printError（HTTP 500 envelope）→ ExitCode()=2
+// → pendingExitCode.Store(2)。markError() 在此路径是死写入（会被覆盖），
+// 已移除；本测试改为锚定 printError 调用的存在。
 //
 // 为什么用 AST 静态扫描而不是直接调 main()：
 //
-//	main() 含 os.Exit(1)，go test 子进程无法直接执行
-//	go test 进程内调 main() 会因 os.Exit 中断测试运行
+//	main 含 os.Exit，go test 进程内调 main() 会因 os.Exit 中断测试运行
 //	AST 扫描确保 invariant 在源码层永不被破坏
 //
 // 验证：main.go 的 panic recover 闭包体里必须含以下其一
-//   - markError() 调用
-//   - pendingExitCode.Store(<常量>) 调用
+//   - printError / printErrorWithCode 调用（负责 envelope 输出 + Store(2)）
+//   - pendingExitCode.Store(<常量>) 直接调用
 func TestMain_PanicRecover_ExitCodeOne(t *testing.T) {
 	got := mainPanicRecoverSetsExitCode(t)
 	if !got {
-		t.Errorf("main 顶层 panic recover 闭包内必须调 markError() 或 pendingExitCode.Store(1)\n" +
-			"否则 panic 后 pendingExitCode=0，main 末尾 os.Exit(1) 分支不触发，\n" +
-			"进程以 exit 0 退出，CI 脚本误判成功。")
+		t.Errorf("main 顶层 panic recover 闭包内必须调 printError（或直接 pendingExitCode.Store）\n" +
+			"否则 panic 后无 envelope 输出且退出码语义不明。")
 	}
 }
 
 // mainPanicRecoverSetsExitCode 用 AST 静态扫描 main.go 的 panic recover
-// 闭包体，断言含 markError() 或 pendingExitCode.Store(1) 调用。
+// 闭包体，断言含 printError/printErrorWithCode 或 pendingExitCode.Store 调用。
 // 允许不同实现风格但语义必须一致。
 func mainPanicRecoverSetsExitCode(t *testing.T) bool {
 	t.Helper()
@@ -172,13 +168,18 @@ func mainPanicRecoverSetsExitCode(t *testing.T) bool {
 		if !hasRecover {
 			return true
 		}
-		// 闭包体内必须有 markError() 或 pendingExitCode.Store(N)
+		// 闭包体内必须有 printError 系或 pendingExitCode.Store(N)
 		ast.Inspect(funcLit.Body, func(n2 ast.Node) bool {
 			call, ok := n2.(*ast.CallExpr)
 			if !ok {
 				return true
 			}
-			// match markError()
+			// match printError / printErrorWithCode
+			if id, ok := call.Fun.(*ast.Ident); ok && (id.Name == "printError" || id.Name == "printErrorWithCode") {
+				foundSetsExitCode = true
+				return false
+			}
+			// match markError()（历史兼容，现路径已不再使用）
 			if id, ok := call.Fun.(*ast.Ident); ok && id.Name == "markError" {
 				foundSetsExitCode = true
 				return false

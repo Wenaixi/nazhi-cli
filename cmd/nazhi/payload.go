@@ -14,7 +14,20 @@ const maxPayloadSize = 16 << 20
 // 这是 task_submit.go 和 honor.go 中公共的 payload 读取逻辑抽取。
 func parsePayloadFromArg(raw string) ([]byte, error) {
 	if strings.HasPrefix(raw, "@") {
-		return os.ReadFile(raw[1:])
+		// 与 stdin 路径对齐：@file 也受 16 MiB 上限保护，防止误传大文件撑爆内存
+		f, err := os.Open(raw[1:])
+		if err != nil {
+			return nil, err
+		}
+		defer f.Close()
+		payload, err := io.ReadAll(io.LimitReader(f, maxPayloadSize+1))
+		if err != nil {
+			return nil, err
+		}
+		if len(payload) > maxPayloadSize {
+			return nil, fmt.Errorf("文件 payload 超过 16 MiB 上限")
+		}
+		return payload, nil
 	}
 	if raw == "-" {
 		payload, err := io.ReadAll(io.LimitReader(os.Stdin, maxPayloadSize+1))
