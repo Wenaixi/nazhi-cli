@@ -17,13 +17,9 @@
 
 ## 当前版本
 
-仓库 `internal/version/version.go` 是版本号唯一写入处，CI 与 Makefile 从这里读。当前活跃版本：
-
-| 版本 | 状态 | 备注 |
-|---|---|---|
-| `1.3.0` | 当前活跃维护 | 前端字段对齐、视觉识别依赖注入、纯 Go 构建与文档同步 |
-| `0.4.0` | 历史版本 | 架构深化与安全修复 |
-| `< 0.3` | 不再支持 | 强制升级 |
+仓库 `internal/version/version.go` 是版本号唯一写入处，CI 与 Makefile 从这里读。
+**禁止在文档或注释中写死版本号**——历史归 CHANGELOG.md，当前值查 version.go。
+安全修复只为最新 Release 提供；详见 [SECURITY.md](SECURITY.md)。
 
 新功能开发默认向 `main` 提 PR，因为修复横跨多个 commit，main 上的版本号由发版时统一切。
 
