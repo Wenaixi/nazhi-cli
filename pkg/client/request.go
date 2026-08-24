@@ -99,6 +99,9 @@ func newHTTPClient() *http.Client {
 		// 不自动跟随重定向——我们需要手动从 Location 头提取 token
 		CheckRedirect: noRedirect,
 		Transport: &http.Transport{
+			// 显式直连：平台是国内站点（nazhisoft.com），走系统代理反而引入
+			// 假死连接风险（2026-08-24 代理断流导致 OCR 卡 120s 事故）。
+			Proxy:                 nil,
 			MaxIdleConns:          100,
 			MaxIdleConnsPerHost:   16,
 			IdleConnTimeout:       90 * time.Second,
