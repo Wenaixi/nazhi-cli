@@ -224,8 +224,8 @@ func TestTaskSubmitCmd_ServerError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	if got := pendingExitCode.Load(); got != 2 {
-		t.Errorf("业务错误应触发 pendingExitCode=2，实际 %d", got)
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("业务拒绝（ErrBusinessRejected）应触发 pendingExitCode=1，实际 %d", got)
 	}
 	if !strings.Contains(stderr, `"status": "error"`) {
 		t.Errorf("stderr 应包含 error envelope，实际: %q", stderr)

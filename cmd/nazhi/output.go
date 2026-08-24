@@ -2,12 +2,14 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"sync/atomic"
 
 	"github.com/spf13/cobra"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 )
 
@@ -50,7 +52,30 @@ func printEnvelope(e *envelope.Envelope) {
 	}
 }
 
-// printError 输出 envelope.Error(500) 到 stderr 并标记退出码（exit 2）。
+// mapSentinelToHTTPCode 按错误链中的哨兵归类 HTTP 码：
+// 参数类 → 400（exit 3）；业务拒绝/服务端明确 4xx → 422（exit 1）；
+// 限流 → 429（exit 1）；网络/超时/5xx → 502（exit 2）；未识别保持 500。
+// 修复业务拒绝被压成退出码 2、与瞬时故障不可区分的问题。
+func mapSentinelToHTTPCode(err error) int {
+	switch {
+	case errors.Is(err, client.ErrInvalidPayload):
+		return 400
+	case errors.Is(err, client.ErrBusinessRejected),
+		errors.Is(err, client.ErrLoginRejected),
+		errors.Is(err, client.ErrInvalidResponse):
+		return 422
+	case errors.Is(err, client.ErrRateLimited):
+		return 429
+	case errors.Is(err, client.ErrNetwork),
+		errors.Is(err, client.ErrTimeout),
+		errors.Is(err, client.ErrServiceUnavailable):
+		return 502
+	default:
+		return 500
+	}
+}
+
+// printError 输出错误信封到 stderr：按哨兵映射 HTTP 码决定退出码档位。
 // 注意：此函数**不**调用 os.Exit。退出由 main 在 rootCmd.Execute() 之后
 // 统一处理。原因：os.Exit 不执行 defer，直接退出会导致 main 的
 // defer closeAllClients() 永远不运行，HTTP 连接池等资源全部泄漏。
@@ -61,7 +86,7 @@ func printEnvelope(e *envelope.Envelope) {
 //
 // 参数错误（缺 token、payload 读/解析失败）请用 printParamError（400→exit 3）。
 func printError(err error) {
-	printErrorWithCode(err, 500)
+	printErrorWithCode(err, mapSentinelToHTTPCode(err))
 }
 
 // printParamError 输出参数错误 envelope.Error(400) 到 stderr，退出码 3。
