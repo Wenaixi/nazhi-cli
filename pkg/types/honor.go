@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"strconv"
 )
 
 // HonorType 一种可申报的荣誉类型（来自 getHonorType 接口）。
@@ -70,19 +69,23 @@ type HonorListResult struct {
 // SDK 自动：TypeName（反查）、Name（回落 TypeName）、Score（默认 0，前端 form 无输入）。
 // 调用方一般不必填 TypeName/Name/Score。
 type AddHonorPayload struct {
-	Name                string `json:"name"`
+	// Name：前端 addHonor 表单八键不含 name（performanceM.vue:211-220），
+	// 空 Name 不序列化（omitempty）；保留字段仅为兼容旧调用方显式传入。
+	Name                string `json:"name,omitempty"`
 	TypeID              int64  `json:"typeId"`
 	TypeName            string `json:"typeName"`
 	Level               int    `json:"level"`
 	EvaluationAgency    string `json:"evaluationAgency"`
 	GetDate             string `json:"getDate"`
-	CertImgAttachmentID string `json:"certImgAttachmentId"`
+	// CertImgAttachmentID：出站对齐前端裸 number（performanceM.vue:576 赋 returnData.id），
+	// 无附件时 omitempty 省略键；入站经 UnmarshalJSON 兼容 number/数字字符串/空串/null。
+	CertImgAttachmentID int64 `json:"certImgAttachmentId,omitempty"`
 	// Score 分值。前端 form 默认 0 且无 v-model；零值也会序列化进请求体。
 	Score int `json:"score"`
 }
 
 // UnmarshalJSON 兼容前端上传成功后返回的 number 类型 certImgAttachmentId，
-// 同时保留调用方传入的字符串形式。
+// 以及历史调用方/编辑回填可能出现的数字字符串、空串、null（复用 parseFlexInt64）。
 func (p *AddHonorPayload) UnmarshalJSON(data []byte) error {
 	type payloadAlias AddHonorPayload
 	var raw struct {
@@ -93,30 +96,13 @@ func (p *AddHonorPayload) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
-	value := bytes.TrimSpace(raw.CertImgAttachmentID)
-	if len(value) == 0 {
-		return nil
-	}
-	if bytes.Equal(value, []byte("null")) {
-		p.CertImgAttachmentID = ""
-		return nil
-	}
-	var text string
-	if value[0] == '"' {
-		if err := json.Unmarshal(value, &text); err != nil {
+	if raw.CertImgAttachmentID != nil {
+		v, err := parseFlexInt64(bytes.TrimSpace(raw.CertImgAttachmentID))
+		if err != nil {
 			return fmt.Errorf("certImgAttachmentId: %w", err)
 		}
-		p.CertImgAttachmentID = text
-		return nil
+		p.CertImgAttachmentID = v
 	}
-	var number json.Number
-	if err := json.Unmarshal(value, &number); err != nil {
-		return fmt.Errorf("certImgAttachmentId: 期望字符串或数字: %w", err)
-	}
-	if _, err := strconv.ParseInt(number.String(), 10, 64); err != nil {
-		return fmt.Errorf("certImgAttachmentId: 非法数字 %q: %w", number.String(), err)
-	}
-	p.CertImgAttachmentID = number.String()
 	return nil
 }
 
