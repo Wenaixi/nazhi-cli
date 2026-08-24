@@ -13,10 +13,10 @@ import (
 // syncCookieToken 将 JWT token 同步到 HTTP cookie jar 中（X-Auth-Token）。
 // 业务 API 通过 cookie 鉴权而非 Authorization 头。
 //
-// F6 优化：baseURL 在 New() 阶段已预解析到 c.baseURLParsed，避免每次调用 url.Parse。
+// baseURL 在 New() 阶段已预解析到 c.baseURLParsed，调用时无需重复 url.Parse。
 // 若直接构造 Client（绕过 New()），则懒解析一次并缓存回 c.baseURLParsed。
 //
-// F3 修复：c.baseURLParsed 改 atomic.Pointer[url.URL]，所有访问原子化。
+// c.baseURLParsed 为 atomic.Pointer[url.URL]，并发访问全部原子化。
 // 修复前用 *url.URL + sync.Mutex 仍被 race detector 报警——
 // url.Parse 内部对返回的 *url.URL 字段写入与 jar.SetCookies 的字段读取
 // 虽跨不同 goroutine 但共享同一 *url.URL，atomic.Pointer 让所有访问原子化解决。

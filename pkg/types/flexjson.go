@@ -60,10 +60,8 @@ func (p PlayRoleCode) MarshalJSON() ([]byte, error) {
 }
 
 // IntList 解码平台「日期/时间」数组字段：JSON 中为 number 列表，如
-// admissionDate=[2025,9,1]、birthday=[2009,12,11]、creationTime=[...]
-//
-// 历史上 UserInfo.AdmissionDate 曾误标为 []string，真实 getMyInfo 返回 number，
-// 导致 Unmarshal 失败并被 fallback 当成「空用户」。
+// admissionDate=[2025,9,1]、birthday=[2009,12,11]、creationTime=[...]。
+// 平台主路径是 number 数组；声明为 []string 会导致解码失败并被 fallback 视为空数据。
 type IntList []int
 
 // UnmarshalJSON 接受 [number...]、[string 数字...]、null、空数组。

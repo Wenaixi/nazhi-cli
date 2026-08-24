@@ -21,7 +21,7 @@ type ParallelDimsResult[T any] struct {
 //
 // 行为：
 //   - 跳过 id=0 的汇总维度
-//   - 并发上限 = limit（>0）；limit<=0 时默认 = active dims
+//   - 并发上限 = limit；limit<=0 时按 1（串行）执行
 //   - fn 接收含 errgroup 取消传播的 ctx 和单个 dimension，返回该维度的 items 和 error
 //   - 单个维度失败不中断其他维度的执行
 //

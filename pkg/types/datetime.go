@@ -1,4 +1,4 @@
-// Package types 提供 nazhi-cli SDK 的领域类型。
+// datetime.go 为历史占位文件，当前无导出类型（说明见下方）。
 package types
 
 // datetime.go 历史占位：曾计划提供 DateOnly（type DateOnly time.Time）用于 YYYY-MM-DD / RFC3339 双兼容解码。
