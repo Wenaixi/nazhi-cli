@@ -51,6 +51,10 @@ var taskWithdrawnCmd = &cobra.Command{
 			return
 		}
 
+		if rejectLoneOffset(cmd) {
+			return
+		}
+
 		if offset > 0 || limit > 0 {
 			printVerbose("正在获取被撤回写实记录（limit=%d, offset=%d）...", limit, offset)
 			raw, pb, err := c.GetWithdrawnCirclesLimitJSON(cmd.Context(), token, offset, limit, key)

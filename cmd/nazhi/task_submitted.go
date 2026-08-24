@@ -53,8 +53,7 @@ var taskSubmittedCmd = &cobra.Command{
 			return
 		}
 
-		if offset > 0 && limit <= 0 {
-			printEnvelope(envelope.Error(400, "--offset 需配合 --limit 使用（单独 --offset 会被忽略，拒绝静默返回全量）"))
+		if rejectLoneOffset(cmd) {
 			return
 		}
 
