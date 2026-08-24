@@ -163,17 +163,16 @@ func normalizeSelfEvalStatus(m map[string]any) *types.SelfEvalStatus {
 	}
 	// 字段别名策略：
 	//
-	// - 主路径：types.SelfEvalStatus 的 JSON tag 为 studentComment/teacherComment，
-	//   同时兼容平台真实返回的 snake_case（student_comment/teacher_comment），
-	//   前端 mainLeft.vue / selfgaintloss.vue 均以 dataMap.student_comment 为准。
-	// - 已验证别名：content / teacherRemark 为历史测试与旧平台字段，保留兼容。
-	// - 已移除的过宽别名：selfEvaluation / evaluationContent 无前端或抓包依据，
-	//   属过度猜测，已收窄移除；若未来服务端新增字段，应在 types 层显式处理，
-	//   而非在此无限制扩张别名表。
+	// - 主路径：snake_case（student_comment/teacher_comment）——平台真实返回形态，
+	//   前端 mainLeft.vue:90、selfgaintloss.vue:107 均以 dataMap.student_comment 为准；
+	//   camelCase 作为兼容备选。
+	// - 已收窄移除的投机键：selfEvaluation / evaluationContent / content /
+	//   teacherRemark 均无前端读取点或抓包依据；若未来服务端新增字段，应在
+	//   types 层显式处理，而非在此无限制扩张别名表。
 	status := &types.SelfEvalStatus{
 		ID:             firstInt64(m, "id", "platformId", "selfEvalId"),
-		StudentComment: firstString(m, "studentComment", "student_comment", "content"),
-		TeacherComment: firstString(m, "teacherComment", "teacher_comment", "teacherRemark"),
+		StudentComment: firstString(m, "student_comment", "studentComment"),
+		TeacherComment: firstString(m, "teacher_comment", "teacherComment"),
 	}
 	if status.ID == 0 && status.StudentComment == "" && status.TeacherComment == "" {
 		return nil

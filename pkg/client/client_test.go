@@ -265,7 +265,7 @@ func TestLogin(t *testing.T) {
 			// HAR 验证：登录响应 200 JSON（而非 302 redirect）
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"code":1,"returnData":{"token":"eyJhbGciOiJIUzI1NiJ9.test-token-123","expires_at":1888888888}}`))
+			w.Write([]byte(`{"code":1,"returnData":{"token":"eyJhbGciOiJIUzI1NiJ9.test-token-123"}}`))
 		}
 	}))
 	defer sso.Close()
@@ -720,6 +720,8 @@ func TestQuerySelfEvaluation(t *testing.T) {
 }
 
 func TestQuerySelfEvaluation_AliasFields(t *testing.T) {
+	// 别名收窄：content / teacherRemark 为无前端依据的投机键，不再被消费；
+	// 记录本身（id=42）仍返回，但注释字段保持空。
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/studentMoralEduNew/querySelfEvaluation" {
 			t.Errorf("期望路径 querySelfEvaluation, 得到 %s", r.URL.Path)
@@ -739,14 +741,14 @@ func TestQuerySelfEvaluation_AliasFields(t *testing.T) {
 	if err != nil {
 		t.Fatalf("QuerySelfEvaluation 失败: %v", err)
 	}
-	if status.StudentComment != "平台真实自评内容" {
-		t.Errorf("期望 StudentComment=平台真实自评内容, 得到 %s", status.StudentComment)
-	}
-	if status.TeacherComment != "老师别名评语" {
-		t.Errorf("期望 TeacherComment=老师别名评语, 得到 %s", status.TeacherComment)
-	}
 	if status.ID != 42 {
 		t.Errorf("期望 ID=42, 得到 %d", status.ID)
+	}
+	if status.StudentComment != "" {
+		t.Errorf("投机键 content 不应被消费, 得到 %q", status.StudentComment)
+	}
+	if status.TeacherComment != "" {
+		t.Errorf("投机键 teacherRemark 不应被消费, 得到 %q", status.TeacherComment)
 	}
 }
 
@@ -868,7 +870,7 @@ func TestConcurrentLoginsSucceed(t *testing.T) {
 			// 200 JSON 响应（HAR 对齐）
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`{"code":1,"returnData":{"token":"` + token + `","expires_at":1888888888}}`))
+			w.Write([]byte(`{"code":1,"returnData":{"token":"` + token + `"}}`))
 		}
 	}))
 	defer sso.Close()

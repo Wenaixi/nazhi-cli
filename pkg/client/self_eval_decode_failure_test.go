@@ -50,14 +50,16 @@ func TestIsEmptyDecodeFailure_SentinelWithRealError(t *testing.T) {
 }
 
 // TestNormalizeSelfEvalStatus_AliasNarrowing 验证别名收窄：
-// - 保留别名 content / teacherRemark 仍兼容
-// - 已移除的过宽别名 selfEvaluation / evaluationContent 不再生效
+// - 前端仅读 student_comment / studentComment（mainLeft.vue:90、selfgaintloss.vue:107），
+//   snake 为主路径、camel 兼容
+// - 投机键 content / teacherRemark 无任何前端读取点，与 selfEvaluation /
+//   evaluationContent 同批收窄，不再生效
 func TestNormalizeSelfEvalStatus_AliasNarrowing(t *testing.T) {
-	// 保留别名仍生效
-	m1 := map[string]any{"id": 1, "content": "保留别名内容", "teacherRemark": "保留教师评语"}
+	// 投机键不再被消费：记录 ID 保留，注释字段为空
+	m1 := map[string]any{"id": 1, "content": "投机键内容", "teacherRemark": "投机教师评语"}
 	s1 := normalizeSelfEvalStatus(m1)
-	if s1 == nil || s1.StudentComment != "保留别名内容" || s1.TeacherComment != "保留教师评语" {
-		t.Fatalf("保留别名应生效，got %+v", s1)
+	if s1 == nil || s1.ID != 1 || s1.StudentComment != "" || s1.TeacherComment != "" {
+		t.Fatalf("投机键 content/teacherRemark 应已收窄失效（注释为空），got %+v", s1)
 	}
 	// 已移除别名不再生效：仅用旧过宽 key 应归一为 nil
 	m2 := map[string]any{"id": 0, "selfEvaluation": "过宽别名1", "evaluationContent": "过宽别名2"}
@@ -65,7 +67,7 @@ func TestNormalizeSelfEvalStatus_AliasNarrowing(t *testing.T) {
 	if s2 != nil {
 		t.Fatalf("已收窄别名应不再生效，期望 nil，got %+v", s2)
 	}
-	// 主路径仍优先
+	// snake 主路径 + camel 兼容
 	m3 := map[string]any{"id": 2, "student_comment": "snake 主路径", "teacher_comment": "教师 snake"}
 	s3 := normalizeSelfEvalStatus(m3)
 	if s3 == nil || s3.StudentComment != "snake 主路径" {
