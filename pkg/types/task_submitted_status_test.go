@@ -7,13 +7,13 @@ import "testing"
 // managementLeftBottom.vue:37 前端用 indexOf 子串匹配「已结束」），全等匹配会漏接变体文案。
 func TestSetSubmittedByStatus_SubstringMatching(t *testing.T) {
 	cases := []struct {
-		status    string
-		wantSub   bool // 期望 Submitted
+		status  string
+		wantSub bool // 期望 Submitted
 	}{
 		{"未提交", false},
 		{"上传期 未提交", false},
-		{"已结束 未提交", false},      // 全等黑名单漏接的关键形态
-		{"审核中 未提交", false},      // 未来新增文案的容错
+		{"已结束 未提交", false}, // 全等黑名单漏接的关键形态
+		{"审核中 未提交", false}, // 未来新增文案的容错
 		{"上传期 已提交", true},
 		{"已结束 已提交", true},
 		{"进行中", true},

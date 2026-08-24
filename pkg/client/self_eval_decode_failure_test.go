@@ -50,10 +50,10 @@ func TestIsEmptyDecodeFailure_SentinelWithRealError(t *testing.T) {
 }
 
 // TestNormalizeSelfEvalStatus_AliasNarrowing 验证别名收窄：
-// - 前端仅读 student_comment / studentComment（mainLeft.vue:90、selfgaintloss.vue:107），
-//   snake 为主路径、camel 兼容
-// - 投机键 content / teacherRemark 无任何前端读取点，与 selfEvaluation /
-//   evaluationContent 同批收窄，不再生效
+//   - 前端仅读 student_comment / studentComment（mainLeft.vue:90、selfgaintloss.vue:107），
+//     snake 为主路径、camel 兼容
+//   - 投机键 content / teacherRemark 无任何前端读取点，与 selfEvaluation /
+//     evaluationContent 同批收窄，不再生效
 func TestNormalizeSelfEvalStatus_AliasNarrowing(t *testing.T) {
 	// 投机键不再被消费：记录 ID 保留，注释字段为空
 	m1 := map[string]any{"id": 1, "content": "投机键内容", "teacherRemark": "投机教师评语"}

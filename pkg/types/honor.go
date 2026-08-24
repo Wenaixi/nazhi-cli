@@ -71,12 +71,12 @@ type HonorListResult struct {
 type AddHonorPayload struct {
 	// Name：前端 addHonor 表单八键不含 name（performanceM.vue:211-220），
 	// 空 Name 不序列化（omitempty）；保留字段仅为兼容旧调用方显式传入。
-	Name                string `json:"name,omitempty"`
-	TypeID              int64  `json:"typeId"`
-	TypeName            string `json:"typeName"`
-	Level               int    `json:"level"`
-	EvaluationAgency    string `json:"evaluationAgency"`
-	GetDate             string `json:"getDate"`
+	Name             string `json:"name,omitempty"`
+	TypeID           int64  `json:"typeId"`
+	TypeName         string `json:"typeName"`
+	Level            int    `json:"level"`
+	EvaluationAgency string `json:"evaluationAgency"`
+	GetDate          string `json:"getDate"`
 	// CertImgAttachmentID：出站对齐前端裸 number（performanceM.vue:576 赋 returnData.id），
 	// 无附件时 omitempty 省略键；入站经 UnmarshalJSON 兼容 number/数字字符串/空串/null。
 	CertImgAttachmentID int64 `json:"certImgAttachmentId,omitempty"`

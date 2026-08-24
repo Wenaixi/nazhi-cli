@@ -27,7 +27,9 @@ func buildJPEGWithOrientation(t *testing.T, w, h int, exifPayload []byte) []byte
 	// 构造 APP1(EXIF) 段并插入 SOI 之后
 	exifPrefix := []byte{'E', 'x', 'i', 'f', 0, 0}
 	// exifPayload 自带完整 TIFF 头（II 字节序 + 42 + IFD offset），不再额外填充
-	body := append(exifPrefix, exifPayload...)
+	body := make([]byte, 0, len(exifPrefix)+len(exifPayload))
+	body = append(body, exifPrefix...)
+	body = append(body, exifPayload...)
 	seg := append([]byte{0xFF, 0xE1}, byte((len(body)+2)>>8), byte((len(body)+2)%256))
 	seg = append(seg, body...)
 
