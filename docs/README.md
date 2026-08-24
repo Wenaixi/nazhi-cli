@@ -1,4 +1,4 @@
-# nazhi-cli 源码指引
+﻿# nazhi-cli 源码指引
 
 > 本文档只是地图：告诉你「哪个功能在哪几个文件」。语义、参数、行为一律以源码为准，
 > 本文档不随版本更新维护。前端源码完整镜像在 `reference/nazhi/`，可直接 grep 对照。
@@ -21,8 +21,8 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 | 写实删除 | `DeleteCircle` | client/circle.go | managementRightBottom.vue `open2()` | deleteCircle |
 | 评论 / 点赞 | `AddCircleComment`, `SetCircleLike` | client/circle.go | managementRightBottom.vue `addComment()` `likeIt()` | addCircleComment, setCircleLikeById |
 | 写实图片查询 | `GetCircleImages` | client/circle.go | managementRightBottom.vue 图片区 | getCircleImg |
-| 荣誉列表/类型 | `GetHonorList`, `GetHonorTypes` 等 | client/honor.go | user/HonorBox.vue, performance/performanceM.vue | studentMoralEduNew/getHonor* |
-| 荣誉增删改 | `AddHonor`, `UpdateHonor`, `DeleteHonor` | client/honor.go | user/HonorBox.vue | addHonor, updateHonor, deleteHonorById |
+| 荣誉列表/类型 | `GetHonorList`, `GetHonorTypes` 等 | client/honor.go | performance/performanceM.vue（HonorBox.vue 为静态假数据页） | studentMoralEduNew/getHonor* |
+| 荣誉增删改 | `AddHonor`, `UpdateHonor`, `DeleteHonor` | client/honor.go | performance/performanceM.vue `submit()`/`submit2()` | addHonor, updateHonor, deleteHonorById |
 | 典型案例 CRUD | `GetTypicalCaseList` 等 5 方法 | client/typical_case.go | classic/classiccanter.vue | studentCircleNew/getTypicalCase 等 |
 | 自我评价 | `SubmitSelfEvaluation`, `QuerySelfEvaluation` | client/self_eval.go | main/mainLeft.vue | query/addSelfEvaluation |
 | 毕业评价 | `SubmitSelfGradEvaluation` 等 | client/self_eval.go | main/mainLeft.vue | query/addSelfGradEvaluation |
