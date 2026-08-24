@@ -123,9 +123,13 @@ func decodeImage(path string) (image.Image, error) {
 	}
 	defer f.Close()
 
-	img, _, err := image.Decode(f)
+	// AutoOrientation=true：JPEG 带 EXIF Orientation 时自动旋转摆正，对齐前端
+	// canvas drawImage 的现代浏览器默认行为（竖拍照片上传后不再横置）。
+	// 非 JPEG 或无 EXIF 时行为与 image.Decode 一致。
+	img, err := imaging.Decode(f, imaging.AutoOrientation(true))
 	if err != nil {
-		// 检测是否是 BMP（stdlib 不支持），给出友好提示
+		// 标准 BMP 已由 x/image/bmp 注册解码；此处仅捕获不支持的 BMP 变体等失败，
+		// 检测 BM 魔数给出友好提示
 		if _, seekErr := f.Seek(0, io.SeekStart); seekErr == nil {
 			var magic [2]byte
 			if _, readErr := io.ReadFull(f, magic[:]); readErr == nil && magic[0] == 'B' && magic[1] == 'M' {
