@@ -394,14 +394,22 @@ var (
 	ErrTaskInputContentRequired = taskInputError("content 为必填")
 )
 
-var submittedBlacklist = map[string]struct{}{
-	"未提交":     {},
-	"上传期 未提交": {},
-}
+// submittedBlacklist 是「视为未提交」的状态关键词表。
+//
+// circleTaskStatus 是自由文本族（docs/README.md 表 C：「上传期/已结束 × 未提交/已提交」），
+// 前端 managementLeftBottom.vue 同样以子串方式消费该字段；因此用 Contains 匹配，
+// 兼容未来新增文案变体。注意：本判定只回答「是否已提交」；
+// 「能否提交」（含「已结束」时禁止上传）属另一语义，调用方应单独判断。
+var submittedBlacklist = []string{"未提交"}
 
 func (t *Task) SetSubmittedByStatus() {
-	_, ok := submittedBlacklist[t.CircleTaskStatus]
-	t.Submitted = !ok
+	for _, kw := range submittedBlacklist {
+		if strings.Contains(t.CircleTaskStatus, kw) {
+			t.Submitted = false
+			return
+		}
+	}
+	t.Submitted = true
 }
 
 // SetNeedPicFromUpPic 用平台 upPic（int 0/1）推导 NeedPic。
