@@ -71,7 +71,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		return data, "image/jpeg", nil
 	}
 
-	// 如果 data 远超上限（>2×MaxImageSize），跳过质量级联（省三次 encode），
+	// 如果 data 远超上限（>2×MaxImageSize），跳过质量级联（省一次 q80 encode），
 	// 直接进缩放级联。quality=80 对超大图片通常不够降到 ≤5MB，缩放最少省 50% 体积。
 	q := qualityAfterOptimization
 	if len(data) > 2*MaxImageSize {

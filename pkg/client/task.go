@@ -385,8 +385,12 @@ func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResu
 //   - SubmitTask 调用 addCircle（无 id 字段，新增记录）
 //   - EditCircle 调用 editCircle（必须传 id 字段，修改已有记录）
 //
-// 用户字段（address/level/playRole 等）空串原样发送，不发明学校名或等级 5；
+// 用户字段（address/level/playRole 等活动字段）空串原样发送，不发明学校名或等级 5；
 // 任务元数据与图片由 SDK 自动补齐。
+//
+// hours 例外——编辑留空时回填任务元数据预设（getCircleTypeByTaskId.hours），
+// 而前端编辑是用列表记录值覆盖任务预设。要保留原记录值，请从列表记录
+// （CircleRecord 的 hours）显式赋值给 input.Hours，否则与预设不同的记录会被静默改写。
 func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskResult, error) {
 	payload, err := c.buildTaskEditPayload(ctx, token, input)
 	if err != nil {
@@ -422,23 +426,26 @@ func (c *Client) SubmitTask(ctx context.Context, token string, input types.TaskS
 //
 // 真实网页在打开任务提交通道前会先请求 getCircleTypeByTaskId，再用返回的 dataMap
 // 填充 addCircle 请求体。SDK 暴露该方法，避免调用方手工猜测 circleTypeId。
-// PreviewSubmitPayload 预览提交时的最终 payload（不发请求）。
-// 与 SubmitTask 共用 buildTaskPayload 同一组装链路（等价不变式见 task_preview_parity_test.go），
-// 仅上传钩子为 nil：跳过 ImagePaths 上传避免本地文件副作用，pictureList 只含 ImageIDs。
-func (c *Client) PreviewSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildTaskPayload(ctx, token, input, "PreviewSubmitPayload", nil)
-}
-
-// PreviewEditPayload 预览编辑时的最终 payload（不发请求，纯预览不上传）。
-func (c *Client) PreviewEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
-	return c.buildTaskPayload(ctx, token, input, "PreviewEditPayload", nil)
-}
-
 func (c *Client) GetCircleTypeByTaskID(ctx context.Context, token string, taskID int64) (*types.TaskCircleTypeInfo, error) {
 	path := "/api/studentCircleNew/getCircleTypeByTaskId?taskId=" + strconv.FormatInt(taskID, 10)
 	return doBizGetDecode[types.TaskCircleTypeInfo](c, ctx, token, "GetCircleTypeByTaskID", path,
 		types.DecodeDataMap[types.TaskCircleTypeInfo],
 	)
+}
+
+// PreviewSubmitPayload 预览提交时的最终 payload。不发 addCircle 提交请求、不做
+// 图片上传本地副作用，但仍会真实调用 getCircleTypeByTaskId 拉取任务元数据并预热
+// session（镜像前端打开提交弹窗时的固有网络步骤），离线环境不可用。
+// 与 SubmitTask 共用 buildTaskPayload 同一组装链路（等价不变式见 task_preview_parity_test.go）；
+// 上传钩子为 nil：跳过 ImagePaths——pictureList 只含 ImageIDs，ImagePaths 在预览路径被忽略。
+func (c *Client) PreviewSubmitPayload(ctx context.Context, token string, input types.TaskSubmitInput) (*types.TaskAddCirclePayload, error) {
+	return c.buildTaskPayload(ctx, token, input, "PreviewSubmitPayload", nil)
+}
+
+// PreviewEditPayload 预览编辑时的最终 payload。同 PreviewSubmitPayload：
+// 不发 editCircle 提交请求、不上传图片，但会拉取任务元数据并预热 session。
+func (c *Client) PreviewEditPayload(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskAddCirclePayload, error) {
+	return c.buildTaskPayload(ctx, token, input, "PreviewEditPayload", nil)
 }
 
 // GetDimensions 获取任务维度列表。

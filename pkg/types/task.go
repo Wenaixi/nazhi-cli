@@ -312,6 +312,9 @@ type TaskCircleTypeInfo struct {
 }
 
 // TaskEditInput 是修改写实记录的最小输入。
+//
+// hours 半自动语义：Hours 留空时回填任务元数据预设（与提交侧一致），
+// 但前端编辑场景是用列表记录值覆盖——要保留原值请显式从 CircleRecord.Hours 回填。
 type TaskEditInput struct {
 	ID                  int64
 	TaskID              int64

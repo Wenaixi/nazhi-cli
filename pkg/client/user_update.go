@@ -52,7 +52,11 @@ var idCardTypeMap = map[string]int{
 //
 //	{"telephone": "138xxx", "familyAddress": "福建省福州市", "hobbies": "阅读"}
 //
-// 可用字段参考 types.UserInfo 中的 json tag 名。
+// 可写字段为更新接口的线格式键名（studentName/studentNumber/telephone/gender
+// 数字码/youthLeagueFlag/nation/idType/idCard/birthday/seat/studentUuid 等）——
+// 注意与读接口 UserInfo 的 json tag 不同形（读侧是 name/genderName，写侧是
+// studentName/gender 数字），照抄 UserInfo tag 会静默无效。中文枚举转数字码
+// 请改用 UpdateMyInfoStructured。
 //
 // 成功后会失效 sm.cachedUserInfo：ActivateSession 步骤 4 缓存的 UserInfo
 // 不再对 GetMyInfo 的持锁 fast path 可见，下次 GetMyInfo 会重新拉取。

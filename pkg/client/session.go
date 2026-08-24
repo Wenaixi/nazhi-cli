@@ -40,7 +40,8 @@ const defaultSessionBackoff = 5 * time.Second
 //   - 如果需要在锁内调本函数（如 sync.Mutex 临界区），需确保外层锁
 //     的获取/释放顺序一致，不会形成循环等待。
 //
-// 并发安全：本方法委托给 sm.Activate（持锁 fast path），
+// 并发安全：本方法委托给 sm.Activate（持锁 fast path），同 token 二次调用
+// 直接命中缓存不重复执行 4 步。
 //
 // Backoff 缓存：失败时通过 sm.RecordFailure 更新 lastErr / lastAttempt /
 // lastFailedToken。CLI 路径（直接调 ActivateSession）与业务方法路径

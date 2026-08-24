@@ -9,11 +9,13 @@ import (
 
 var taskPreviewCmd = &cobra.Command{
 	Use:   "preview",
-	Short: "预览 task submit/edit 最终提交的 JSON payload（不调用接口）",
+	Short: "预览 task submit/edit 最终提交的 JSON payload（不调用提交接口）",
 	Long: `预览写实提交/编辑最终发送的 JSON payload，不调用 addCircle/editCircle 接口。
+注意：预览仍需联网拉取任务元数据（getCircleTypeByTaskId）并预热 session。
 
 展示 SDK 自动补齐结果：circleTaskId/circleTypeId/dimensionId 来自任务元数据；
-hours 在任务预设 >0 且用户留空时自动填充；pictureList 由 ImageIDs/ImagePaths 合并。
+hours 在任务预设 >0 且用户留空时自动填充；pictureList 只含 ImageIDs
+（预览路径不上传图片，ImagePaths 被忽略）。
 空地址/空组织单位/空等级保持原样，不会回填学校名或默认等级「5」。
 用户字段 Trim 后原样发送，与前端 JSON.stringify(form) 对齐。`,
 	Example: `  nazhi task preview --token xxx --payload '{"taskId":18154,"content":"heart"}'

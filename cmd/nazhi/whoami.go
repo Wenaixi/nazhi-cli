@@ -14,8 +14,9 @@ import (
 //
 //	nazhi whoami --token <token> [--base-url <url>] [--timeout <秒>]
 //
-// envelope.data 直接透传 SDK GetMyInfoJSON 的原始 JSON（getMyInfo 响应 returnData
-// / dataMap 字节），CLI 输出与平台响应 byte-for-byte 一致。
+// envelope.data 为经 SDK 后处理的 UserInfo 重序列化 JSON：className 去首个「级」字、
+// 学校信息降级补全、未建模字段与零值字段（omitempty）不出现——并非平台原始字节；
+// 需要平台原文请走业务抓包。
 var whoamiCmd = &cobra.Command{
 	Use:   "whoami",
 	Short: "获取当前登录用户完整信息",
