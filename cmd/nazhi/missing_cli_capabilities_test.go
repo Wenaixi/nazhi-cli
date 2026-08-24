@@ -189,6 +189,47 @@ func TestTypicalCaseDeleteBatchCommandSendsPlainIDArray(t *testing.T) {
 	}
 }
 
+// TestTypicalCaseUpdate_MissingID_RejectsWithoutRequest update 命令文档声明
+// 「必填 id 字段」，但此前 CLI 与 SDK 全链路均不校验：漏传 id 时请求原样发出。
+// 前端每次编辑提交必然注入记录 id（classiccanter.vue:327），此处对齐该契约：
+// payload 缺 id 或 id 非正数时以参数错误拒绝（400/exit3），且不发任何业务请求。
+func TestTypicalCaseUpdate_MissingID_RejectsWithoutRequest(t *testing.T) {
+	requestHit := false
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "updateTypicalCase") {
+			requestHit = true
+		}
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+	}))
+	defer server.Close()
+
+	cmd := makeCapabilityPayloadTestCmd(t, server.URL, `{"title":"无ID更新"}`)
+	originalQuiet, originalVerbose := quiet, verbose
+	quiet = false
+	verbose = false
+	pendingExitCode.Store(0)
+	t.Cleanup(func() {
+		quiet, verbose = originalQuiet, originalVerbose
+		pendingExitCode.Store(0)
+		_ = closeAllClients()
+	})
+
+	stdout, _, restore := captureStdio(t)
+	typicalCaseUpdateCmd.Run(cmd, nil)
+	restore()
+
+	if requestHit {
+		t.Fatal("payload 缺 id 时不应发出业务请求")
+	}
+	if pendingExitCode.Load() != 3 {
+		t.Errorf("缺 id 应走参数错误退出码 3，实际 %d", pendingExitCode.Load())
+	}
+if !strings.Contains(stdout.String(), `"code": 400`) {
+		t.Errorf("应输出 400 参数错误 envelope，实际: %s", stdout.String())
+	}
+}
+
 // makeCapabilityPayloadTestCmd 创建带通用业务参数和 payload 的命令测试实例。
 func makeCapabilityPayloadTestCmd(t *testing.T, baseURL, payload string) *cobra.Command {
 	t.Helper()
