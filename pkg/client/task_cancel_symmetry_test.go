@@ -27,8 +27,8 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// f22Client 构造一个最小可用 Client（自包含测试，不依赖外部 helper）。
-func f22Client(bizURL string) *Client {
+// mockCancelClient 构造一个最小可用 Client（自包含测试，不依赖外部 helper）。
+func mockCancelClient(bizURL string) *Client {
 	return &Client{
 		ssoBaseURL: bizURL,
 		baseURL:    bizURL,
@@ -40,12 +40,12 @@ func f22Client(bizURL string) *Client {
 	}
 }
 
-// f22BizHandler 构造一个 mock biz server，支持 dims 配置 + 阻塞模式。
+// mockBizHandler 构造一个 mock biz server，支持 dims 配置 + 阻塞模式。
 //
 // dimsJSON：返回给 /getDimensions 的 dims JSON
 // dimIDToBizErr：哪些 dimID 立即返回业务错误（code=0）
 // session 激活走 4 步契约（/, /getMenu x2, /getMyInfo），都需要正确响应。
-func f22BizHandler(t *testing.T, dimsJSON string, dimIDToBizErr map[string]bool) http.HandlerFunc {
+func mockBizHandler(t *testing.T, dimsJSON string, dimIDToBizErr map[string]bool) http.HandlerFunc {
 	t.Helper()
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
@@ -88,9 +88,9 @@ func f22BizHandler(t *testing.T, dimsJSON string, dimIDToBizErr map[string]bool)
 	}
 }
 
-// TestF22_PureCancel_HitsErrRetryable 纯 cancel 路径（无业务错误）：
+// TestPureCancel_HitsErrRetryable 纯 cancel 路径（无业务错误）：
 // errors.Is(err, ErrRetryable) 必须为 true。
-func TestF22_PureCancel_HitsErrRetryable(t *testing.T) {
+func TestPureCancel_HitsErrRetryable(t *testing.T) {
 	dims := []map[string]any{
 		{"id": int64(10), "name": "维度A"},
 		{"id": int64(20), "name": "维度B"},
@@ -101,10 +101,10 @@ func TestF22_PureCancel_HitsErrRetryable(t *testing.T) {
 		DataList: mustMarshal(t, dims),
 	})
 
-	biz := httptest.NewServer(f22BizHandler(t, string(dimsJSON), nil))
+	biz := httptest.NewServer(mockBizHandler(t, string(dimsJSON), nil))
 	defer biz.Close()
 
-	c := f22Client(biz.URL)
+	c := mockCancelClient(biz.URL)
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Millisecond)
 	defer cancel()
 
@@ -124,9 +124,9 @@ func TestF22_PureCancel_HitsErrRetryable(t *testing.T) {
 	t.Logf("纯 cancel 路径 err=%v (ErrRetryable 命中 ✓)", err)
 }
 
-// TestF22_MixedCancelAndBiz_HitsErrRetryable 混合路径（业务错误 + ctx cancel）：
+// TestMixedCancelAndBiz_HitsErrRetryable 混合路径（业务错误 + ctx cancel）：
 // errors.Is(err, ErrRetryable) 必须为 true（cancelPlaceholder 仍 in chain）。
-func TestF22_MixedCancelAndBiz_HitsErrRetryable(t *testing.T) {
+func TestMixedCancelAndBiz_HitsErrRetryable(t *testing.T) {
 	dims := []map[string]any{
 		{"id": int64(10), "name": "维度A"},
 		{"id": int64(20), "name": "维度B"},
@@ -137,13 +137,13 @@ func TestF22_MixedCancelAndBiz_HitsErrRetryable(t *testing.T) {
 		DataList: mustMarshal(t, dims),
 	})
 
-	biz := httptest.NewServer(f22BizHandler(t, string(dimsJSON), map[string]bool{
+	biz := httptest.NewServer(mockBizHandler(t, string(dimsJSON), map[string]bool{
 		"10": true, // 维度A 立即返回业务错误
 		// 维度 B/C 阻塞 → ctx 取消
 	}))
 	defer biz.Close()
 
-	c := f22Client(biz.URL)
+	c := mockCancelClient(biz.URL)
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
 
@@ -160,9 +160,9 @@ func TestF22_MixedCancelAndBiz_HitsErrRetryable(t *testing.T) {
 	t.Logf("混合路径 err=%v (ErrRetryable + ErrBusinessRejected 双命中 ✓)", err)
 }
 
-// TestF22_PureBizError_DoesNotHitErrRetryable 纯业务错误路径（无 cancel）：
+// TestPureBizError_DoesNotHitErrRetryable 纯业务错误路径（无 cancel）：
 // errors.Is(err, ErrRetryable) 必须为 false（语义对称：cancel sentinel 仅在 cancel 触发时命中）。
-func TestF22_PureBizError_DoesNotHitErrRetryable(t *testing.T) {
+func TestPureBizError_DoesNotHitErrRetryable(t *testing.T) {
 	dims := []map[string]any{
 		{"id": int64(10), "name": "维度A"},
 	}
@@ -171,12 +171,12 @@ func TestF22_PureBizError_DoesNotHitErrRetryable(t *testing.T) {
 		DataList: mustMarshal(t, dims),
 	})
 
-	biz := httptest.NewServer(f22BizHandler(t, string(dimsJSON), map[string]bool{
+	biz := httptest.NewServer(mockBizHandler(t, string(dimsJSON), map[string]bool{
 		"10": true,
 	}))
 	defer biz.Close()
 
-	c := f22Client(biz.URL)
+	c := mockCancelClient(biz.URL)
 	tasks, err := c.FetchTasks(context.Background(), "test-token")
 	t.Logf("DEBUG test3: tasks=%v err=%v IsBizRej=%v IsRetry=%v", tasks, err, errors.Is(err, ErrBusinessRejected), errors.Is(err, ErrRetryable))
 	t.Logf("DEBUG test3: biz handler should have been hit at / and /getMenu etc.")

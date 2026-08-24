@@ -10,7 +10,8 @@ import (
 )
 
 // honorCmd 表示 nazhi honor 父命令，下辖 8 个子命令：
-//   types / list / add / delete / update / levels / type-options / level-options
+//
+//	types / list / add / delete / update / levels / type-options / level-options
 var honorCmd = &cobra.Command{
 	Use:   "honor",
 	Short: "荣誉申报管理",

@@ -15,9 +15,9 @@ import (
 	"time"
 )
 
-// TestF86_ResponseHeaderTimeout_Configured 验证 newHTTPClient 的 Transport
+// TestResponseHeaderTimeout_Configured 验证 newHTTPClient 的 Transport
 // 配置了 ResponseHeaderTimeout 且在任务约束范围（> 0 且 <= 15s）。
-func TestF86_ResponseHeaderTimeout_Configured(t *testing.T) {
+func TestResponseHeaderTimeout_Configured(t *testing.T) {
 	c := &Client{http: newHTTPClient()}
 
 	tr, ok := c.http.Transport.(*http.Transport)

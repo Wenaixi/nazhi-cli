@@ -69,9 +69,9 @@ func TestGetSchoolID_NilSchoolID_ReturnsErrInvalidPayload(t *testing.T) {
 	}
 }
 
-// TestGetSchoolID_ValidNumericSchoolID_AfterE2Fix 验证合规数字 school_id 正常返回（回归测试）。
-// E2 修复后 GetSchoolID 增加数字校验，确保合法值不受影响。
-func TestGetSchoolID_ValidNumericSchoolID_AfterE2Fix(t *testing.T) {
+// TestGetSchoolID_ValidNumericSchoolID 验证合规数字 school_id 正常返回（回归测试）。
+// GetSchoolID 增加数字校验后，合法值不受影响。
+func TestGetSchoolID_ValidNumericSchoolID(t *testing.T) {
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/teacher/auth/studentLogin/getSchoolIdByStudentNumber" {
 			w.Header().Set("Content-Type", "application/json")

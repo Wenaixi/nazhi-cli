@@ -1,4 +1,4 @@
-// auth_f5_r15_test.go
+// auth_parallel_test.go
 // 验证 Login 流程 GetSchoolID + OCR 通过 errgroup 并发执行。
 //
 // 串行基线（旧）：InitSession → GetSchoolID → OCR → validateCaptcha → login
@@ -20,16 +20,16 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// fakeOCRF5 是简单 mock OCR，保证 fetchCaptchaImage 不走 http。
-type fakeOCRF5 struct{}
+// fakeOCRSimple 是简单 mock OCR，保证 fetchCaptchaImage 不走 http。
+type fakeOCRSimple struct{}
 
-func (*fakeOCRF5) Recognize(_ []byte) (string, error) { return "ABCD", nil }
-func (*fakeOCRF5) Close() error                       { return nil }
+func (*fakeOCRSimple) Recognize(_ []byte) (string, error) { return "ABCD", nil }
+func (*fakeOCRSimple) Close() error                       { return nil }
 
-// TestLogin_ParallelF5_R15C 验证 GetSchoolID 与 OCR 并发执行。
+// TestLogin_Parallel 验证 GetSchoolID 与 OCR 并发执行。
 //
 // 设计：两个 handler 各自 sleep 50ms，并发场景总耗时 ~50ms（max 而非 sum 100ms）。
-func TestLogin_ParallelF5_R15C(t *testing.T) {
+func TestLogin_Parallel(t *testing.T) {
 	if testing.Short() {
 		t.Skip("跳过耗时测试")
 	}
@@ -107,7 +107,7 @@ func TestLogin_ParallelF5_R15C(t *testing.T) {
 	c, err := New(
 		WithSSOBase(srv.URL),
 		WithBaseURL(srv.URL),
-		WithCustomOCR(&fakeOCRF5{}),
+		WithCustomOCR(&fakeOCRSimple{}),
 		WithTimeout(10*time.Second),
 	)
 	if err != nil {

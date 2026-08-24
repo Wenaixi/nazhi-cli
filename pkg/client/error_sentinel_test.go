@@ -15,8 +15,8 @@ import (
 	"testing"
 )
 
-// TestF92_ErrRateLimited_SentinelIdentity 验证 ErrRateLimited sentinel 存在且可 errors.Is 识别。
-func TestF92_ErrRateLimited_SentinelIdentity(t *testing.T) {
+// TestErrRateLimited_SentinelIdentity 验证 ErrRateLimited sentinel 存在且可 errors.Is 识别。
+func TestErrRateLimited_SentinelIdentity(t *testing.T) {
 	if ErrRateLimited == nil {
 		t.Fatal("ErrRateLimited 必须存在（非 nil）")
 	}
@@ -26,8 +26,8 @@ func TestF92_ErrRateLimited_SentinelIdentity(t *testing.T) {
 	}
 }
 
-// TestF92_ErrRateLimited_Message 验证错误消息含语义关键词（让 SDK 用户能直接读 .Error()）。
-func TestF92_ErrRateLimited_Message(t *testing.T) {
+// TestErrRateLimited_Message 验证错误消息含语义关键词（让 SDK 用户能直接读 .Error()）。
+func TestErrRateLimited_Message(t *testing.T) {
 	msg := ErrRateLimited.Error()
 	if !strings.Contains(strings.ToLower(msg), "rate limited") {
 		t.Errorf("ErrRateLimited 消息应含 'rate limited'，实际: %s", msg)
@@ -37,8 +37,8 @@ func TestF92_ErrRateLimited_Message(t *testing.T) {
 	}
 }
 
-// TestF92_ErrServiceUnavailable_SentinelIdentity 验证 ErrServiceUnavailable sentinel 存在。
-func TestF92_ErrServiceUnavailable_SentinelIdentity(t *testing.T) {
+// TestErrServiceUnavailable_SentinelIdentity 验证 ErrServiceUnavailable sentinel 存在。
+func TestErrServiceUnavailable_SentinelIdentity(t *testing.T) {
 	if ErrServiceUnavailable == nil {
 		t.Fatal("ErrServiceUnavailable 必须存在（非 nil）")
 	}
@@ -48,16 +48,16 @@ func TestF92_ErrServiceUnavailable_SentinelIdentity(t *testing.T) {
 	}
 }
 
-// TestF92_ErrServiceUnavailable_Message 验证错误消息含 5xx 关键词。
-func TestF92_ErrServiceUnavailable_Message(t *testing.T) {
+// TestErrServiceUnavailable_Message 验证错误消息含 5xx 关键词。
+func TestErrServiceUnavailable_Message(t *testing.T) {
 	msg := ErrServiceUnavailable.Error()
 	if !strings.Contains(strings.ToLower(msg), "unavailable") {
 		t.Errorf("ErrServiceUnavailable 消息应含 'unavailable'，实际: %s", msg)
 	}
 }
 
-// TestF92_ErrTimeout_SentinelIdentity 验证 ErrTimeout sentinel 存在。
-func TestF92_ErrTimeout_SentinelIdentity(t *testing.T) {
+// TestErrTimeout_SentinelIdentity 验证 ErrTimeout sentinel 存在。
+func TestErrTimeout_SentinelIdentity(t *testing.T) {
 	if ErrTimeout == nil {
 		t.Fatal("ErrTimeout 必须存在（非 nil）")
 	}
@@ -67,16 +67,16 @@ func TestF92_ErrTimeout_SentinelIdentity(t *testing.T) {
 	}
 }
 
-// TestF92_ErrTimeout_Message 验证错误消息含 timeout 关键词。
-func TestF92_ErrTimeout_Message(t *testing.T) {
+// TestErrTimeout_Message 验证错误消息含 timeout 关键词。
+func TestErrTimeout_Message(t *testing.T) {
 	msg := ErrTimeout.Error()
 	if !strings.Contains(strings.ToLower(msg), "timeout") {
 		t.Errorf("ErrTimeout 消息应含 'timeout'，实际: %s", msg)
 	}
 }
 
-// TestF92_ErrInvalidResponse_SentinelIdentity 验证 ErrInvalidResponse sentinel 存在。
-func TestF92_ErrInvalidResponse_SentinelIdentity(t *testing.T) {
+// TestErrInvalidResponse_SentinelIdentity 验证 ErrInvalidResponse sentinel 存在。
+func TestErrInvalidResponse_SentinelIdentity(t *testing.T) {
 	if ErrInvalidResponse == nil {
 		t.Fatal("ErrInvalidResponse 必须存在（非 nil）")
 	}
@@ -86,16 +86,16 @@ func TestF92_ErrInvalidResponse_SentinelIdentity(t *testing.T) {
 	}
 }
 
-// TestF92_ErrInvalidResponse_Message 验证错误消息含 invalid response 关键词。
-func TestF92_ErrInvalidResponse_Message(t *testing.T) {
+// TestErrInvalidResponse_Message 验证错误消息含 invalid response 关键词。
+func TestErrInvalidResponse_Message(t *testing.T) {
 	msg := ErrInvalidResponse.Error()
 	if !strings.Contains(strings.ToLower(msg), "invalid response") {
 		t.Errorf("ErrInvalidResponse 消息应含 'invalid response'，实际: %s", msg)
 	}
 }
 
-// TestF92_SentinelsDistinct 验证 4 个 sentinel 彼此不互相命中（语义边界清晰）。
-func TestF92_SentinelsDistinct(t *testing.T) {
+// TestSentinelsDistinct 验证 4 个 sentinel 彼此不互相命中（语义边界清晰）。
+func TestSentinelsDistinct(t *testing.T) {
 	sentinels := []error{ErrRateLimited, ErrServiceUnavailable, ErrTimeout, ErrInvalidResponse}
 	for i, a := range sentinels {
 		for j, b := range sentinels {

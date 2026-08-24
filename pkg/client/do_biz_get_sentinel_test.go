@@ -18,8 +18,8 @@ import (
 	"testing"
 )
 
-// TestG2_DoBizGet_429_RateLimited 验证 429 响应包装 ErrRateLimited。
-func TestG2_DoBizGet_429_RateLimited(t *testing.T) {
+// TestDoBizGet_429_RateLimited 验证 429 响应包装 ErrRateLimited。
+func TestDoBizGet_429_RateLimited(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 		_, _ = w.Write([]byte("rate limit hit"))
@@ -44,8 +44,8 @@ func TestG2_DoBizGet_429_RateLimited(t *testing.T) {
 	}
 }
 
-// TestG2_DoBizGet_5xx_ServiceUnavailable 验证 5xx 响应包装 ErrServiceUnavailable。
-func TestG2_DoBizGet_5xx_ServiceUnavailable(t *testing.T) {
+// TestDoBizGet_5xx_ServiceUnavailable 验证 5xx 响应包装 ErrServiceUnavailable。
+func TestDoBizGet_5xx_ServiceUnavailable(t *testing.T) {
 	cases := []int{http.StatusInternalServerError, http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout}
 	for _, code := range cases {
 		t.Run(fmt.Sprintf("code_%d", code), func(t *testing.T) {
@@ -75,8 +75,8 @@ func TestG2_DoBizGet_5xx_ServiceUnavailable(t *testing.T) {
 	}
 }
 
-// TestG2_DoBizGet_4xxOther_InvalidResponse 验证 4xx 非 429 响应包装 ErrInvalidResponse。
-func TestG2_DoBizGet_4xxOther_InvalidResponse(t *testing.T) {
+// TestDoBizGet_4xxOther_InvalidResponse 验证 4xx 非 429 响应包装 ErrInvalidResponse。
+func TestDoBizGet_4xxOther_InvalidResponse(t *testing.T) {
 	cases := []int{http.StatusBadRequest, http.StatusUnauthorized, http.StatusForbidden, http.StatusNotFound}
 	for _, code := range cases {
 		t.Run(fmt.Sprintf("code_%d", code), func(t *testing.T) {
@@ -106,8 +106,8 @@ func TestG2_DoBizGet_4xxOther_InvalidResponse(t *testing.T) {
 	}
 }
 
-// TestG2_DoBizGet_200_NoError 验证 200 响应不触发 sentinel（回归：非 200 包装不影响正常路径）。
-func TestG2_DoBizGet_200_NoError(t *testing.T) {
+// TestDoBizGet_200_NoError 验证 200 响应不触发 sentinel（回归：非 200 包装不影响正常路径）。
+func TestDoBizGet_200_NoError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))

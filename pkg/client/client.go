@@ -224,7 +224,7 @@ var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client
 //
 // 适用场景：
 //   - CLI 默认通过 cmd/nazhi/omni_ocr.go 注入硅基流动 Qwen3-Omni 识别器
-//   - 单元测试注入 mock 识别器（如 pkg/client 包内测试的 fakeOCRF5）
+//   - 单元测试注入 mock 识别器（如 pkg/client 包内测试的 fakeOCRSimple）
 //   - 第三方集成注入自研识别器
 //
 // 行为约定：
