@@ -4,7 +4,6 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.26+-00ADD8?logo=go)](https://go.dev/)
 [![Release](https://img.shields.io/github/v/release/Wenaixi/nazhi-cli)](https://github.com/Wenaixi/nazhi-cli/releases)
-[![Version](https://img.shields.io/badge/version-1.4.0-blue)](https://github.com/Wenaixi/nazhi-cli/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 
@@ -15,9 +14,8 @@
 | 入口 | 说明 |
 |---|---|
 | [快速开始](#快速开始) | 5 分钟登录并跑通业务 |
-| [文档中心](docs/README.md) | docs 总索引 |
-| [CLI 参考](docs/cli/README.md) | 命令 / 环境变量 / envelope / 短示例 |
-| [SDK 参考](docs/sdk/README.md) | 总览 + 按功能分册（请求/响应/用法） |
+| [源码指引](docs/README.md) | 功能 ↔ Go 源码 ↔ 前端源码 对照表 |
+| [前端参照库](reference/nazhi/) | 纳智前端源码完整镜像（grep 对照用） |
 | [开发指南](#开发) | 构建、测试、贡献流程 |
 | [CHANGELOG](CHANGELOG.md) | 全部版本变更日志 |
 | [CLAUDE.md](CLAUDE.md) | 项目记忆库（git 忽略，AI 协作专用） |
@@ -95,11 +93,11 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
   xargs -I {} nazhi file download --id {} --output ./img_{}.jpg
 ```
 
-更详细的环境变量与命令说明见 [CLI 参考](docs/cli/README.md)。
+更详细的环境变量见下方[环境变量速查](#环境变量速查)；各命令的参数与输出字段直接跑 `nazhi <命令> --help` 或读 `cmd/nazhi/` 对应源文件。
 
-> 自我评价支持纯文本和结构化 `--payload` 两种提交方式；结构化表单会由 SDK 双层包装为 `studentComment`。毕业评价通过 `self-eval grad-status/grad-submit` 透传 SDK 查询与提交能力。荣誉下拉分为类型选项 `honor type-options`、通用等级 `honor level-options` 和按类型联动等级 `honor levels --type-id`；荣誉删除使用 GET，并通过 `id` 查询参数传递记录 ID。详见 [SDK 自评](docs/sdk/self-eval.md) 与 [SDK 荣誉](docs/sdk/honor.md)。
+> 自我评价支持纯文本和结构化 `--payload` 两种提交方式；结构化表单会由 SDK 双层包装为 `studentComment`。毕业评价通过 `self-eval grad-status/grad-submit` 提交。荣誉下拉分为类型选项 `honor type-options`、通用等级 `honor level-options` 和按类型联动等级 `honor levels --type-id`。
 
-> 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON；`hours` 的 number/string 均兼容且可保留小数，`level`、`checkResult`、`playRole` 的未加引号 number 必须是有限整数，`1.0`/`1e0` 等会规范为标准十进制代码字符串，小数、非有限值和溢出值会被拒绝，string 按原值保留。`--payload -` 从 stdin 读取时上限为 16 MiB，超限会按参数错误处理，不会静默截断。CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名，规范字段优先。任务元数据和图片由 SDK 自动补齐；Hours 是否可省略取决于任务元数据，空地址和空等级不会被 SDK 自动替换。详见 [SDK 任务文档](docs/sdk/task.md)。
+> 写实 `task submit` / `task edit` 的 `--payload` 可直接使用真实前端表单 JSON（参照 `reference/nazhi/src/components/management/managementRightBottom.vue` 的表单字段）；`hours` 的 number/string 均兼容且可保留小数，`level`、`checkResult`、`playRole` 的未加引号 number 必须是有限整数，string 按原值保留。`--payload -` 从 stdin 读取时上限为 16 MiB，超限会按参数错误处理，不会静默截断。CLI 在 `cmd/nazhi` 输入边界归一后再交给 SDK；同时兼容 `circleTaskId` → `taskId`、`pictureList` → `imageIDs` 两个前端字段别名。任务元数据和图片由 SDK 自动补齐；空地址和空等级不会被 SDK 自动替换。
 
 ## 命令概览
 
@@ -113,7 +111,7 @@ nazhi
 │   ├── list                     列出全维度任务
 │   ├── submit                   提交任务（支持 @payload.json）
 │   ├── submitted                获取班级已提交写实记录（含同班同学姓名/学号）
-│   ├── done                     同 task submitted（v1.0.0 新增别名）
+│   ├── done                     同 task submitted（别名）
 │   ├── teacher                  获取教师代写的写实记录
 │   ├── public                   获取公示的全部写实记录
 │   ├── withdrawn                获取被撤回的写实记录
@@ -158,13 +156,13 @@ nazhi
 └── completion                  生成 shell 自动补全脚本
 ```
 
-完整参数与 JSON 输出字段见 [CLI 参考](docs/cli/README.md)。
+完整参数与 JSON 输出字段跑 `nazhi <命令> --help` 查看，或读 `cmd/nazhi/` 对应源文件。
 
-> **v1.0.0 移除**：`nazhi school` 命令已删除，学校 ID 现从 `nazhi whoami` 返回的 `data.schoolId` 字段获取。
+> `nazhi school` 命令已移除，学校 ID 从 `nazhi whoami` 返回的 `data.schoolId` 字段获取。
 
 ## envelope 输出格式
 
-v1.0.0 起所有 CLI 输出统一包装在 envelope 内：
+所有 CLI 输出统一包装在 envelope 内：
 
 ```json
 {
@@ -257,7 +255,7 @@ tasks, err := c.FetchTasks(ctx, token)
 c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 ```
 
-完整 API、所有 Option、15 个哨兵错误、错误处理骨架见 [SDK 参考](docs/sdk/README.md)。
+完整 API 与所有 Option 见各源码文件的包注释（`pkg/client`、`pkg/types`），功能↔文件对照见[源码指引](docs/README.md)。
 
 ## 环境变量速查
 
@@ -276,7 +274,7 @@ c.SubmitSelfEvaluation(ctx, token, "很好的学期")
 | `NAZHI_UPLOAD_URL` | 文件上传服务器 | `file upload` | `http://doc.nazhisoft.com` |
 | `NAZHI_TIMEOUT` | HTTP 超时（秒） | 所有命令 | `15`（`file upload` 是 `30`） |
 
-详见 [CLI 参考 · 环境变量](docs/cli/README.md#环境变量速查)。
+各命令还支持 `--help` 查看全部 flag 与环境变量说明。
 
 ## 开发
 
