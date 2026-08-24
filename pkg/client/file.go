@@ -117,6 +117,17 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		c.logDebugCtx(ctx, "图片预处理完成: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 	}
 
+	// 1.5 病毒扫描咽喉点：扫描器已注入时，任何字节出网前先送检。
+	//
+	// fail-closed 契约——检出（ErrVirusDetected）与扫描失败（ErrScanUnavailable）
+	// 一律拒绝上传；「判定未知」绝不视为干净。扫描在 multipart 构造前执行，
+	// 感染字节不会在内存中二次复制，也不会触达网络。
+	if c.uploadScanner != nil {
+		if err := c.uploadScanner.ScanUpload(ctx, fileData); err != nil {
+			return nil, err
+		}
+	}
+
 	// 2. 构造 multipart 请求体
 	//
 	// 必须显式 writer.Close()，不能在 http.NewRequestWithContext
