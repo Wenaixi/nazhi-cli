@@ -101,7 +101,7 @@ type CircleRecord struct {
 	UpPic          int    `json:"up_pic,omitempty"`
 
 	// 点赞信息
-	LikeList []any `json:"like_list,omitempty"`
+	LikeList []any `json:"likeList,omitempty"` // API 实际键名为 camelCase（HAR 实证），非 snake
 
 	// 状态字段（ifMySelf 为数字 0/1，前端 item.ifMySelf==1；
 	// likeStatus / auditRemark 为 camelCase，见 managementRightBottom.vue）
