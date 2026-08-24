@@ -10,7 +10,7 @@ import (
 
 // ParallelDimsResult 是并行维度查询的聚合结果。
 type ParallelDimsResult[T any] struct {
-	Items          []T     // 所有成功维度的 item
+	Items          []T     // 所有成功维度的 item（按维度声明顺序拼接）
 	BizErrors      []error // 非 context 取消的业务错误
 	ContextErrors  []error // context 取消/超时错误
 	CancelledCount int     // 因 ctx 取消/超时而失败的维度数
@@ -24,6 +24,8 @@ type ParallelDimsResult[T any] struct {
 //   - 并发上限 = limit；limit<=0 时按 1（串行）执行
 //   - fn 接收含 errgroup 取消传播的 ctx 和单个 dimension，返回该维度的 items 和 error
 //   - 单个维度失败不中断其他维度的执行
+//   - Items 按维度声明顺序拼接（与完成顺序无关），保证同输入同输出；
+//     FetchTasksJSON 的 results[idx] 保序策略与本实现对齐
 //
 // 返回的 ParallelDimsResult 包含聚合后的 items、分类后的错误列表和计数。
 // egErr 是 errgroup.Wait() 返回的错误（当 goroutine 直接 return err 时触发，
@@ -40,13 +42,24 @@ func ParallelDims[T any](ctx context.Context, dims []types.Dimension, limit int,
 	g.SetLimit(lim)
 
 	var mu sync.Mutex
-	allItems := make([]T, 0, len(dims)*10)
 	allErrs := make([]error, 0, len(dims))
 
+	// 按活跃维度索引预分配槽位：每个 goroutine 写自己的下标，无竞态；
+	// Wait 后按声明顺序展平，输出与调度顺序解耦（确定性契约）。
+	type dimBatch struct {
+		items []T
+	}
+	active := make([]types.Dimension, 0, len(dims))
 	for _, dim := range dims {
 		if dim.ID == 0 {
-			continue
+			continue // 跳过汇总维度
 		}
+		active = append(active, dim)
+	}
+	batches := make([]dimBatch, len(active))
+
+	for idx, dim := range active {
+		i := idx
 		d := dim
 		g.Go(func() error {
 			if err := gctx.Err(); err != nil {
@@ -58,13 +71,18 @@ func ParallelDims[T any](ctx context.Context, dims []types.Dimension, limit int,
 				return nil
 			}
 			if len(items) > 0 {
-				appendLocked(&mu, &allItems, items...)
+				batches[i].items = items // 仅写自己的槽位，无需锁
 			}
 			return nil
 		})
 	}
 
 	egErr = g.Wait()
+
+	allItems := make([]T, 0, len(active)*10)
+	for i := range batches {
+		allItems = append(allItems, batches[i].items...)
+	}
 	result = &ParallelDimsResult[T]{Items: allItems}
 
 	for _, e := range allErrs {
