@@ -56,7 +56,37 @@ func TestQuerySelfEvaluation_EmptyReturnDataNull(t *testing.T) {
 	}
 }
 
-// TestQuerySelfEvaluation_EmptyObjectMap 空对象 {} 归一化后为 nil，也应空成功。
+// TestQuerySelfGradEvaluation_EmptyReturnDataFallsThroughToDataMap 毕业查询的
+// returnData:{}（空对象）不应短路 fallback 链：decodeField 对空对象返回非 nil 指针，
+// doBizGetDecode 视为成功即返回，dataMap 里的真实数据被遮蔽。学期版经
+// normalizeSelfEvalStatus 把空对象显式打回（len(m)==0→nil），毕业版对齐该语义：
+// 空对象视为「此容器无数据」，链路继续落到 dataMap。前端唯一数据通道是
+// dataMap（mainLeft.vue:130-133 读 data.student_comment/isGrad）。
+func TestQuerySelfGradEvaluation_EmptyReturnDataFallsThroughToDataMap(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentMoralEduNew/querySelfGradEvaluation" {
+			t.Errorf("期望路径 querySelfGradEvaluation, 得到 %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{},"dataMap":{"student_comment":"毕业感言","isGrad":1}}`))
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	got, err := c.QuerySelfGradEvaluation(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("空对象应落空到 dataMap, 实际 err=%v", err)
+	}
+	if got == nil || *got == nil {
+		t.Fatal("dataMap 数据应被返回，实际 nil")
+	}
+	if (*got)["student_comment"] != "毕业感言" {
+		t.Fatalf("应取到 dataMap.student_comment, 实际 %+v", *got)
+	}
+}
+
+// TestQuerySelfGradEvaluation_EmptyObjectMap 空对象 {} 归一化后为 nil，也应空成功。
 func TestQuerySelfEvaluation_EmptyObjectMap(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/api/studentMoralEduNew/querySelfEvaluation" {

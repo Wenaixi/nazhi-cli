@@ -261,6 +261,29 @@ func firstInt64(m map[string]any, keys ...string) int64 {
 	return 0
 }
 
+// decodeGradEvalMapFromResp 毕业查询容器解码器（doBizGetDecode 签名）。
+func decodeGradEvalMapFromResp(resp types.UnifiedResponse) (*map[string]any, error) {
+	return decodeGradEvalMap(resp.ReturnData)
+}
+
+// decodeGradEvalMap 空对象归一为 nil，使 doBizGetDecode 视为「此容器无数据」
+// 继续尝试下一解码器。直接用 DecodeReturnData 会因空对象返回非 nil 指针而短路
+// fallback 链，遮蔽 dataMap 中的真实数据；学期版 normalizeSelfEvalStatus 已有
+// 同款语义（len(m)==0→nil），此处对齐。
+func decodeGradEvalMap(raw *json.RawMessage) (*map[string]any, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	var m map[string]any
+	if err := json.Unmarshal(*raw, &m); err != nil {
+		return nil, err
+	}
+	if len(m) == 0 {
+		return nil, nil
+	}
+	return &m, nil
+}
+
 // QuerySelfGradEvaluation 查询毕业状态。
 //
 // CLI 通过 QuerySelfGradEvaluationJSON 透传原始 JSON（self-eval grad-status）。
@@ -268,7 +291,7 @@ func firstInt64(m map[string]any, keys ...string) int64 {
 func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error) {
 	v, err := doBizGetDecode[map[string]any](c, ctx, token, "QuerySelfGradEvaluation",
 		"/api/studentMoralEduNew/querySelfGradEvaluation",
-		types.DecodeReturnData[map[string]any],
+		decodeGradEvalMapFromResp,
 		types.DecodeDataMap[map[string]any],
 	)
 	if err != nil {
