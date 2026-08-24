@@ -1,4 +1,25 @@
-﻿# CHANGELOG
+# CHANGELOG
+
+## [1.5.0] - 2026-08-24
+
+### 修复
+
+- 上传图片按 EXIF Orientation 自动摆正：decodeImage 改用 imaging.AutoOrientation，竖拍照片经 CLI 上传不再横置（对齐前端 canvas drawImage 的现代浏览器默认行为）。
+- FetchTasks 聚合结果按维度声明顺序稳定输出：ParallelDims 原按 goroutine 完成序追加导致同账号两次 task list 顺序抖动，现与 FetchTasksJSON 的保序策略对齐。
+- 写实 content 超过 200 字显式拒绝：前端 el-input maxlength=200 为浏览器硬截断、线上恒发不超过 200 字；SDK 不再放行超长原文，返回 ErrInvalidPayload。
+- 任务提交状态判定改子串匹配：「已结束 未提交」等自由文案变体不再误判为已提交。
+- CircleRecord.LikeList JSON 键名修正为 likeList（真实 API 返回 camelCase），字段恢复可解码。
+- 自我评价查询别名链收窄：移除无前端依据的投机键 content/teacherRemark，统一 snake 主读、camel 兼容。
+
+### 破坏性变更
+
+- AddHonorPayload.CertImgAttachmentID 类型 string → int64：出站对齐前端裸 number、无附件省略键；入站继续兼容 number/数字字符串/空串/null。直接以字符串字面量赋值该字段的 Go 调用方需改为数字。
+- AddHonorPayload.Name 加 omitempty：前端 addHonor 表单不含 name 键，空 Name 不再出现在请求体。
+
+### 加固
+
+- 非图片附件上传先 os.Stat 预检大小再读入内存；CLI @file payload 与 stdin 对齐受 16 MiB 上限保护。
+- tokenparse 补充 JWT exp 提取的实现注释；panic recover 退出码契约注释修正为实际值 2。
 
 ## [1.4.1] - 2026-08-24
 

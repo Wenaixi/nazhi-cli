@@ -64,4 +64,8 @@ package version
 //	1.4.1 — 工程化治理：注释与文档全面对照源码修正（envelope 双层 code 语义、jq 示例、哨兵数量等准确性硬伤）；
 //		ask submit/edit 补图片数量上限校验（≤2 张，对齐前端 el-upload :limit=2）；
 //		ask preview 帮助文本中文化；测试标识符与文件名去审计编号；README/docs/CLAUDE 记忆库同步刷新
-var Version = "1.4.1"
+//	1.5.0 — 前端对齐深度修复：上传图片按 EXIF Orientation 自动摆正；FetchTasks 聚合结果按维度声明顺序稳定输出；
+//		写实 content 超 200 字显式拒绝；任务提交状态子串匹配兼容文案变体；CircleRecord.LikeList 键名修正；
+//		AddHonorPayload.CertImgAttachmentID 改 int64+omitempty（出站裸数字）、空 Name 不再上线（wire 对齐前端）；
+//		自评别名链收窄为 snake 主读；附件 Stat 预检与 @file 16MiB 上限
+var Version = "1.5.0"
