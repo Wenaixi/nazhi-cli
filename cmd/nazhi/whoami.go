@@ -21,7 +21,7 @@ var whoamiCmd = &cobra.Command{
 	Short: "获取当前登录用户完整信息",
 	Long:  `获取用户的完整个人资料，包括姓名、性别、学号、学校、年级、班级、座号等。`,
 	Example: `  nazhi whoami --token eyJhbGciOiJIUzI1NiJ9.xxx
-		  nazhi whoami --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+  nazhi whoami --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {

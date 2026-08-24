@@ -10,13 +10,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// sessionCmd 表示 nazhi session activate 命令
-//
-//	nazhi session activate --token <token> [--base-url <url>] [--timeout <秒>]
+// sessionCmd 表示 nazhi session 父命令（实际操作在 activate 子命令）。
 var sessionCmd = &cobra.Command{
 	Use:   "session",
 	Short: "管理业务 Session",
-	Long:  `初始化目标平台业务 Session。必须先 GET / + GET /api/studentInfo/getMenu，否则后续接口返回空数据。`,
+	Long:  `初始化目标平台业务 Session。后续所有业务接口调用前必须先激活，否则服务端返回空数据。`,
 }
 
 var sessionActivateCmd = &cobra.Command{
@@ -24,7 +22,7 @@ var sessionActivateCmd = &cobra.Command{
 	Short: "激活业务 Session",
 	Long:  `使用 token 激活目标平台业务 Session。返回用户基本信息。`,
 	Example: `  nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx
-	  nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+  nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {

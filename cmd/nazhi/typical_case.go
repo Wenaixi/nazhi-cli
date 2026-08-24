@@ -185,10 +185,11 @@ func parseTypicalCaseBatchIDs(raw string) ([]int64, error) {
 	return ids, nil
 }
 
-// typicalCaseUpdateCmd 表示 nazhi typical-case update 命令
+// typicalCaseUpdateCmd 表示 nazhi typical-case update 命令。
 var typicalCaseUpdateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "更新典型案例",
+	Long:  `按 ID 更新典型案例内容。payload 为 updateTypicalCase 请求体对象，必填 id 字段。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		if payloadRaw == "" {
@@ -225,6 +226,7 @@ var typicalCaseUpdateCmd = &cobra.Command{
 var typicalCaseDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除典型案例",
+	Long:  `按 ID 删除一条典型案例记录。--id 必填且必须为正整数。`,
 	Run: func(cmd *cobra.Command, args []string) {
 		idStr, _ := cmd.Flags().GetString("id")
 		if idStr == "" {

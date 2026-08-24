@@ -16,9 +16,9 @@ var taskSubmitCmd = &cobra.Command{
 	Short: "提交任务",
 	Long:  `提交一次任务。payload 是最小必要输入 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。SDK 自动补齐任务元数据、图片上传结果并提交；address/level 等用户字段空串原样发送。`,
 	Example: `  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"taskId":18154,"content":"劳动让我体会到责任的重要性。"}'
-		  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"taskId":18154,"content":"劳动让我体会到责任的重要性。","imagePaths":["./photo.jpg"],"playRole":"3"}'
-		  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json --address "操场" --level 5
-		  echo '{"taskId":18154,"content":"劳动让我体会到责任的重要性。"}' | nazhi task submit --token "xxx" --payload -`,
+  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"taskId":18154,"content":"劳动让我体会到责任的重要性。","imagePaths":["./photo.jpg"],"playRole":"3"}'
+  nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json --address "操场" --level 5
+  echo '{"taskId":18154,"content":"劳动让我体会到责任的重要性。"}' | nazhi task submit --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 

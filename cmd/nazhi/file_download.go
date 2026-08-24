@@ -11,7 +11,7 @@ import (
 //
 //	nazhi file download --id <附件ID> --output <本地路径>
 //
-// ⚠️ 本命令不接受 --token 参数。文件下载服务器独立，发送 token 反而可能被风控。
+// 本命令不接受 --token 参数。文件下载服务器独立，发送 token 反而可能被风控。
 var fileDownloadCmd = &cobra.Command{
 	Use:   "download",
 	Short: "按附件 ID 从公开服务器下载图片",
@@ -32,7 +32,8 @@ URL 流程：
   nazhi file download --id 5006375 --output ./photo.jpg
 
   # 配合 task submitted 使用：jq 提取 attachment_id 后批量下载
-  nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
+  # （全量模式 data 为裸数组；--limit 模式 data 带 records 包装，路径为 .data.records[].imgList[].attachment_id）
+  nazhi task submitted | jq -r '.data[]?.imgList[]?.attachment_id // .data.records[]?.imgList[]?.attachment_id' | \
     xargs -I {} nazhi file download --id {} --output ./img_{}.jpg`,
 	Run: func(cmd *cobra.Command, args []string) {
 		id, _ := cmd.Flags().GetInt64("id")

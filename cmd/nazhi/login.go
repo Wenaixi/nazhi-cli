@@ -22,15 +22,15 @@ var loginCmd = &cobra.Command{
 	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → 视觉识别器处理验证码 → Login。
 
 	验证码必须配置 Nazhi-auto 同款硅基流动 Qwen3-Omni API key（NAZHI_SILICONFLOW_API_KEY）。
-兼容 NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY 旧别名；SDK 不内置本地验证码识别器，未配置时 login 直接 503 退出。`,
+兼容 NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY 旧别名。
+可选通过 NAZHI_OCR_BASE_URL / NAZHI_OCR_MODEL 覆盖识别端点与模型名（默认走硅基流动官方地址与 Qwen3-Omni）。SDK 不内置本地验证码识别器，未配置时 login 直接返回错误退出。`,
 	Example: `  export NAZHI_SILICONFLOW_API_KEY=sk-...      # 先设置视觉模型 key
   nazhi login -u 学号 -p 密码                       # 视觉识别器自动处理验证码
-	  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
+  nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// username/password 用 applyURLFlag 统一收口
-		// 语义：flag 显式传递 → 用 flag 值（含显式空字符串）；未传 → env fallback。
-		// 与 client_builder.go token 读取对称。
-		// 登录专用，不走 buildClientOpts
+		// username/password 用 applyURLFlag 统一收口：
+		// flag 显式传递 → 用 flag 值（含显式空字符串）；未传 → env fallback。
+		// 与 assembly.go 的 token 读取语义对称；登录专用，不走 buildClientOpts
 		username := applyURLFlag(cmd, "username", "NAZHI_USERNAME")
 		password := applyURLFlag(cmd, "password", "NAZHI_PASSWORD")
 

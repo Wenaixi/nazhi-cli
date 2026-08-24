@@ -9,11 +9,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// honorCmd 表示 nazhi honor 父命令
-//
-//	nazhi honor types [--base-url <url>] [--timeout <秒>]
-//	nazhi honor list [--page <页>] [--page-size <条>] [--base-url <url>] [--timeout <秒>]
-//	nazhi honor add --payload '<json>' [--base-url <url>] [--timeout <秒>]
+// honorCmd 表示 nazhi honor 父命令，下辖 8 个子命令：
+//   types / list / add / delete / update / levels / type-options / level-options
 var honorCmd = &cobra.Command{
 	Use:   "honor",
 	Short: "荣誉申报管理",
@@ -31,7 +28,7 @@ var honorTypesCmd = &cobra.Command{
 	Short: "获取所有荣誉类型",
 	Long:  `获取当前平台可申报的所有荣誉类型列表及级别信息。`,
 	Example: `  nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx
-		  nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+  nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -62,7 +59,7 @@ var honorListCmd = &cobra.Command{
 	Short: "获取已申报荣誉记录",
 	Long:  `获取当前用户已申报的全部荣誉记录（分页）。支持 --key 关键字筛选。`,
 	Example: `  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx
-		  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
+  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -93,8 +90,8 @@ var honorAddCmd = &cobra.Command{
 	Short: "申报荣誉",
 	Long:  `申报一条荣誉。payload 是 addHonor 请求体 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
 	Example: `  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"name":"校学生优秀干部","typeId":1147,"typeName":"校学生优秀干部","level":5,"evaluationAgency":"示例中学","getDate":"2026-06-30"}'
-		  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor.json
-		  echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -`,
+  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor.json
+  echo '{"name":"校学生优秀干部","typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 
@@ -132,9 +129,9 @@ var honorAddCmd = &cobra.Command{
 var honorDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除一条荣誉记录",
-	Long:  `按 ID 删除已申报但未审核的荣誉记录。`,
+	Long:  `按 ID 删除一条未审核的荣誉记录（已审核记录由服务端拒绝操作）。`,
 	Example: `  nazhi honor delete --token eyJhbGciOiJIUzI1NiJ9.xxx --id 123
-			  nazhi honor delete --token eyJhbGciOiJIUzI1NiJ9.xxx --id 123 --base-url http://139.159.205.146:8280`,
+  nazhi honor delete --token eyJhbGciOiJIUzI1NiJ9.xxx --id 123 --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {
 		honorID, _ := cmd.Flags().GetInt64("id")
 		if honorID == 0 {

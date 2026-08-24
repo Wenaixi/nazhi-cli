@@ -135,7 +135,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		return nil, "", fmt.Errorf("buildClientOpts: 未知 urlType %q（期望 sso/base/upload）", urlType)
 	}
 
-	// 日志级别与格式与落盘：flag 大于 env 大于默认；--verbose 兼容为 debug
+	// 日志级别、格式与落盘路径：flag 大于 env 大于默认；--verbose 兼容为 debug
 	levelStr := strings.TrimSpace(cliLogLevel)
 	if levelStr == "" {
 		levelStr = strings.TrimSpace(os.Getenv("NAZHI_LOG_LEVEL"))

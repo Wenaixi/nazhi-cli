@@ -19,7 +19,7 @@ var selfEvalStatusCmd = &cobra.Command{
 	Short: "查询自我评价状态",
 	Long:  `查询自我评价提交状态以及教师评语。`,
 	Example: `  nazhi self-eval status --token eyJhbGciOiJIUzI1NiJ9.xxx
-	  nazhi self-eval status --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+  nazhi self-eval status --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {

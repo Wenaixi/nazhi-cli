@@ -13,12 +13,12 @@ import (
 //	nazhi task edit --token <token> --payload @edit.json
 //	echo '{"id":5464109,"taskId":18151,"content":"修改后的内容"}' | nazhi task edit --token "xxx" --payload -
 //
-// 修改已提交但未审核的写实记录。payload 是最小必要输入 JSON，
+// 修改一条未锁定的写实记录（status!=1 即可编辑，含被撤回件）。payload 是最小必要输入 JSON，
 // 可用 @file.json 从文件读取，或 - 从 stdin 读取。
 var taskEditCmd = &cobra.Command{
 	Use:   "edit",
 	Short: "修改已提交的写实记录",
-	Long: `修改一条已提交但未审核的写实记录。
+	Long: `修改一条未锁定的写实记录（status=1 已锁定的不可编辑）。
 
 调用 editCircle 接口，SDK 内部自动完成 getCircleTypeByTaskId 元数据预取、
 图片上传、字段补齐等流程。

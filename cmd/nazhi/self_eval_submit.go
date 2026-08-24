@@ -106,7 +106,7 @@ func init() {
 	selfEvalSubmitCmd.Flags().String("payload", "", "结构化评价 JSON（与 --comment 互斥，可用 @file.json 或 - 读取）")
 }
 
-// readStdinWithTimeout 从 stdin 读取一行内容，超过 timeoutSec 秒未完成则返回超时错误。
+// readStdinWithTimeout 从 stdin 读取全部内容（读到 EOF），超过 timeoutSec 秒未完成则返回超时错误。
 // 当 stdin 是管道且对端未关闭时，原始 reader.ReadString(0) 会无限阻塞，
 // 此函数通过 goroutine + select 实现超时保护。
 func readStdinWithTimeout(ctx context.Context, timeoutSec int) (string, error) {

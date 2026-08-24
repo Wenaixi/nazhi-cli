@@ -22,7 +22,7 @@ func parsePayloadFromArg(raw string) ([]byte, error) {
 			return nil, err
 		}
 		if len(payload) > maxPayloadSize {
-			return nil, fmt.Errorf("stdin payload exceeds 16 MiB limit")
+			return nil, fmt.Errorf("stdin payload 超过 16 MiB 上限")
 		}
 		return payload, nil
 	}

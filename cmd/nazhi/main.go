@@ -43,29 +43,13 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
-	// 顶层 panic recover 走统一 exit code 1 契约。
-	// 原代码没有 panic recover：cobra Run 回调（cmd.Run func）panic 时
-	// Go runtime 直接打 stack trace + exit code 2，违反 F7 设计的「统一
-	// exit code 1」契约。CI 脚本区分「用户错误」(exit 1) 与「程序 bug」
-	// (exit 2) 时被误导。
-	// 设计契约
-	//   - panic 发生 → recover
-	//   - pendingExitCode 标记为 1（与正常 error 路径一致）
-	//   - debug.Stack() 输出到 stderr 辅助定位
-	// 注意：recover 必须在 main 顶层 defer，否则 panic 会跨过 rootCmd.Execute()
-	// 直接打到 Go runtime。Cobra 内部不主动 recover Run 回调 panic。
-	// F4: recover handler 不再直接 os.Exit(1)，而是 printError 设 pendingExitCode=1，
-	// 让执行流 fall through 到 line 77 的 pendingExitCode 统一出口。
-	// LIFO 顺序下 closeAllClients 的 defer（行 64-69）在处理本函数前
-	// 已运行释放资源，行 85 的 closeAllClients 幂等安全。
+	// 顶层 panic recover 契约：panic 转为与正常错误路径一致的退出码 1，
+	// 而非 Go runtime 默认的 exit 2 + 裸 stack trace（CI 会误判为服务端错误）。
+	// 处理顺序：recover → markError() 设 pendingExitCode=1 → printError 输出
+	// JSON envelope → debug.Stack() 写 stderr 辅助定位。
+	// recover 必须在 main 顶层 defer：cobra 内部不主动 recover Run 回调 panic。
 	defer func() {
 		if r := recover(); r != nil {
-			// F7/F9: 把 panic 转成与正常 error 路径一致的 exit code 1。
-			// 必须先调 markError() 设 pendingExitCode=1，
-			// 否则 main 末尾的 pendingExitCode.Load() != 0 分支不触发，
-			// 进程以 exit 0 退出，CI 脚本误判 panic 为成功。
-			// 然后 printError 输出 JSON envelope 与正常 error 路径保持一致，
-			// 同时 debug.Stack() 写到 stderr 辅助生产问题定位。
 			markError()
 			printError(fmt.Errorf("内部错误: %v", r))
 			// 借用 recoverx.RecoverPanic 统一输出 debug.Stack()，不关心返回的 error（printError 已覆盖）
@@ -74,7 +58,7 @@ func main() {
 	}()
 
 	defer func() {
-		// 关闭所有 Client (ONNX session + 临时目录 + keep-alive 连接)
+		// 关闭所有 Client（keep-alive 连接等资源）
 		// 错误仅记录, 不影响 exit code (Close 失败不应改变用户感知的执行结果)
 		if err := closeAllClients(); err != nil {
 			printError(fmt.Errorf("关闭 Client 资源失败: %w", err))
@@ -98,7 +82,7 @@ func main() {
 		// os.Exit 之前显式调 closeAllClients。
 		// 原代码仅靠 defer closeAllClients()，但 Go 规范明确：os.Exit 不运行
 		// deferred functions。意味着任何 CLI 错误退出（pendingExitCode=1）的路径
-		// 都泄漏 ONNX session + tempDir + keep-alive 连接。
+		// 都泄漏 HTTP 连接池等资源。
 		// printError（而非 _ =）确保关闭失败时用户能看到错误提示，
 		// 与正常退出路径的 defer handler 行为一致。os.Exit 会跳过后续 defer，
 		// 所以打印必须在 os.Exit 之前。

@@ -8,10 +8,17 @@ import (
 )
 
 var taskPreviewCmd = &cobra.Command{
-	Use:     "preview",
-	Short:   "Preview task payload without submitting",
-	Long:    "Preview the final JSON payload for a task submit/edit without calling addCircle/editCircle.\n\nExposes SDK presets: circleTaskId/circleTypeId/dimensionId from GetCircleTypeByTaskId, hours auto-filled when task preset >0 and user leaves it empty, and pictureList merged from ImageIDs/ImagePaths. Empty address/orgName/level stay empty and are never filled with school name or \"5\". All user fields are Trimmed and sent as-is, matching frontend JSON.stringify(form).",
-	Example: "  nazhi task preview --token xxx --payload '{\"taskId\":18154,\"content\":\"heart\"}'\n  nazhi task preview --token xxx --payload @task.json\n  echo '{\"id\":5400001,\"taskId\":18154,\"content\":\"fix\"}' | nazhi task preview --token xxx --payload - --edit",
+	Use:   "preview",
+	Short: "预览 task submit/edit 最终提交的 JSON payload（不调用接口）",
+	Long: `预览写实提交/编辑最终发送的 JSON payload，不调用 addCircle/editCircle 接口。
+
+展示 SDK 自动补齐结果：circleTaskId/circleTypeId/dimensionId 来自任务元数据；
+hours 在任务预设 >0 且用户留空时自动填充；pictureList 由 ImageIDs/ImagePaths 合并。
+空地址/空组织单位/空等级保持原样，不会回填学校名或默认等级「5」。
+用户字段 Trim 后原样发送，与前端 JSON.stringify(form) 对齐。`,
+	Example: `  nazhi task preview --token xxx --payload '{"taskId":18154,"content":"heart"}'
+  nazhi task preview --token xxx --payload @task.json
+  echo '{"id":5400001,"taskId":18154,"content":"fix"}' | nazhi task preview --token xxx --payload - --edit`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		isEdit, _ := cmd.Flags().GetBool("edit")
@@ -21,18 +28,18 @@ var taskPreviewCmd = &cobra.Command{
 			return
 		}
 		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload is required"))
+			printEnvelope(envelope.Error(400, "--payload 为必填项"))
 			return
 		}
 		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
 		if err != nil {
-			printParamError(fmt.Errorf("read payload failed: %w", err))
+			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
 		}
 		if isEdit {
 			input, err := decodeTaskEditInput(payloadBytes)
 			if err != nil {
-				printParamError(fmt.Errorf("parse payload JSON failed: %w", err))
+				printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 				return
 			}
 			if v, _ := cmd.Flags().GetString("address"); v != "" {
@@ -41,10 +48,10 @@ var taskPreviewCmd = &cobra.Command{
 			if v, _ := cmd.Flags().GetString("level"); v != "" {
 				input.Level = v
 			}
-			printVerbose("Previewing edit payload (auto-completing task metadata, not submitting)...")
+			printVerbose("正在预览编辑 payload（自动补齐任务元数据，不提交）...")
 			payload, err := c.PreviewEditPayload(cmd.Context(), token, input)
 			if err != nil {
-				printError(fmt.Errorf("preview edit payload failed: %w", err))
+				printError(fmt.Errorf("预览编辑 payload 失败: %w", err))
 				return
 			}
 			printEnvelope(envelope.Success(payload))
@@ -52,7 +59,7 @@ var taskPreviewCmd = &cobra.Command{
 		}
 		input, err := decodeTaskSubmitInput(payloadBytes)
 		if err != nil {
-			printParamError(fmt.Errorf("parse payload JSON failed: %w", err))
+			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}
 		if v, _ := cmd.Flags().GetString("address"); v != "" {
@@ -61,10 +68,10 @@ var taskPreviewCmd = &cobra.Command{
 		if v, _ := cmd.Flags().GetString("level"); v != "" {
 			input.Level = v
 		}
-		printVerbose("Previewing submit payload (auto-completing task metadata, not submitting)...")
+		printVerbose("正在预览提交 payload（自动补齐任务元数据，不提交）...")
 		payload, err := c.PreviewSubmitPayload(cmd.Context(), token, input)
 		if err != nil {
-			printError(fmt.Errorf("preview submit payload failed: %w", err))
+			printError(fmt.Errorf("预览提交 payload 失败: %w", err))
 			return
 		}
 		printEnvelope(envelope.Success(payload))
@@ -73,8 +80,8 @@ var taskPreviewCmd = &cobra.Command{
 
 func init() {
 	registerBizFlags(taskPreviewCmd)
-	taskPreviewCmd.Flags().String("payload", "", "Task JSON (required, use @file.json or - for stdin)")
-	taskPreviewCmd.Flags().String("address", "", "Location override for payload.address; empty stays empty, no school name fallback")
-	taskPreviewCmd.Flags().String("level", "", "Level code override; empty stays empty, no default 5")
-	taskPreviewCmd.Flags().Bool("edit", false, "Preview edit mode (payload must include id)")
+	taskPreviewCmd.Flags().String("payload", "", "任务 JSON（必填，@file.json 读文件或 - 读 stdin）")
+	taskPreviewCmd.Flags().String("address", "", "覆盖 payload.address；留空保持为空，不回填学校名")
+	taskPreviewCmd.Flags().String("level", "", "覆盖等级代码；留空保持为空，不填默认值")
+	taskPreviewCmd.Flags().Bool("edit", false, "预览编辑模式（payload 必须含 id）")
 }

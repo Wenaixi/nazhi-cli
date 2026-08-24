@@ -11,7 +11,7 @@ import (
 //
 //	nazhi file upload -f <path> [--upload-url <url>] [--timeout <秒>]
 //
-// ⚠️ 本命令不接受 --token 参数。文件服务器独立，发送 token 反而可能被风控。
+// 本命令不接受 --token 参数。文件服务器独立，发送 token 反而可能被风控。
 var fileUploadCmd = &cobra.Command{
 	Use:   "upload",
 	Short: "上传图片到文件服务器",

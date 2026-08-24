@@ -105,7 +105,7 @@ var taskSubmittedCmd = &cobra.Command{
 // 共用 taskSubmittedCmd.Run 回调，避免逻辑重复。
 var taskDoneCmd = &cobra.Command{
 	Use:   "done",
-	Short: "查看我发布的写实记录 (task submitted 别名)",
+	Short: "查看我发布的写实记录 （task submitted 别名）",
 	Run:   taskSubmittedCmd.Run,
 }
 

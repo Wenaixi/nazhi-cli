@@ -16,7 +16,7 @@ import (
 //   - defer closeAllClients() 仍能跑（os.Exit 只在 main 最后调一次）
 var pendingExitCode atomic.Int32
 
-// printErrorDepth 防止 修复中递归调用自身造成死循环。
+// printErrorDepth 防止递归兜底路径无限递归。
 // 当 stderr 本身也无法 JSON 编码时（如 fd 已关），递归兜底会无限递归。
 // depth>1 时降级为直写 fmt.Fprintf，避免 stack overflow。
 var printErrorDepth atomic.Int32
@@ -50,9 +50,8 @@ func printEnvelope(e *envelope.Envelope) {
 
 // printError 输出 envelope.Error(500) 到 stderr 并标记退出码（exit 2）。
 // 注意：此函数**不**调用 os.Exit。退出由 main 在 rootCmd.Execute() 之后
-// 统一处理。原因：修复——os.Exit 绕过 goroutine 栈展开，导致 main 的
-// defer closeAllClients() 永远不执行，ONNX session + 临时目录 +
-// keep-alive 连接全部泄漏。
+// 统一处理。原因：os.Exit 不执行 defer，直接退出会导致 main 的
+// defer closeAllClients() 永远不运行，HTTP 连接池等资源全部泄漏。
 // 退出码契约
 //   - printError 仅写 stderr + 设 pendingExitCode（按 envelope.ExitCode）
 //   - 调用方（cobra Run 回调）保持原样 `printError(err); return`
@@ -113,18 +112,13 @@ func printVerbose(format string, args ...any) {
 	}
 }
 
-// printPrompt 向 stderr 写入交互提示，**不**受 verbose/quiet 守卫。
+// printPrompt 向 stderr 写入交互提示。不受 verbose 守卫，但受 quiet 与终端检测双重守卫。
 // 用途：self-eval submit 等从 stdin 读取输入的命令，需要在用户终端看到
-// "请输入 xxx: " 提示符才能知道要敲字。如果走 printVerbose（受 verbose 守卫）
-// 用户没加 -v 就看不到提示；如果走 printError（受 quiet 守卫 + 走 JSON envelope）
-// 又会污染 stderr 错误流。
-// 守卫
+// "请输入 xxx: " 提示符才能知道要敲字。走 printVerbose 用户没加 -v 看不到提示；
+// 走 printError 会以 JSON envelope 污染 stderr 错误流。
+// 守卫：
 //   - 仅在 isTerminalStdin()==true 时输出（CI / 管道环境下无意义）
-//   - quiet 模式也不输出（用户显式要求静默）
-//
-// self_eval_submit.go:35 原生
-// `fmt.Fprint(os.Stderr, ...)` 绕过统一通道，且不看 quiet，统一收口到本函数。
-// 新增「交互提示例外」条款到 CLAUDE.md / env.go 注释。
+//   - quiet 模式不输出（用户显式要求静默）
 func printPrompt(prompt string) {
 	if quiet {
 		return
