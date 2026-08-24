@@ -63,3 +63,51 @@ func TestTaskCirclesCommands_RejectLoneOffset(t *testing.T) {
 		})
 	}
 }
+
+// TestTaskCirclesCommands_RejectNegativeOffset 负数 --offset 是对称缺口：
+// limit 模式下 SDK 侧 skipped<offset 判定使其等效归零，全量模式下整体失效，
+// 分页脚本 page 计算出错（如 (page-1)*size 得负）时会无声拿到错误切片。
+// 与正 offset 守卫同语义：一律参数错误拒绝，不发请求。
+func TestTaskCirclesCommands_RejectNegativeOffset(t *testing.T) {
+	cases := []struct {
+		name string
+		run  func(*cobra.Command, []string)
+	}{
+		{"teacher", taskTeacherCmd.Run},
+		{"public", taskPublicCmd.Run},
+		{"withdrawn", taskWithdrawnCmd.Run},
+		{"submitted", taskSubmittedCmd.Run},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newLoneOffsetServer(t)
+			defer srv.Close()
+
+			cmd := &cobra.Command{Use: tc.name}
+			cmd.Flags().String("token", "", "")
+			_ = cmd.Flags().Set("token", "test-token")
+			cmd.Flags().String("base-url", "", "")
+			_ = cmd.Flags().Set("base-url", srv.URL)
+			cmd.Flags().Int("timeout", 5, "")
+			cmd.Flags().Bool("count", false, "")
+			cmd.Flags().Int("offset", 0, "")
+			_ = cmd.Flags().Set("offset", "-5")
+			cmd.Flags().Int("limit", 0, "")
+			_ = cmd.Flags().Set("limit", "10")
+
+			quiet = false
+			pendingExitCode.Store(0)
+			stdoutBuf, _, restore := captureStdio(t)
+			tc.run(cmd, nil)
+			restore()
+			stdout := stdoutBuf.String()
+
+			if got := pendingExitCode.Load(); got != 3 {
+				t.Errorf("负数 --offset 应拒绝为参数错误(退出码 3), 实际 %d; stdout=%q", got, stdout)
+			}
+			if !strings.Contains(stdout, "--offset") {
+				t.Errorf("stdout 应含参数错误提示, 实际: %q", stdout)
+			}
+		})
+	}
+}

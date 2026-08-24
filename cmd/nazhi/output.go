@@ -97,14 +97,15 @@ func printParamError(err error) {
 	printErrorWithCode(err, 400)
 }
 
-// rejectLoneOffset 单独 --offset（无 --limit）时输出参数错误信封并返回 true。
-// offset>0 而 limit<=0 会被 SDK 全量路径静默忽略，四命令统一拒绝以防
-// 分页脚本以成功状态拿到全量数据。与 task submitted/done 既有守卫同语义。
+// rejectLoneOffset 校验 --offset 合法性：单独 --offset（无 --limit）或负值时
+// 输出参数错误信封并返回 true。offset>0 而 limit<=0 会被 SDK 全量路径静默忽略；
+// offset<0 在 limit 模式下等效归零、全量模式下整体失效——分页脚本 page 计算
+// 出错时会无声拿到错误切片。四命令统一拒绝以防静默错误数据。
 func rejectLoneOffset(cmd *cobra.Command) bool {
 	offset, _ := cmd.Flags().GetInt("offset")
 	limit, _ := cmd.Flags().GetInt("limit")
-	if offset > 0 && limit <= 0 {
-		printEnvelope(envelope.Error(400, "--offset 需配合 --limit 使用（单独 --offset 会被忽略，拒绝静默返回全量）"))
+	if (offset > 0 && limit <= 0) || offset < 0 {
+		printEnvelope(envelope.Error(400, "--offset 需为非负数且配合 --limit 使用（非法 --offset 会被忽略或归零，拒绝静默返回错误数据）"))
 		return true
 	}
 	return false
