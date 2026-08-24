@@ -321,7 +321,6 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 		}
 		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)
 	}
-	_ = time.Since(start)
 	return resp, nil
 }
 
@@ -352,7 +351,7 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: %s %s 返回状态码 %d body=%s",
-			sentinel, method, url, resp.StatusCode, logSafeBody(respBytes))
+			sentinel, method, url, resp.StatusCode, logx.RedactBody(logSafeBody(respBytes)))
 	}
 	return respBytes, nil
 }
@@ -400,7 +399,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		// sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
-			sentinel, url, resp.StatusCode, logSafeBody(bodyBytes))
+			sentinel, url, resp.StatusCode, logx.RedactBody(logSafeBody(bodyBytes)))
 	}
 	return bodyBytes, nil
 }

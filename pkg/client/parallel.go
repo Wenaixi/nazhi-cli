@@ -63,6 +63,9 @@ func ParallelDims[T any](ctx context.Context, dims []types.Dimension, limit int,
 		d := dim
 		g.Go(func() error {
 			if err := gctx.Err(); err != nil {
+				// 预取消的维度也计入 allErrs：混合失败场景下调用方的
+				// eg.Err 分支仍能拿到已收集的业务错误诊断（不吞错）。
+				appendLocked(&mu, &allErrs, err)
 				return err
 			}
 			items, err := fn(gctx, d)

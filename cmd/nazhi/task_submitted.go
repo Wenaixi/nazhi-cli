@@ -53,6 +53,11 @@ var taskSubmittedCmd = &cobra.Command{
 			return
 		}
 
+		if offset > 0 && limit <= 0 {
+			printEnvelope(envelope.Error(400, "--offset 需配合 --limit 使用（单独 --offset 会被忽略，拒绝静默返回全量）"))
+			return
+		}
+
 		if offset > 0 || limit > 0 {
 			printVerbose("正在获取我发布的写实记录（limit=%d, offset=%d）...", limit, offset)
 			raw, pb, err := c.GetSubmittedCirclesLimitJSON(cmd.Context(), token, offset, limit, key)

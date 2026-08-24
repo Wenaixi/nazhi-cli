@@ -213,8 +213,19 @@ var WithLogger = withNilGuard[*slog.Logger]("WithLogger", func(c *Client, l *slo
 // 行为约定：
 //   - hc == nil：拒绝设置并 warn，保持当前 c.http（防止 nil 静默覆盖
 //     默认带 cookie jar 的客户端，导致后续请求 0 cookie → 空 dataList）
-//   - 否则：完全替换 c.http
-var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client, hc *http.Client) { c.http = hc })
+//   - 否则：完全替换 c.http；若新客户端 Timeout 为零且此前已通过
+//     WithTimeout 设置过超时，则继承该超时——消除 Option 声明顺序敏感性，
+//     WithTimeout(15s) 与 WithHTTPClient(custom) 先后不再影响最终生效值
+var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client, hc *http.Client) {
+	prevTimeout := time.Duration(0)
+	if c.http != nil {
+		prevTimeout = c.http.Timeout
+	}
+	c.http = hc
+	if hc.Timeout == 0 && prevTimeout > 0 {
+		hc.Timeout = prevTimeout
+	}
+})
 
 // WithCustomOCR 注入自定义验证码识别器。
 //

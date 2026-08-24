@@ -89,8 +89,20 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 	// 添加 scaleCascade 标签，质量级联跳过时直接跳入
 scaleCascade:
-	// 单次缩放取代 7 轮累乘：0.7^7 ≈ 0.082，避免 4K 图 ~200MB 临时内存。
 	b := img.Bounds()
+
+	// 温和档：缩到 25% + quality=80。覆盖 10~30MB 大图的常见区间，
+	// 避免直接跳极限档导致输出只有几十 KB 的画质断崖。
+	w25 := int(float64(b.Dx()) * 0.25)
+	h25 := int(float64(b.Dy()) * 0.25)
+	if w25 >= MinImageDimension && h25 >= MinImageDimension {
+		mid, midErr := encodeJPEG(imaging.Resize(img, w25, h25, imaging.Lanczos), qualityAfterOptimization)
+		if midErr == nil && len(mid) <= MaxImageSize {
+			return mid, "image/jpeg", nil
+		}
+	}
+
+	// 极限档：单次缩放取代 7 轮累乘：0.7^7 ≈ 0.082，避免 4K 图 ~200MB 临时内存。
 	finalW := int(float64(b.Dx()) * 0.082)
 	finalH := int(float64(b.Dy()) * 0.082)
 	current := img
