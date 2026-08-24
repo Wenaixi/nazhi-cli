@@ -16,7 +16,7 @@ import (
 //
 // 设计意图：把 url.Parse 从 hot path（每次 syncCookieToken 都调用）迁移到
 // New() 阶段的初始化路径，避免每次 syncCookieToken 都做一遍重复的字符串解析。
-func TestNew_PreParsesBaseURL(t *testing.T) {
+func TestNewPreParsesBaseURL(t *testing.T) {
 	c, err := New(WithBaseURL("https://biz.example.com:8280"))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
@@ -38,7 +38,7 @@ func TestNew_PreParsesBaseURL(t *testing.T) {
 // 设计意图：测试场景常直接用 &Client{baseURL: ...} 构造，跳过 New()。
 // 如果 baseURLParsed 字段未在 New() 阶段设置，syncCookieToken 必须能懒解析兜底，
 // 否则会因 nil deref crash。懒解析后保存到字段，避免重复 Parse。
-func TestSyncCookieToken_LazyParseFallback(t *testing.T) {
+func TestSyncCookieTokenLazyParseFallback(t *testing.T) {
 	jar, _ := cookiejar.New(nil)
 	c := &Client{
 		baseURL: "https://biz.example.com:8280",
@@ -59,7 +59,7 @@ func TestSyncCookieToken_LazyParseFallback(t *testing.T) {
 // 设计意图：消除 4 个 fmt.Errorf 各自的拼凑前缀（"syncCookieToken: HTTP client 为 nil..."
 // "syncCookieToken: HTTP client 的 Jar 不是..." 等），统一为 `syncCookieToken 失败: <cause>`，
 // 让调用方能通过统一的 errors.Is 字符串前缀判定（未来如需加 sentinel error 更容易）。
-func TestSyncCookieToken_ErrorPrefixUnified(t *testing.T) {
+func TestSyncCookieTokenErrorPrefixUnified(t *testing.T) {
 	const wantPrefix = "syncCookieToken 失败:"
 
 	cases := []struct {
