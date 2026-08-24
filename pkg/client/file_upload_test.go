@@ -84,7 +84,7 @@ func TestUploadFile_MultipartBodyHasTerminator(t *testing.T) {
 	// 关键断言：body 必须以标准 multipart 终止边界结尾
 	wantTerminator := "\r\n--" + gotBoundary + "--\r\n"
 	if !bytes.HasSuffix(gotBody, []byte(wantTerminator)) {
-		t.Errorf("multipart body 必须以 %q 结尾（F14 回归：defer writer.Close 导致终止边界缺失），\n"+
+		t.Errorf("multipart body 必须以 %q 结尾（defer writer.Close 曾导致终止边界缺失），\n"+
 			"实际末尾 %q",
 			wantTerminator,
 			tailBytes(gotBody, 80))
@@ -102,7 +102,7 @@ func tailBytes(buf []byte, n int) string {
 // TestUploadFile_MultipartBodyRoundTripParses 用 multipart.Reader 解析 server
 // 收到的 body，确保不仅有终止边界，且能正确还原出 form file。
 // 这是更严格的契约测试：如果 body 长度正确但 boundary 错乱、字段顺序错乱，
-// 都会被这个测试发现。F14 修复后必须通过。
+// 都会被这个测试发现。修复后必须通过。
 func TestUploadFile_MultipartBodyRoundTripParses(t *testing.T) {
 	var gotBody []byte
 	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -151,7 +151,7 @@ func TestUploadFile_MultipartBodyRoundTripParses(t *testing.T) {
 }
 
 // TestBuildRequest_AcceptsIOReader 验证 buildRequest 支持 io.Reader 类型 body，
-// 是 F3 修复的核心契约——UploadFile 走 buildRequest 的前提。
+// 是 UploadFile 走 buildRequest 的核心契约前提。
 // 原 buildRequest 只支持 []byte/string/任意 JSON marshal 三类 body，
 // 无法承载 multipart 场景下的 io.Reader（*bytes.Buffer）。UploadFile 因此被迫走
 // 手工 http.NewRequestWithContext，沦为特例路径。

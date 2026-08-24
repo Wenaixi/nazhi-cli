@@ -112,12 +112,12 @@ func TestFileUploadCmd_HappyPath(t *testing.T) {
 	}
 }
 
-// TestFileUploadCmd_NoTokenFlag 验证 file upload 命令不接受 --token flag（F16 契约）。
+// TestFileUploadCmd_NoTokenFlag 验证 file upload 命令不接受 --token flag（上传服务器独立，无需业务域鉴权）。
 func TestFileUploadCmd_NoTokenFlag(t *testing.T) {
 	// fileUploadCmd 在 init() 中不注册 --token flag（注释说明）。
 	// 验证其 Run 回调中的 buildClient(cmd, "upload", ...) 不依赖 token。
 	var tokenFlag = fileUploadCmd.Flags().Lookup("token")
 	if tokenFlag != nil {
-		t.Errorf("fileUploadCmd 不应有 --token flag（F16 契约：文件服务器独立，不需要业务域鉴权）")
+		t.Errorf("fileUploadCmd 不应有 --token flag（文件服务器独立，不需要业务域鉴权）")
 	}
 }

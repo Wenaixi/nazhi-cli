@@ -1,11 +1,11 @@
-// closeallclients_test.go 锚定 B4 修复契约。
+// closeallclients_test.go 锚定 closeAllClients 失败路径契约。
 //
-// B4 证据：cmd/nazhi/main.go:52-58 defer 块中，closeAllClients() 失败时
+// cmd/nazhi/main.go 的 defer 块中，closeAllClients() 失败时
 // 用 fmt.Fprintln(os.Stderr, ...) 直写 stderr，绕过统一的 printError 通道。
 // 后果：
 //   - 错误输出格式不一致（其他错误都是 JSON envelope，这个是纯文本）
 //   - CI 脚本无法 parse 这个错误为 JSON
-//   - 与 F7 设计的「统一 printError 通道」契约不一致
+//   - 与「统一 printError 通道」设计契约不一致
 //
 // 修复：将 fmt.Fprintln 替换为 printError(fmt.Errorf("关闭 Client 资源失败: %w", err))，
 // 走统一错误输出通道（stderr JSON envelope + pendingExitCode=1）。
@@ -33,7 +33,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// closeErrMockOCR 是 B4 测试用 mock：Recognize 正常返回，Close 返回错误。
+// closeErrMockOCR 是本测试用 mock：Recognize 正常返回，Close 返回错误。
 // 用于触发 client.Client.Close() 返回错误，进而让 closeAllClients() 返回 error。
 type closeErrMockOCR struct{}
 
@@ -142,16 +142,16 @@ func TestCloseAllClients_Failure_GoesThroughPrintError(t *testing.T) {
 
 	// 8. 断言：stderr 含 JSON envelope（printError 输出 envelope.Error(500)）
 	if !strings.Contains(stderr, `"status": "error"`) {
-		t.Errorf("B4 修复未生效：closeAllClients 失败应走 printError 通道，stderr 应含 `\"status\": \"error\"`\n实际 stderr: %q", stderr)
+		t.Errorf("closeAllClients 失败应走 printError 通道，stderr 应含 `\"status\": \"error\"`\n实际 stderr: %q", stderr)
 	}
 
 	// 9. 断言：stderr 不含旧的纯文本格式（fmt.Fprintln 输出）
 	if strings.Contains(stderr, "警告: 关闭 Client 资源失败") {
-		t.Errorf("B4 修复未生效：closeAllClients 失败不应直写纯文本\n实际 stderr: %q", stderr)
+		t.Errorf("closeAllClients 失败不应直写纯文本\n实际 stderr: %q", stderr)
 	}
 
 	// 10. 断言：pendingExitCode=2（printError 内部走 envelope.ExitCode，500 → 2）
 	if got := pendingExitCode.Load(); got != 2 {
-		t.Errorf("B4 修复未生效：closeAllClients 失败后 pendingExitCode 应为 2，实际 %d", got)
+		t.Errorf("closeAllClients 失败后 pendingExitCode 应为 2，实际 %d", got)
 	}
 }

@@ -14,7 +14,7 @@ import (
 )
 
 // TestPrintError_DoesNotCallOsExit 回归测试：printError 必须不调用 os.Exit。
-// 历史 bug（F7）：printError 直接 os.Exit(1)，导致 main 中 defer closeAllClients()
+// 历史 bug：printError 曾直接 os.Exit(1)，导致 main 中 defer closeAllClients()
 // 永远不执行，ONNX session + 临时目录 + keep-alive 连接全部泄漏。
 // 修复后：printError 仅写 stderr，由 main 在 Execute() 之后统一 os.Exit(1)。
 // 验证方式：调 printError 之后，测试进程必须继续存活（如果 os.Exit 被调用
@@ -31,7 +31,7 @@ func TestPrintError_DoesNotCallOsExit(t *testing.T) {
 	defer func() { os.Stderr = origStderr }()
 
 	// printError 不应让进程退出
-	printError(errors.New("synthetic error for F7 regression"))
+	printError(errors.New("synthetic error for exit-cleanup regression"))
 
 	// 关闭 writer 让 reader 能读到 EOF
 	_ = w.Close()
@@ -51,7 +51,7 @@ func TestPrintError_DoesNotCallOsExit(t *testing.T) {
 	}
 
 	// 验证错误信息确实写到了 stderr（保持原行为，只是把退出权交给 main）
-	if !strings.Contains(stderrOutput, "synthetic error for F7 regression") {
+	if !strings.Contains(stderrOutput, "synthetic error for exit-cleanup regression") {
 		t.Errorf("stderr 应包含错误信息，实际: %q", stderrOutput)
 	}
 	if !strings.Contains(stderrOutput, `"status": "error"`) {

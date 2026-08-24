@@ -1,7 +1,7 @@
 // error_external_test.go 聚合 errors 相关外部黑盒测试（package client_test）：
 //   - GetMyInfo 业务错误包装
 //   - fetchDimensions/SubmitTask 两处业务错误包装
-//   - C10/B14: querySelfEval helper + errors.Join CheckCode
+//   - querySelfEval helper + errors.Join CheckCode
 //   - E finding: Submit/Query SelfEvaluation 业务错误包装
 //   - F finding: FetchTasks 单维度业务错误 propagate
 package client_test
@@ -529,7 +529,7 @@ func TestFindingF_FetchTasks_HTTPErrorStillLogDebug(t *testing.T) {
 
 	tasks, err := c.FetchTasks(context.Background(), "test-token")
 	if err == nil {
-		t.Fatal("F2 修复后 HTTP/解析错误应 propagate 为 ErrBusinessRejected")
+		t.Fatal("HTTP/解析错误应 propagate 为 ErrBusinessRejected")
 	}
 	if !errors.Is(err, client.ErrBusinessRejected) {
 		t.Errorf("HTTP/解析错误应包装为 ErrBusinessRejected（部分成功），err=%v", err)

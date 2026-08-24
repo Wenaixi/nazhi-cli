@@ -231,9 +231,9 @@ func TestUploadFile_NoAuthHeaders(t *testing.T) {
 	t.Logf("✓ UploadFile 正确未发送任何鉴权 Header（X-Auth-Token/Authorization/Cookie）")
 }
 
-// image_prep_break_test.go 通过 AST 静态扫描锁定 F4 修复：
+// image_prep_break_test.go 通过 AST 静态扫描锁定修复契约：
 // image_prep.go 缩放级联循环不能 `continue` 跳过 `current = resized`。
-// F4 证据：image_prep.go 缩放级联 `for _, scale := range scaleFactors`
+// 历史 bug：image_prep.go 缩放级联 `for _, scale := range scaleFactors`
 // 内 `if err != nil { continue }` 跳过 `current = resized`，下一轮用
 // 未更新的 current 计算 w/h → 同一尺寸重复 encodeJPEG 必然同样失败 →
 // 浪费 1-7 轮 CPU 后才 break 返回 ErrImageTooLarge。
@@ -305,10 +305,10 @@ func TestImagePrep_ScaleCascadeHasLogDebug(t *testing.T) {
 	}
 
 	if !strings.Contains(block, "return") {
-		t.Errorf("F4 修复契约：encodeJPEG 失败分支必须含 return，实际块:\n%s", block)
+		t.Errorf("encodeJPEG 失败分支必须含 return，实际块:\n%s", block)
 	}
 	if !strings.Contains(block, "logDebug") {
-		t.Errorf("F4 修复契约：encodeJPEG 失败 break 前应 logDebug 记录原因，实际块:\n%s", block)
+		t.Errorf("encodeJPEG 失败 break 前应 logDebug 记录原因，实际块:\n%s", block)
 	}
 }
 
@@ -323,8 +323,8 @@ func osReadFile(name string) ([]byte, error) {
 }
 
 // image_prep_gif_test.go 验证带透明 GIF 在 prepareImageForUpload 后
-// 输出非黑底（F11 修复）。
-// F11 证据：image_prep.go:62-65 特例分支 `if format == "gif" && flattened`
+// 输出非黑底。
+// 历史 bug：image_prep.go 特例分支 `if format == "gif" && flattened`
 // 做了两件事：(1) imaging.Clone(img) 丢弃透明；(2) flattened=false 跳过
 // flattenOnWhite。HasTransparency 对 *image.Paletted 始终返回 true。
 // 失败场景：透明 GIF → jpeg.Encode 把透明索引解析为黑色 → 黑底 JPG。
@@ -393,7 +393,7 @@ func TestPrepareImage_GifTransparentNotBlack(t *testing.T) {
 
 	// 黑底判定：R < 50（修复前会触发）
 	if r8 < 50 {
-		t.Errorf("F11 回归：GIF 透明区域被处理为黑底, R=%d (期望白底 R≈255)", r8)
+		t.Errorf("GIF 透明区域被处理为黑底, R=%d (期望白底 R≈255)", r8)
 	}
 
 	// 进一步保险：右半（红色不透明）应该保持红色
@@ -491,7 +491,7 @@ func TestPrepareImage_PngTransparentStillFlattens(t *testing.T) {
 	}
 }
 
-// image_prep_immutable_test.go: G4 getQualitySteps/getScaleFactors 不可变验证。
+// image_prep_immutable_test.go: getQualitySteps/getScaleFactors 不可变验证。
 // getScaleFactors 函数已删除（finding 1），scaleCascade 改用单次缩放 0.082。
 
 // TestGetQualitySteps_Immutable 验证 qualityAfterOptimization 常量值正确。
@@ -609,9 +609,9 @@ type constErr string
 
 func (e constErr) Error() string { return string(e) }
 
-// ─── group-B F3: UploadFile 错误链对外暴露 ErrFileTooLarge（不论根因） ───
+// ─── UploadFile 错误链对外暴露 ErrFileTooLarge（不论根因） ───
 
-// TestUploadFile_PrepErrorIncludesErrFileTooLarge (F3) 锁定 file.go 修复契约：
+// TestUploadFile_PrepErrorIncludesErrFileTooLarge 锁定 file.go 修复契约：
 // UploadFile 在 prepareImageForUpload 抛 ErrImageTooLarge（image_prep 局部
 // sentinel）时，返回的错误链必须同时包含 ErrFileTooLarge，让调用方用
 // errors.Is(err, ErrFileTooLarge) 单一识别所有「文件过大」路径。
@@ -688,7 +688,7 @@ func TestUploadFile_PrepErrorIncludesErrFileTooLarge(t *testing.T) {
 			}
 			return true
 		})
-		// F3 修复契约：
+		// 修复契约：
 		//   调用形式必须是 errors.Join(ErrFileTooLarge, <prepare err>) 链入，
 		//   不再用裸 fmt.Errorf("%w", err) 让 ErrFileTooLarge 不在链上。
 		_ = containsFmtErrorf
@@ -701,9 +701,9 @@ func TestUploadFile_PrepErrorIncludesErrFileTooLarge(t *testing.T) {
 		return false
 	})
 	if foundOldStyle && !foundFix {
-		t.Errorf("F3 漏洞：UploadFile '图片预处理失败' wrap 仍裸用 fmt.Errorf %%w，未 errors.Join 进 ErrFileTooLarge，调用方 errors.Is(err, ErrFileTooLarge) 不可命中 image_prep 路径")
+		t.Errorf("UploadFile '图片预处理失败' wrap 裸用 fmt.Errorf %%w，未 errors.Join 进 ErrFileTooLarge，调用方 errors.Is(err, ErrFileTooLarge) 不可命中 image_prep 路径")
 	}
 	if !foundFix {
-		t.Errorf("F3 修复契约：UploadFile 错误 wrap 应使用 errors.Join(ErrFileTooLarge, err)，未检测到。")
+		t.Errorf("UploadFile 错误 wrap 应使用 errors.Join(ErrFileTooLarge, err)，未检测到。")
 	}
 }

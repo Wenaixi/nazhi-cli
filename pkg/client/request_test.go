@@ -1,6 +1,6 @@
 // request_test.go 聚合 request.go 内部白盒测试（package client）：
-//   - F6: httpDo/doBizGet drain+close 让 keep-alive 池复用
-//   - F1: logRequestHeaders nil logger 安全
+//   - httpDo/doBizGet drain+close 让 keep-alive 池复用
+//   - logRequestHeaders nil logger 安全
 //   - F-REDACT: logDebug 不泄漏完整 token（Referer/Cookie 嵌入场景）
 //   - drainAndClose helper 单元测试
 package client
@@ -44,7 +44,7 @@ func (f *fakeReadCloser) Close() error {
 }
 
 // 真实场景测试：drainAndClose 必须先 drain body 再 Close()，
-// 让 net/http 把连接归还 keep-alive 池（F1 修复的同类 bug 防御）。
+// 让 net/http 把连接归还 keep-alive 池（drain 类 bug 的防御）。
 func TestDrainAndClose_DrainsBeforeClose(t *testing.T) {
 	body := &fakeReadCloser{data: strings.NewReader("hello world")}
 	drainAndClose(body)
@@ -68,7 +68,7 @@ func TestDrainAndClose_NoBody(t *testing.T) {
 	drainAndClose(body) // http.NoBody 的 Close 返回 nil，drain 是空操作
 }
 
-// ─── request_drain_test.go (F6): httpDo/doBizGet drain+close ───
+// ─── request_drain_test.go: httpDo/doBizGet drain+close ───
 
 // TestHttpDo_DrainsAndClosesForKeepAlive 回归测试：httpDo 的 defer
 // 路径必须先 drain response body 再 Close，让 net/http 把连接归还 keep-alive 池。
@@ -182,9 +182,9 @@ func TestDoBizGet_DrainsAndClosesForKeepAlive(t *testing.T) {
 	}
 }
 
-// ─── request_log_headers_test.go (F1): logRequestHeaders nil 安全 ───
+// ─── request_log_headers_test.go: logRequestHeaders nil 安全 ───
 
-// TestLogRequestHeaders_NilLogger_NoPanic 回归测试（F1）：
+// TestLogRequestHeaders_NilLogger_NoPanic 回归测试：
 // logRequestHeaders 应当先检查 c.logger == nil，防止 nil pointer panic。
 // 与 logDebug 的 nil 守卫（client.go:347）对称一致。
 func TestLogRequestHeaders_NilLogger_NoPanic(t *testing.T) {

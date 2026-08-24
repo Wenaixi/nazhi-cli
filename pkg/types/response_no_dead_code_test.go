@@ -1,8 +1,8 @@
-// Package types 公共类型契约测试 — 死代码守卫（F5 + F6）。
+// Package types 公共类型契约测试 — 死代码守卫。
 //
 // 守卫两项：
-//   - F5: pkg/types/response.go 不应再定义 DecodeUnified（候选 #3 二合一原语，0 生产调用方）
-//   - F6: UnifiedResponse 不应再保留 DataInt 字段（仅测试自引用，0 生产调用方）
+//   - response.go 不应再定义 DecodeUnified（候选 #3 二合一原语，0 生产调用方）
+//   - UnifiedResponse 不应再保留 DataInt 字段（仅测试自引用，0 生产调用方）
 //
 // 防止「已删除的死代码」通过 git blame / 旧 commit 复活。
 package types
@@ -41,7 +41,7 @@ func TestNoDecodeUnified(t *testing.T) {
 			continue // 跳过方法，只看顶层函数
 		}
 		if fn.Name.Name == "DecodeUnified" {
-			t.Errorf("F5 回归：pkg/types/response.go 仍存在 DecodeUnified 函数（应已删除）")
+			t.Errorf("pkg/types/response.go 仍存在 DecodeUnified 函数（应已删除）")
 		}
 	}
 }
@@ -56,7 +56,7 @@ func TestNoDataIntField(t *testing.T) {
 		resp := UnifiedResponse{}
 		rt := reflect.TypeOf(resp)
 		if _, found := rt.FieldByName("DataInt"); found {
-			t.Error("F6 回归：UnifiedResponse 仍存在 DataInt 字段（应已删除）")
+			t.Error("UnifiedResponse 仍存在 DataInt 字段（应已删除）")
 		}
 	})
 
@@ -68,7 +68,7 @@ func TestNoDataIntField(t *testing.T) {
 			t.Fatalf("json.Marshal 失败: %v", err)
 		}
 		if strings.Contains(string(data), "dataInt") {
-			t.Errorf("F6 回归：UnifiedResponse 序列化仍含 dataInt 键，实际: %s", data)
+			t.Errorf("UnifiedResponse 序列化仍含 dataInt 键，实际: %s", data)
 		}
 	})
 }

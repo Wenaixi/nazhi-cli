@@ -1,7 +1,7 @@
-// clean_client_fresh_clone_test.go 验证 F5.6 修复后的 newCleanClient 行为：
+// clean_client_fresh_clone_test.go 验证 newCleanClient 现场 Clone 行为：
 // 每次调用现场 Clone c.http.Transport，不再用 sync.Once 缓存。
 //
-// 修复前（B1）：c.cleanTransportInit.Do 缓存首次 Clone 结果，
+// 历史 bug：c.cleanTransportInit.Do 缓存首次 Clone 结果，
 // 之后 c.http.Transport 的运行时变更永远不会被感知。
 // 修复后：每次 newCleanClient 现场 type assertion + t.Clone()，
 // Clone 成本是 O(1) struct copy + 重置 idle conn pool，
@@ -38,13 +38,13 @@ func TestNewCleanClient_FreshCloneEachCall(t *testing.T) {
 	cc2 := newCleanClient(c)
 	t2 := cc2.Transport.(*http.Transport)
 	if t2 == t1 {
-		t.Errorf("F5.6 修复后每次应现场 Clone：首次=%p 二次=%p 应不相等", t1, t2)
+		t.Errorf("修复后每次应现场 Clone：首次=%p 二次=%p 应不相等", t1, t2)
 	}
 
 	cc3 := newCleanClient(c)
 	t3 := cc3.Transport.(*http.Transport)
 	if t3 == t1 || t3 == t2 {
-		t.Errorf("F5.6 修复后每次应现场 Clone：三次=%p 不应等于前两次 %p / %p", t3, t1, t2)
+		t.Errorf("修复后每次应现场 Clone：三次=%p 不应等于前两次 %p / %p", t3, t1, t2)
 	}
 }
 
@@ -72,7 +72,7 @@ func TestNewCleanClient_PicksUpRuntimeTransportChange(t *testing.T) {
 	cc2 := newCleanClient(c)
 	cloned2 := cc2.Transport.(*http.Transport)
 	if cloned2 == cloned1 {
-		t.Errorf("F5.6 修复后应感知运行时 Transport 变更，不应复用首次 Clone 实例")
+		t.Errorf("修复后应感知运行时 Transport 变更，不应复用首次 Clone 实例")
 	}
 	if cloned2.MaxIdleConns != 99 {
 		t.Errorf("应 Clone replacedTransport，期望 MaxIdleConns=99，实际 %d", cloned2.MaxIdleConns)
@@ -111,7 +111,7 @@ func TestNewCleanClient_ConcurrentFreshCloneSafe(t *testing.T) {
 	}
 	wg.Wait()
 
-	// F5.6 修复后：每次现场 Clone，所有实例应互不相同
+	// 修复后：每次现场 Clone，所有实例应互不相同
 	first := results[0]
 	seen := map[*http.Transport]struct{}{first: {}}
 	for i, tr := range results[1:] {

@@ -1,6 +1,6 @@
-// session_nil_guard_test.go 锚定 B5 修复契约。
+// session_nil_guard_test.go 锚定 nil 守卫契约。
 //
-// B5 证据：cmd/nazhi/session.go 原 printJSON(info) 直接打印，未检查 info == nil。
+// 历史 bug：cmd/nazhi/session.go 原 printJSON(info) 直接打印，未检查 info == nil。
 // 虽然 GetMyInfo 已通过 ErrEmptyUserInfo 哨兵避免 (nil, nil)，但防 future regression
 // 导致 info 为 nil 时输出裸 null。
 //
@@ -130,12 +130,12 @@ func TestSessionActivate_HasNilGuardBeforePrintEnvelope(t *testing.T) {
 
 	if nilGuardPos == 0 {
 		printEnvLine := fset.Position(printEnvPos).Line
-		t.Errorf("B5 守卫缺失：sessionActivateCmd.Run 在 printEnvelope(envelope.Success(...)) (line %d) 之前必须有 nil/空守卫。\n"+
+		t.Errorf("守卫缺失：sessionActivateCmd.Run 在 printEnvelope(envelope.Success(...)) (line %d) 之前必须有 nil/空守卫。\n"+
 			"future regression：如果 SDK 回归到返回 (nil, nil)，cmd 层会输出裸 null。",
 			printEnvLine)
 		return
 	}
-	t.Logf("✓ B5 修复锚定：nil/空守卫在 line %d，printEnvelope 在 line %d",
+	t.Logf("✓ 修复锚定：nil/空守卫在 line %d，printEnvelope 在 line %d",
 		fset.Position(nilGuardPos).Line, fset.Position(printEnvPos).Line)
 }
 

@@ -32,7 +32,7 @@ func repoRoot(t *testing.T) string {
 //
 // .gitignore 第 49 行已声明 `CLAUDE.md`,但已跟踪文件需要
 // `git rm --cached` 显式 untrack,否则 push 时会泄露到远端。
-// (fix: review-tdd round 14 F1)
+// （历史修复：曾因已跟踪文件需要 git rm --cached 显式 untrack）
 func TestCLAUDEMdNotTracked(t *testing.T) {
 	root := repoRoot(t)
 	cmd := exec.Command("git", "-C", root, "ls-files", "CLAUDE.md")

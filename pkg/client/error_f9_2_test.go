@@ -1,4 +1,4 @@
-// F9.2: HTTP 状态码专用 sentinel 测试。
+// HTTP 状态码专用 sentinel 测试。
 //
 // 修复：errors.go 原本只有「业务拒绝」「网络错误」两类通用 sentinel，
 // 429 / 5xx / 超时 / 非 200 响应都需要独立的 sentinel 让 SDK 用户

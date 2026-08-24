@@ -8,7 +8,7 @@ import (
 
 // ─── syncCookieToken 测试 ───
 
-// TestSyncCookieToken_ConcurrentRaceFree 验证 F3 修复：
+// TestSyncCookieToken_ConcurrentRaceFree 验证并发安全：
 // 直接构造 Client{} 绕过 New() 时并发 syncCookieToken 不再触发 race detector。
 // 修复前：c.baseURLParsed 在懒解析分支读-检查-写无锁保护，
 // 多个 goroutine 同时进入懒解析分支写字段会被 race detector 报警。

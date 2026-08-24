@@ -1,6 +1,6 @@
-// clean_client_cache_test.go 验证 F5.6 修复后 newCleanClient 现场 Clone 的行为。
-// 修复前（B1）：sync.Once 缓存一次 Transport，运行时变更永不感知。
-// 修复后（F5.6）：每次 newCleanClient 现场 t.Clone()，不缓存。
+// clean_client_cache_test.go 验证 newCleanClient 现场 Clone 的行为。
+// 历史 bug：sync.Once 缓存一次 Transport，运行时变更永不感知。
+// 现行为：每次 newCleanClient 现场 t.Clone()，不缓存。
 //
 // 约束：
 // 1. Clone 出的 Transport 必须 ≠ 原 Transport（idle 池隔离）
@@ -59,10 +59,10 @@ func TestNewCleanClient_EachCallGetsFreshClone(t *testing.T) {
 	t3 := cc3.Transport.(*http.Transport)
 
 	if t2 == t1 {
-		t.Errorf("F5.6 每次应现场 Clone：首次=%p 二次=%p", t1, t2)
+		t.Errorf("每次应现场 Clone：首次=%p 二次=%p", t1, t2)
 	}
 	if t3 == t1 || t3 == t2 {
-		t.Errorf("F5.6 每次应现场 Clone：三次=%p 不应等于前两次", t3)
+		t.Errorf("每次应现场 Clone：三次=%p 不应等于前两次", t3)
 	}
 	if t1.MaxIdleConns != 50 || t2.MaxIdleConns != 50 || t3.MaxIdleConns != 50 {
 		t.Error("每次 Clone 都应保留配置")

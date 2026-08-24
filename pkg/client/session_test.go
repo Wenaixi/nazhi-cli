@@ -1,6 +1,6 @@
 // session_test.go 聚合 session.go 内部白盒测试（同包），覆盖：
 //   - S1: thundering herd 抑制（10/100 并发 backoff）
-//   - F15: backoff 缓存按 token 隔离（不互相污染）
+//   - backoff 缓存按 token 隔离（不互相污染）
 //   - 缓存：失败 token 不清除其他 token 的 cachedUserInfo
 //   - 并发：同 token 4 步只跑 1 次 + 不同 token 串行激活
 //   - 死锁：100 goroutine 不死锁
@@ -81,9 +81,9 @@ func TestActivateSessionIfNeeded_BackoffHundredConcurrent(t *testing.T) {
 	}
 }
 
-// ─── session_backoff_token_test.go (F15): backoff 缓存按 token 隔离 ───
+// ─── session_backoff_token_test.go: backoff 缓存按 token 隔离 ───
 
-// TestActivateSessionIfNeeded_BackoffIsScopedToToken 回归测试 F15：
+// TestActivateSessionIfNeeded_BackoffIsScopedToToken 回归测试 token 隔离：
 // 上次激活失败后，backoff 缓存键必须包含 token 维度。同一 Client 切换 token
 // 重新激活时，backoff 不应命中上次失败的缓存（避免 stale error 被错误 propagate）。
 func TestActivateSessionIfNeeded_BackoffIsScopedToToken(t *testing.T) {
@@ -279,7 +279,7 @@ func TestActivateFailedToken_DoesNotClearOtherTokenCache_SameClient(t *testing.T
 
 	cached = c.sm.cachedUserInfo
 	if cached == nil {
-		t.Fatal("F2 回归：token-B 失败不应清除 token-A 的 cachedUserInfo")
+		t.Fatal("token-B 失败不应清除 token-A 的 cachedUserInfo")
 	}
 	if cached.Name != "张三" {
 		t.Errorf("cachedUserInfo.Name 期望 '张三', 实际 %q", cached.Name)
@@ -495,9 +495,9 @@ func TestActivateSession_ConcurrentNoDeadlock(t *testing.T) {
 	t.Logf("步骤 4 被调用 %d 次（共 %d goroutine），无死锁 ✓", got, goroutines)
 }
 
-// ─── session_empty_userinfo_test.go (F10): ErrEmptyUserInfo 哨兵 ───
+// ─── session_empty_userinfo_test.go: ErrEmptyUserInfo 哨兵 ───
 
-// TestGetMyInfoRaw_EmptyResponse_ReturnsErrEmptyUserInfo 回归测试 F10：
+// TestGetMyInfoRaw_EmptyResponse_ReturnsErrEmptyUserInfo 回归测试：
 // getMyInfoRaw 在 returnData + dataMap 都为 nil 时（业务成功响应但确实无用户数据），
 // 必须返回 (nil, ErrEmptyUserInfo) 而非 (nil, nil)。
 // 修复前：返回 (nil, nil) → cmd/nazhi/session.go:38 printJSON(info) 输出裸 null
@@ -532,8 +532,8 @@ func TestGetMyInfoRaw_EmptyResponse_ReturnsErrEmptyUserInfo(t *testing.T) {
 	}
 }
 
-// TestGetMyInfoRaw_ValidResponse_ReturnsUserInfo 验证正常响应仍返回 UserInfo + nil err。
-// 防止 F10 修复破坏 happy path。
+// TestGetMyInfoRaw_ValidResponse_ReturnsUserInfo 验证正常响应仍返回 UserInfo + nil err，
+// 防止修复破坏 happy path。
 func TestGetMyInfoRaw_ValidResponse_ReturnsUserInfo(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")

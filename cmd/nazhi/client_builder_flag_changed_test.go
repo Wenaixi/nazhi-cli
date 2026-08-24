@@ -1,7 +1,7 @@
 // client_builder_flag_changed_test.go 锚定
 // buildClientOpts + login.go 在 token/username/password 读取时必须用
 // flagChanged() 守卫，避免用户显式传 --token "" 覆盖 NAZHI_TOKEN。
-// F7 证据：cmd.Flags().GetString("token") 在用户显式传 --token "" 时返回空字符串
+// cmd.Flags().GetString("token") 在用户显式传 --token "" 时返回空字符串
 // 后续 `if token == "" { token = envString(...) }` 看似"哨兵默认 + env 覆盖"
 // 实际是反模式——显式传空字符串的用户期望被尊重（fail-fast 报缺 token）
 // 而不应该悄悄用环境变量 fallback。
@@ -31,7 +31,7 @@ import (
 
 // flagSet 辅助：构造 cobra cmd 并显式调用 Set 让 Changed() 返回 true。
 // 注意：pflag 的 Changed 状态由 Set() 触发，flags.String 默认值赋值不会标记 Changed。
-// 这正是 F7 bug 的根源——cobra 默认值 + 显式传 "" 在 pflag 内部状态完全一致。
+// 这正是历史 bug 的根源——cobra 默认值 + 显式传 "" 在 pflag 内部状态完全一致。
 func flagSet(t *testing.T, flags map[string]any) *cobra.Command {
 	t.Helper()
 	cmd := &cobra.Command{Use: "test"}
@@ -75,11 +75,11 @@ func TestBuildClientOpts_TokenFlagExplicit_OverridesEnv(t *testing.T) {
 	}
 
 	if token != "explicit-token" {
-		t.Errorf("F7 修复：--token 显式值必须生效，期望 explicit-token 实际 %q", token)
+		t.Errorf("--token 显式值必须生效，期望 explicit-token 实际 %q", token)
 	}
 }
 
-// TestBuildClientOpts_TokenFlagEmpty_DoesNotFallbackEnv F7 关键不变量
+// TestBuildClientOpts_TokenFlagEmpty_DoesNotFallbackEnv 关键不变量：显式 --token "" 不应被 env 覆盖
 // 用户显式传 --token "" + NAZHI_TOKEN set 时，flag 显式空字符串应被尊重
 // 不应该悄悄用 env 兜底。
 // 设计理由：用户主动传 --token "" 表达"我故意要空"或"我覆盖了 env 默认"
@@ -102,13 +102,13 @@ func TestBuildClientOpts_TokenFlagEmpty_DoesNotFallbackEnv(t *testing.T) {
 	}
 
 	if token != "" {
-		t.Errorf("F7 修复：显式 --token \"\" 不应被 env 覆盖，期望空字符串实际 %q", token)
+		t.Errorf("显式 --token \"\" 不应被 env 覆盖，期望空字符串实际 %q", token)
 	}
 
 	// 进一步：requireToken=true 时应报缺 token 错
 	_, _, err = buildClientOpts(cmd, "base", "NAZHI_TIMEOUT", true)
 	if err == nil {
-		t.Error("F7 修复：显式 --token \"\" + requireToken=true 应报缺 token 错")
+		t.Error("显式 --token \"\" + requireToken=true 应报缺 token 错")
 	} else if !strings.Contains(err.Error(), "token") {
 		t.Errorf("错误信息应提及 token，实际: %v", err)
 	}

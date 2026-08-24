@@ -70,13 +70,13 @@ func makeWhoamiTestCmd(t *testing.T, token string, getMyInfoBody string, bizOK .
 	cmd := &cobra.Command{Use: "whoami"}
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
-	// F7 适配：buildClientOpts 用 flagChanged() 守卫 token 读取。
+	// buildClientOpts 用 flagChanged() 守卫 token 读取，必须显式 Set。
 	// 必须调 Set 才能让 Changed()=true，否则走 env fallback 会因 env 未设而报缺 token。
 	if err := cmd.Flags().Set("token", token); err != nil {
 		t.Fatalf("set token flag: %v", err)
 	}
 	cmd.Flags().String("base-url", "", "")
-	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	// 必须显式 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
 	if err := cmd.Flags().Set("base-url", srv.URL); err != nil {
 		t.Fatalf("set base-url flag: %v", err)
 	}
@@ -137,7 +137,7 @@ func captureStdio(t *testing.T) (stdout *bytes.Buffer, stderr *bytes.Buffer, res
 	}
 }
 
-// TestWhoami_OkEmpty_StatusEnvelope 回归测试 F5
+// TestWhoami_OkEmpty_StatusEnvelope 回归测试空数据输出 status envelope
 // GetMyInfo 返回 (nil, nil) 时输出 {"status":"empty","reason":"get_my_info_empty"}。
 func TestWhoami_OkEmpty_StatusEnvelope(t *testing.T) {
 	cmd := makeWhoamiTestCmd(t, "test-token", "")

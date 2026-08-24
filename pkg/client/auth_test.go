@@ -1,12 +1,12 @@
 // auth_test.go 聚合 pkg/client 内部白盒测试，覆盖以下修复回归：
-//   - F1: Login drain+close 让 keep-alive 池归还连接
-//   - F2: 200/302 路径对称 expiresAt warn + warnSyncCookieToken helper 去重
-//   - F2-EXTRACT-TOKEN-ASYM: tokenparse.ExtractFromLocation 畸形 URL 返回 error
-//   - F8-CAPTCHA-URL-COLLISION: captchaSeq atomic 保证 URL 唯一
-//   - F10-FRAGMENT-URLDECODE: tokenparse.ExtractFromFragment URL 解码
-//   - G2: tokenparse.ExtractFromReturnData 解析 expires_in/exp
-//   - G3: Login 200 ReadAll 错误含 status + read 字节数
-//   - M2: stringPtrOr → derefOr 重命名 + nil-safe 语义
+//   - Login drain+close 让 keep-alive 池归还连接
+//   - 200/302 路径对称 expiresAt warn + warnSyncCookieToken helper 去重
+//   - tokenparse.ExtractFromLocation 畸形 URL 返回 error（错误传播契约对称）
+//   - captchaSeq atomic 保证验证码 URL 唯一
+//   - tokenparse.ExtractFromFragment URL 解码
+//   - tokenparse.ExtractFromReturnData 解析 expires_in/exp
+//   - Login 200 ReadAll 错误含 status + read 字节数
+//   - stringPtrOr → derefOr 重命名 + nil-safe 语义
 package client
 
 import (
@@ -425,10 +425,10 @@ func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
 	if err == nil {
 		t.Fatal("期望 Login 返回错误，实际 nil")
 	}
-	// F3 修复后:returnData 为 JSON null 时统一报 "returnData 为 null"
+	// returnData 为 JSON null 时统一报 "returnData 为 null"
 	// （不再穿透到 tokenparse 报"token 字段类型异常"）。
 	if !strings.Contains(err.Error(), "returnData 为 null") {
-		t.Errorf("期望 'returnData 为 null' 错误（F3 修复后语义），实际: %v", err)
+		t.Errorf("期望 'returnData 为 null' 错误，实际: %v", err)
 	}
 
 	// 关键断言：logDebug 必须输出原始 body 摘要 + 错误原因
@@ -585,10 +585,10 @@ func TestLogin_302Fallback_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 	}
 }
 
-// ─── auth_readall_context_test.go (G3): io.ReadAll 错误含 status + 字节数 ───
+// ─── auth_readall_context_test.go: io.ReadAll 错误含 status + 字节数 ───
 
 // errAfterBytesBody 是 mock body：先返回 N 字节，再返回 io.ErrUnexpectedEOF。
-// 让 io.ReadAll 失败但已读了 N 字节，触发 G3 错误包装逻辑。
+// 让 io.ReadAll 失败但已读了 N 字节，触发错误包装逻辑。
 type errAfterBytesBody struct {
 	remaining []byte
 	readByAll *int32
@@ -685,11 +685,11 @@ func TestLogin_ReadAllError_ContainsStatusAndBytes(t *testing.T) {
 	if !errors.Is(err, io.ErrUnexpectedEOF) && !strings.Contains(errStr, io.ErrUnexpectedEOF.Error()) {
 		t.Errorf("期望 wrap io.ErrUnexpectedEOF，实际: %v", err)
 	}
-	// G3 关键断言：错误必须包含 status code
+	// 关键断言：错误必须包含 status code
 	if !strings.Contains(errStr, "status=200") {
 		t.Errorf("期望错误包含 'status=200' 上下文，实际: %v", err)
 	}
-	// G3 关键断言：错误必须包含已读字节数
+	// 关键断言：错误必须包含已读字节数
 	if !strings.Contains(errStr, "read=50") {
 		t.Errorf("期望错误包含 'read=50' 上下文，实际: %v", err)
 	}
@@ -747,8 +747,7 @@ func TestExtractTokenFromLocation_Fallback24h(t *testing.T) {
 	}
 }
 
-// F2-EXTRACT-TOKEN-ASYM RED 测试：畸形 URL 返回 error，与 tokenparse.ExtractFromLocation
-// 的错误传播契约对称。
+// RED 测试：畸形 URL 返回 error，与 tokenparse.ExtractFromLocation 的错误传播契约对称。
 // 用例：`http://[::1` 是缺少闭合 `]` 的 IPv6 字面量，net/url 必返回 parse error。
 // 修复前：静默返回 ("", now+24h) — 错误吞掉，调用方看到「未找到 token」。
 // 修复后：返回裸 url.Parse error（不再包 tokenparse.ErrLocationParseFailed，
@@ -765,7 +764,7 @@ func TestExtractTokenFromLocation_MalformedURL_ReturnsError(t *testing.T) {
 	}
 }
 
-// F10-FRAGMENT-URLDECODE RED 测试：fragment 中的 token= 值需 URL 解码。
+// RED 测试：fragment 中的 token= 值需 URL 解码。
 // 历史：strings.Split + TrimPrefix 只做字符串裁剪，JWT 含 + / = 等 URL 保留
 // 字符时会损坏 token。修复后 url.QueryUnescape 还原原始 base64 JWT。
 // 用例：eyJ%2Bxxx%3D 解码后应为 eyJ+xxx=。
@@ -780,7 +779,7 @@ func TestExtractTokenFromFragment_URLEncodedValue(t *testing.T) {
 	}
 }
 
-// F10 边界：URL 解码失败时 fallback 到原始 value（best-effort 语义）。
+// 边界用例：URL 解码失败时 fallback 到原始 value（best-effort 语义）。
 func TestExtractTokenFromFragment_BadEncodingFallsBackToRaw(t *testing.T) {
 	loc := "https://example.com/homepage#token=%ZZ"
 	_, _, err := tokenparse.ExtractFromLocation(loc)
@@ -789,7 +788,7 @@ func TestExtractTokenFromFragment_BadEncodingFallsBackToRaw(t *testing.T) {
 	}
 }
 
-// F10 普通用例：无 URL 编码时透传。
+// 普通用例：无 URL 编码时透传。
 func TestExtractTokenFromFragment_PlainValue(t *testing.T) {
 	loc := "https://example.com/homepage#token=jwt123&other=x"
 	token, _, err := tokenparse.ExtractFromLocation(loc)
@@ -801,7 +800,7 @@ func TestExtractTokenFromFragment_PlainValue(t *testing.T) {
 	}
 }
 
-// ─── extract_token_return_data_test.go (G2): returnData 解析 expires_in/exp ───
+// ─── extract_token_return_data_test.go: returnData 解析 expires_in/exp ───
 
 // TestExtractTokenFromReturnData_ExpiresIn 验证 returnData 含 expires_in
 // 时返回真实 expiresAt（now + expires_in 秒），不再硬编码 now+24h。
@@ -877,7 +876,7 @@ func TestExtractTokenFromReturnData_ExpiresIn_TakesPriorityOverExp(t *testing.T)
 	}
 }
 
-// ─── auth_captcha_log_leak_test.go (A1): logDebug 不泄漏验证码原文 ───
+// ─── auth_captcha_log_leak_test.go: logDebug 不泄漏验证码原文 ───
 
 // TestLogin_Log_DoesNotLeakCaptcha 验证 Login 流程中 logDebug 不输出验证码原文。
 // 修复前：c.logDebug("OCR 识别结果: %s", captcha) 将验证码明文写入日志。
@@ -935,7 +934,7 @@ func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 	}
 }
 
-// ─── auth_body_truncate_test.go (A2/A3): logDebug body 截断 + 敏感字段掩码 ───
+// ─── auth_body_truncate_test.go: logDebug body 截断 + 敏感字段掩码 ───
 
 // TestLogin_Log_BodyTruncated 验证 logDebug 输出 body 时截断到 ≤100 字符。
 // 修复前：完整 body（可能含 token）全部输出到日志。
@@ -1056,9 +1055,9 @@ func TestLogin_Log_BodyTokenMasked(t *testing.T) {
 	}
 }
 
-// ─── warn_sync_cookie_test.go (F2): helper WARN 日志 + 防 token 泄露 ───
+// ─── warn_sync_cookie_test.go: helper WARN 日志 + 防 token 泄露 ───
 
-// ─── auth_wrap_test.go (A4/A5/A6): fmt.Errorf %w 包装穿透 ───
+// ─── auth_wrap_test.go: fmt.Errorf %w 包装穿透 ───
 
 // TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW 验证
 // 当 200 响应 body 不是合法 JSON 时，Login 返回的错误应能通过 errors.As
@@ -1160,7 +1159,7 @@ func TestWarnSyncCookieToken_BadJar_LogsWarn(t *testing.T) {
 // TestWarnSyncCookieToken_BadJar_DoesNotLeakToken 验证 helper 输出错误日志时
 // **不会** 把 token 写入日志（避免敏感凭据泄露到 stderr）。
 // 安全约束：token 是 X-Auth-Token，业务调用方常把日志收集到 ELK / 第三方，
-// 一旦泄露等同于泄露登录态。F2 helper 必须保证失败日志不含 token 字面值。
+// 一旦泄露等同于泄露登录态。helper 必须保证失败日志不含 token 字面值。
 func TestWarnSyncCookieToken_BadJar_DoesNotLeakToken(t *testing.T) {
 	var logBuf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuf, &slog.HandlerOptions{
@@ -1229,7 +1228,7 @@ func TestGetSchoolID_URLEncodesUsername(t *testing.T) {
 	}
 }
 
-// ─── string_ptr_or_test.go (M2): derefOr helper 语义 ───
+// ─── string_ptr_or_test.go: derefOr helper 语义 ───
 
 // TestDerefOr_StringNilAndValue 验证 derefOr 三种场景：
 // - nil 指针 → def
@@ -1257,13 +1256,13 @@ func TestDerefOr_StringNilAndValue(t *testing.T) {
 // TestDerefOr_NotConfusedWithCmpOr 回归测试：确保 derefOr 不被错误替换为
 // cmp.Or（cmp.Or 在 nil 指针场景会 panic，破坏 Login 错误信息兜底契约）。
 // 通过 grep "cmp\.Or.*Msg" 应 0 命中来强制（人工/CI 检查）。
-// 运行时本测试仅记录 M2 fix 完成的语义契约。
+// 运行时本测试仅记录重命名完成后的语义契约。
 func TestDerefOr_NotConfusedWithCmpOr(t *testing.T) {
-	t.Log("M2 fix 已完成：stringPtrOr 重命名为 derefOr（nil-safe，3 行实现）")
+	t.Log("重命名已完成：stringPtrOr 重命名为 derefOr（nil-safe，3 行实现）")
 	t.Log("注意：不能用 cmp.Or(*Msg, def) 替代，cmp.Or 在 Msg==nil 时 panic")
 }
 
-// ─── auth_wrap_test.go (A5): 200 路径 tokenparse 错误改用 %w 包装 ───
+// ─── auth_wrap_test.go: 200 路径 tokenparse 错误改用 %w 包装 ───
 
 // TestLogin_200Path_ExtractTokenError_WrappedWithPercentW 验证
 // 当 returnData 中无 token 字段时（触发 tokenparse.ExtractFromReturnData 返回错误），
@@ -1316,7 +1315,7 @@ func TestLogin_200Path_ExtractTokenError_WrappedWithPercentW(t *testing.T) {
 	}
 }
 
-// ─── auth_wrap_test.go (A6): 302 路径 Location 解析错误改用 %w 包装 ───
+// ─── auth_wrap_test.go: 302 路径 Location 解析错误改用 %w 包装 ───
 
 // TestLogin_302Path_LocationParseError_WrappedWithPercentW 验证
 // 当 302 Location 是畸形 URL 时（触发 url.Parse 失败），
@@ -1383,17 +1382,17 @@ func (rt *malformedLocationRT) RoundTrip(req *http.Request) (*http.Response, err
 
 func (rt *malformedLocationRT) Close() error { return nil }
 
-// ─── auth_wrap_test.go (A7): validateCaptcha 错误改用 ErrLoginRejected ───
+// ─── auth_wrap_test.go: validateCaptcha 错误改用 ErrLoginRejected ───
 
 // TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected 验证 validateCaptcha
 // 返回 code != 1 时，Login 包装的哨兵错误是 ErrLoginRejected 而非
 // ErrBusinessRejected。
 //
-// A7 修复前：errors.Join(ErrBusinessRejected, err) — SDK 用户用
+// 修复前：errors.Join(ErrBusinessRejected, err) — SDK 用户用
 //
 //	errors.Is(err, ErrLoginRejected) 无法命中。
 //
-// A7 修复后：errors.Join(ErrLoginRejected, err) — 验证码校验失败属于
+// 修复后：errors.Join(ErrLoginRejected, err) — 验证码校验失败属于
 //
 //	Login 流程错误，不是业务 API 拒绝。
 func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
@@ -1435,7 +1434,7 @@ func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
 	}
 }
 
-// ─── F3: Login 200 null 检测容忍尾随空白 ───
+// ─── Login 200 null 检测容忍尾随空白 ───
 
 // TestLogin_NullReturnDataWithWhitespace 验证 server 返回
 // `{"returnData": null }`(returnData 前后带空格)时,Login 应识别为 null
@@ -1493,7 +1492,7 @@ func TestLogin_NullReturnDataWithWhitespace(t *testing.T) {
 	}
 }
 
-// ─── F4: expiresAt 过去时间应触发 Warn ───
+// ─── expiresAt 为过去时间应触发 Warn ───
 
 // TestLogin_ExpiresAtInPast 验证 server 返回的 expiresAt 是过去时间
 // (1 小时前)时,Login 必须 Warn 提示 token 已过期。
@@ -1586,7 +1585,7 @@ func TestWarnIfExpiresAtFallback_NilLogger(t *testing.T) {
 	// 走到这里说明没有 panic，测试通过
 }
 
-// ─── group-B F4: Login 非预期状态码错误附 body 摘要 ───
+// ─── Login 非预期状态码错误附 body 摘要 ───
 
 // TestLogin_UnexpectedStatus_BodyInError 验证 Login 在非 200/302 状态码 +
 // 非 JSON body 时，返回的错误消息必须包含 body 摘要，否则排查困难。
@@ -1641,10 +1640,10 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 	// 关键断言：错误消息必须含 body 摘要（截断 100 字）
 	errMsg := err.Error()
 	if !strings.Contains(errMsg, "body=") {
-		t.Errorf("F4 修复契约：非预期状态码错误消息必须含 body 摘要（logSafeBody），便于排查。实际 errMsg=%q", errMsg)
+		t.Errorf("非预期状态码错误消息必须含 body 摘要（logSafeBody），便于排查。实际 errMsg=%q", errMsg)
 	}
 	// 摘要应包含原 body 的前 100 字节内容（这里 body 较短，全部包含）
 	if !strings.Contains(errMsg, "503") || !strings.Contains(errMsg, "html") {
-		t.Errorf("F4 修复契约：body 摘要应包含原 body 关键内容（503/html）。实际 errMsg=%q", errMsg)
+		t.Errorf("body 摘要应包含原 body 关键内容（503/html）。实际 errMsg=%q", errMsg)
 	}
 }

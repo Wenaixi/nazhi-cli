@@ -1,4 +1,4 @@
-// Package client 白盒测试：F2.1 cancelPlaceholder 用 %w 包装 ErrRetryable。
+// Package client 白盒测试：cancelPlaceholder 用 %w 包装 ErrRetryable。
 //
 // 修复动机：task.go 的 cancelPlaceholder = fmt.Errorf("%d 个维度因 context 取消而失败（可重试）", ...)
 // 用裸 fmt.Errorf，错误消息含「可重试」但缺少 sentinel 标识，SDK 用户只能字符串匹配。

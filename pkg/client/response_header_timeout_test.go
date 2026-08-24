@@ -1,4 +1,4 @@
-// Package client 白盒测试：F8.6 ResponseHeaderTimeout 防服务端挂起。
+// Package client 白盒测试：ResponseHeaderTimeout 防服务端挂起。
 //
 // 修复动机：newHTTPClient 的 Transport 仅设 TLSHandshakeTimeout=10s，
 // 没设 ResponseHeaderTimeout——服务端 TCP 握手完成后故意不写响应头时，

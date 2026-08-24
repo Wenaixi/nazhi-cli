@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestIsEmptyDecodeFailure_Fragility_StringTrap 复现 WARN-2 脆弱性：
+// TestIsEmptyDecodeFailure_Fragility_StringTrap 复现字符串误判为解码失败的脆弱性：
 // 旧实现用 strings.Contains("所有解码器均失败") 判断，任何包含该短语的业务错误
 // 都会被误判为“空成功”而被吞掉。修复后应基于哨兵 ErrAllDecodersFailed，
 // 此类字符串陷阱必须返回 false。
@@ -49,7 +49,7 @@ func TestIsEmptyDecodeFailure_SentinelWithRealError(t *testing.T) {
 	}
 }
 
-// TestNormalizeSelfEvalStatus_AliasNarrowing 验证 WARN-4 收窄：
+// TestNormalizeSelfEvalStatus_AliasNarrowing 验证别名收窄：
 // - 保留别名 content / teacherRemark 仍兼容
 // - 已移除的过宽别名 selfEvaluation / evaluationContent 不再生效
 func TestNormalizeSelfEvalStatus_AliasNarrowing(t *testing.T) {
@@ -73,7 +73,7 @@ func TestNormalizeSelfEvalStatus_AliasNarrowing(t *testing.T) {
 	}
 }
 
-// TestParseStudentComment 覆盖 WARN-1 二次解析 helper。
+// TestParseStudentComment 覆盖二次解析 helper。
 func TestParseStudentComment(t *testing.T) {
 	// 空串
 	m, err := ParseStudentComment("")

@@ -1,13 +1,13 @@
 // main_panic_recover_test.go 锚定。
-// F7/F9 设计契约：cmd/nazhi/main.go 顶层 main() 函数必须有 panic recover 守卫，
+// 设计契约：cmd/nazhi/main.go 顶层 main() 函数必须有 panic recover 守卫，
 // 且 recover 后必须设 pendingExitCode=1，让 main 末尾的
 // `if pendingExitCode.Load() != 0 { os.Exit(1) }` 分支触发。
 //
 // 历史：
-//   - F9（旧契约）：main.go 没有 panic recover，cobra Run 回调 panic 时
-//     Go runtime 直接打 stack trace + exit code 2，CI 无法区分「用户错误」
+//   - 旧契约缺口：main.go 没有 panic recover 时，cobra Run 回调 panic 会
+//     让 Go runtime 直接打 stack trace + exit code 2，CI 无法区分「用户错误」
 //     与「程序 bug」。
-//   - F7（当前 finding）：main.go 加了 panic recover 但**没**调 markError()，
+//   - 后续缺陷：main.go 加了 panic recover 但没调 markError()，
 //     panic 后 pendingExitCode=0，main 末尾 os.Exit(1) 分支不触发，
 //     进程以 exit 0 退出——CI 误判 panic 为成功。
 //
@@ -21,7 +21,7 @@
 // 测试策略：
 //   - TestMain_PanicRecover_ASTInspect：AST 静态扫描 main.go 含 defer recover 守卫
 //   - TestMain_PanicRecover_ExitCodeOne：AST 静态扫描 recover 闭包内含 markError
-//     或 pendingExitCode.Store(1) —— 这是本轮 F7 finding 的核心契约
+//     或 pendingExitCode.Store(1) —— 这是本轮修复的核心契约
 //   - TestMain_PanicRecover_EndToEnd：在测试进程内复现 panic 场景，验证
 //     panic recover 路径会输出 JSON envelope
 package main
@@ -42,7 +42,7 @@ import (
 
 // TestMain_PanicRecover_ASTInspect 静态扫描 main.go 函数体，断言存在
 // defer 闭包调用 recover()，且该 defer 在 main 顶层（不是某个子函数里）。
-// F9 设计：main() 顶部加
+// 设计意图：main() 顶部加
 //
 //	defer func() {
 //	    if r := recover(); r != nil {
@@ -96,13 +96,13 @@ func TestMain_PanicRecover_ASTInspect(t *testing.T) {
 	})
 
 	if !foundRecover {
-		t.Errorf("F9 未修复：main 函数没有 defer recover() 守卫。\n" +
+		t.Errorf("main 函数没有 defer recover() 守卫。\n" +
 			"cobra Run 回调 panic 时 Go runtime 默认 exit code = 2，\n" +
-			"违反 F7 '统一 exit code 1' 契约，CI 脚本无法区分用户错误与程序 bug。")
+			"违反『统一 exit code 1』契约，CI 脚本无法区分用户错误与程序 bug。")
 	}
 }
 
-// TestMain_PanicRecover_ExitCodeOne 锚定 F7 「统一 exit code 1」契约（本轮 finding）。
+// TestMain_PanicRecover_ExitCodeOne 锚定「统一 exit code 1」契约。
 //
 // finding：原 main.go 顶层 defer recover 只把 debug.Stack() 写到 stderr，
 // 没调 markError()，panic 后 pendingExitCode 仍为 0，main 函数末尾
@@ -120,7 +120,7 @@ func TestMain_PanicRecover_ASTInspect(t *testing.T) {
 func TestMain_PanicRecover_ExitCodeOne(t *testing.T) {
 	got := mainPanicRecoverSetsExitCode(t)
 	if !got {
-		t.Errorf("F7 修复：main 顶层 panic recover 闭包内必须调 markError() 或 pendingExitCode.Store(1)\n" +
+		t.Errorf("main 顶层 panic recover 闭包内必须调 markError() 或 pendingExitCode.Store(1)\n" +
 			"否则 panic 后 pendingExitCode=0，main 末尾 os.Exit(1) 分支不触发，\n" +
 			"进程以 exit 0 退出，CI 脚本误判成功。")
 	}
@@ -223,7 +223,7 @@ func TestMain_PanicRecover_EndToEnd(t *testing.T) {
 	panicCmd := &cobra.Command{
 		Use: "panic-test-cmd-f9",
 		Run: func(cmd *cobra.Command, args []string) {
-			panic("forced panic for F9 panic recover test")
+			panic("forced panic for panic recover test")
 		},
 	}
 	rootCmd.AddCommand(panicCmd)
@@ -253,19 +253,19 @@ func TestMain_PanicRecover_EndToEnd(t *testing.T) {
 
 	// 断言 1：pendingExitCode 应为 2（panic 走 envelope.Error(500, ...) → 退出码 2）
 	if got := pendingExitCode.Load(); got != 2 {
-		t.Errorf("F9 修复：panic 后 pendingExitCode 应为 2（envelope.Error(500) → 退出码 2），实际 %d", got)
+		t.Errorf("panic 后 pendingExitCode 应为 2（envelope.Error(500) → 退出码 2），实际 %d", got)
 	}
 
 	// 断言 2：stderr 应含 printError 输出（JSON envelope 或 "panic" 字样）
 	if !strings.Contains(stderrStr, `"status": "error"`) {
-		t.Errorf("F9 修复：panic 后 stderr 应含 JSON envelope，实际: %q", stderrStr)
+		t.Errorf("panic 后 stderr 应含 JSON envelope，实际: %q", stderrStr)
 	}
 	if !strings.Contains(stderrStr, "forced panic") {
-		t.Errorf("F9 修复：stderr 应含 panic 信息，实际: %q", stderrStr)
+		t.Errorf("stderr 应含 panic 信息，实际: %q", stderrStr)
 	}
 
 	// 断言 3：不应含 Go runtime stack trace
 	if strings.Contains(stderrStr, "goroutine ") && strings.Contains(stderrStr, "[running]") {
-		t.Errorf("F9 修复：panic 后 stderr 不应含 Go runtime stack trace\nstderr: %s", stderrStr)
+		t.Errorf("panic 后 stderr 不应含 Go runtime stack trace\nstderr: %s", stderrStr)
 	}
 }

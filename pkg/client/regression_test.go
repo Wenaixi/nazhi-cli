@@ -103,7 +103,7 @@ func writeSimplePNG(path string) error {
 
 // TestRegression_WithHTTPClient_NoJar_DoesNotPanic 验证传入无 cookie jar
 // 的 http.Client 时 syncCookieToken 不会 panic。
-// 修复 F8 后升级：syncCookieToken 返回 error，New() 也返回 error，
+// 修复后升级：syncCookieToken 返回 error，New() 也返回 error，
 // 测试断言 c 不为 nil（仍能 Close() 清理资源）且 err 非 nil 提示 cookie jar 问题。
 func TestRegression_WithHTTPClient_NoJar_DoesNotPanic(t *testing.T) {
 	customHTTP := &http.Client{} // 无 Jar

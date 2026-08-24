@@ -1,5 +1,5 @@
 // main_exit_cleanup_test.go 锚定（AST 静态扫描）。
-// F6 证据：原 main.go 在 `if pendingExitCode.Load() != 0 { os.Exit(1) }`
+// 历史 bug：原 main.go 在 `if pendingExitCode.Load() != 0 { os.Exit(1) }`
 // 之前没有调用 closeAllClients()，而 Go 规范明确 os.Exit 不运行
 // deferred functions，导致 main 顶部 `defer closeAllClients()` 永不执行。
 // 后果：所有 CLI 错误退出路径泄漏 ONNX session + tempDir + keep-alive 连接。
@@ -55,7 +55,7 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 		return true
 	})
 	if exitPos == 0 {
-		t.Fatal("main 函数未发现 os.Exit 调用（F6 修复契约：必须在 exit 前 closeAllClients）")
+		t.Fatal("main 函数未发现 os.Exit 调用（修复契约：必须在 exit 前 closeAllClients）")
 	}
 
 	// 3. 找 closeAllClients 调用，必须是**显式调用**（非 defer 闭包内）
@@ -128,14 +128,14 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 	visitStmts(mainFn.Body.List)
 
 	if foundClose == nil {
-		t.Errorf("F6 回归：main 函数在 os.Exit(1) (line %d) 之前没有**顶层**显式调用 closeAllClients（仅靠 defer 不算）。\n"+
+		t.Errorf("main 必须在 os.Exit(1) (line %d) 之前顶层显式调用 closeAllClients（仅靠 defer 不算）。\n"+
 			"Go 规范：os.Exit 不运行 deferred functions，仅靠 main 顶部\n"+
 			"  defer closeAllClients() 永远不会执行，所有错误退出路径\n"+
 			"  泄漏 ONNX session + tempDir + keep-alive 连接。",
 			exitLine)
 		return
 	}
-	t.Logf("✓ F6 修复锚定：closeAllClients 在 line %d 顶层显式调用，os.Exit 在 line %d",
+	t.Logf("✓ 修复锚定：closeAllClients 在 line %d 顶层显式调用，os.Exit 在 line %d",
 		closeLine, exitLine)
 }
 

@@ -1,6 +1,6 @@
 // cookie_sync_r15_test.go
-// 第15轮 F6 + cleanup-cookie 验证：
-//   - F6: c.baseURLParsed 在 New() 阶段被预解析，syncCookieToken 复用解析结果
+// cleanup-cookie 与 baseURL 预解析验证：
+//   - c.baseURLParsed 在 New() 阶段被预解析，syncCookieToken 复用解析结果
 //   - cleanup-cookie: 4 个 error path 统一使用 `syncCookieToken 失败: <cause>` 前缀
 package client
 
@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// TestNew_PreParsesBaseURL_R15C 验证 F6 修复：Client.baseURLParsed 在 New() 阶段
+// TestNew_PreParsesBaseURL_R15C 验证 Client.baseURLParsed 在 New() 阶段
 // 已被解析一次，后续 syncCookieToken 不再重复 url.Parse。
 //
 // 设计意图：把 url.Parse 从 hot path（每次 syncCookieToken 都调用）迁移到
@@ -32,7 +32,7 @@ func TestNew_PreParsesBaseURL_R15C(t *testing.T) {
 	}
 }
 
-// TestSyncCookieToken_LazyParseFallback_R15C 验证 F6 兼容性：直接构造 Client
+// TestSyncCookieToken_LazyParseFallback_R15C 验证兼容性：直接构造 Client
 // （绕过 New()）时，syncCookieToken 仍能懒解析 baseURL，保持向后兼容。
 //
 // 设计意图：测试场景常直接用 &Client{baseURL: ...} 构造，跳过 New()。

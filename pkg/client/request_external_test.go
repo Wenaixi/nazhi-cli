@@ -1,5 +1,5 @@
 // request_external_test.go 聚合 request 外部黑盒测试（package client_test）：
-//   - F28: newHTTPClient 自定义 Transport MaxIdleConnsPerHost ≥ 8
+//   - newHTTPClient 自定义 Transport MaxIdleConnsPerHost ≥ 8
 //   - TransportIdleConnPoolShared: 8 路并发不触发额外握手
 package client_test
 
@@ -13,10 +13,10 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// ─── request_transport_test.go (F28): 自定义 Transport ───
+// ─── request_transport_test.go: 自定义 Transport ───
 
 // TestNewHTTPClient_UsesCustomTransport 验证 newHTTPClient 不再回退到 http.DefaultTransport。
-// 背景：F28 — newHTTPClient 未自定义 Transport，复用全局 http.DefaultTransport，
+// 背景：newHTTPClient 未自定义 Transport，复用全局 http.DefaultTransport，
 // 而 DefaultTransport 的 MaxIdleConnsPerHost=2。FetchTasks 8 路并发打到同一 biz host 时，
 // 第 3-8 路必须重新握手，wall time 增加 ~1-4s。
 // 修复：newHTTPClient 现在返回自定义 &http.Transport{MaxIdleConns: 100,
@@ -44,7 +44,7 @@ func TestNewHTTPClient_UsesCustomTransport(t *testing.T) {
 
 	// 必须不等于 http.DefaultTransport（否则修改无意义）
 	if tr == http.DefaultTransport {
-		t.Error("newHTTPClient 不应复用 http.DefaultTransport（这是 F28 的根本原因）")
+		t.Error("newHTTPClient 不应复用 http.DefaultTransport")
 	}
 }
 

@@ -1,7 +1,7 @@
 // task_external_test.go 聚合 task.go 外部黑盒测试（package client_test）：
-//   - F2: FetchTasks errgroup.SetLimit(8) 并发上限
-//   - F12 PLAUSIBLE: FetchTasks 并发拉取维度（性能 + 计数）
-//   - F4: 部分维度失败时聚合 partial failures
+//   - FetchTasks errgroup.SetLimit(8) 并发上限
+//   - FetchTasks 并发拉取维度（性能 + 计数）
+//   - 部分维度失败时聚合 partial failures
 //   - ctx: context 取消 propagate（无 partial / 有 partial 两种路径）
 //   - GetDimensions: 维度列表 + 业务错误
 package client_test
@@ -21,17 +21,17 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// ─── task_concurrent_limit_test.go (F2): FetchTasks 并发上限 ───
+// ─── task_concurrent_limit_test.go: FetchTasks 并发上限 ───
 
-// TestFetchTasks_ConcurrentLimitBounded 回归测试 F2：FetchTasks 的维度并发拉取
+// TestFetchTasks_ConcurrentLimitBounded 回归测试：FetchTasks 的维度并发拉取
 // 必须有上限（errgroup.SetLimit），避免 N=50+ 维度的业务场景爆掉服务端。
 // 测试策略：
 // - mock server 返回 20 个维度（id=1..20，id=0 会跳过）
 // - 每个 getCircleStatistics sleep 50ms（足够长让并发 goroutine 同时在飞）
 // - 服务端用 atomic 跟踪当前正在处理的请求数（in-flight），记录峰值
 // - 断言峰值 ≤ 预期上限（min(20, 8) = 8）
-// 历史 bug（F12 PLAUSIBLE）：原实现对每个 dimension 起一个 goroutine，TODO 注释
-// 提到"如未来接入 > 50 维度需引入 semaphore"但没真做。F2 修复落实 semaphore，
+// 历史 bug：原实现对每个 dimension 起一个 goroutine，TODO 注释
+// 提到"如未来接入 > 50 维度需引入 semaphore"但没真做。现实现落实 semaphore，
 // 上限 = min(len(dimensions), 8)。
 func TestFetchTasks_ConcurrentLimitBounded(t *testing.T) {
 	const (
@@ -104,7 +104,7 @@ func TestFetchTasks_ConcurrentLimitBounded(t *testing.T) {
 	}
 }
 
-// ─── task_concurrent_test.go (F12): FetchTasks 并发拉取维度 ───
+// ─── task_concurrent_test.go: FetchTasks 并发拉取维度 ───
 
 // TestFetchTasks_Parallel 验证 FetchTasks 并发拉取多维度任务。
 // 场景：mock server 返回 5 个维度，每个维度的 getCircleStatistics
@@ -547,7 +547,7 @@ func TestGetCircleTypeByTaskID_BizError(t *testing.T) {
 	}
 }
 
-// ─── task_cancelled_count_test.go (group-B F1): 失败数不虚高 ───
+// ─── task_cancelled_count_test.go: 失败数不虚高 ───
 
 // TestFetchTasks_MixedBizAndCancel_FailedCountAccurate 验证混合场景下：
 //   - 2 个维度立即返回真业务错误（code=0 → 进 dimErrs 走 bizErrs 路径）
@@ -659,13 +659,13 @@ func TestFetchTasks_MixedBizAndCancel_FailedCountAccurate(t *testing.T) {
 	//
 	// 严格断言：错误消息不应包含"全部 3 个维度"（虚高）或"3 个维度部分失败"（虚高）。
 	if strings.Contains(errMsg, "全部 3 个维度") {
-		t.Errorf("F1 虚高：failedCount 含占位 → 错误包含 %q，应 = 2。errMsg=%s", "全部 3 个维度", errMsg)
+		t.Errorf("failedCount 含占位导致虚高 → 错误包含 %q，应 = 2。errMsg=%s", "全部 3 个维度", errMsg)
 	}
 	if strings.Contains(errMsg, "3 个维度部分失败") {
-		t.Errorf("F1 虚高：failedCount 含占位 → 错误包含 %q，应 = 2 个真业务。errMsg=%s", "3 个维度部分失败", errMsg)
+		t.Errorf("failedCount 含占位导致虚高 → 错误包含 %q，应 = 2 个真业务。errMsg=%s", "3 个维度部分失败", errMsg)
 	}
 	// 反向断言：应出现"全部 2 个维度"或"2 个维度部分失败"。
 	if !strings.Contains(errMsg, "全部 2 个维度") {
-		t.Errorf("F1 应体现 2 个真业务失败，但 errMsg 未出现 %q。errMsg=%s", "全部 2 个维度", errMsg)
+		t.Errorf("应体现 2 个真业务失败，但 errMsg 未出现 %q。errMsg=%s", "全部 2 个维度", errMsg)
 	}
 }

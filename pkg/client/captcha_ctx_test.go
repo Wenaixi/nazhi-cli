@@ -99,7 +99,7 @@ func TestOCRRetry_RespectsContextCancel(t *testing.T) {
 	_, err := c.ocrRecognizeWithRetry(ctx)
 	elapsed := time.Since(start)
 
-	t.Logf("F11 debug: serverHits=%d ocrCalls=%d elapsed=%v err=%v",
+	t.Logf("debug: serverHits=%d ocrCalls=%d elapsed=%v err=%v",
 		atomic.LoadInt32(&serverHits), atomic.LoadInt32(&mock.ocrCalls), elapsed, err)
 
 	// 关键断言 1：循环退出时间 < 1s

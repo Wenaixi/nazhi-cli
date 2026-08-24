@@ -252,7 +252,7 @@ func TestActivateSession_AllStepsSucceed(t *testing.T) {
 	}
 }
 
-// TestActivateSession_Step4FailsPropagates 回归测试（F10）：
+// TestActivateSession_Step4FailsPropagates 回归测试：
 // 步骤 4（getMyInfo）业务错误时 ActivateSession 必须返回 error。
 // 历史 bug：session.go 步骤 4 失败时仅 logDebug，继续走步骤 3 兜底解析。
 // 修复后 4 步 HAR 契约中任一失败 propagate，调用方能立即看到根因。
@@ -279,7 +279,7 @@ func TestActivateSession_Step4FailsPropagates(t *testing.T) {
 		t.Fatal("步骤 4 业务错误应 propagate error，实际 nil")
 	}
 	if userInfo != nil && userInfo.Name == "兜底用户" {
-		t.Error("步骤 4 失败不应再走步骤 3 兜底解析（F10 修复）")
+		t.Error("步骤 4 失败不应再走步骤 3 兜底解析")
 	}
 	t.Logf("步骤 4 错误正确 propagate: %v", err)
 }
@@ -487,9 +487,9 @@ func TestDoGetMenu_Step2And3Refactor(t *testing.T) {
 	}
 }
 
-// ─── session_referer_encode_test.go (F1): 步骤 2 Referer token URL 编码 ───
+// ─── session_referer_encode_test.go: 步骤 2 Referer token URL 编码 ───
 
-// TestActivateSession_Step2RefererEncodesToken 回归测试（F1）：
+// TestActivateSession_Step2RefererEncodesToken 回归测试：
 // 步骤 2 的 Referer 中 token 字段必须经过 URL 编码。
 // 历史 bug：session.go:36 步骤 2 用 c.baseURL+"/homepage?token="+token
 // 直接拼接，token 若包含 &、=、空格等字符会破坏 Referer URL 结构。
@@ -553,9 +553,9 @@ func TestActivateSession_Step2RefererEncodesToken(t *testing.T) {
 	}
 }
 
-// ─── session_step4_error_test.go (F10): 步骤 4 错误 propagate ───
+// ─── session_step4_error_test.go: 步骤 4 错误 propagate ───
 
-// TestActivateSession_Step4ErrorPropagates 回归测试（F10）：
+// TestActivateSession_Step4ErrorPropagates 回归测试：
 // 步骤 4 getMyInfo 失败时 ActivateSession 必须返回 error，**不**走兜底掩盖路径。
 // 历史 bug：session.go:48 步骤 4 getMyInfoRaw 失败时仅 logDebug，继续走
 // 步骤 3 兜底解析。最坏情况返回仅有 Raw 字段的 UserInfo + nil error，

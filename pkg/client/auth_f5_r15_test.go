@@ -1,5 +1,5 @@
 // auth_f5_r15_test.go
-// F5 验证：Login 流程 GetSchoolID + OCR 通过 errgroup 并发执行。
+// 验证 Login 流程 GetSchoolID + OCR 通过 errgroup 并发执行。
 //
 // 串行基线（旧）：InitSession → GetSchoolID → OCR → validateCaptcha → login
 // 并发优化（新）：InitSession → (GetSchoolID || OCR) → validateCaptcha → login
@@ -26,7 +26,7 @@ type fakeOCRF5 struct{}
 func (*fakeOCRF5) Recognize(_ []byte) (string, error) { return "ABCD", nil }
 func (*fakeOCRF5) Close() error                       { return nil }
 
-// TestLogin_ParallelF5_R15C 验证 F5：GetSchoolID 与 OCR 并发执行。
+// TestLogin_ParallelF5_R15C 验证 GetSchoolID 与 OCR 并发执行。
 //
 // 设计：两个 handler 各自 sleep 50ms，并发场景总耗时 ~50ms（max 而非 sum 100ms）。
 func TestLogin_ParallelF5_R15C(t *testing.T) {
@@ -144,6 +144,6 @@ func TestLogin_ParallelF5_R15C(t *testing.T) {
 	if elapsed > 150*time.Millisecond {
 		t.Logf("WARNING: 耗时 %v 略高（期望约 80ms），可能并发未完全生效", elapsed)
 	} else {
-		t.Logf("F5 验证通过：耗时 ~%v（串行基线 ~100ms）证明并发生效", elapsed)
+		t.Logf("并发验证通过：耗时 ~%v（串行基线 ~100ms）证明并发生效", elapsed)
 	}
 }

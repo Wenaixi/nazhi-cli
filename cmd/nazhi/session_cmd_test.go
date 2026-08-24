@@ -53,12 +53,12 @@ func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string
 	cmd := &cobra.Command{Use: "session-activate"}
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
-	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	// 必须显式 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
 	if err := cmd.Flags().Set("token", token); err != nil {
 		t.Fatalf("set token flag: %v", err)
 	}
 	cmd.Flags().String("base-url", "", "")
-	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	// 必须显式 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
 	if err := cmd.Flags().Set("base-url", srv.URL); err != nil {
 		t.Fatalf("set base-url flag: %v", err)
 	}
@@ -66,7 +66,7 @@ func makeSessionActivateTestCmd(t *testing.T, token string, getMyInfoBody string
 	return cmd
 }
 
-// TestSessionActivate_EmptyUserInfo_StatusEnvelope 回归测试 F10
+// TestSessionActivate_EmptyUserInfo_StatusEnvelope 回归测试：空 UserInfo 输出 status envelope
 // session activate 命令在 ActivateSession 返回 (nil, ErrEmptyUserInfo) 时
 // 必须输出 status envelope，**不**输出裸 null。
 // 失败场景：cmd/nazhi/session.go:38 printJSON(info) → 输出 `null\n`
@@ -111,12 +111,12 @@ func TestSessionActivate_EmptyUserInfo_StatusEnvelope(t *testing.T) {
 
 	// stderr 不应有 error 标记
 	if strings.Contains(stderr, `"status": "error"`) {
-		t.Errorf("stderr 不应包含 error JSON（F10 修复后输出 envelope.Empty），实际: %q", stderr)
+		t.Errorf("stderr 不应包含 error JSON（应输出 envelope.Empty），实际: %q", stderr)
 	}
 
 	// stdout 应输出 envelope.Empty 而非裸 null
 	if strings.TrimSpace(stdout) == "null" {
-		t.Errorf("stdout 不应是裸 null（F10 修复后输出 envelope.Empty），实际: %q", stdout)
+		t.Errorf("stdout 不应是裸 null（应输出 envelope.Empty），实际: %q", stdout)
 	}
 	if !strings.Contains(stdout, `"status": "success"`) {
 		t.Errorf("stdout 应包含 status=success（envelope.Empty），实际: %q", stdout)
@@ -168,7 +168,7 @@ func TestSessionActivate_ValidUserInfo_OutputsUserInfo(t *testing.T) {
 // 防止 errors 包未使用（编译静态检查）
 var _ = errors.Is
 
-// TestSessionActivate_ErrSessionBackoff_CooldownMessage 回归测试 F4
+// TestSessionActivate_ErrSessionBackoff_CooldownMessage 回归测试 backoff 冷却提示
 // session activate 命令在 ActivateSession 返回 ErrSessionBackoff 时
 // 必须输出 friendly cooldown 提示（不输出 error JSON / 不标记退出码 1）。
 // 历史问题：ErrSessionBackoff 哨兵在 cmd/nazhi 层零消费

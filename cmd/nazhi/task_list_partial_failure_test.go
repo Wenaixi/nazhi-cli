@@ -84,12 +84,12 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 	cmd := &cobra.Command{Use: "task-list"}
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
-	// F7 适配：必须 Set 让 Changed()=true。
+	// 必须显式 Set 让 Changed()=true（flagChanged 守卫要求）。
 	if err := cmd.Flags().Set("token", "test-token"); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
 	cmd.Flags().String("base-url", "", "")
-	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	// 必须显式 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
 	if err := cmd.Flags().Set("base-url", srv.URL); err != nil {
 		_ = t
 	}
@@ -137,7 +137,7 @@ func TestTaskList_PartialFailure_OutputsEnvelope(t *testing.T) {
 	}
 }
 
-// TestTaskList_AllFailure_StillPrintsError 验证 F9 边界：全失败场景下
+// TestTaskList_AllFailure_StillPrintsError 验证全失败边界场景：
 // 仍走 printError 路径（不是 partial 路径），符合「全维度无成功数据 → 无法输出 envelope」的语义。
 func TestTaskList_AllFailure_StillPrintsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -172,12 +172,12 @@ func TestTaskList_AllFailure_StillPrintsError(t *testing.T) {
 	cmd := &cobra.Command{Use: "task-list"}
 	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
-	// F7 适配：必须 Set 让 Changed()=true。
+	// 必须显式 Set 让 Changed()=true（flagChanged 守卫要求）。
 	if err := cmd.Flags().Set("token", "test-token"); err != nil {
 		t.Fatalf("set token: %v", err)
 	}
 	cmd.Flags().String("base-url", "", "")
-	// B12 适配：必须 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
+	// 必须显式 Set 让 Changed()=true，否则 buildClientOpts 走 env fallback。
 	if err := cmd.Flags().Set("base-url", srv.URL); err != nil {
 		_ = t
 	}

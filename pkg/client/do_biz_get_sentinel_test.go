@@ -1,4 +1,4 @@
-// Package client 白盒测试：G2 doBizGet 非 200 响应包装 sentinel。
+// Package client 白盒测试：doBizGet 非 200 响应包装 sentinel。
 //
 // 修复动机：doBizGet 收到非 200 时用 fmt.Errorf 裸返回，SDK 用户无法
 // errors.Is 识别原因（限流 / 服务端异常 / HTTP 层错误），只能字符串匹配。

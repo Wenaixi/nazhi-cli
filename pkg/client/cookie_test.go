@@ -62,7 +62,7 @@ func TestSyncCookieToken_OnlySetsCookieOnBaseURL(t *testing.T) {
 	}
 }
 
-// ─── sync_cookie_url_error_test.go (F5): baseURL 畸形 propagate ───
+// ─── sync_cookie_url_error_test.go: baseURL 畸形 propagate ───
 
 // malformedBaseURL 是会让 url.Parse 失败的固定输入：含 DEL (0x7f) 控制字符。
 // 用 const 保证断言能精确匹配 error 中的 raw 字符串。

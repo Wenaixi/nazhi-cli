@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// TestLogDebug_NilLogger_NoPanic 回归测试（A2）：
+// TestLogDebug_NilLogger_NoPanic 回归测试：
 // c.logger 为 nil 时 logDebug 不应 panic，静默返回。
 func TestLogDebug_NilLogger_NoPanic(t *testing.T) {
 	c := &Client{
@@ -26,7 +26,7 @@ func TestLogDebug_NilLogger_NoPanic(t *testing.T) {
 	c.logDebug("test format: %s %d", "hello", 42)
 }
 
-// TestLogDebug_LevelWarn_Silent 回归测试（A3）：
+// TestLogDebug_LevelWarn_Silent 回归测试：
 // LevelWarn 下 logDebug 应跳过（不调用 handler），避免 hot loop 中
 // 不必要的 fmt.Sprintf 分配（OCR 99 张图 × 5 个 logDebug = 500+ 次 wasted alloc）。
 func TestLogDebug_LevelWarn_Silent(t *testing.T) {
@@ -72,7 +72,7 @@ func (h *callRecorderHandler) WithGroup(name string) slog.Handler {
 	return &callRecorderHandler{next: h.next.WithGroup(name), called: h.called}
 }
 
-// TestLogDebug_DebugEnabled_CallsHandler 正向验证（A3）：
+// TestLogDebug_DebugEnabled_CallsHandler 正向验证：
 // LevelDebug 下 logDebug 正常调用 handler。
 func TestLogDebug_DebugEnabled_CallsHandler(t *testing.T) {
 	var logBuf bytes.Buffer

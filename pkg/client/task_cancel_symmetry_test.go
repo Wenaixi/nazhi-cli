@@ -1,10 +1,10 @@
-// Package client 白盒测试：F2.2 cancel 路径对称性。
+// Package client 白盒测试：cancel 路径对称性。
 //
 // 修复动机：task.go 的 cancel 路径有 2 个分支：
 //   - 纯 cancel 路径（bizErrs 空 + cancelledCount > 0）：errors.Join 含 cancelPlaceholder
 //   - 混合路径（bizErrs 非空 + cancelledCount > 0）：errors.Join 含 cancelPlaceholder，再包装 ErrBusinessRejected
 //
-// F2.1 改 cancelPlaceholder = fmt.Errorf("%w: ...", ErrRetryable, ...) 后，
+// cancelPlaceholder 改为 fmt.Errorf("%w: ...", ErrRetryable, ...) 后，
 // 两路径走 errors.Join 都会让最终 error 链上含 ErrRetryable。
 //
 // 本测试锁死「两路径都 errors.Is(err, ErrRetryable) 命中」的不变量，

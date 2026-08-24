@@ -1,6 +1,6 @@
 // client_builder_upload_token_test.go 锚定
 // buildClientOpts 在 urlType=="upload" 路径必须短路 token 读取。
-// F16 证据：原 buildClientOpts 无条件读 NAZHI_TOKEN（不依赖 urlType）
+// 原实现无条件读 NAZHI_TOKEN（不依赖 urlType）
 // 即使 file upload 命令显式不提供 --token flag，NAZHI_TOKEN 环境变量
 // 仍会被注入到 pendingToken → syncCookieToken 写 cookie jar 到 sso/api
 // 域，违反 fileUploadCmd 文档契约「本命令不接受 --token 参数」。
@@ -34,7 +34,7 @@ func TestBuildClientOpts_UploadIgnoresNAZHI_TOKEN(t *testing.T) {
 	}
 
 	if token != "" {
-		t.Errorf("F16 回归：urlType=upload 路径返回 token=%q，期望空字符串。"+
+		t.Errorf("urlType=upload 路径返回 token=%q，期望空字符串。"+
 			"file upload 命令不接受 token，NAZHI_TOKEN 应被短路，"+
 			"否则 syncCookieToken 会写 cookie 到 sso/api 域",
 			token)
@@ -58,7 +58,7 @@ func TestBuildClientOpts_UploadIgnoresExplicitTokenFlag(t *testing.T) {
 	}
 
 	if token != "" {
-		t.Errorf("F16 回归：urlType=upload 路径读到 --token=%q，期望空字符串",
+		t.Errorf("urlType=upload 路径读到 --token=%q，期望空字符串",
 			token)
 	}
 }

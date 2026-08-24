@@ -1,4 +1,4 @@
-// Package client 内部白盒测试 — F2 锁定 strings.Contains 语义。
+// Package client 内部白盒测试 — 锁定 strings.Contains 语义。
 package client
 
 import (
@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestF2_StringsContainsStandardLibrary 回归测试（F2）：
+// TestF2_StringsContainsStandardLibrary 回归测试：
 // session_concurrent_test.go 自造 contains() 改用 strings.Contains 后，
 // 显式锁定标准库语义以防"自造轮子"再次潜入。
 // 历史 bug：原 contains() 函数自造避免导入 strings，注释称"防止额外

@@ -18,7 +18,7 @@ func (m *panicMockOCR) Recognize([]byte) (string, error) {
 }
 func (m *panicMockOCR) Close() error { return nil }
 
-// TestOCRRecognize_PanicRecover 回归测试（A5）：
+// TestOCRRecognize_PanicRecover 回归测试：
 // Recognize panic 应被 recover 并转为 error，不崩溃进程。
 func TestOCRRecognize_PanicRecover(t *testing.T) {
 	defer func() {

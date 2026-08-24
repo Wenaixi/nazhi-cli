@@ -1,5 +1,5 @@
 // task_test.go 聚合 task.go 内部白盒测试（package client）：
-//   - G2: fetchTasksForDimensionSafe panic recover
+//   - fetchTasksForDimensionSafe panic recover
 //   - SubmitTask 业务错误分类
 package client
 
@@ -22,9 +22,9 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// ─── task_panic_recover_test.go (G2): panic recover ───
+// ─── task_panic_recover_test.go: panic recover ───
 
-// TestFetchTasksForDimensionSafe_RecoversFromPanic 白盒验证 G2 修复。
+// TestFetchTasksForDimensionSafe_RecoversFromPanic 白盒验证 recover 行为。
 // 构造路径：c.http=nil → fetchTasksForDimension 内部 c.activateSessionIfNeeded
 // 调用 c.http.Do() → nil pointer dereference panic。
 // fetchTasksForDimensionSafe 的 defer recover 把 panic 转成 error 返回。
@@ -55,7 +55,7 @@ func TestFetchTasksForDimensionSafe_RecoversFromPanic(t *testing.T) {
 	if !strings.Contains(err.Error(), "panic-dim") {
 		t.Errorf("err 应含 dim 名称 panic-dim 便于定位，实际: %v", err)
 	}
-	t.Logf("G2 修复验证：panic 被 recover 捕获，err=%v", err)
+	t.Logf("panic 被 recover 正确捕获，err=%v", err)
 }
 
 // ─── submit_task_error_type_test.go: SubmitTask 业务错误分类 ───
