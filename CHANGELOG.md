@@ -1,5 +1,15 @@
 # CHANGELOG
 
+## [未发布]
+
+### 新增
+
+- UploadFile 非图片直传白名单加入 .pdf（2MB 原样直传，与 doc/zip 同路径）；新增 file_upload_pdf_test.go 锁死「字节不改写、文件名保留、超限本地拒绝」三行为。用户需求：典型案例附件需支持 PDF。
+
+### 病毒扫描
+
+- 新增 WithClamavScanner Option：注入 clamd INSTREAM 扫描器后，UploadFile 在任何网络请求之前对完整上传字节做病毒扫描，检出/失败一律 fail-closed 拒绝（ErrVirusDetected / ErrScanUnavailable）。未注入时行为不变。
+
 ## [1.5.0] - 2026-08-24
 
 ### 修复

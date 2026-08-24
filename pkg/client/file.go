@@ -26,6 +26,7 @@ import (
 const MaxAttachmentSize = 2 * 1024 * 1024
 
 var directUploadExtensions = map[string]struct{}{
+	".pdf":  {},
 	".mp4":  {},
 	".txt":  {},
 	".doc":  {},
