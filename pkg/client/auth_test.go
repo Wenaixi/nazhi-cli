@@ -1655,7 +1655,9 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 // 场景：getSchoolIdByStudentNumber 返回 500（SSO 宕机现实场景），
 // Login 未配置 SchoolID 时走 GetSchoolID 并发分支。
 func TestLogin_GetSchoolIDError_DoesNotLeakUsername(t *testing.T) {
-	const secretUser = "G350181200912110035"
+	// 假用户名：模拟学号进查询串的场景。不能用真实学号（PII 守卫测试拦截），
+	// 也不能用 G+18 位同形假号（同样被格式正则拦截）；掩蔽逻辑与具体值无关。
+	const secretUser = "TESTUSER20260825"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
