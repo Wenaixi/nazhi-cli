@@ -99,6 +99,22 @@ var urlOptMap = map[string]urlOptDef{
 	"upload": {"upload-url", "NAZHI_UPLOAD_URL", client.WithUploadURL},
 }
 
+// resolveTimeoutSec 解析最终生效的 HTTP 超时秒数：flag 显式值优先，
+// 未显式时回落 NAZHI_TIMEOUT 等环境变量，均非法（≤0）时回退注册默认 15 秒并告警。
+// 三通道同因同果：flag 非法与 env 非法产出一致（此前 30 秒兜底与 15 秒默认分叉）。
+func resolveTimeoutSec(cmd *cobra.Command, envKey string) int {
+	const defaultTimeout = 15
+	timeoutSec, _ := cmd.Flags().GetInt("timeout")
+	if !flagChanged(cmd, "timeout") {
+		timeoutSec = envInt(envKey, timeoutSec)
+	}
+	if timeoutSec <= 0 {
+		fmt.Fprintf(os.Stderr, "warn: timeout 值 %d 无效（flag 或环境变量），使用默认 %d 秒超时\n", timeoutSec, defaultTimeout)
+		return defaultTimeout
+	}
+	return timeoutSec
+}
+
 // buildClientOpts 构造 client.Option 列表，是 buildClient 与 buildBizClient 共享核心。
 func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requireToken bool) ([]client.Option, string, error) {
 	var token string
@@ -109,18 +125,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		return nil, "", fmt.Errorf("--token 为必填（也可通过 NAZHI_TOKEN 环境变量设置）")
 	}
 
-	timeoutSec, _ := cmd.Flags().GetInt("timeout")
-	if !flagChanged(cmd, "timeout") {
-		timeoutSec = envInt(timeoutEnv, timeoutSec)
-	}
-	const defaultTimeout = 30
-	if timeoutSec <= 0 {
-		if flagChanged(cmd, "timeout") {
-			fmt.Fprintf(os.Stderr, "warn: --timeout 0 无效，使用默认 %d 秒超时\n", defaultTimeout)
-		}
-		timeoutSec = defaultTimeout
-	}
-
+	timeoutSec := resolveTimeoutSec(cmd, timeoutEnv)
 	opts := []client.Option{client.WithTimeout(time.Duration(timeoutSec) * time.Second)}
 
 	if token != "" {
