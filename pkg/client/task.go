@@ -24,6 +24,10 @@ import (
 // 如未来业务接口维度数 > 50，可考虑调到此常量或暴露为 Client 字段。
 const fetchTasksConcurrentLimit = 8
 
+// maxTaskContentRunes 是写实 content 的字数上限，对齐前端 el-input
+// maxlength="200"（managementRightBottom.vue:389，浏览器硬截断）。
+const maxTaskContentRunes = 200
+
 // appendLocked 在 mu 锁内安全地追加 items 到 slice。
 //
 // 消除 FetchTasks goroutine 闭包内重复的 mu.Lock + append + mu.Unlock 模式。
@@ -243,6 +247,13 @@ func parseHours(userInput string, metaHours float64, targetType int) (float64, e
 func (c *Client) buildTaskPayload(ctx context.Context, token string, input types.TaskInput, callerName string, uploader func(context.Context, string) (*types.UploadFileResult, error)) (*types.TaskAddCirclePayload, error) {
 	if err := input.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
+	}
+
+	// content ≤200 字：前端 el-input maxlength="200" 为浏览器硬截断，线上恒发 ≤200；
+	// SDK 不静默截断也不放行超长原文，与前端 wire 行为对齐为显式拒绝（按 rune 计数）。
+	if content := input.GetContent(); len([]rune(content)) > maxTaskContentRunes {
+		return nil, fmt.Errorf("%w: content 超过 %d 字上限（收到 %d 字）",
+			ErrInvalidPayload, maxTaskContentRunes, len([]rune(content)))
 	}
 
 	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
