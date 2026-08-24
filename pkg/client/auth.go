@@ -99,8 +99,8 @@ var ocrTimeout = 120 * time.Second
 
 // Login 完成 SSO 登录并返回 Token。
 //
-// F5 优化：GetSchoolID 和 OCR 验证码识别无数据依赖，通过 errgroup 并发执行。
-// InitSession 必须在 OCR 之前完成（需要先建立 JSESSIONID Cookie）。
+// GetSchoolID 与 OCR 验证码识别无数据依赖，通过 errgroup 并发执行。
+// InitSession 必须在两者之前完成（需要先建立 JSESSIONID Cookie）。
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
 	if c.ocr == nil {
 		return nil, ErrOCRNotConfigured
@@ -114,7 +114,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return nil, fmt.Errorf("Login InitSession 失败: %w", err)
 	}
 
-	// 步骤 2&3: GetSchoolID + OCR 识别并发进行（F5 无数据依赖）
+	// 步骤 2&3: GetSchoolID + OCR 识别并发进行（两者无数据依赖）
 	schoolID := req.SchoolID
 	var captcha string
 
@@ -212,11 +212,8 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	} else if err := types.CheckCode(errResp); err != nil {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
-	// F4 修复：非预期状态码错误消息附 logSafeBody(bodyBytes) 截断摘要（100 字节）。
-	// 修复前错误消息仅含 "非预期状态码 %d"，body 信息丢给 c.logDebug（默认 LevelWarn
-	// 下被静默过滤），用户必须开 verbose 才能定位。修复后错误消息直接带 body 片段，
-	// 用户无论 verbose 与否都能在打印的 error 上看到原始响应摘要（典型 nginx 503
-	// HTML、CDN challenge、HTML 错误页等）。
+	// 错误消息附带 logSafeBody 截断摘要：非预期状态码的典型场景是 nginx 503、
+	// CDN challenge 等 HTML 响应；不带 body 片段时用户难以定位根因。
 	return nil, fmt.Errorf("%w: 非预期状态码 %d body=%s",
 		ErrLoginRejected, httpResp.StatusCode, logSafeBody(bodyBytes))
 }
@@ -227,23 +224,21 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 // 检测两类异常:
 //
 //  1. fallback 触发：server 响应没带 expires_in/exp 且 JWT payload 也无 exp 声明，
-//     退回到 now+24h 兜底。此时 remaining 精确 ≈24h（±4h 窗口）。
+//     退回到 now+24h 兜底。此时 remaining ≈24h（22h–25h 区间即视为兜底）。
 //  2. 已过期/即将过期：剩余寿命 < expiresFallbackThreshold，server 给的 exp
 //     已是过去时间（或剩余过短），首次业务调用会立即 401。
 //
 // tokenparse 的 extractExpFromJWT 从 JWT payload 提取 exp 声明后，
 // server 不传 expires_in/exp 时不再立即触发 24h 兜底 warn——JWT 自身的 exp 声明
-// 仍是服务端签发的合法过期时间。仅当精确检测到 24h 兜底（≈24h 窗口）时才 warn。
-//
-// F4 修复前：只检测 (1)，过去时间 time.Until 为负数不大于 23h → 静默吞下。
-// F4 修复后：合并 (1) + (2)，两条都覆盖。
+// 仍是服务端签发的合法过期时间。仅当检测到 24h 兜底（22h–25h 区间）时才 warn。
+// 两类异常均覆盖：过去时间的 remaining 为负，同样落入检测范围。
 func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 	if c.logger == nil {
 		return
 	}
 	remaining := time.Until(expiresAt)
-	// 精确检测 24h 兜底：remaining 恰好 ≈24h（±4h 窗口）。
-	// JWT 自身的 exp（如 14 天）不是 fallback，只有精确匹配 24h 窗口才是真兜底。
+	// 检测 24h 兜底：remaining ≈24h（22h–25h 区间即视为兜底）。
+	// JWT 自身的 exp（如 14 天）不是 fallback，只有落在该区间才是真兜底。
 	if remaining > tokenparse.DefaultTokenTTL-2*expiresFallbackThreshold &&
 		remaining < tokenparse.DefaultTokenTTL+expiresFallbackThreshold {
 		c.logger.Warn("Login token 剩余寿命恰好 ≈24h，服务器可能未带 expires_in/exp",
@@ -345,8 +340,7 @@ var captchaSeq atomic.Int64
 
 // fetchCaptchaImage 拉取一张新的验证码图片。
 //
-// 删除冗余的 t= 时间戳参数（seq 原子计数器已足够防缓存碰撞），
-// 改用 url.Values 编码替代 fmt.Sprintf+strconv.FormatInt 混合拼接风格。
+// seq 原子计数防缓存碰撞，查询串经 url.Values 编码。
 func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
 	seq := captchaSeq.Add(1)
 	u := c.ssoURL("/kaptcha/kaptcha.jpg", url.Values{"seq": {strconv.FormatInt(seq, 10)}})

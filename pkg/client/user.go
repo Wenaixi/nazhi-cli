@@ -26,9 +26,8 @@ import (
 //
 // 业务成功但无数据时返回 ErrEmptyUserInfo 哨兵，cmd 层可据此走 status envelope。
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error) {
-	// B10 修复：activateSessionIfNeeded 返回步骤 4 获取的 UserInfo（若激活由
-	// 步骤 4 完成），GetMyInfo 直接复用，避免重复的 getMyInfoRaw HTTP 请求。
-	// session 已激活（fast path）时返回 nil,nil。
+	// ActivateSession 若由步骤 4 完成激活会返回其获取的 UserInfo；
+	// GetMyInfo 直接复用避免重复请求。session 已激活（fast path）时返回 nil,nil。
 	info, err := c.ActivateSession(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("GetMyInfo 预热 session 失败: %w", err)
@@ -40,7 +39,7 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 }
 
 // getMyInfoRaw 是 GetMyInfo 的内部版本（不预热 session），供 ActivateSession
-// 步骤 4 调用——避免外层 sm.mu（sync.Mutex） 持锁时再次进入 sm.mu（sync.Mutex） 死锁。
+// 步骤 4 调用——避免外层持 sm.mu 时重入死锁。
 //
 // 注意：本方法不迁移到 doBizGetDecode，因为它需要自定义 Referer header (/modify)，
 // 而 doBizGetDecode/doBizAndDecode 内部固定使用 bizHeaders()（Referer=/homepage）。

@@ -56,8 +56,7 @@ func (c *Client) SubmitSelfEvaluationStructured(ctx context.Context, token strin
 
 // QuerySelfEvaluation 查询自我评价状态 + 教师评语。
 //
-// 使用 doBizGetDecode 的 fallback 链（returnData → dataMap → dataList[0]），
-// 替换原有的 selfEvalGet + tryDecodeFallback 模式。
+// 使用 doBizGetDecode 的 fallback 链（returnData → dataMap → dataList[0]）。
 //
 // 空数据契约：服务端 code=1 但尚未提交评价（returnData/dataMap/dataList 全空，
 // 或解码后归一化为 nil）时返回 (nil, nil)，与 QuerySelfEvaluationJSON 对齐。
@@ -162,7 +161,7 @@ func normalizeSelfEvalStatus(m map[string]any) *types.SelfEvalStatus {
 	if len(m) == 0 {
 		return nil
 	}
-	// 字段别名策略（已收窄，WARN-4）：
+	// 字段别名策略：
 	//
 	// - 主路径：types.SelfEvalStatus 的 JSON tag 为 studentComment/teacherComment，
 	//   同时兼容平台真实返回的 snake_case（student_comment/teacher_comment），
@@ -182,7 +181,7 @@ func normalizeSelfEvalStatus(m map[string]any) *types.SelfEvalStatus {
 	return status
 }
 
-// ParseStudentComment 解析结构化自评的二次 JSON（WARN-1 显式 helper）。
+// ParseStudentComment 解析结构化自评的二次 JSON。
 //
 // 对应前端 selfgaintloss.vue：querySelfEvaluation 返回的 dataMap.student_comment
 // 本身是 JSON.stringify(form) 的字符串，需二次 JSON.parse 才能得到表单对象。
@@ -266,8 +265,7 @@ func firstInt64(m map[string]any, keys ...string) int64 {
 // QuerySelfGradEvaluation 查询毕业状态。
 //
 // CLI 通过 QuerySelfGradEvaluationJSON 透传原始 JSON（self-eval grad-status）。
-// 使用 doBizGetDecode 的 fallback 链（returnData → dataMap），
-// 替换原有的 selfEvalGet + tryDecodeFallback 模式。
+// 使用 doBizGetDecode 的 fallback 链（returnData → dataMap）。
 func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*map[string]any, error) {
 	v, err := doBizGetDecode[map[string]any](c, ctx, token, "QuerySelfGradEvaluation",
 		"/api/studentMoralEduNew/querySelfGradEvaluation",

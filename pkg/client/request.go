@@ -20,9 +20,7 @@ import (
 // drainAndClose 先 drain response body 再 Close，让 net/http 把连接归还 keep-alive 池。
 //
 // 关键不变量：未读完的 body 在 Close 时会强制关闭底层 TCP 连接，
-// 下次请求必须重新 TLS 握手，keep-alive 失效。集中 helper 防止
-// 业务侧 verbatim defer（重构目标，同文件 httpDo/doBizGet
-// 也复用此 helper）。
+// 下次请求必须重新 TLS 握手，keep-alive 失效。集中 helper 防止业务侧 verbatim defer。
 //
 // nil 安全：body 为 nil 时直接返回，避免 nil pointer panic。
 func drainAndClose(body io.ReadCloser) {
@@ -33,12 +31,7 @@ func drainAndClose(body io.ReadCloser) {
 	_ = body.Close()
 }
 
-// defaultSSOBase 是 SSO 域名默认值。
-
-// classifyHTTPStatus 按 StatusCode 切换 sentinel 包装，消除 doBizGet 与 UploadFile
-// HTTP 状态码分类的重复。
-//
-// defaultErr 用于非 429/5xx 的兜底（request.go: ErrInvalidResponse, file.go: ErrUploadRejected）。
+// levelForStatus 把 HTTP 状态码映射为日志级别。
 func levelForStatus(code int) slog.Level {
 	switch {
 	case code >= 500:
@@ -50,6 +43,10 @@ func levelForStatus(code int) slog.Level {
 	}
 }
 
+// classifyHTTPStatus 按 StatusCode 切换 sentinel 包装，消除 doBizGet 与 UploadFile
+// HTTP 状态码分类的重复。
+//
+// defaultErr 用于非 429/5xx 的兜底（request.go: ErrInvalidResponse, file.go: ErrUploadRejected）。
 func classifyHTTPStatus(code int, defaultErr error) error {
 	switch {
 	case code == http.StatusTooManyRequests:
@@ -89,7 +86,7 @@ var noRedirect = func(_ *http.Request, _ []*http.Request) error { return http.Er
 //   - 共享 Transport 连接池：避免与 file.go cleanTransport 产生认知冲突，
 //     两者各自独立的 idle 池，但配置对齐。
 //   - TLSHandshakeTimeout=10s：TLS 慢握手场景（弱网 / 服务器负载高）不无限等待。
-//   - ResponseHeaderTimeout=15s（F8.6）：服务端 TCP 握手完成后故意不写响应头
+//   - ResponseHeaderTimeout=15s：服务端 TCP 握手完成后故意不写响应头
 //     （慢响应头 / 假死 / DoS）时强制返回错误，避免无限等待。仅靠 c.http.Timeout
 //     不够细粒度——TLSHandshakeTimeout 只覆盖握手阶段，ResponseHeader 阶段
 //     net/http 默认无限等。
@@ -147,9 +144,6 @@ func (c *Client) bizHeaders(token string) map[string]string {
 //
 // contentType 参数：当 body 是 io.Reader 时必须由调用方显式传入（multipart
 // 场景下服务端依赖 boundary 解析 body），其他场景下若为空则默认 application/json。
-//
-// 增加 io.Reader 分支，使 UploadFile 等 multipart 场景
-// 能复用本 helper，消除特例路径。
 func (c *Client) buildRequest(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Request, error) {
 	var reqBody io.Reader
 	if body != nil {
@@ -191,7 +185,7 @@ func (c *Client) buildRequest(ctx context.Context, method, url string, body any,
 }
 
 // doBizVoid 执行 fire-and-forget mutation 请求（不需要响应数据）。
-// 与 doBizAndDecode 对称，消除 11 处 doBizAndDecode → discard → return nil 样板。
+// 与 doBizAndDecode 对称，统一 fire-and-forget mutation 出口。
 //
 // 注意：doBizAndDecode 内部已用 opName 包装错误，此处直接透传，不再二次包装。
 func (c *Client) doBizVoid(ctx context.Context, token, opName, path string, method string, body any) error {
@@ -302,8 +296,7 @@ func (c *Client) logRequestHeaders(ctx context.Context, req *http.Request) {
 	}
 }
 
-// do 是 httpDo 和 rawDoWithResp 共享的构建+打印+执行核心。
-// 提取自 cleanup-httpDo：消除 ~8 行重复 boilerplate（buildRequest + logDebug + logRequestHeaders + Do + 错误包装）。
+// do 构建请求、打印调试日志并执行 HTTP 调用，是 httpDo 和 rawDoWithResp 共享的核心。
 func (c *Client) do(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Response, error) {
 	req, err := c.buildRequest(ctx, method, url, body, headers, contentType)
 	if err != nil {
@@ -322,7 +315,7 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 			lvl = slog.LevelWarn
 		}
 		c.logWithLevel(ctx, lvl, "✗ %s %s dur=%s err=%v", method, logx.RedactBody(url), dur, err)
-		// A1 修复：检测超时错误并用 ErrTimeout 包装。
+		// 检测超时错误并用 ErrTimeout 包装。
 		if isTimeoutError(err) {
 			return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrTimeout, url, err)
 		}
@@ -333,7 +326,6 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 }
 
 // httpDo 执行 HTTP 请求，自动设置请求头，返回响应体字节。
-// 改名自 doRequest，降级为内部私有。
 // headers 是可选的自定义请求头（合并到公共头之上）。
 // contentType 为空时默认 application/json。
 //
@@ -403,11 +395,9 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, url, err)
 	}
 	if resp.StatusCode != http.StatusOK {
-		// G2 修复：按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过
-		// errors.Is 精确识别原因（限流 / 服务端异常 / HTTP 层错误）。
-		//
-		// 与 F9.2 sentinel 配对，doBizGet 是业务侧 GET helper（非 session/login 场景），
-		// 这里的 sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
+		// 按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过 errors.Is 精确识别
+		// 原因（限流 / 服务端异常 / HTTP 层错误）。doBizGet 是业务侧 GET helper，
+		// sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
 			sentinel, url, resp.StatusCode, logSafeBody(bodyBytes))

@@ -1,17 +1,17 @@
 // pkg/client 包内 1:1 透传业务 JSON 的方法族（*JSON 后缀）。
 //
-// 主人诉求：CLI 输出 envelope.data 必须跟 SDK 方法返回值 byte-for-byte 一致。
+// 设计目标：CLI 输出 envelope.data 与平台原始 JSON byte-for-byte 一致。
 // 原方法（FetchTasks / GetMyInfo / GetSubmittedCircles / QuerySelfEvaluation /
 // GetHonorTypes / GetHonorList / ActivateSession）反序列化进强类型 struct，
-// 存在字段裁剪 / 命名转换 / 字段顺序稳定性的差异；本文件新增的方法直接返回
+// 存在字段裁剪 / 命名转换 / 字段顺序稳定性的差异；本文件的方法直接返回
 // 服务端原始 JSON（json.RawMessage），让调用方（CLI、第三方 SDK 消费者）
 // 拿到与平台一致的数据。
 //
 // 设计要点：
 //   - 自动分页/跨维度合并仍在 SDK 内部完成，调用方仍只需传 token
 //   - 自动 fallback：dataList → returnData / dataMap（按方法实际通道）
-//   - GetMyInfoJSON / ActivateSessionJSON 内部调用 GetMyInfo() 并 Marshal，
-//     共享学校信息 SSO 降级补全 + 班级名清理等后处理
+//   - GetMyInfoJSON 内部调用 GetMyInfo()；ActivateSessionJSON 走 sessionManager
+//     激活后 Marshal 其返回的 UserInfo。两者均含学校信息 SSO 降级补全与班级名清理后处理
 //   - 失败/取消语义与原方法一致，错误链不变
 
 package client
@@ -43,7 +43,7 @@ func rawListBytes(resp types.UnifiedResponse) []byte {
 // rawSingleObjectBytes 返回单个对象的原始 JSON。
 // 用于 QuerySelfEvaluation 这种"returnData 优先，dataList[0] 兜底"的接口。
 //
-// 优先 returnData；若为字符串型 token/或为 null，尝试从 dataList 拿第一项；
+// 优先 returnData；若为字符串型 token 或为 null，尝试从 dataList 拿第一项；
 // 否则尝试 dataMap（object 风格）。
 //
 // 返回非 nil 时一定是合法 JSON object；若都为 nil/字符串，返回 nil。
@@ -601,8 +601,8 @@ func (c *Client) fetchTasksDimensionJSON(ctx context.Context, dim types.Dimensio
 
 // ActivateSessionJSON 激活业务 session，返回 /api/studentInfo/getMyInfo 的 JSON（经 SDK 后处理）。
 //
-// 内部调用 GetMyInfo() 获取已后处理的 UserInfo struct，再 Marshal 回 JSON。
-// 包含 GetMyInfo 的全部后处理：学校信息 SSO 降级补全、班级名年级前缀清理。
+// 经 sessionManager 激活（含 4 步 HAR 请求），Marshal 其返回的后处理 UserInfo 为 JSON。
+// 包含学校信息 SSO 降级补全、班级名年级前缀清理等后处理。
 // 同时附带 4 步 HAR 激活所需的 HTTP 请求（首页 → getMenu ×2 → getMyInfo），
 // 即使下游不消费返回的 UserInfo 也必须执行完这 4 步。
 //

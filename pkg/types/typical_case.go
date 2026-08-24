@@ -39,8 +39,7 @@ type AddTypicalCasePayload struct {
 	AttachmentName string `json:"attachmentName"`         // 附件文件名（上传后获得）
 }
 
-// UnmarshalJSON 兼容前端表单初始 attachmentId:""。
-// 空字符串/null 表示尚未上传附件，归一为零值；数字仍按原值保留。
+// flexStringFromNumber 解析 string/number 原始 JSON 为规范字符串代码。
 func flexStringFromNumber(raw json.RawMessage, field string) (string, bool, error) {
 	if len(raw) == 0 {
 		return "", false, nil
@@ -73,6 +72,8 @@ func flexStringFromNumber(raw json.RawMessage, field string) (string, bool, erro
 	return strconv.FormatInt(int64(f), 10), true, nil
 }
 
+// UnmarshalJSON 兼容前端表单初始 attachmentId:""。
+// 空字符串/null 表示尚未上传附件，归一为零值；数字仍按原值保留。
 func (p *AddTypicalCasePayload) UnmarshalJSON(data []byte) error {
 	type payloadAlias AddTypicalCasePayload
 	var raw struct {
@@ -130,7 +131,7 @@ func (p *AddTypicalCasePayload) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// MarshalJSON 无附件时省略 attachmentId，与提交前的前端表单语义一致。
+// MarshalJSON 使用别名类型序列化以避免递归；无附件时 attachmentId 由 omitempty tag 保证省略。
 func (p AddTypicalCasePayload) MarshalJSON() ([]byte, error) {
 	type payloadAlias AddTypicalCasePayload
 	return json.Marshal(payloadAlias(p))

@@ -1,4 +1,4 @@
-// Package client 实现纳智综合评价目标平台的完整 Go SDK。
+// error_category.go 实现错误分类（包级文档见 client.go）。
 package client
 
 import (
@@ -67,8 +67,6 @@ func ClassifyError(err error) ErrorCategory {
 }
 
 // isContextError 判断是否为上下文取消或超时错误。
-//
-// isContextError 是 ClassifyError 的便捷封装，用于上下文取消/超时错误判定。
 func isContextError(err error) bool {
 	cat := ClassifyError(err)
 	return cat == CategoryContextCancel || cat == CategoryContextTimeout

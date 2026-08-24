@@ -1,7 +1,4 @@
-// Package client 实现纳智综合评价目标平台的完整 Go SDK。
-//
-// 每个 Client 实例拥有独立的 HTTP cookie jar，天然并发安全。
-// 所有方法都需要 context.Context，支持超时与取消。
+// errors.go 定义 SDK 哨兵错误集（包级文档见 client.go）。
 package client
 
 import "errors"
@@ -30,7 +27,7 @@ var (
 	//   - ErrLoginRejected：登录请求被拒绝（凭证无效/验证码错误），
 	//     SDK 用户应触发重新登录流程
 	//   - ErrBusinessRejected：已通过鉴权的业务请求被服务端拒绝
-	//     （如任务已提交、参数错误、服务端 5xx），与登录状态无关，
+	//     （如任务已提交、参数错误），与登录状态无关，
 	//     SDK 用户应只展示服务端 msg 或重试，不必重新登录
 	//
 	// SubmitTask 等业务方法应使用本哨兵而非 ErrLoginRejected，
@@ -45,12 +42,7 @@ var (
 	// SDK 不提供默认验证码识别器。所有调用方（含 cmd/nazhi）必须通过
 	// WithCustomOCR 注入识别器（典型为硅基流动 Qwen3-Omni 视觉模型）。
 	//
-	// 错误消息 i18n key 为「errors.ocr_not_configured」。中英双语并列——
-	// 英文部分是 SDK 用户编程接口可读的稳定契约
-	// （errors.Is(err, ErrOCRNotConfigured).Error() 输出），
-	// 中文部分是给中文 CLI 用户的 actionable 指引（cmd/nazhi/login.go 用
-	// errors.Is 分支渲染 envelope 时只取中文部分）。
-	//
+	// 错误消息带稳定前缀 errors.ocr_not_configured 便于匹配。
 	// SDK 用户建议用 errors.Is(err, ErrOCRNotConfigured) 而非字符串匹配。
 	ErrOCRNotConfigured = errors.New(
 		"errors.ocr_not_configured: OCR 识别器未配置：SDK 不内置 OCR。" +
@@ -164,8 +156,6 @@ var (
 	//   - ErrRetryable：ctx cancel 引发的「可重试」语义标记
 	//   - ErrBusinessRejected：服务端业务拒绝（code=0），不应盲目重试
 	//
-	// F2.1 修复：原 cancelPlaceholder 用裸 fmt.Errorf，错误消息含「可重试」但
-	// 缺少 sentinel 标识，SDK 用户只能字符串匹配。改为 fmt.Errorf("%w: ...")
-	// 让 errors.Is 精确识别。
+	// 以 %w 包装语义标记（本哨兵），支持 errors.Is 识别取消场景。
 	ErrRetryable = errors.New("retryable: context cancelled")
 )

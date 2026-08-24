@@ -26,8 +26,8 @@ const MaxImageSize = 5 * 1024 * 1024
 // MinImageDimension 缩放下限（像素），低于此值停止缩放。
 const MinImageDimension = 10
 
-// qualityAfterOptimization 图片质量预设，经 F8.1 优化后的取值。
-// 80% 的场景 quality=80 足够压到 ≤5MB，不够的走缩放更高效。
+// qualityAfterOptimization 是 JPEG 编码质量预设。
+// 多数场景 quality=80 足够压到 ≤5MB；仍超限时走缩放级联更高效。
 const qualityAfterOptimization = 80
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
@@ -39,17 +39,13 @@ var ErrUnsupportedFormat = errors.New("unsupported image format")
 // prepareImageForUpload 读取本地图片，预处理为符合平台要求的 JPG 字节流。
 //
 // 流程：
-//  1. 魔术字节 sniff 文件格式，使用 image.Decode 自动派发
+//  1. decodeImage 读文件并按魔术字节识别格式
 //  2. 解码 + 透明合成 + 动画取首帧
-//  3. 编码为 JPG（quality=92 起步）
-//  4. 质量级联 → 缩放 → 输出
+//  3. 编码为 JPG（固定 quality=80）
+//  4. 超限则缩放后重编码 → 输出
 //
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
-	// decodeImage 原来返回 format，自 GIF 特例删除后无消费者。
-	// 无消费者。format 曾用于 `if format == "gif"` 分支，现已统一走
-	// flattenOnWhite（hasTransparency 自动处理 Paletted 透明检测），
-	// 故简化签名删除 format 返回值。
 	img, err := decodeImage(path)
 	if err != nil {
 		return nil, "", err
@@ -57,14 +53,8 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 
 	// 透明合成：所有含透明通道的图片（NRGBA/RGBA/Paletted/GIF）都走 flattenOnWhite。
 	//
-	// 删除 `if format == "gif" && flattened` 特例分支。
-	// 原特例做两件事——imaging.Clone(img) 丢弃透明 + flattened=false 跳过
-	// flattenOnWhite——结果 GIF 透明区域经 jpeg.Encode 被解析为黑色（黑底）。
-	// 失败场景：用户上传带透明 GIF → 服务端收到黑底 JPG → 视觉错误。
-	//
-	// hasTransparency 对 *image.Paletted 始终返回 true（GIF 解码几乎都是
-	// Paletted），删除特例后 GIF 透明索引会经 flattenOnWhite 合成到白底，
-	// 与 PNG/NRGBA 透明处理契约一致。
+	// GIF 透明区域若不合成白底，jpeg.Encode 会输出黑底；
+	// flattenOnWhite 对 Paletted 一并处理。
 	flattened := hasTransparency(img)
 	if flattened {
 		img = flattenOnWhite(img)
@@ -81,7 +71,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		return data, "image/jpeg", nil
 	}
 
-	// F8.1 优化：如果 data 远超上限（>2×MaxImageSize），跳过质量级联（省三次 encode），
+	// 如果 data 远超上限（>2×MaxImageSize），跳过质量级联（省三次 encode），
 	// 直接进缩放级联。quality=80 对超大图片通常不够降到 ≤5MB，缩放最少省 50% 体积。
 	q := qualityAfterOptimization
 	if len(data) > 2*MaxImageSize {
@@ -97,7 +87,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		return data, "image/jpeg", nil
 	}
 
-	// F8.1 优化：添加 scaleCascade 标签，质量级联跳过时直接跳入
+	// 添加 scaleCascade 标签，质量级联跳过时直接跳入
 scaleCascade:
 	// 单次缩放取代 7 轮累乘：0.7^7 ≈ 0.082，避免 4K 图 ~200MB 临时内存。
 	b := img.Bounds()

@@ -17,21 +17,19 @@ import (
 const defaultSessionBackoff = 5 * time.Second
 
 // ActivateSession 初始化目标平台业务 Session。
-// HAR 验证（登录.har + 首页访问.har）：必须按以下 4 步顺序激活，否则后续接口返回空数据：
+// 按真实抓包验证：必须按以下 4 步顺序激活，否则后续接口返回空数据：
 //  1. GET /（首页）
 //  2. GET /api/studentInfo/getMenu（Referer: /homepage?token=xxx）
 //  3. GET /api/studentInfo/getMenu（Referer: /home）
 //  4. GET /api/studentInfo/getMyInfo（获取完整个人资料，含 seat/号数）
 //
 // 返回用户基本信息（含座号）。4 步任一失败立即 propagate error：
-// 步骤 4（getMyInfo）是 4 步契约的一部分，失败不再走步骤 3 兜底掩盖
-// （曾 logDebug + 兜底解析，导致 getMyInfo 服务降级被静默吞掉，
-// 后续业务接口返回空数据难以排查）。
+// 步骤 4（getMyInfo）是 4 步契约的一部分，失败直接上抛，不做兜底降级。
 //
-// 内部实现：委托给 sm.Activate，由 sessionManager 负责 DCL fast path、
+// 内部实现：委托给 sm.Activate，由 sessionManager 负责持锁 fast path、
 // backoff 检查、持锁 4 步激活和状态记录。本方法不额外持锁。
 //
-// B4 外部并发契约：
+// 外部并发契约：
 //   - 本函数委托给 sm.Activate，后者在 sm.mu 持锁状态下执行 4 步网络请求
 //     （200-500ms），持有锁期间不会回调外层或锁住其他互斥资源。
 //   - 外部调用方应**避免**在本函数持锁路径内嵌套其他锁，
@@ -42,7 +40,7 @@ const defaultSessionBackoff = 5 * time.Second
 //   - 如果需要在锁内调本函数（如 sync.Mutex 临界区），需确保外层锁
 //     的获取/释放顺序一致，不会形成循环等待。
 //
-// 并发安全：本方法委托给 sm.Activate（内部持锁 DCL），
+// 并发安全：本方法委托给 sm.Activate（持锁 fast path），
 //
 // Backoff 缓存：失败时通过 sm.RecordFailure 更新 lastErr / lastAttempt /
 // lastFailedToken。CLI 路径（直接调 ActivateSession）与业务方法路径
@@ -137,12 +135,12 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 // 职责范围：
 //   - 4 步 HAR 激活流程（ActivateSession）
 //   - backoff 缓存（失败后冷却抑制 thundering herd）
-//   - double-checked locking fast path（sessionToken + cachedUserInfo）
+//   - 持锁 fast path（sessionToken + cachedUserInfo）
 //   - 内部 getMyInfo 缓存（GetMyInfo 复用步骤 4 数据）
 //
 // 并发安全：
 //   - mu 保护所有状态变更（4 步激活写 cookie jar）
-//   - token 通过 atomic.Value 读外写入（fast path 无锁读）
+//   - token 经 atomic.Value 存取：读路径无锁，写路径持锁
 //   - cachedUserInfo 在 mu 临界区内写入
 //
 // 与 Client 的关系：
@@ -158,7 +156,7 @@ type sessionManager struct {
 	lastErr         error
 	lastAttempt     time.Time
 	lastFailedToken string
-	cachedUserInfo  *types.UserInfo // DCL fast path 缓存。CLI 单进程命中一次，
+	cachedUserInfo  *types.UserInfo // 持锁 fast path 缓存。CLI 单进程命中一次，
 	// SDK 多 goroutine 并发 FetchTasks 可复用步骤 4 数据。
 }
 
@@ -204,7 +202,7 @@ func (sm *sessionManager) Reset() {
 	sm.mu.Unlock()
 }
 
-// InvalidateCachedUserInfo 清空 DCL fast path 的 UserInfo 缓存。
+// InvalidateCachedUserInfo 清空持锁 fast path 的 UserInfo 缓存。
 // 持锁，调用方无需关心并发安全。
 //
 // 典型场景：UpdateMyInfo 成功后调用，避免后续 GetMyInfo 返回更新前的快照。
@@ -264,7 +262,6 @@ func (sm *sessionManager) SetBackoff(d time.Duration) {
 // tryActivate 在 sm.mu 持锁状态下执行 backoff 检查 + 4 步激活 + 状态记录。
 //
 // 调用方必须持 sm.mu 锁。
-// 语义等价于原 Client.activateWithBackoffCheck，下沉到 sessionManager。
 //
 // 职责链：
 //  1. 检查 ctx 是否已取消（优先于 backoff，避免 ctx 取消被掩盖为
@@ -312,8 +309,8 @@ func (sm *sessionManager) tryActivate(
 // 持锁 4 步契约：cookie jar 是 Client 级别共享资源，不同 token 的并发 4 步 HTTP
 // 会竞态写入同一 cookie jar，破坏隔离性。保持锁内 HTTP 是最简单的正确方案。
 //
-// 对同 token：locked fast path（原称 DCL，实际为持锁检查，无无锁预检）保证只有首次 goroutine 持锁执行 4 步，
-// 后续 goroutine 直接从缓存返回（不阻塞）。
+// 对同 token：locked fast path 保证只有首次 goroutine 持锁执行 4 步，
+// 激活完成后从缓存返回，不再重复执行 4 步。
 // 对不同 token：串行激活（不会死锁，约 200-500ms 内释放）。
 func (sm *sessionManager) Activate(
 	ctx context.Context,

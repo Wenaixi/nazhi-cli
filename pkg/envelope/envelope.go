@@ -97,7 +97,7 @@ func Error(code int, msg string) *Envelope {
 	return &Envelope{Status: StatusError, Code: code, Message: msg, Data: nil}
 }
 
-// Marshal 返回两空格缩进的 JSON 编码（满足规范定义）。
+// Marshal 返回两空格缩进的 JSON 编码。
 func (e *Envelope) Marshal() ([]byte, error) {
 	return json.MarshalIndent(e, "", "  ")
 }

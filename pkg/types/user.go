@@ -65,7 +65,7 @@ type UserInfo struct {
 	ClassID    int64  `json:"classId"`
 	ClassName  string `json:"className"`
 
-	// 座号（恢复：班级场景高频需要）
+	// 座号（班级场景高频使用）
 	Seat int `json:"seat"`
 
 	// 前端 getMyInfo 响应的完整字段（omitempty，零值/null 时不在 JSON 输出中出现）

@@ -1,4 +1,4 @@
-// Package types 提供统一响应体 JSON 解析。
+// response.go 实现统一响应体 JSON 解析（包级文档见 types.go）。
 package types
 
 import (
@@ -8,9 +8,6 @@ import (
 
 // UnifiedResponse 是目标平台的标准响应体结构。
 // 使用 json.RawMessage 延迟解析，先解外层 code，再根据 code 走对应路径。
-//
-// 历史注：旧版本曾带 7 个全仓 0 引用的孤儿字段（DataString / PageBean / Note /
-// InsertID / UpdateCount / IsAttendance / DataInt），删除后收敛到实际被使用的 5 个活跃字段。
 type UnifiedResponse struct {
 	Code       int              `json:"code"`
 	Msg        *string          `json:"msg"`
@@ -24,9 +21,7 @@ type UnifiedResponse struct {
 //
 // 注意：DecodeResponse 仅负责把 resp body json.Unmarshal 到 UnifiedResponse 结构体。
 // 业务 code 检查（code != 1 时返回错误）请使用独立的 CheckCode 方法。
-// 历史上有人误以为 DecodeResponse 会自动抛 ErrBusiness，实际不会——这样设计
-// 是为了让调用方能在拿到 UnifiedResponse 后自由分支（如先看 code 再选择性解析
-// returnData / dataList / dataMap），避免双重解码或丢失原始 body。
+// DecodeResponse 不做业务码检查，便于调用方拿到 UnifiedResponse 后自由分支。
 func DecodeResponse(data []byte) (UnifiedResponse, error) {
 	var resp UnifiedResponse
 	if err := json.Unmarshal(data, &resp); err != nil {

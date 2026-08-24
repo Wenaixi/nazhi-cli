@@ -29,9 +29,7 @@ const DefaultTokenTTL = 24 * time.Hour
 // ExtractFromLocation 从 302 Location 头中提取 token 和过期时间。
 //
 // 错误处理：url.Parse 失败时直接返回底层错误（net/url 已是可读的 parse error）。
-// 不再定义包级 ErrLocationParseFailed sentinel——历史版本曾导出过该 sentinel，
-// 但 auth.go 包装时未用 %w 链入，调用方 errors.Is 永远不命中，纯死代码。
-// （dead-code 重构：refactor/remove-dead-location-parse-sentinel）
+// 不提供 Location 解析哨兵，net/url 解析错误原样透传。
 func ExtractFromLocation(location string) (token string, exp time.Time, err error) {
 	u, perr := url.Parse(location)
 	if perr != nil {

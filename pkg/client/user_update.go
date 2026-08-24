@@ -55,7 +55,7 @@ var idCardTypeMap = map[string]int{
 // 可用字段参考 types.UserInfo 中的 json tag 名。
 //
 // 成功后会失效 sm.cachedUserInfo：ActivateSession 步骤 4 缓存的 UserInfo
-// 不再对 GetMyInfo 的 DCL fast path 可见，下次 GetMyInfo 会重新拉取。
+// 不再对 GetMyInfo 的持锁 fast path 可见，下次 GetMyInfo 会重新拉取。
 func (c *Client) UpdateMyInfo(ctx context.Context, token string, updates map[string]any) error {
 	if err := c.doBizVoid(ctx, token, "UpdateMyInfo",
 		"/api/studentInfo/updateMyInfo", http.MethodPost, updates); err != nil {

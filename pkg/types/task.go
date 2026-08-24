@@ -18,7 +18,7 @@ const (
 
 // 写实等级常量（对应服务端 level，对齐前端管理端字典与展示映射）。
 //
-// 前端来源（原生 src 对照）：
+// 前端来源（reference/nazhi/src 对照）：
 //   - 获取字典：GET /api/common/sys/dict/list?cateCode=23 → 填充下拉（level 列表）
 //   - 展示映射：managementRightBottom.vue / yhmanagement 同步的 switch(map.level)
 //     1=国家  2=省  3=地区/市  4=区/县/街道/社区  5=校  6=年段
@@ -408,6 +408,7 @@ func (t *Task) SetSubmittedByStatus() {
 //
 // getCircleStatistics 只返回 upPic，不返回 needPic；encoding/json 不会把
 // upPic 填进 NeedPic。调用方依赖 NeedPic 做"是否要求图片"时，必须在解码后调用本方法。
+// FetchTasks 已内部调用；手工 DecodeDataList 的调用方才需显式调用。
 func (t *Task) SetNeedPicFromUpPic() {
 	if t == nil {
 		return

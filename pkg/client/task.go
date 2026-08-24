@@ -79,7 +79,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	if limit > fetchTasksConcurrentLimit {
 		limit = fetchTasksConcurrentLimit
 	}
-	// 复用 ParallelDims：让 hypothetical seam 变 real seam。
+	// 复用 ParallelDims 统一并发收集与错误分类。
 	// id==0 跳过、gctx 取消检测、appendLocked 收集与错误分类均在 ParallelDims 内完成。
 	result, egErr := ParallelDims[types.Task](ctx, dimensions, limit, func(gctx context.Context, dim types.Dimension) ([]types.Task, error) {
 		return c.fetchTasksForDimensionSafe(gctx, dim, headers)
@@ -185,7 +185,7 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 // panic 信息：包含 dim.ID + dim.Name 便于排查（panic 路径无法
 // 依赖 errgroup 自带的 nil-safe 包装，必须自己构建可读错误）。
 //
-// 错误链保留（F10.1）：recover() 返回的是 any，r 是 error 时走 %w
+// 错误链保留：recover() 返回的是 any，r 是 error 时走 %w
 // 保留 chain，让 SDK 用户能用 errors.Is 识别 panic 根因（典型场景：
 // mock 误实现 panic(errors.New("xxx")) → 调试时能直接定位根 error）。
 func (c *Client) fetchTasksForDimensionSafe(ctx context.Context, dim types.Dimension, headers map[string]string) (tasks []types.Task, err error) {
@@ -202,12 +202,13 @@ func (c *Client) buildTaskSubmitPayload(ctx context.Context, token string, input
 	return c.buildTaskPayload(ctx, token, input, "SubmitTask", c.UploadFile)
 }
 
+// hoursRequiredTarget 需要学时必填的 targetType 集合（对齐前端带 hours 输入框的三类表单）。
+var hoursRequiredTarget = map[int]bool{1: true, 6: true, 10: true}
+
 // parseHours 解析写实提交的时长，对齐前端 hoursStatus 逻辑：
 //   - 用户非空：解析为 float；非法则 ErrInvalidPayload
 //   - 用户空且 metaHours > 0：用任务预设（前端只读自动填）
 //   - 用户空且 metaHours <= 0：ErrInvalidPayload（前端可编辑且 checkData 常要求非空）
-var hoursRequiredTarget = map[int]bool{1: true, 6: true, 10: true}
-
 func parseHours(userInput string, metaHours float64, targetType int) (float64, error) {
 	h := strings.TrimSpace(userInput)
 	if h == "" {
@@ -278,6 +279,13 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		}
 	}
 
+	// 图片数量上限 2 张，对齐前端 el-upload 的 :limit=2（managementRightBottom.vue 提交表单约束）。
+	if len(pictureList) > 2 {
+		return nil, fmt.Errorf("%w: 图片最多 2 张，收到 %d 张", ErrInvalidPayload, len(pictureList))
+	}
+
+	// 任务备注含图片关键词时强制要求传图。ponytail: 前端 remark 仅作展示、无此校验，
+	// 此处为 SDK 有意收紧以防漏传；若与真实服务端行为冲突，降级为提交前 WARN 日志即可。
 	// 验证任务元数据中的图片要求
 	if meta.Remark != "" && len(pictureList) == 0 {
 		lowerRemark := strings.ToLower(meta.Remark)

@@ -1,4 +1,7 @@
 // Package client 是 nazhi-cli SDK 的根包。
+//
+// 每个 Client 实例拥有独立的 HTTP cookie jar，天然并发安全。
+// 所有方法都需要 context.Context，支持超时与取消。
 package client
 
 import (
@@ -23,8 +26,8 @@ import (
 // SDK 不内置本地识别器，调用方必须通过 WithCustomOCR
 // 注入识别器（如 AI 视觉模型、远程服务、单元测试 mock 等）。
 //
-// 注意：实现必须同时实现 Close() error，因为 Client.Close() 会
-// 无条件调用 c.ocr.Close()（见 c.ocr != nil 检查后的路径）。
+// 注意：实现必须同时实现 Close() error——只要识别器已注入，
+// Close() 必然调用其 Close()。
 // 即使实现不做资源清理，Close() 也必须存在且返回 nil。
 type CaptchaRecognizer interface {
 	Recognize([]byte) (string, error)
@@ -37,13 +40,10 @@ type CaptchaRecognizer interface {
 
 // Client 是目标平台 API 的完整 Go SDK。
 // 每个实例拥有独立的 cookie jar，天然并发安全。
-//
-// session 激活状态机已提取到 sessionManager，不再直接持有
-// sessionToken / sessionMu / lastErr（现为 sm.lastErr） 等字段。
 type Client struct {
 	ssoBaseURL string // SSO 根地址
 	baseURL    string // 业务 API 根地址（port 8280）
-	// baseURLParsed 预解析结果，F6 优化 + F3 修复：atomic.Pointer 实现 lock-free 读 + CAS 懒解析写入。
+	// baseURLParsed 为预解析结果：atomic.Pointer 实现 lock-free 读 + CAS 懒解析写入。
 	// 之前用 *url.URL + sync.Mutex 仍有 race detector 报警（jar.SetCookies 读 url 字段时与另一 goroutine 的 url.Parse 写 url 字段同步缺失），
 	// 改 atomic.Pointer 后所有访问原子化，go test -race 不再报警。
 	baseURLParsed atomic.Pointer[url.URL]
@@ -58,7 +58,7 @@ type Client struct {
 	// 通过 WithSubmittedPageSize 可配置。
 	submittedPageSize int
 
-	// sm 管理业务 session 的激活状态机（4 步 HAR 激活、backoff 缓存、DCL fast path）。
+	// sm 管理业务 session 的激活状态机（4 步 HAR 激活、backoff 缓存、持锁 fast path）。
 	sm *sessionManager
 }
 
@@ -121,7 +121,7 @@ func isNil(v any) bool {
 // ─── Option 构造器 ───
 
 // WithSSOBase 设置 SSO 根地址（用于 login 流程）。
-// 默认值由 defaultSSOBase 常量提供（见 client_defaults.go）。
+// 默认值由 defaultSSOBase 常量提供（见 request.go defaultSSOBase）。
 var WithSSOBase = withURLGuard("WithSSOBase", func(c *Client, v string) { c.ssoBaseURL = v })
 
 // WithBaseURL 设置业务 API 根地址。
@@ -224,7 +224,7 @@ var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client
 //
 // 适用场景：
 //   - CLI 默认通过 cmd/nazhi/omni_ocr.go 注入硅基流动 Qwen3-Omni 识别器
-//   - 单元测试注入 mock 识别器（如 cmd/nazhi/*_test.go 的 fakeOCR）
+//   - 单元测试注入 mock 识别器（如 pkg/client 包内测试的 fakeOCRF5）
 //   - 第三方集成注入自研识别器
 //
 // 行为约定：
@@ -239,7 +239,7 @@ var WithCustomOCR = withNilGuard[CaptchaRecognizer]("WithCustomOCR", func(c *Cli
 //   - CLI 命令的 --token 标志
 //   - 从文件/CI secret 读取的存量 token
 //
-// 业务服务器要求 X-Auth-Token 同时存在于 Header 和 Cookie（参见 auth-flow.md），
+// 业务服务器要求 X-Auth-Token 同时存在于 Header 和 Cookie，
 // 仅设置 Header 会导致后续接口返回空数据。
 //
 // 行为约定：
@@ -305,7 +305,7 @@ func New(opts ...Option) (*Client, error) {
 	for _, opt := range opts {
 		opt(c)
 	}
-	// 所有 Options 跑完后预解析 baseURL（F6）并统一注入 cookie
+	// 所有 Options 跑完后预解析 baseURL 并统一注入 cookie
 	// 预解析必须在 syncCookieToken 之前，以免 syncCookieToken 懒解析报错
 	if parsed, err := url.Parse(c.baseURL); err == nil {
 		c.baseURLParsed.Store(parsed)
@@ -351,9 +351,7 @@ func (c *Client) logWithLevel(ctx context.Context, lvl slog.Level, format string
 
 // logDebug 输出 debug 日志（通过 slog Debug 级别）。
 //
-// 用 fmt.Sprintf 先格式化再传给 slog。
-// 原实现直接 c.logger.Debug(format, args...) 被 slog 当成 key-value 对，
-// 不会做 %s/%d 插值，导致日志输出原始的格式字符串而非插值结果。
+// 先 fmt.Sprintf 插值再交 slog，避免格式串被当 key-value 对输出。
 //
 //   - nil logger 静默返回，避免 nil panic
 //   - LevelEnabled 提前检查，非 Debug 级别时跳过 fmt.Sprintf 分配
@@ -377,7 +375,7 @@ func (c *Client) LogInfoForTest(ctx context.Context, format string, args ...any)
 	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
 }
 
-// logSafeBody 截断 bytes 到 100 字符用于日志，防止敏感信息泄露。
+// logSafeBody 截断到 100 字符限制日志体积；脱敏由 logx.RedactBody 负责。
 func logSafeBody(body []byte) string {
 	s := string(body)
 	if len(s) > 100 {

@@ -21,10 +21,8 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// multipartBufPool 复用 multipart 构造过程的字节缓冲，避免每次 UploadFile
-// 都分配 5MB+ 的 bytes.Buffer。F8.3 优化。
-// MaxAttachmentSize 是非图片附件的上限（2MB，与前端一致）。
-// 图片走压缩路径，上限为 MaxImageSize（5MB，SDK 放宽）；两者区分校验，避免文案混淆。
+// MaxAttachmentSize 是非图片附件直传的上限（2MB，与前端 beforeAvatarUpload 一致）。
+// 图片走压缩路径，上限为 MaxImageSize（5MB，SDK 放宽）；两者分开校验。
 const MaxAttachmentSize = 2 * 1024 * 1024
 
 var directUploadExtensions = map[string]struct{}{
@@ -37,11 +35,11 @@ var directUploadExtensions = map[string]struct{}{
 	".zip":  {},
 }
 
+// multipartBufPool 复用 multipart 构造过程的字节缓冲，避免每次 UploadFile 都分配大块缓冲。
 var multipartBufPool = sync.Pool{
 	New: func() any {
 		b := &bytes.Buffer{}
 		// 预分配 MaxImageSize+1KB（约 5MB），匹配压缩后图片上限，避免 multipart 构造时多次扩容。
-		// 旧写法 5*1024+1024 仅为 6KB，与注释「5MB」不符。
 		b.Grow(MaxImageSize + 1024)
 		return b
 	},
@@ -55,11 +53,11 @@ func isDirectUploadAttachment(filePath string) bool {
 
 // UploadFile 上传图片或前端允许的非图片附件，返回附件 ID。
 //
-// ⚠️ 关键约束：本方法不发送任何 Token / Cookie / Authorization 头。
+// 关键约束：本方法不发送任何 Token / Cookie / Authorization 头。
 // 文件服务器（doc.nazhisoft.com）是独立公共服务，不需要业务域鉴权。
 // SDK 内部使用独立的 clean http.Client（无 cookie jar），全程不携带任何鉴权头。
 //
-// ⚠️ 域隔离约束：syncCookieToken 只在 c.baseURL 域写入 X-Auth-Token cookie，
+// 域隔离约束：syncCookieToken 只在 c.baseURL 域写入 X-Auth-Token cookie，
 // 而 UploadFile 走 c.uploadURL 域（独立文件服务器）。
 // 若 c.uploadURL 与 c.baseURL 指向同一主机（自定义部署场景），
 // 则 syncCookieToken 写入的 cookie 在上传请求中不会泄漏（newCleanClient 无 cookie jar）。
@@ -105,7 +103,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 			return nil, fmt.Errorf("图片预处理失败: %w", err)
 		}
 		if len(fileData) > MaxImageSize {
-			// A3 修复：让两条"图片过大"路径的 sentinel 行为一致。
+			// 与压缩主路径的 sentinel 行为保持一致：
 			// 兜底路径也用 errors.Join 包含 ErrImageTooLarge。
 			return nil, fmt.Errorf("压缩后仍达 %d 字节: %w", len(fileData),
 				errors.Join(ErrFileTooLarge, ErrImageTooLarge))
@@ -196,21 +194,19 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	}
 	defer drainAndClose(resp.Body)
 
-	// F8.3 优化：先判 status code 再读 body。非 200 时只读 64KB 用于错误消息，
+	// 先判 status code 再读 body。非 200 时只读 64KB 用于错误消息，
 	// 避免大 HTTP 错误响应的 body 全部读入内存（服务端 502/503 有时带完整 HTML 堆栈）。
 	if resp.StatusCode != http.StatusOK {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-		// A2 修复：复用 request.go 的 classifyHTTPStatus 统一 sentinel 分类。
+		// 复用 request.go 的 classifyHTTPStatus 统一 sentinel 分类。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrUploadRejected)
 		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
 	if err != nil {
-		// 关键修复: 之前用 `bodyBytes, _ := io.ReadAll(resp.Body)` 吞噬错误,
-		// 当服务端断网 (connection reset / unexpected EOF) 时 bodyBytes 为空,
-		// 后续 json.Unmarshal([]) 返回 EOF, 报「解析上传响应失败: EOF」丢失根因。
-		// 现在包装为 ErrNetwork 哨兵, 上层可 errors.Is 识别。
+		// 读取失败时包装为 ErrNetwork 哨兵，供 errors.Is 识别；
+		// 不吞错误避免后续解码报误导性 EOF。
 		return nil, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
 	}
 
@@ -220,12 +216,12 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("解析上传响应失败: %w", err)
 	}
 
-	// I3 修复：故意不走 types.CheckCode，统一响应码 ≠ 1 仍用
+	// 故意不走 types.CheckCode，统一响应码 ≠ 1 仍用
 	// ErrUploadRejected 包装。语义边界：
 	//   - ErrUploadRejected: 上传文件域业务错误（独立公共服务，无 cookie 鉴权），
 	//     SDK 用户应单独判定（如限制文件类型、重试上传）
 	//   - ErrBusinessRejected: 业务 API 域拒绝（session 过期、参数错），
-	//     SDK 用户按 docs/sdk/README.md 推荐 errors.Is(ErrBusinessRejected) 重激活
+	//     SDK 用户按 docs/README.md 推荐 errors.Is(ErrBusinessRejected) 重激活
 	// 两者不可合并——上传服务与业务 API 是独立服务域，错误处理路径完全不同。
 	if unified.Code != 1 {
 		return nil, fmt.Errorf("%w: code=%d", ErrUploadRejected, unified.Code)
@@ -251,10 +247,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("解析 returnData 失败: %w", err)
 	}
 
-	// J2 修复：先区分字段是否存在，再做类型断言。
-	// 修复前 `id, ok := result["id"].(float64); if !ok` 把「字段不存在」与
-	// 「类型不匹配」两种根因合并成同一条「缺少 id 字段」，导致 type mismatch
-	// 误导用户去检查协议而非数据类型。
+	// 先判字段是否存在再断言类型，区分『缺少 id』与『类型不匹配』两种根因。
 	rawID, exists := result["id"]
 	if !exists {
 		return nil, fmt.Errorf("%w: returnData 中缺少 id 字段", ErrUploadRejected)
@@ -446,7 +439,7 @@ func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 
 // copyCtx 是 io.Copy 的 ctx 感知版本：ctx 取消时立刻终止复制。
 func copyCtx(ctx context.Context, src io.Reader, dst io.Writer) (int64, error) {
-	// 8KB buffer，与 io.Copy 默认一致
+	// 32KB buffer，与 io.Copy 默认一致
 	buf := make([]byte, 32*1024)
 	var written int64
 	for {
@@ -518,7 +511,7 @@ func newCleanClient(c *Client) *http.Client {
 	var transport http.RoundTripper
 	switch t := c.http.Transport.(type) {
 	case *http.Transport:
-		// F5.6 修复：每次现场 Clone，不缓存到 Client 字段。
+		// 每次现场 Clone，不缓存到 Client 字段。
 		// Clone 成本 O(1) struct copy + 重置 idle conn pool，
 		// 远低于一次 TLS 握手。运行时 Transport 变更即时感知。
 		transport = t.Clone()

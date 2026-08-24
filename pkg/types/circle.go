@@ -10,7 +10,7 @@ type PageBean struct {
 
 // CircleRecord 一条已提交的写实记录（来自 getStudentCircle 接口）。
 //
-// 平台字段命名混用（2026-07-21 对照前端 + docs/sdk 样例确认）：
+// 平台字段命名混用（对照前端源码确认）：
 //   - 活动/任务元数据多为 snake_case：host_name、type_name、circle_task_name …
 //   - UI 相关字段为 camelCase：imgList、imgPreViewList、commentList、likeStatus、
 //     ifMySelf、creationTimeStr、showName、imgPath、studentId

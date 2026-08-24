@@ -11,8 +11,8 @@
 // 域拆分：
 //   - login.go      认证（LoginRequest, LoginResponse）
 //   - user.go       用户（UserInfo, UserUpdateInput）
-//   - task.go       任务（Task, TaskSubmitPayload, TaskResult, ScopeType 常量）
-//   - circle.go     写实记录（CircleRecord, CircleImage, PageBean, PlayRoleCode）
+//   - task.go       任务（Task, TaskSubmitPayload, TaskResult, Scope* 常量组）
+//   - circle.go     写实记录（CircleRecord, CircleImage, PageBean）
 //   - honor.go      荣誉（HonorType, HonorRecord, AddHonorPayload, HonorSelectOption）
 //   - self_eval.go  自我评价（SelfEvalStatus，解码兼容 snake/camel）
 //   - flexjson.go   JSON 宽松类型（PlayRoleCode 等）
