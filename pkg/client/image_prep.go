@@ -164,6 +164,11 @@ func hasTransparency(img image.Image) bool {
 	case *image.Paletted:
 		// GIF Paletted 几乎都有透明
 		return true
+	case *image.NYCbCrA:
+		// 有损 WebP（VP8+ALPH）解码产物；不合成白底则 jpeg.Encode
+		// 丢弃 alpha，透明区经预乘落为黑底（无损 VP8L 是 NRGBA，
+		// 已被上方分支覆盖）
+		return true
 	}
 	return false
 }
