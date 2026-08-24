@@ -29,6 +29,39 @@ func TestHonorRecord_Score40_Regression(t *testing.T) {
 	}
 }
 
+// TestAddHonorPayload_Score40_Inbound AddHonorPayload.Score 此前为裸 int：
+// 用户从列表记录复制 score:4.0 构造 honor add --payload 时 json.Unmarshal
+// 报「cannot unmarshal number 4.0 ... of type int」参数错误。改 float64 后
+// 出站序列化 0 与前端 form 默认逐字节一致，入站兼容 4.0 字面量。
+func TestAddHonorPayload_Score40_Inbound(t *testing.T) {
+	raw := []byte(`{"typeId":1147,"typeName":"校三好学生","level":5,"evaluationAgency":"示例中学","getDate":"2026-06-30","score":4.0}`)
+	var p AddHonorPayload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		t.Fatalf("AddHonorPayload score=4.0 入站解码失败: %v", err)
+	}
+	if p.Score != 4.0 {
+		t.Fatalf("Score 期望 4.0，实际 %v", p.Score)
+	}
+
+	// 整数与零值路径不回归
+	var p2 AddHonorPayload
+	if err := json.Unmarshal([]byte(`{"typeId":1,"score":5}`), &p2); err != nil {
+		t.Fatalf("score=5 解码失败: %v", err)
+	}
+	if p2.Score != 5.0 {
+		t.Fatalf("Score 期望 5.0，实际 %v", p2.Score)
+	}
+
+	// 出站：零值序列化仍为 "score":0（与前端 form 默认一致）
+	out, err := json.Marshal(AddHonorPayload{TypeID: 1})
+	if err != nil {
+		t.Fatalf("出站序列化失败: %v", err)
+	}
+	if !json.Valid(out) {
+		t.Fatal("出站 JSON 非法")
+	}
+}
+
 // TestHonorRecordList_Score40_Regression 列表整页含 4.0 时 DecodeDataList 不得整页失败。
 func TestHonorRecordList_Score40_Regression(t *testing.T) {
 	raw := []byte(`[{"id":1,"type_name":"a","score":4.0},{"id":2,"type_name":"b","score":4.0},{"id":3,"type_name":"c","score":5}]`)

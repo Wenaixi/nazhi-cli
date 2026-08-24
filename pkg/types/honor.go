@@ -81,7 +81,9 @@ type AddHonorPayload struct {
 	// 无附件时 omitempty 省略键；入站经 UnmarshalJSON 兼容 number/数字字符串/空串/null。
 	CertImgAttachmentID int64 `json:"certImgAttachmentId,omitempty"`
 	// Score 分值。前端 form 默认 0 且无 v-model；零值也会序列化进请求体。
-	Score int `json:"score"`
+	// float64：入站兼容列表记录常见的 4.0 字面量（encoding/json 拒 4.0→int），
+	// 出站零值序列化仍为 "score":0 与前端 form 默认逐字节一致。
+	Score float64 `json:"score"`
 }
 
 // UnmarshalJSON 兼容前端上传成功后返回的 number 类型 certImgAttachmentId，
