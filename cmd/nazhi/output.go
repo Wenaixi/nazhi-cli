@@ -105,8 +105,8 @@ func printParamError(err error) {
 func rejectLoneOffset(cmd *cobra.Command) bool {
 	offset, _ := cmd.Flags().GetInt("offset")
 	limit, _ := cmd.Flags().GetInt("limit")
-	if (offset > 0 && limit <= 0) || offset < 0 {
-		printEnvelope(envelope.Error(400, "--offset 需为非负数且配合 --limit 使用（非法 --offset 会被忽略或归零，拒绝静默返回错误数据）"))
+	if (offset > 0 && limit <= 0) || offset < 0 || limit < 0 {
+		printEnvelope(envelope.Error(400, "--offset 需为非负数且配合 --limit 使用（非法 --offset/--limit 会被忽略或归零，拒绝静默返回错误数据）"))
 		return true
 	}
 	return false
