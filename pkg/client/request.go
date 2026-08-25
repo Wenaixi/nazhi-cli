@@ -229,7 +229,9 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 
 	resp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("%s 响应解析失败: %w", opName, err)
+		// 2xx 但 body 非 JSON（nginx 维护页/WAF 挑战页）同样归 ErrInvalidResponse，
+		// 与非 2xx 分支的 classifyHTTPStatus 哨兵口径拉平，保证 errors.Is 判定全覆盖。
+		return nil, fmt.Errorf("%s 响应解析失败: %w: %w", opName, ErrInvalidResponse, err)
 	}
 
 	if err := types.CheckCode(resp); err != nil {
