@@ -39,8 +39,8 @@ type UserUpdateInput struct {
 	// 密码（studentUuid；空串表示不修改）
 	StudentUuid string `json:"studentUuid,omitempty"`
 
-	// 座号（0 表示跳过）
-	Seat int `json:"seat,omitempty"`
+	// 座号（0 表示跳过；FlexInt 兼容前端 el-input 回显的字符串形态）
+	Seat FlexInt `json:"seat,omitempty"`
 }
 
 // UserInfo 是用户个人资料的精简核心视图。
@@ -66,7 +66,7 @@ type UserInfo struct {
 	ClassName  string `json:"className"`
 
 	// 座号（班级场景高频使用）
-	Seat int `json:"seat"`
+	Seat FlexInt `json:"seat"`
 
 	// 前端 getMyInfo 响应的完整字段（omitempty，零值/null 时不在 JSON 输出中出现）
 
@@ -76,12 +76,12 @@ type UserInfo struct {
 	// 个人信息
 	GenderName      string `json:"genderName,omitempty"`      // 性别名称
 	BirthdayStr     string `json:"birthdayStr,omitempty"`     // 生日字符串
-	YouthLeagueFlag int    `json:"youthLeagueFlag,omitempty"` // 团员标志
-	Nation          int    `json:"nation,omitempty"`          // 民族（数字 1=汉族 等）
+	YouthLeagueFlag FlexInt `json:"youthLeagueFlag,omitempty"` // 团员标志
+	Nation          FlexInt `json:"nation,omitempty"`          // 民族（数字 1=汉族 等）
 	FamilyAddress   string `json:"familyAddress,omitempty"`   // 家庭地址
 	Hobbies         string `json:"hobbies,omitempty"`         // 爱好
 	IDCard          string `json:"idCard,omitempty"`          // 身份证号
-	IDType          int    `json:"idType,omitempty"`          // 证件类型（数字）
+	IDType          FlexInt `json:"idType,omitempty"`          // 证件类型（数字）
 
 	// 前端 getMyInfo 响应的额外原始字段
 	RegistrationNumber string `json:"registrationNumber,omitempty"` // 中考报名号

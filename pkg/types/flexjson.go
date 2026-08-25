@@ -184,6 +184,48 @@ func (b FlexBool) MarshalJSON() ([]byte, error) {
 	return []byte("false"), nil
 }
 
+// FlexInt 解码平台可能返回为数字、整值浮点字面量（4.0）或数字字符串的整数字段。
+// 与 FlexFloat/IntList 同族；非整数浮点显式报错防静默截断。
+type FlexInt int
+
+// Int 返回 Go int 数值。
+func (f FlexInt) Int() int { return int(f) }
+
+// UnmarshalJSON 接受 number（含整值浮点）、数字字符串和 null。
+func (f *FlexInt) UnmarshalJSON(data []byte) error {
+	if f == nil {
+		return fmt.Errorf("FlexInt: UnmarshalJSON on nil pointer")
+	}
+	data = bytes.TrimSpace(data)
+	if len(data) == 0 || bytes.Equal(data, []byte("null")) {
+		*f = 0
+		return nil
+	}
+
+	var text string
+	if data[0] == '"' {
+		if err := json.Unmarshal(data, &text); err != nil {
+			return fmt.Errorf("FlexInt: 解析字符串失败: %w", err)
+		}
+	} else {
+		text = string(data)
+	}
+	value, err := strconv.ParseFloat(strings.TrimSpace(text), 64)
+	if err != nil {
+		return fmt.Errorf("FlexInt: 无法解析数值 %q: %w", text, err)
+	}
+	if value != float64(int64(value)) {
+		return fmt.Errorf("FlexInt: 非整数数值 %q", text)
+	}
+	*f = FlexInt(value)
+	return nil
+}
+
+// MarshalJSON 始终输出 JSON number。
+func (f FlexInt) MarshalJSON() ([]byte, error) {
+	return json.Marshal(int(f))
+}
+
 // FlexFloat 解码平台可能返回为数字或数字字符串的浮点字段。
 type FlexFloat float64
 
