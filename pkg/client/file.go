@@ -21,9 +21,10 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// MaxAttachmentSize 是非图片附件直传的上限（2MB，与前端 beforeAvatarUpload 一致）。
+// MaxAttachmentSize 是非图片附件直传的上限（20MB，SDK 有意放宽：前端限制 10MB，
+// 服务端实测无 2MB 硬限、真实上限约 46.86MiB，见 CLAUDE.md 规范 #26）。
 // 图片走压缩路径，上限为 MaxImageSize（5MB，SDK 放宽）；两者分开校验。
-const MaxAttachmentSize = 2 * 1024 * 1024
+const MaxAttachmentSize = 20 * 1024 * 1024
 
 var directUploadExtensions = map[string]struct{}{
 	".pdf":  {},
@@ -66,9 +67,9 @@ func isDirectUploadAttachment(filePath string) bool {
 //
 // 上传前自动预处理：
 //   - 图片：任意格式 → JPG + 透明合成 + 压缩至 ≤ 5MB（MaxImageSize，SDK 放宽）
-//   - 非图片附件（.mp4/.txt/.doc/.docx/.wps/.rar/.zip 等前端允许格式）：原样直传，上限 2MB（MaxAttachmentSize，与前端一致）
+//   - 非图片附件（.mp4/.txt/.doc/.docx/.wps/.rar/.zip 等前端允许格式）：原样直传，上限 20MB（MaxAttachmentSize，SDK 有意放宽；前端限制 10MB，服务端真实上限约 46.86MiB）
 //
-// 统一说明：图片压缩后 5MB（SDK 放宽），非图片附件 2MB（与前端一致）
+// 统一说明：图片压缩后 5MB（SDK 放宽），非图片附件 20MB（SDK 有意放宽，服务端实测支撑）
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.UploadFileResult, error) {
 	// 1. 准备上传字节。图片继续走预处理；非图片附件按前端允许格式原样直传。

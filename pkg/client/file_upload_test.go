@@ -305,7 +305,7 @@ func TestUploadFile_NonImagePreservesBytesAndFilename(t *testing.T) {
 	}
 }
 
-// TestUploadFile_NonImageRejectsOversizeBeforeRequest 验证非图片附件超过前端 2MB 限制时不发请求。
+// TestUploadFile_NonImageRejectsOversizeBeforeRequest 验证非图片附件超过 MaxAttachmentSize 上限时不发请求。
 func TestUploadFile_NonImageRejectsOversizeBeforeRequest(t *testing.T) {
 	var requests int
 	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

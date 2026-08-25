@@ -60,7 +60,7 @@ func TestUploadFile_PDFDirectUpload(t *testing.T) {
 	}
 }
 
-// TestUploadFile_PDFRejectsOversizeBeforeRequest 验证超 2MB 的 PDF 在本地
+// TestUploadFile_PDFRejectsOversizeBeforeRequest 验证超 MaxAttachmentSize 的 PDF 在本地
 // 拒绝且不发 HTTP 请求。
 func TestUploadFile_PDFRejectsOversizeBeforeRequest(t *testing.T) {
 	var requests int
