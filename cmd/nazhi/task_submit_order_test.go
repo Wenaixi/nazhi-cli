@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"strings"
 	"testing"
 
@@ -15,7 +16,7 @@ import (
 // （printEnvelope→stdout）。同因不同果且通道分裂。统一为先校验 payload。
 func TestTaskSubmitCmd_MissingPayloadTakesPrecedenceOverMissingToken(t *testing.T) {
 	cmd := &cobra.Command{Use: "task-submit"}
-	cmd.SetContext(nil)
+	cmd.SetContext(context.Background())
 	cmd.Flags().String("token", "", "")
 	// 不设置 token
 	cmd.Flags().String("base-url", "", "")
