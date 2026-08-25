@@ -301,6 +301,11 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 		types.DecodeDataMap[map[string]any],
 	)
 	if err != nil {
+		// 与学期版 QuerySelfEvaluation 空成功契约对称：「未提交毕业评价」
+		// 是正常态而非错误，仅纯空（无真实解码错误）时归一 (nil,nil)。
+		if isEmptyDecodeFailure(err) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return v, nil
