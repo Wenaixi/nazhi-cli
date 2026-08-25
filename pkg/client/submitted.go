@@ -94,8 +94,15 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 		return page1, nil
 	}
 
-	// 多页：预分配容量后并发翻页
-	all := make([]types.CircleRecord, len(page1), pb.TotalNum)
+	// 多页：预分配容量后并发翻页。
+	// ponytail: cap 以 max(len(page1), totalNum) 钳制——totalNum 取自服务端声明、
+	// len(page1) 取自实际解码条数，二者独立来源；服务端 count/list 短暂不一致时
+	// totalNum < len(page1) 会让 make 直接 makeslice panic，钳制为防御纵深。
+	capacity := pb.TotalNum
+	if capacity < len(page1) {
+		capacity = len(page1)
+	}
+	all := make([]types.CircleRecord, len(page1), capacity)
 	copy(all, page1)
 
 	// results 按页号索引，预分配避免竞态
