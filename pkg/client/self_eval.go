@@ -38,6 +38,12 @@ func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment
 //	sxqhsh — 下学期会生活目标
 //	sxqhcz — 下学期会创造目标
 func (c *Client) SubmitSelfEvaluationStructured(ctx context.Context, token string, form map[string]any) error {
+	// 空表单防御：nil/{} 会序列化成 "null"/"{}" 静默发出合法但空的载荷，
+	// 服务端 code=1 即记为一次成功提交。前端 11 键表单不存在该形态，拒绝之。
+	if len(form) == 0 {
+		return fmt.Errorf("%w: 结构化自我评价表单为空", ErrInvalidPayload)
+	}
+
 	// JSON 序列化 form 对象
 	formJSON, err := json.Marshal(form)
 	if err != nil {
