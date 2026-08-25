@@ -244,6 +244,23 @@ func parseHours(userInput string, metaHours float64, targetType int) (float64, e
 // 对齐前端（输入暴露原则）：
 //   - circleTaskId/circleTypeId/dimensionId/hours(预设>0)：SDK 从 getCircleTypeByTaskId 自动填
 //   - Address/OrgName/Level/PlayRole 等：用户填什么发什么；空串原样，不发明学校名或等级「5」
+// countValidImages 统计将进入 pictureList 的有效图片总数：
+// ImageIDs 中 >0 的条目 + ImagePaths 中非空白路径。须与合并/上传循环的去重口径保持一致。
+func countValidImages(input types.TaskInput) int {
+	n := 0
+	for _, id := range input.GetImageIDs() {
+		if id > 0 {
+			n++
+		}
+	}
+	for _, path := range input.GetImagePaths() {
+		if strings.TrimSpace(path) != "" {
+			n++
+		}
+	}
+	return n
+}
+
 func (c *Client) buildTaskPayload(ctx context.Context, token string, input types.TaskInput, callerName string, uploader func(context.Context, string) (*types.UploadFileResult, error)) (*types.TaskAddCirclePayload, error) {
 	if err := input.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrInvalidPayload, err)
@@ -264,6 +281,12 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 	hours, err := parseHours(input.GetHours(), meta.Hours, meta.Type)
 	if err != nil {
 		return nil, err
+	}
+
+	// 图片数量上限 2 张的预检必须先于任何上传（对齐前端 el-upload :limit=2 在选择阶段拦截，
+	// 避免 SDK 把超量图片全部上传成功后才拒绝、留下无法回收的服务端孤儿附件）。
+	if total := countValidImages(input); total > 2 {
+		return nil, fmt.Errorf("%w: 图片最多 2 张，收到 %d 张", ErrInvalidPayload, total)
 	}
 
 	// 处理图片：合并 ImageIDs（+提交链路时上传 ImagePaths）
@@ -288,11 +311,6 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 			}
 			pictureList = append(pictureList, result.AttachmentID)
 		}
-	}
-
-	// 图片数量上限 2 张，对齐前端 el-upload 的 :limit=2（managementRightBottom.vue 提交表单约束）。
-	if len(pictureList) > 2 {
-		return nil, fmt.Errorf("%w: 图片最多 2 张，收到 %d 张", ErrInvalidPayload, len(pictureList))
 	}
 
 	// 任务备注含图片关键词时强制要求传图。ponytail: 前端 remark 仅作展示、无此校验，
