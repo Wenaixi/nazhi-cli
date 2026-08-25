@@ -409,6 +409,11 @@ func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResu
 // hours 例外——编辑留空时回填任务元数据预设（getCircleTypeByTaskId.hours），
 // 而前端编辑是用列表记录值覆盖任务预设。要保留原记录值，请从列表记录
 // （CircleRecord 的 hours）显式赋值给 input.Hours，否则与预设不同的记录会被静默改写。
+//
+// 图片同理——不传 ImageIDs 时 wire 上发送 pictureList:[]，而前端编辑恒把原记录
+// 图片回填进 pictureList（openEdit→imgList）。若服务端以空数组覆盖原附件则编辑会
+// 静默丢图；要保留原图，请从 CircleRecord.ImgList 的 attachment_id 回填 input.ImageIDs。
+// 服务端对空数组的真实语义未抓包证实（挂账）。
 func (c *Client) EditCircle(ctx context.Context, token string, input types.TaskEditInput) (*types.TaskResult, error) {
 	payload, err := c.buildTaskEditPayload(ctx, token, input)
 	if err != nil {

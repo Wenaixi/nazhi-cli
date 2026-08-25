@@ -41,8 +41,8 @@ var ErrUnsupportedFormat = errors.New("unsupported image format")
 // 流程：
 //  1. decodeImage 读文件并按魔术字节识别格式
 //  2. 解码 + 透明合成 + 动画取首帧
-//  3. 编码为 JPG（固定 quality=80）
-//  4. 超限则缩放后重编码 → 输出
+//  3. 编码为 JPG（q92 起步）
+//  4. 超限依次降档：q80 重编 → 0.25 缩放+q80 → 0.082 缩放+q40 → 报错
 //
 // 全部在内存中完成，不写盘、不修改原文件。
 func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
@@ -51,7 +51,7 @@ func (c *Client) prepareImageForUpload(path string) ([]byte, string, error) {
 		return nil, "", err
 	}
 
-	// 透明合成：所有含透明通道的图片（NRGBA/RGBA/Paletted/GIF）都走 flattenOnWhite。
+	// 透明合成：所有含透明通道的图片（NRGBA/RGBA/Paletted/GIF/NYCbCrA）都走 flattenOnWhite。
 	//
 	// GIF 透明区域若不合成白底，jpeg.Encode 会输出黑底；
 	// flattenOnWhite 对 Paletted 一并处理。

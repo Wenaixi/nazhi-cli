@@ -12,6 +12,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"golang.org/x/sync/errgroup"
@@ -200,7 +201,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: Location 头解析失败: %w", ErrLoginRejected, locErr)
 		}
 		if token == "" {
-			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, location)
+			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, logx.RedactBody(location))
 		}
 		c.warnIfExpiresAtFallback(expiresAt, "302 fallback")
 		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback"), nil
@@ -214,8 +215,9 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 	// 错误消息附带 logSafeBody 截断摘要：非预期状态码的典型场景是 nginx 503、
 	// CDN challenge 等 HTML 响应；不带 body 片段时用户难以定位根因。
+	// 摘要再过 RedactBody 与 request.go 同类分支脱敏口径拉平（90ccd64 先例）。
 	return nil, fmt.Errorf("%w: 非预期状态码 %d body=%s",
-		ErrLoginRejected, httpResp.StatusCode, logSafeBody(bodyBytes))
+		ErrLoginRejected, httpResp.StatusCode, logx.RedactBody(logSafeBody(bodyBytes)))
 }
 
 // warnIfExpiresAtFallback 在 expiresAt 异常时输出 WARN 日志。两条 Login 路径

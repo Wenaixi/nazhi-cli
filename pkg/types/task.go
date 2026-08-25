@@ -315,6 +315,9 @@ type TaskCircleTypeInfo struct {
 //
 // hours 半自动语义：Hours 留空时回填任务元数据预设（与提交侧一致），
 // 但前端编辑场景是用列表记录值覆盖——要保留原值请显式从 CircleRecord.Hours 回填。
+//
+// 图片语义：ImageIDs 不传时 wire 上发送 pictureList:[]，而前端编辑恒回填原记录图
+// （openEdit→imgList）。要保留原图请从 CircleRecord.ImgList 的 attachment_id 回填。
 type TaskEditInput struct {
 	ID                  int64
 	TaskID              int64
