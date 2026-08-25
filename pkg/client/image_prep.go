@@ -26,8 +26,9 @@ const MaxImageSize = 5 * 1024 * 1024
 // MinImageDimension 缩放下限（像素），低于此值停止缩放。
 const MinImageDimension = 10
 
-// qualityAfterOptimization 是 JPEG 编码质量预设。
-// 多数场景 quality=80 足够压到 ≤5MB；仍超限时走缩放级联更高效。
+// qualityAfterOptimization 是缩放级联的 JPEG 降档质量。
+// 主路径从 q92 起步（prepareImageForUpload 首次 encodeJPEG(img, 92)）；
+// 仅当 q92 输出超限时才降档到本值重编一次，再超限走缩放级联。
 const qualityAfterOptimization = 80
 
 // ErrImageTooLarge 压缩后仍超过 MaxImageSize。
