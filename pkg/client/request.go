@@ -323,10 +323,12 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 		}
 		c.logWithLevel(ctx, lvl, "✗ %s %s dur=%s err=%v", method, logx.RedactBody(url), dur, err)
 		// 检测超时错误并用 ErrTimeout 包装。
+		// 错误消息中 URL 必须经 logx.RedactBody 脱敏，userName=*** 形式保留参数名
+		// （学号是 PII）；CLAUDE.md #24 已覆盖 httpDo/状态码分支，本处补 do() 网络层失败路径。
 		if isTimeoutError(err) {
-			return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrTimeout, url, err)
+			return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrTimeout, logx.RedactBody(url), err)
 		}
-		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, url, err)
+		return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrNetwork, logx.RedactBody(url), err)
 	}
 	return resp, nil
 }

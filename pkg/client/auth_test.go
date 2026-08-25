@@ -1707,3 +1707,72 @@ func TestLogin_GetSchoolIDError_DoesNotLeakUsername(t *testing.T) {
 		t.Errorf("userName 参数值未掩蔽。实际 errMsg=%q", errMsg)
 	}
 }
+
+// TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername 验证断网/连接失败场景下
+// do() 网络层失败分支（request.go:327/329）不泄漏学号原文：
+//
+// 场景：GetSchoolID URL 含 userName=<学号>；当服务端不可达（连接拒绝/超时），
+// c.http.Do 返回错误，触发 do() 的 ErrTimeout/ErrNetwork 分支。
+// CLAUDE.md #24 修复仅覆盖了 httpDo:361 的 HTTP 状态码错误，未覆盖 do() 的网络层失败，
+// 该路径在 SSO 宕机/客户端断网/请求超时场景下可达，造成学号经错误信封输出。
+func TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername(t *testing.T) {
+	// 假学号：不能用真实学号或 G+18 位同形假号（PII 守卫测试拦截）。
+	const secretUser = "TESTUSER20260826"
+
+	// 起一个 httptest server 然后立刻 Close：URL 仍可解析但任何请求都会连接失败，
+	// 触发 c.http.Do 在 transport 层返回 "connection refused"，落入 do():329 的 ErrNetwork。
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	srvURL := srv.URL
+	srv.Close()
+
+	c := &Client{
+		ssoBaseURL: srvURL,
+		baseURL:    srvURL,
+		uploadURL:  srvURL,
+		http:       newHTTPClient(),
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	_, err := c.GetSchoolID(context.Background(), secretUser)
+	if err == nil {
+		t.Fatal("期望 GetSchoolID 返回错误，实际 nil（连接已关闭但请求成功？）")
+	}
+
+	errMsg := err.Error()
+	if !strings.Contains(errMsg, "GetSchoolID") {
+		t.Fatalf("期望错误来自 GetSchoolID 分支，实际 errMsg=%q", errMsg)
+	}
+	if !strings.Contains(errMsg, "请求") {
+		t.Fatalf("期望错误来自 do() 网络层失败分支（ErrNetwork/ErrTimeout），实际 errMsg=%q", errMsg)
+	}
+
+	// 关键断言：do() 包装层（request.go:327/329）必须使用 RedactBody 后的 URL。
+	// 错误消息中 do() 包装层的 URL 形态为 "请求 <URL> 失败:"——检查紧跟 "请求 " 后到
+	// " 失败:" 之间的片段是否含 "userName=***"（RedactBody 后）而非 "userName=" + secretUser。
+	//
+	// 注意：Go net/http 的 *url.Error（c.http.Do 返回的 error）会内嵌原始 URL，
+	// 出现在 "Post \"<URL>\": ..." 段，是 stdlib intrinsic 行为，超出 SDK 可控范围。
+	// 本测试仅断言 SDK 自有包装层（"请求 <URL> 失败:" 段）已脱敏。
+	wrapStart := strings.Index(errMsg, "请求 ")
+	if wrapStart < 0 {
+		t.Fatalf("错误消息缺少 do() 包装层 '请求 ' 前缀，实际 errMsg=%q", errMsg)
+	}
+	wrapStart += len("请求 ")
+	wrapEnd := strings.Index(errMsg[wrapStart:], " 失败:")
+	if wrapEnd < 0 {
+		t.Fatalf("错误消息缺少 do() 包装层 ' 失败:' 后缀，实际 errMsg=%q", errMsg)
+	}
+	wrappedURL := errMsg[wrapStart : wrapStart+wrapEnd]
+
+	if !strings.Contains(wrappedURL, "userName=***") {
+		t.Errorf("do() 包装层未使用 RedactBody URL（应出现 userName=***）。wrappedURL=%q", wrappedURL)
+	}
+	if strings.Contains(wrappedURL, "userName="+secretUser) {
+		t.Errorf("do() 自有包装层泄漏了学号原文。wrappedURL=%q", wrappedURL)
+	}
+
+	// 注释（人类读者参考）：
+	// 错误消息会同时含 "userName=***"（do() 包装层，SDK 已 RedactBody）和
+	// "userName=TESTUSER..."（Go net/http 的 *url.Error 内嵌，stdlib intrinsic，
+	// 需要在 cmd 层 printError 出口再做整体 redact 才能消除——属更上层防御纵深挂账）。
+}
