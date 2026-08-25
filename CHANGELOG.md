@@ -1,11 +1,21 @@
 # CHANGELOG
 
-## [未发布]
+## [1.5.1] - 2026-08-25
+
+### 修复
+
+- 上传被服务端拒绝（文件类型不收/风控）误判为可重试的服务端故障：errors.go 16 个哨兵中 `ErrUploadRejected` 此前漏配 `mapSentinelToHTTPCode`，落 default 500/exit2；本轮补 case 归 422/exit1（与 ErrFileTooLarge 同族）。新增 TestMapSentinelToHTTPCode_UploadRejected 锁定（commit `1522446`）。
+- GetSchoolID 断网/超时场景下学号泄漏：`request.go:327`（ErrTimeout）与 `:329`（ErrNetwork）两条 do() 网络层失败分支嵌入裸 `url`，与同文件其他六处已正确使用 `logx.RedactBody(url)` 脱敏不一致；修复后错误消息形如 `"请求 ...?userName=*** 失败:"`，参数名保留、值掩蔽。回归测试 `TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername` 锁定（commit `90ccd64`）。
+  - **已知上限**：stdlib `*url.Error` 内嵌原始 URL 是 net/http intrinsic 行为，超出 SDK request.go 可控范围；更上层防御纵深挂在 cmd 层 printError 出口。
 
 ### 新增
 
-- UploadFile 非图片直传白名单加入 .pdf（原样直传，与 doc/zip 同路径）；新增 file_upload_pdf_test.go 锁死「字节不改写、文件名保留、超限本地拒绝」三行为。用户需求：典型案例附件需支持 PDF。
-- 非图片附件直传上限放宽至 20MB：服务端实测无 2MB 硬限（真实上限约 46.86MiB，2026-08-25 字节级二分探测），SDK 上限取用户决策的 20MB；前端仍限 10MB，CLI 直传不受前端约束。
+- UploadFile 非图片直传白名单加入 .pdf（原样直传，与 doc/zip 同路径）；新增 file_upload_pdf_test.go 锁死「字节不改写、文件名保留、超限本地拒绝」三行为。用户需求：典型案例附件需支持 PDF（commit `f1a28d1`）。
+- 非图片附件直传上限放宽至 20MB：服务端实测无 2MB 硬限（真实上限约 46.86MiB，2026-08-25 字节级二分探测），SDK 上限取用户决策的 20MB；前端仍限 10MB，CLI 直传不受前端约束（commit `2e69e21`）。
+
+### 文档
+
+- 参考镜像 `reference/nazhi/src/components/classic/classiccanter.vue` 两处上传提示（:147/:206）随 SDK 上限放宽同步插入 pdf、把「大小不超过2MB」改为 20MB（commits `ac2986a`、`1e34350`）；`reference/nazhi` 是镜像源、不是产品代码，但保持与上游线上文案一致便于用户对照。
 
 ## [1.5.0] - 2026-08-24
 
