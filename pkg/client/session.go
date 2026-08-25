@@ -10,6 +10,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
@@ -289,7 +290,7 @@ func (sm *sessionManager) tryActivate(
 		// 错误链完整（errors.Is 可穿透到原始错误）。
 		return nil, errors.Join(
 			fmt.Errorf("%w: 上次 token %q 激活失败重试 %v 前，请稍后重试或换 token",
-				ErrSessionBackoff, token, time.Since(sm.lastAttempt)),
+				ErrSessionBackoff, logx.RedactValue("token", token), time.Since(sm.lastAttempt)),
 			sm.lastErr,
 		)
 	}
