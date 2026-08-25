@@ -224,6 +224,9 @@ var honorLevelsCmd = &cobra.Command{
 			printError(fmt.Errorf("获取荣誉级别失败: %w", err))
 			return
 		}
+		if opts == nil {
+			opts = []types.HonorSelectOption{}
+		}
 		printEnvelope(envelope.Success(opts))
 	},
 }

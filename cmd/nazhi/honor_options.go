@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
+	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -28,6 +29,9 @@ var honorTypeOptionsCmd = &cobra.Command{
 		if err != nil {
 			printError(fmt.Errorf("获取荣誉类型下拉失败: %w", err))
 			return
+		}
+		if opts == nil {
+			opts = []types.HonorSelectOption{}
 		}
 		printEnvelope(envelope.Success(opts))
 	},
@@ -54,6 +58,9 @@ var honorLevelOptionsCmd = &cobra.Command{
 		if err != nil {
 			printError(fmt.Errorf("获取通用荣誉等级下拉失败: %w", err))
 			return
+		}
+		if opts == nil {
+			opts = []types.HonorSelectOption{}
 		}
 		printEnvelope(envelope.Success(opts))
 	},
