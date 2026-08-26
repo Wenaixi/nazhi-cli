@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -27,12 +28,9 @@ func makeUserUpdateTestCmd(t *testing.T, payload string, captureBody *string) *c
 			if r.Method != http.MethodPost {
 				t.Errorf("updateMyInfo 期望 POST, 得到 %s", r.Method)
 			}
-			buf := make([]byte, r.ContentLength)
-			if r.ContentLength > 0 {
-				_, _ = r.Body.Read(buf)
-			}
+			bodyBytes, _ := io.ReadAll(r.Body)
 			if captureBody != nil {
-				*captureBody = string(buf)
+				*captureBody = string(bodyBytes)
 			}
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
