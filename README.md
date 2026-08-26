@@ -17,7 +17,6 @@
 | [命令概览](#命令概览) | 全部子命令速查树 |
 | [作为 Go SDK 使用](#作为-go-sdk-使用) | 在 Go 项目中集成 |
 | [源码指引](docs/README.md) | 功能 ↔ Go 源码 ↔ 前端源码 对照表 |
-| [前端参照库](reference/nazhi/) | 纳智前端源码完整镜像（grep 对照用） |
 | [开发指南](#开发) | 构建、测试、贡献流程 |
 | [CHANGELOG](CHANGELOG.md) | 全部版本变更日志 |
 
@@ -104,7 +103,7 @@ nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
 <details>
 <summary><strong>写实 payload 兼容性细节（点开查看）</strong></summary>
 
-- `--payload` 可直接使用真实前端表单 JSON，字段参照 `reference/nazhi/src/components/management/managementRightBottom.vue`
+- `--payload` 可直接使用真实前端表单 JSON，字段以纳智前端 `managementRightBottom.vue` 表单为准（仓库外本地镜像，不随本仓库分发）
 - 类型宽容：`hours` 接受 number/string 且可保留小数；`level` / `checkResult` / `playRole` 的裸 number 必须是有限整数，string 原值保留
 - 字段别名兼容：`circleTaskId` → `taskId`、`pictureList` → `imageIDs`（规范字段优先）
 - `--payload -` 从 stdin 读取，上限 16 MiB，超限按参数错误处理不静默截断

@@ -1,14 +1,15 @@
-﻿# nazhi-cli 源码指引
+# nazhi-cli 源码指引
 
 > 本文档只是地图：告诉你「哪个功能在哪几个文件」。语义、参数、行为一律以源码为准，
-> 本文档不随版本更新维护。前端源码完整镜像在 `reference/nazhi/`，可直接 grep 对照。
+> 本文档不随版本更新维护。纳智前端源码为仓库外本地镜像（默认 `E:\newCC\life-new2026\nazhi\`），
+> 不随本仓库分发；下表中「前端参照」均指该本地镜像内的相对路径。
 
 Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`（领域类型 + 统一解码）、
 `pkg/tokenparse`（SSO token 提取）。CLI 层在 `cmd/nazhi/`。
 
 ## 表 A：功能 ↔ Go 源码 ↔ 前端源码
 
-| 功能 | SDK 方法 | Go 源码（pkg/） | 前端参照（reference/nazhi/src/components/） | 业务接口 |
+| 功能 | SDK 方法 | Go 源码（pkg/） | 前端参照（本地镜像 src/components/） | 业务接口 |
 |------|----------|-----------------|---------------------------------------------|----------|
 | 登录 | `Login` | client/auth.go | — （SSO 独立页） | SSO validate |
 | 会话激活 | `ActivateSession` | client/session.go | management.vue 加载链 | getMenu ×2 / getMyInfo |
@@ -57,7 +58,7 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 
 ## 表 C：状态字段速查
 
-| 字段 | 含义 | 判定处（reference/nazhi/src/components/management/managementRightBottom.vue） |
+| 字段 | 含义 | 判定处（本地镜像 src/components/management/managementRightBottom.vue） |
 |------|------|------|
 | 记录 `type` | 发布者类型：1=学生，2=教师 | 头像 personType、编辑按钮 `item.type==1` |
 | 记录 `status` | 0=正常可编辑删除；1=锁定；2=被撤回 | 第 42/46 行 v-if 条件 |
@@ -71,5 +72,5 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 前端源码更新后重新镜像：
 
 ```powershell
-robocopy <前端源码目录> reference\nazhi /E /XD .omc artifacts .git node_modules /XF CLAUDE.md
+robocopy <前端源码目录> <本地镜像目录> /E /XD .omc artifacts .git node_modules /XF CLAUDE.md
 ```

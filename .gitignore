@@ -102,9 +102,6 @@ test/e2e/.token_cache
 # superpowers 计划目录（本地草稿，不入库）
 .superpowers/
 
-# ─── 前端源码参照库（有意入库，供文档对照）─────────
-# reference/nazhi 是纳智前端完整镜像；上面 *.png/*.jpeg 全局规则会误伤其资源文件，此处豁免
-!reference/**/*.png
-!reference/**/*.jpeg
-!reference/**/*.jpg
-!reference/**/*.gif
+# ─── 前端源码参照库（本地对照用，不入库）─────────
+# reference/nazhi 是纳智前端本地镜像，仅 grep 对照用；升级参照库时 robocopy 重新镜像
+reference/
