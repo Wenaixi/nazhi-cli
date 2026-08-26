@@ -28,16 +28,20 @@ const defaultSessionBackoff = 5 * time.Second
 // 步骤 4（getMyInfo）是 4 步契约的一部分，失败直接上抛，不做兜底降级。
 //
 // 内部实现：委托给 sm.Activate，由 sessionManager 负责持锁 fast path、
-// backoff 检查、持锁 4 步激活和状态记录。本方法不额外持锁。
+// backoff 检查、持锁 4 步激活和状态记录。学校信息 SSO 回退补全
+// （postProcessSchoolFallback）在 sm.mu 解锁后执行——P1-B：网络往返
+// 禁止进入临界区，否则最坏把锁窗口放大到 c.http.Timeout 秒级。
 //
 // 外部并发契约：
 //   - 本函数委托给 sm.Activate，后者在 sm.mu 持锁状态下执行 4 步网络请求
-//     （200-500ms），持有锁期间不会回调外层或锁住其他互斥资源。
+//     （正常数百毫秒量级），持有锁期间不会回调外层或锁住其他互斥资源；
+//     锁内无任何计划外网络往返（学校回退已移至锁外）。
 //   - 外部调用方应**避免**在本函数持锁路径内嵌套其他锁，
 //     否则可能引发 ABBA 死锁（如 errgroup.Go 中先持锁 A 再调本函数，
 //     本函数持 sm.mu 时反调锁 A）。
 //   - 外部使用模式：直接 goroutine 并发调本函数是安全的——sm.mu
-//     只会序列化 4 步激活，不会让其他 goroutine 饿死（约 200-500ms 内释放）。
+//     只会序列化 4 步激活，不会让其他 goroutine 饿死（窗口为 4 步请求耗时，
+//     受 c.http.Timeout 封顶；锁内不含 SSO 学校回退）。
 //   - 如果需要在锁内调本函数（如 sync.Mutex 临界区），需确保外层锁
 //     的获取/释放顺序一致，不会形成循环等待。
 //
@@ -49,7 +53,14 @@ const defaultSessionBackoff = 5 * time.Second
 // （通过 ActivateSession 间接调）共享同一份 backoff 缓存，
 // 同 token 在窗口内的重复调用会被抑制。
 func (c *Client) ActivateSession(ctx context.Context, token string) (*types.UserInfo, error) {
-	return c.sm.Activate(ctx, token, c.activateSessionLocked)
+	info, err := c.sm.Activate(ctx, token, c.activateSessionLocked)
+	if err != nil || info == nil {
+		return info, err
+	}
+	// P1-B：学校信息 SSO 回退在 sm.mu 锁外执行（幂等：字段已齐则零开销直通）。
+	c.postProcessSchoolFallback(ctx, info)
+	c.sm.UpdateCachedUserInfo(info)
+	return info, nil
 }
 
 // activateSessionLocked 是 ActivateSession 的内部 4 步实现，
@@ -215,10 +226,26 @@ func (sm *sessionManager) InvalidateCachedUserInfo() {
 }
 
 // StoreToken 持锁写 token，并清除 backoff 状态。
-// 内部 helper，仅 tryActivate 持锁路径内调用。
+// 当前无生产调用方，仅供测试构造状态使用；生产路径经 RecordSuccess 写入。
 func (sm *sessionManager) StoreToken(token string) {
 	sm.token.Store(token)
 	sm.clearBackoff()
+}
+
+// UpdateCachedUserInfo 持锁刷新 UserInfo 缓存（仅当当前 token 匹配时生效）。
+// 供锁外后处理（postProcessSchoolFallback）完成后把补全后的副本写回，
+// 让后续 fast path 命中拿到完整数据。token 不匹配时静默忽略——
+// 避免过期 token 的后处理污染新 token 的缓存。
+func (sm *sessionManager) UpdateCachedUserInfo(info *types.UserInfo) {
+	sm.mu.Lock()
+	defer sm.mu.Unlock()
+	if info != nil && sm.cachedUserInfo == info {
+		return // 同一指针：RecordSuccess 已写入，无需重复赋值
+	}
+	// 不同指针但 token 一致 → 用补全版本替换
+	if info != nil && sm.LoadToken() != "" {
+		sm.cachedUserInfo = info
+	}
 }
 
 // RecordFailure 记录激活失败，按 token 匹配决定是否清缓存。
