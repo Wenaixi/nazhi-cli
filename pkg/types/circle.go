@@ -18,6 +18,15 @@ type PageBean struct {
 // JSON tag 必须以平台真实键名为准，禁止假设「全 snake 或全 camel」。
 // Go 字段名保持驼峰惯例。日期字段为 string（保留服务端原始格式）；
 // Level/CheckResult 为 int；camelCase 与 snake_case 混用以真实 API 为准。
+//
+// 明确不建模（18 轮审计裁决，HAR .claude/我分别执行了….har:238/:494 实证存在于服务端响应、
+// 但前端写实卡片零消费）：score（计分）、term_id、last_auditor、last_audit_time、last_auditor_name
+// 五个审核/计分元数据字段。维持不建模符合「不建模未展示字段」纪律——扩字段反增 DecodeDataList
+// 全灭风险面（FlexFloat/int64 对形态违约零容错）；需要原始字节请走 *JSON 透传方法族。
+//
+// ShowName 非平台字段：showName 是前端自行拼接的派生字段（managementRightBottom.vue:678 把活动/
+// 竞赛字段拼 HTML 后赋值），服务端 getStudentCircle 不返回该键（HAR 实证）。SDK 解码恒为零值，
+// 需要展示名请按前端 :555-678 拼接逻辑自行处理。
 type CircleRecord struct {
 	// 基础字段
 	ID       int64  `json:"id"`
