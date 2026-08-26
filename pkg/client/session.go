@@ -80,7 +80,7 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	if !c.sm.fallbackDone.Load() {
 		infoCopy := *info
 		c.postProcessSchoolFallback(ctx, &infoCopy)
-		c.sm.UpdateCachedUserInfo(&infoCopy)
+		c.sm.UpdateCachedUserInfo(&infoCopy, token)
 		c.sm.fallbackDone.Store(true)
 		return &infoCopy, nil
 	}
@@ -261,17 +261,21 @@ func (sm *sessionManager) StoreToken(token string) {
 }
 
 // UpdateCachedUserInfo 持锁刷新 UserInfo 缓存（仅当当前 token 匹配时生效）。
-// 供锁外后处理（postProcessSchoolFallback）完成后把补全后的副本写回，
-// 让后续 fast path 命中拿到完整数据。token 不匹配时静默忽略——
-// 避免过期 token 的后处理污染新 token 的缓存。
-func (sm *sessionManager) UpdateCachedUserInfo(info *types.UserInfo) {
+// forToken 是触发本写入的 info 所属 token：仅当 sm.LoadToken() == forToken 才允许
+// 用补全版本替换缓存——跨 token 的迟到写入（多 goroutine 场景）被显式忽略，
+// 避免旧 token 的后处理污染新 token 的缓存。
+// 两个调用方分别传入自己刚完成激活/拉取的 token，实现在锁内比对。
+func (sm *sessionManager) UpdateCachedUserInfo(info *types.UserInfo, forToken string) {
 	sm.mu.Lock()
 	defer sm.mu.Unlock()
-	if info != nil && sm.cachedUserInfo == info {
+	if info == nil {
+		return
+	}
+	if sm.cachedUserInfo == info {
 		return // 同一指针：RecordSuccess 已写入，无需重复赋值
 	}
-	// 不同指针但 token 一致 → 用补全版本替换
-	if info != nil && sm.LoadToken() != "" {
+	// 不同指针且 token 一致 → 用补全版本替换
+	if sm.LoadToken() == forToken {
 		sm.cachedUserInfo = info
 	}
 }

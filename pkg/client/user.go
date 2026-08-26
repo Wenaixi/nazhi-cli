@@ -43,7 +43,7 @@ func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, 
 	}
 	// 本分支在 sm.mu 锁外（fast path 未命中且激活已完成的场景），可安全发网络回退。
 	c.postProcessSchoolFallback(ctx, info2)
-	c.sm.UpdateCachedUserInfo(info2)
+	c.sm.UpdateCachedUserInfo(info2, token)
 	return info2, nil
 }
 
