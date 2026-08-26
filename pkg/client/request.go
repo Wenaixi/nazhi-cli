@@ -393,9 +393,12 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	return respBytes, nil
 }
 
-// maxResponseBodySize 是 httpDo 读取响应体的上限（1MB）。
-// 正常平台业务响应 <1KB（见 c.do 注释），此上限仅防异常/恶意服务端内存放大。
-const maxResponseBodySize = 1 << 20
+// maxResponseBodySize 是 httpDo 读取响应体的上限。
+// 正常平台业务响应 <1KB（见 c.do 注释）；写实公示全量 JSON 实测超 1MB（2026-08-27
+// 事故：福清一中全班公示 getStudentCircle 单页 500 条 + 图片 URLs 超过 1MB，SDK 在
+// httpDo 阶段直接拒绝 → 公示 Tab「加载中…」永不结束）。4MB 覆盖该场景仍保留防
+// 异常/恶意服务端内存放大的安全上限。
+const maxResponseBodySize = 4 << 20
 
 // rawDoWithResp 执行请求并返回 *http.Response（调用者负责关闭 Body）。
 func (c *Client) rawDoWithResp(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Response, error) {
