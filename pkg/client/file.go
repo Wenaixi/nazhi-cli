@@ -230,6 +230,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
 	}
 	if len(bodyBytes) > maxResponseBodySize {
+		// P2-3（19 轮审计）：超限分支直 Close 放弃 keep-alive，不再经 defer drainAndClose
+		// 无上限续读剩余 body——对齐 httpDo:377-381 的 2356484 修复纪律。
+		// 恶意无限流下旧实现会 drain 到 newCleanClient 超时（主 Client 无超时兜底 5 分钟）。
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%w: 上传响应体超过 %d 字节上限", ErrInvalidResponse, maxResponseBodySize)
 	}
 
