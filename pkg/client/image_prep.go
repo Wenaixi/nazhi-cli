@@ -104,6 +104,9 @@ scaleCascade:
 	}
 
 	// 极限档：单次缩放取代 7 轮累乘：0.7^7 ≈ 0.082，避免 4K 图 ~200MB 临时内存。
+	// ponytail: 单边 ≤121px 的极端长宽比图（如 80000×100 退化图像）会整体放弃缩放
+	// 直接原尺寸 q40 编码——若仍超限返回 ErrImageTooLarge。真实相机/截图不可达此形态，
+	// 需要支持时改为逐维钳制 max(finalW, MinImageDimension) 后必缩放。
 	finalW := int(float64(b.Dx()) * 0.082)
 	finalH := int(float64(b.Dy()) * 0.082)
 	current := img

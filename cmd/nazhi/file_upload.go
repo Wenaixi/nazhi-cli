@@ -14,8 +14,8 @@ import (
 // 本命令不接受 --token 参数。文件服务器独立，发送 token 反而可能被风控。
 var fileUploadCmd = &cobra.Command{
 	Use:   "upload",
-	Short: "上传图片到文件服务器",
-	Long: `上传图片到文件服务器。
+	Short: "上传图片或附件到文件服务器",
+	Long: `上传图片到文件服务器；非图片附件（pdf/mp4/txt/doc/docx/wps/rar/zip）原样直传不改写字节，上限 20MB。
 
 注意：本命令不接受 --token 参数。
 文件上传服务器（doc.nazhisoft.com）是独立公共服务，不需要业务域鉴权。
@@ -51,7 +51,7 @@ SDK 内部不产生任何鉴权头（独立 clean http.Client，无 cookie jar�
 }
 
 func init() {
-	fileUploadCmd.Flags().StringP("file", "f", "", "本地图片路径（必填）")
+	fileUploadCmd.Flags().StringP("file", "f", "", "本地图片或附件路径（必填；支持 png/jpg/jpeg/bmp/pdf/mp4/txt/doc/docx/wps/rar/zip）")
 	fileUploadCmd.Flags().String("upload-url", "", "上传服务器地址（默认 http://doc.nazhisoft.com）也可通过 NAZHI_UPLOAD_URL 设置")
 	fileUploadCmd.Flags().Int("timeout", 30, "HTTP 超时（秒）也可通过 NAZHI_TIMEOUT 设置")
 	// 显式不提供 --token flag（文件服务器独立，不需要业务域 Token）

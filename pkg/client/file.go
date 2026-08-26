@@ -27,6 +27,11 @@ import (
 // 图片走压缩路径，上限为 MaxImageSize（5MB，SDK 放宽）；两者分开校验。
 const MaxAttachmentSize = 20 * 1024 * 1024
 
+// maxImageDecodePreflight 是图片分支进入解码管线前的体积预检线（200MB）。
+// 高压缩比畸形大图可在 image.Decode 阶段把内存放大数十倍；与附件分支的 Stat 预检
+// 对称防御。合法相机原图/全景图远低于此线，超线直接拒绝不做解码尝试。
+const maxImageDecodePreflight = 200 * 1024 * 1024
+
 var directUploadExtensions = map[string]struct{}{
 	".pdf":  {},
 	".mp4":  {},
@@ -99,6 +104,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		}
 		c.logDebugCtx(ctx, "非图片附件原样上传: %s → %d bytes (mime=%s)", filePath, len(fileData), mimeType)
 	} else {
+		// 与附件分支对称的解码前体积预检：畸形大图在 image.Decode 全量读入并放大内存之前拒绝
+		if st, statErr := os.Stat(filePath); statErr == nil && st.Size() > maxImageDecodePreflight {
+			return nil, fmt.Errorf("图片超过 %d 字节，拒绝进入解码管线: %w", maxImageDecodePreflight, ErrFileTooLarge)
+		}
 		fileData, mimeType, err = c.prepareImageForUpload(filePath)
 		if err != nil {
 			// 仅当根因确为「压缩后仍超限」时把 ErrFileTooLarge 并入错误链。

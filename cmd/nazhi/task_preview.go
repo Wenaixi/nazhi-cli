@@ -27,7 +27,7 @@ hours 在任务预设 >0 且用户留空时自动填充；pictureList 只含 Ima
 		// 与 task submit/edit 一致：先做本地参数校验再建客户端——缺 --payload 的
 		// 参数错误不应依赖 token/base-url 配置是否正确。
 		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填项"))
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
 			return
 		}
 		c, token, err := buildBizClient(cmd)
