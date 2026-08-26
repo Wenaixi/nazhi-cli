@@ -71,6 +71,12 @@ var honorListCmd = &cobra.Command{
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		key, _ := cmd.Flags().GetString("key")
+		// 分页参数非负守卫：负值透传会发出 pageNo=-1 等异常请求，
+		// 与 cmd/nazhi/circle_metadata.go:83-90 同形状参数的纪律对齐。
+		if pageNo < 0 || pageSize < 0 {
+			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为非负整数"))
+			return
+		}
 
 		printVerbose("正在获取荣誉记录...")
 		raw, err := c.GetHonorListJSON(cmd.Context(), token, pageNo, pageSize, key)

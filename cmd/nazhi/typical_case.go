@@ -90,6 +90,13 @@ var typicalCaseListCmd = &cobra.Command{
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		status, _ := cmd.Flags().GetInt("status")
+		// 分页参数非负守卫：与 honor list / circle_metadata.go:83-90 纪律对齐。
+		// status=-1 也是非法值（典型案例 status 合法值仅 1/2/3 与默认 3），但为避免破坏现有
+		// 用户脚本（可能用 -1 表达「全部」），此处仅拒绝 pageNo/pageSize 负值；status 校验留待服务端。
+		if pageNo < 0 || pageSize < 0 {
+			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为非负整数"))
+			return
+		}
 
 		printVerbose("正在获取典型案例列表...")
 		raw, err := c.GetTypicalCaseListJSON(cmd.Context(), token, pageNo, pageSize, status)
