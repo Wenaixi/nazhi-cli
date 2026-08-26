@@ -586,9 +586,9 @@ func (c *Client) fetchTasksDimensionJSON(ctx context.Context, dim types.Dimensio
 	if err != nil {
 		return nil, fmt.Errorf("维度 %d(%s) 请求失败: %w", dim.ID, dim.Name, err)
 	}
-	resp, err := types.DecodeResponse(bodyBytes)
+	resp, err := decodeOrInvalidResponse(fmt.Sprintf("维度 %d(%s)", dim.ID, dim.Name), bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("维度 %d(%s) 响应解析失败: %w", dim.ID, dim.Name, err)
+		return nil, err
 	}
 	if err := types.CheckCode(resp); err != nil {
 		return nil, fmt.Errorf("%w: 维度 %d(%s) 业务错误: %w", ErrBusinessRejected, dim.ID, dim.Name, err)

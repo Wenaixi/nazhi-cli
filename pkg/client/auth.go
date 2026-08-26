@@ -44,9 +44,9 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 		return nil, fmt.Errorf("GetSchoolID 请求失败: %w", err)
 	}
 
-	resp, err := types.DecodeResponse(bodyBytes)
+	resp, err := decodeOrInvalidResponse("GetSchoolID", bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("GetSchoolID 响应解析失败: %w", err)
+		return nil, err
 	}
 
 	if err := types.CheckCode(resp); err != nil {
@@ -269,9 +269,9 @@ func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
 		return fmt.Errorf("验证码预校验请求失败: %w", err)
 	}
 
-	resp, err := types.DecodeResponse(bodyBytes)
+	resp, err := decodeOrInvalidResponse("验证码预校验", bodyBytes)
 	if err != nil {
-		return fmt.Errorf("验证码预校验响应解析失败: %w", err)
+		return err
 	}
 
 	if err := types.CheckCode(resp); err != nil {

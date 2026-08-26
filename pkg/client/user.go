@@ -64,9 +64,9 @@ func (c *Client) getMyInfoRaw(ctx context.Context, token string) (*types.UserInf
 		return nil, fmt.Errorf("GetMyInfo 请求失败: %w", err)
 	}
 
-	resp, err := types.DecodeResponse(bodyBytes)
+	resp, err := decodeOrInvalidResponse("GetMyInfo", bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("GetMyInfo 响应解析失败: %w", err)
+		return nil, err
 	}
 
 	if err := types.CheckCode(resp); err != nil {
