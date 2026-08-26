@@ -240,7 +240,6 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	return &resp, nil
 }
 
-
 // decodeOrInvalidResponse 是业务层四处 DecodeResponse 调用的统一哨兵包装 helper。
 // 主管线 doBizAndDecode (request.go:230-235) 已用双 %w 包装 ErrInvalidResponse；
 // 业务层 GetSchoolID / 验证码预校验 / GetMyInfo / fetchTasksDimensionJSON 自行调
@@ -255,6 +254,7 @@ func decodeOrInvalidResponse(opName string, bodyBytes []byte) (types.UnifiedResp
 	}
 	return resp, nil
 }
+
 // doBizGetDecode 封装 GET 请求的"预热 session → httpDo → DecodeResponse → CheckCode → 类型安全解码"管线。
 //
 // 参数：

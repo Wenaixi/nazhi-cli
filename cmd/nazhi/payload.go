@@ -63,6 +63,7 @@ func parseJSONObjectPayload(raw string) ([]byte, error) {
 	}
 	return payload, nil
 }
+
 // PayloadPositiveIDValid 校验 update payload 携带正数 id。
 // 兼容 float64（encoding/json 默认）与 json.Number 两种解码产物。
 // 跨命令通用：honor update + typical-case update 共享同一契约。
