@@ -9,6 +9,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -170,6 +171,47 @@ func TestDownloadFile_RejectsNon2xxStatus(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "404") {
 		t.Errorf("错误信息应含 status code 404，实际: %v", err)
+	}
+}
+
+// TestDownloadFile_Non2xxSentinelMapping 表驱动锁定非 2xx 状态码的哨兵归类：
+// 403/404 等 4xx 是服务端明确拒绝（ErrInvalidResponse→422/exit1，不可重试），
+// 不是网络故障（ErrNetwork→502/exit2 会诱导脚本对永久失败无限重试）；
+// 429/500 验证 default 之上的 RateLimited/ServiceUnavailable 分支未被波及。
+func TestDownloadFile_Non2xxSentinelMapping(t *testing.T) {
+	withTestTrustedHosts(t, []string{"127.0.0.1"})
+
+	cases := []struct {
+		name       string
+		status     int
+		wantTarget error // 期望 errors.Is 命中的哨兵；nil 表示不关心具体哨兵但不得命中 ErrNetwork
+	}{
+		{"403 归 ErrInvalidResponse", http.StatusForbidden, ErrInvalidResponse},
+		{"404 归 ErrInvalidResponse", http.StatusNotFound, ErrInvalidResponse},
+		{"429 归 ErrRateLimited", http.StatusTooManyRequests, ErrRateLimited},
+		{"500 归 ErrServiceUnavailable", http.StatusInternalServerError, ErrServiceUnavailable},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			entry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(tc.status)
+			}))
+			defer entry.Close()
+
+			dst := t.TempDir() + "/out.bin"
+			c := newDownloadTestClient(entry.URL)
+
+			err := c.DownloadFile(context.Background(), 1, dst)
+			if err == nil {
+				t.Fatalf("DownloadFile 应因 %d 失败，实际 nil", tc.status)
+			}
+			if !errors.Is(err, tc.wantTarget) {
+				t.Errorf("status=%d 错误应 errors.Is(%v)，实际: %v", tc.status, tc.wantTarget, err)
+			}
+			if errors.Is(err, ErrNetwork) {
+				t.Errorf("status=%d 非 2xx 不应归 ErrNetwork（网络故障语义），实际: %v", tc.status, err)
+			}
+		})
 	}
 }
 

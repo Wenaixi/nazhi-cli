@@ -18,6 +18,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
@@ -206,7 +207,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		// 复用 request.go 的 classifyHTTPStatus 统一 sentinel 分类。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrUploadRejected)
-		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
+		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBody(logSafeBody(errBody)))
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -306,7 +307,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 //   - 重定向次数上限 5，防止恶意循环
 //
 // 错误契约：
-//   - HTTP 非 2xx → fmt.Errorf("%w: status=%d", ErrNetwork, code)
+//   - HTTP 429 → ErrRateLimited；5xx → ErrServiceUnavailable；
+//     其余非 2xx（403/404 等服务端明确拒绝）→ ErrInvalidResponse
+//     （与 request.go httpDo/doBizGet、session.go doGetMenu 同口径；4xx 不是网络故障，
+//     归 ErrNetwork 会让脚本按可重试语义对永久失败无限重试）
 //   - 写入失败 → fmt.Errorf("写入文件失败: %w", err)
 //   - 重定向超过上限 → fmt.Errorf("重定向次数超过 %d 次", maxDownloadRedirects)
 //   - 跨域重定向 → fmt.Errorf("拒绝跨域重定向到 %s", host)
@@ -352,8 +356,8 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 	// 4. 状态码分类
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
-		sentinel := classifyHTTPStatus(resp.StatusCode, ErrNetwork)
-		return fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logSafeBody(errBody))
+		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
+		return fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBody(logSafeBody(errBody)))
 	}
 
 	// 5. 流式写入（ctx 感知：ctx 取消时立即中断，删除半成品）
