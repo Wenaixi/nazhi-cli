@@ -430,9 +430,19 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 	}
 	defer drainAndClose(resp.Body)
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	// HTTP-2 契约（P1-1，19 轮审计）：doBizGet 读响应体同样封顶 1MB——
+	// 与 httpDo 同构，防异常/被劫持服务端塞超大 body 造成内存放大。
+	// doBizGet 是激活步骤1（持 sm.mu 锁）/ InitSession / 验证码拉取三处共用 helper，
+	// 一处修复同时治愈三处无上限读体（session.go:108 / auth.go:27 / auth.go:353）。
+	// 超限分支直 Close 放弃 keep-alive（对齐 2356484 于 httpDo:377-381 的修复纪律，
+	// 不再经 defer drainAndClose 无上限续读剩余 body）。
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, logx.RedactBody(url), err)
+	}
+	if len(bodyBytes) > maxResponseBodySize {
+		_ = resp.Body.Close()
+		return nil, fmt.Errorf("%w: GET %s 响应体超过 %d 字节上限", ErrInvalidResponse, logx.RedactBody(url), maxResponseBodySize)
 	}
 	if resp.StatusCode != http.StatusOK {
 		// 按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过 errors.Is 精确识别
