@@ -622,3 +622,30 @@ func TestActivateSession_Step4NetworkErrorPropagates(t *testing.T) {
 		t.Fatal("步骤 4 网络失败应返回 error，实际 nil")
 	}
 }
+// TestDoGetMenu_Non200_ErrorBodySummary 锁定 P2-1：doGetMenu（ActivateSession 步骤 2/3）
+// 非 200 失败时错误消息必须附脱敏 body 摘要，与全 SDK 其余出口（httpDo/doBizGet/file.go/
+// auth.go）的诊断口径拉平——维护页/WAF 拦截场景下用户能定位根因而非只见状态码。
+func TestDoGetMenu_Non200_ErrorBodySummary(t *testing.T) {
+	var callCount int
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		callCount++
+		if callCount == 1 {
+			// 步骤 1：首页正常
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		// 步骤 2：getMenu 返回 503 + HTML 维护页
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte("<html><body>系统维护中</body></html>"))
+	}))
+	defer srv.Close()
+
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	_, err := c.ActivateSession(context.Background(), "test-token")
+	if err == nil {
+		t.Fatal("步骤 2 非 200 应失败")
+	}
+	if !strings.Contains(err.Error(), "系统维护中") {
+		t.Errorf("错误消息应附 body 摘要（系统维护中），实际: %v", err)
+	}
+}

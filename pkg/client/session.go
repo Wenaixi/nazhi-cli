@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"sync"
@@ -161,8 +162,12 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 		// 按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过
 		// errors.Is 精确识别原因（限流 / 服务端异常 / HTTP 层错误）。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
-		return fmt.Errorf("%w: ActivateSession %s getMenu 返回状态码 %d",
-			sentinel, stepLabel, resp.StatusCode)
+		// P2-1：错误消息附脱敏 body 摘要（限 100 字节），与全 SDK 其余出口
+		// （httpDo/doBizGet/file.go/auth.go）诊断口径拉平——维护页/WAF 拦截
+		// 场景下用户能定位根因。读 body 必须在 drainAndClose 之前（defer 已注册）。
+		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 100))
+		return fmt.Errorf("%w: ActivateSession %s getMenu 返回状态码 %d body=%s",
+			sentinel, stepLabel, resp.StatusCode, logx.RedactBodyThenTruncate(errBody, 100))
 	}
 	return nil
 }
