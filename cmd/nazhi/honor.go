@@ -148,8 +148,8 @@ var honorDeleteCmd = &cobra.Command{
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		honorID, _ := cmd.Flags().GetInt64("id")
-		if honorID == 0 {
-			printEnvelope(envelope.Error(400, "--id 为必填"))
+		if honorID <= 0 {
+			printEnvelope(envelope.Error(400, "--id 必须为正整数"))
 			return
 		}
 
