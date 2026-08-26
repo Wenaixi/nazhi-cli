@@ -35,6 +35,7 @@ URL 流程：
   # （全量模式 data 为裸数组；--limit 模式 data 带 records 包装，路径为 .data.records[].imgList[].attachment_id）
   nazhi task submitted | jq -r '.data[]?.imgList[]?.attachment_id // .data.records[]?.imgList[]?.attachment_id' | \
     xargs -I {} nazhi file download --id {} --output ./img_{}.jpg`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		id, _ := cmd.Flags().GetInt64("id")
 		output, _ := cmd.Flags().GetString("output")

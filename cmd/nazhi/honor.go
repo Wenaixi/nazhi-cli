@@ -30,6 +30,7 @@ var honorTypesCmd = &cobra.Command{
 	Long:  `获取当前平台可申报的所有荣誉类型列表及级别信息。`,
 	Example: `  nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi honor types --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -61,6 +62,7 @@ var honorListCmd = &cobra.Command{
 	Long:  `获取当前用户已申报的全部荣誉记录（分页）。支持 --key 关键字筛选。`,
 	Example: `  nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -100,6 +102,7 @@ getDate 示例用纯日期仅为可读性；前端实际提交 ISO 8601 时间�
 	Example: `  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"typeId":1147,"level":5,"evaluationAgency":"示例中学","getDate":"2026-06-30"}'
   nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor.json
   echo '{"typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		// 与 task submit/edit 同规范：先做本地参数校验再建客户端——缺 --payload
@@ -142,6 +145,7 @@ var honorDeleteCmd = &cobra.Command{
 	Long:  `按 ID 删除一条未审核的荣誉记录（已审核记录由服务端拒绝操作）。`,
 	Example: `  nazhi honor delete --token eyJhbGciOiJIUzI1NiJ9.xxx --id 123
   nazhi honor delete --token eyJhbGciOiJIUzI1NiJ9.xxx --id 123 --base-url http://139.159.205.146:8280`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		honorID, _ := cmd.Flags().GetInt64("id")
 		if honorID == 0 {

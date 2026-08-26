@@ -22,6 +22,7 @@ var fileUploadCmd = &cobra.Command{
 SDK 内部不产生任何鉴权头（独立 clean http.Client，无 cookie jar，不携带 Authorization / X-Auth-Token / Cookie）。`,
 	Example: `  nazhi file upload -f ./photo.jpg
   nazhi file upload -f ./photo.jpg --upload-url http://doc.nazhisoft.com`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath, _ := cmd.Flags().GetString("file")
 		if filePath == "" {

@@ -19,6 +19,7 @@ var taskSubmitCmd = &cobra.Command{
   nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"taskId":18154,"content":"劳动让我体会到责任的重要性。","imagePaths":["./photo.jpg"],"playRole":"3"}'
   nazhi task submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @task.json --address "操场" --level 5
   echo '{"taskId":18154,"content":"劳动让我体会到责任的重要性。"}' | nazhi task submit --token "xxx" --payload -`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 

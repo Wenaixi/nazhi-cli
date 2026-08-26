@@ -27,6 +27,7 @@ var loginCmd = &cobra.Command{
 	Example: `  export NAZHI_SILICONFLOW_API_KEY=sk-...      # 先设置视觉模型 key
   nazhi login -u 学号 -p 密码                       # 视觉识别器自动处理验证码
   nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		// username/password 用 applyURLFlag 统一收口：
 		// flag 显式传递 → 用 flag 值（含显式空字符串）；未传 → env fallback。

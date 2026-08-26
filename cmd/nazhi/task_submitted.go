@@ -30,6 +30,7 @@ var taskSubmittedCmd = &cobra.Command{
   nazhi task submitted --offset 5 --limit 5               # 第 6~10 条
   nazhi task submitted --count                            # 只看总数
   nazhi task submitted --key 劳动                           # 按关键字筛选`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -110,6 +111,7 @@ var taskSubmittedCmd = &cobra.Command{
 var taskDoneCmd = &cobra.Command{
 	Use:   "done",
 	Short: "查看我发布的写实记录 （task submitted 别名）",
+	Args:  cobra.NoArgs,
 	Run:   taskSubmittedCmd.Run,
 }
 

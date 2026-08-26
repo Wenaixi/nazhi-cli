@@ -28,6 +28,7 @@ var taskPublicCmd = &cobra.Command{
   nazhi task public --offset 5 --limit 5               # 第 6~10 条
   nazhi task public --count                            # 只看总数
   nazhi task public --key 劳动                           # 按关键字筛选`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {

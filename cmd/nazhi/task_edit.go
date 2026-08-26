@@ -28,6 +28,7 @@ var taskEditCmd = &cobra.Command{
 	Example: `  nazhi task edit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"id":5464109,"taskId":18151,"content":"修改后的内容"}'
   nazhi task edit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @edit.json
   echo '{"id":5464109,"taskId":18151,"content":"修改后的内容"}' | nazhi task edit --token "xxx" --payload -`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		if payloadRaw == "" {

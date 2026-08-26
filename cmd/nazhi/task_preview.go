@@ -21,6 +21,7 @@ hours 在任务预设 >0 且用户留空时自动填充；pictureList 只含 Ima
 	Example: `  nazhi task preview --token xxx --payload '{"taskId":18154,"content":"heart"}'
   nazhi task preview --token xxx --payload @task.json
   echo '{"id":5400001,"taskId":18154,"content":"fix"}' | nazhi task preview --token xxx --payload - --edit`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		isEdit, _ := cmd.Flags().GetBool("edit")

@@ -28,6 +28,7 @@ var taskTeacherCmd = &cobra.Command{
   nazhi task teacher --offset 5 --limit 5               # 第 6~10 条
   nazhi task teacher --count                            # 只看总数
   nazhi task teacher --key 劳动                           # 按关键字筛选`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {

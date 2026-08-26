@@ -11,6 +11,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "显示版本信息",
 	Long:  `显示 nazhi-cli 当前版本号。`,
+	Args:  cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		printEnvelope(envelope.Success(map[string]string{"version": version.Version}))
 	},

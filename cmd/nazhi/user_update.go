@@ -64,6 +64,7 @@ var userUpdateCmd = &cobra.Command{
 var userInfoCmd = &cobra.Command{
 	Use:   "info",
 	Short: "查看个人信息（whoami 别名）",
+	Args:  cobra.NoArgs,
 	Run:   whoamiCmd.Run,
 }
 

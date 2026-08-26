@@ -23,6 +23,7 @@ var sessionActivateCmd = &cobra.Command{
 	Long:  `使用 token 激活目标平台业务 Session。返回用户基本信息。`,
 	Example: `  nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi session activate --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
