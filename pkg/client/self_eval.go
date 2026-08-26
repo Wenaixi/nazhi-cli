@@ -176,7 +176,10 @@ func normalizeSelfEvalStatus(m map[string]any) *types.SelfEvalStatus {
 	//   teacherRemark 均无前端读取点或抓包依据；若未来服务端新增字段，应在
 	//   types 层显式处理，而非在此无限制扩张别名表。
 	status := &types.SelfEvalStatus{
-		ID:             firstInt64(m, "id", "platformId", "selfEvalId"),
+		// ID 只从 "id" 键读取（P2-1 收窄）：platformId/selfEvalId 兜底别名无任何
+		// 前端读取点或抓包依据（HAR dataMap 主键实证为 id），与 content/teacherRemark
+		// 等投机键同批收窄，禁止再扩张别名表。
+		ID:             firstInt64(m, "id"),
 		StudentComment: firstString(m, "student_comment", "studentComment"),
 		TeacherComment: firstString(m, "teacher_comment", "teacherComment"),
 	}

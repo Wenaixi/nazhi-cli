@@ -106,3 +106,23 @@ func TestParseStudentComment(t *testing.T) {
 		t.Fatalf("带空格 JSON 应解析成功，got m=%v err=%v", m, err)
 	}
 }
+// TestNormalizeSelfEvalStatus_PlatformIDAliasNarrowed 锁定 P2-1 收窄：
+// normalizeSelfEvalStatus 的 ID 兜底别名 platformId/selfEvalId 无任何前端读取点
+// 或抓包依据（mainLeft.vue/selfgaintloss.vue 全镜像零命中，HAR dataMap 主键为 id，
+// 见 .claude/查看自我评价和教师评价.har:1724），与 content/teacherRemark/
+// selfEvaluation/evaluationContent 同批收窄——ID 只从 "id" 键读取。
+func TestNormalizeSelfEvalStatus_PlatformIDAliasNarrowed(t *testing.T) {
+	// 仅含 platformId 的 map 不再派生出记录（收窄后 ID 拿不到，全零归一 nil）
+	if s := normalizeSelfEvalStatus(map[string]any{"platformId": 5}); s != nil {
+		t.Fatalf("platformId 兜底别名应收窄失效（期望 nil），got %+v", s)
+	}
+	// 仅含 selfEvalId 同理
+	if s := normalizeSelfEvalStatus(map[string]any{"selfEvalId": 7}); s != nil {
+		t.Fatalf("selfEvalId 兜底别名应收窄失效（期望 nil），got %+v", s)
+	}
+	// 主路径 id 恒生效：即使同时带投机键，ID 从 id 读取
+	s := normalizeSelfEvalStatus(map[string]any{"id": 3, "platformId": 9, "selfEvalId": 11, "student_comment": "评语"})
+	if s == nil || s.ID != 3 || s.StudentComment != "评语" {
+		t.Fatalf("主路径 id 应生效且 ID=3，got %+v", s)
+	}
+}
