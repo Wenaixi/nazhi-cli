@@ -165,10 +165,16 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 	defer drainAndClose(httpResp.Body)
 
-	bodyBytes, err := io.ReadAll(httpResp.Body)
+	// HTTP-2 契约（19 轮审计 http-infra P2-1）：Login validate 端点响应体同样封顶 1MB。
+	// 与 request.go doBizGet/httpDo 同构——防异常/被劫持 SSO 塞超大 body 造成内存放大。
+	// 302 分支不读 body（只取 Location 头），仅 200 与其它状态码分支受影响。
+	bodyBytes, err := io.ReadAll(io.LimitReader(httpResp.Body, maxResponseBodySize+1))
 	if err != nil {
 		return nil, fmt.Errorf("Login 读取响应体失败: status=%d read=%d bytes: %w",
 			httpResp.StatusCode, len(bodyBytes), err)
+	}
+	if len(bodyBytes) > maxResponseBodySize {
+		return nil, fmt.Errorf("%w: Login 响应体超过 %d 字节上限", ErrLoginRejected, maxResponseBodySize)
 	}
 	bodySnippet := logx.RedactBodyThenTruncate(bodyBytes, 100)
 
