@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"sync/atomic"
 
@@ -63,11 +62,10 @@ func mapSentinelToHTTPCode(err error) int {
 	case errors.Is(err, client.ErrInvalidPayload),
 		errors.Is(err, client.ErrFileTooLarge):
 		return 400
-	// FILE-1：本地文件系统错误（文件不存在/路径不可写等调用方可控输入问题）归参数档。
-	// net/http 链路错误是 *url.Error（不含 *fs.PathError 链），不会误伤；*os.PathError 是其别名。
-	// 此前经 default 走 500/exit2，脚本对永久性本地输入错误无限重试。
-	case errors.As(err, new(*fs.PathError)):
-		return 400
+	// FILE-1 修订：本地文件系统错误（上传附件不存在/下载路径不可写）由 SDK 侧包
+	// ErrInvalidPayload 哨兵归 400/exit3（见 file.go/image_prep.go）。
+	// 不再在漏斗层匹配 *fs.PathError——stdin 读错误（关闭句柄）也是 PathError 链，
+	// 且既有契约锁定其为 exit 2（管道场景可瞬时恢复，不应与永久性参数错误混淆）。
 	case errors.Is(err, client.ErrBusinessRejected),
 		errors.Is(err, client.ErrLoginRejected),
 		errors.Is(err, client.ErrInvalidResponse),

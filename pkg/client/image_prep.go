@@ -135,7 +135,8 @@ scaleCascade:
 func decodeImage(path string) (image.Image, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("打开图片失败: %w", err)
+		// FILE-1：本地 IO 错误归 ErrInvalidPayload（调用方可控输入问题）→ CLI 400/exit3。
+		return nil, fmt.Errorf("打开图片失败: %w", errors.Join(ErrInvalidPayload, err))
 	}
 	defer f.Close()
 

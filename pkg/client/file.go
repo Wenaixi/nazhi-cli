@@ -92,7 +92,9 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		}
 		fileData, err = os.ReadFile(filePath)
 		if err != nil {
-			return nil, fmt.Errorf("读取附件失败: %w", err)
+			// FILE-1：本地 IO 错误（文件不存在/无权限）是调用方可控输入问题，
+			// 包 ErrInvalidPayload 让 CLI 漏斗归 400/exit3，而非 500/exit2 被脚本无限重试。
+			return nil, fmt.Errorf("读取附件失败: %w", errors.Join(ErrInvalidPayload, err))
 		}
 		if len(fileData) > MaxAttachmentSize {
 			return nil, fmt.Errorf("附件超过 %d 字节: %w", MaxAttachmentSize, ErrFileTooLarge)
@@ -436,7 +438,8 @@ func hasHostSuffix(host, suffix string) bool {
 func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 	f, err := osCreate(dst)
 	if err != nil {
-		return fmt.Errorf("创建目标文件失败: %w", err)
+		// FILE-1：目标路径不可写/不存在是调用方输入问题，包 ErrInvalidPayload → 400/exit3。
+		return fmt.Errorf("创建目标文件失败: %w", errors.Join(ErrInvalidPayload, err))
 	}
 
 	written, copyErr := copyCtx(ctx, src, f)
