@@ -72,7 +72,8 @@ type Option func(*Client)
 //
 // 返回 func(string) Option：
 //   - v 为空或纯空白：warn 并拒绝设置，保持当前值
-//   - 否则：TrimSpace 后调用 setter
+//   - 否则：TrimSpace 并去掉尾部斜杠后调用 setter（拼接点均为 "/path" 形态，
+//     尾斜杠会产生 //path 双斜杠路径，个别 nginx 配置下 404 且难排查）
 func withURLGuard(name string, setter func(*Client, string)) func(string) Option {
 	return func(v string) Option {
 		if strings.TrimSpace(v) == "" {
@@ -81,7 +82,7 @@ func withURLGuard(name string, setter func(*Client, string)) func(string) Option
 			}
 		}
 		return func(c *Client) {
-			setter(c, strings.TrimSpace(v))
+			setter(c, strings.TrimRight(strings.TrimSpace(v), "/"))
 		}
 	}
 }
