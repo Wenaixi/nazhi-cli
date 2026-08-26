@@ -375,6 +375,9 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 		return nil, fmt.Errorf("%w: 读取响应体失败: %w", ErrNetwork, err)
 	}
 	if len(respBytes) > maxResponseBodySize {
+		// P2-2：超限分支直 Close 放弃 keep-alive，不再经 defer drainAndClose 无上限
+		// 消费剩余 body——恶意无限流下旧实现会持续读到 c.http.Timeout 才被总超时兜底。
+		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%w: 响应体超过 %d 字节上限", ErrInvalidResponse, maxResponseBodySize)
 	}
 
