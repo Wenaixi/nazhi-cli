@@ -221,11 +221,16 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBodyThenTruncate(errBody, 100))
 	}
 
-	bodyBytes, err := io.ReadAll(resp.Body)
+	// P2-1：上传成功路径响应体同样封顶 1MB（对齐 request.go httpDo 的 HTTP-2 双守卫）。
+	// 正常上传响应为几百字节 JSON（HAR 实证），超限仅防异常/被劫持服务端内存放大。
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		// 读取失败时包装为 ErrNetwork 哨兵，供 errors.Is 识别；
 		// 不吞错误避免后续解码报误导性 EOF。
 		return nil, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
+	}
+	if len(bodyBytes) > maxResponseBodySize {
+		return nil, fmt.Errorf("%w: 上传响应体超过 %d 字节上限", ErrInvalidResponse, maxResponseBodySize)
 	}
 
 	// 5. 解析响应。200+非 JSON（WAF 挑战页/维护页 HTML）与主管线同口径归 ErrInvalidResponse，
