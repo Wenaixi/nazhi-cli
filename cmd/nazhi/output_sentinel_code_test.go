@@ -97,3 +97,47 @@ func TestPrintError_Network_StillExit2(t *testing.T) {
 		t.Errorf("ErrNetwork 应保持退出码 2, 实际 %d", got)
 	}
 }
+
+// TestPrintError_SessionBackoff_ExitCode1 会话冷却窗口属「客户端已知应等待」的确定性状态，
+// 与限流同档归 429（退出码 1）；此前落 default 500/exit2，脚本会把冷却当服务端故障退避重放。
+func TestPrintError_SessionBackoff_ExitCode1(t *testing.T) {
+	orig := pendingExitCode.Load()
+	defer pendingExitCode.Store(orig)
+	quiet = false
+
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr; _ = r.Close() }()
+
+	printError(fmt.Errorf("激活失败: %w", client.ErrSessionBackoff))
+
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("ErrSessionBackoff 应走 429 档(退出码 1), 实际 %d", got)
+	}
+}
+
+// TestPrintError_Retryable_ExitCode2 ErrRetryable（上下文取消/截止导致的可重试失败）
+// 归 503 服务端档（退出码 2），此前落 default 500——语义同档但映射显式化，防误判为未知错误。
+func TestPrintError_Retryable_ExitCode2(t *testing.T) {
+	orig := pendingExitCode.Load()
+	defer pendingExitCode.Store(orig)
+	quiet = false
+
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	defer func() { os.Stderr = origStderr; _ = r.Close() }()
+
+	printError(fmt.Errorf("聚合失败: %w", client.ErrRetryable))
+
+	if got := pendingExitCode.Load(); got != 2 {
+		t.Errorf("ErrRetryable 应走 503 档(退出码 2), 实际 %d", got)
+	}
+}
