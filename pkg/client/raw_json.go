@@ -193,6 +193,8 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 		return nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
 
+	// ponytail: 与 fetchAllCirclePages 同款天花板——短路看 TotalNum、翻页上界只用 TotalPage，
+	// 服务端 totalPage 虚低（双重违约）时会静默截断；防御改法见 submitted.go 注释。
 	if pb == nil || pb.TotalPage <= 1 || pb.TotalNum <= pageSize {
 		if len(raw1) == 0 {
 			return []byte("[]"), nil
@@ -648,7 +650,8 @@ func (c *Client) GetMyInfoJSON(ctx context.Context, token string) (json.RawMessa
 // QuerySelfEvaluationJSON 查询自我评价状态的原始 JSON。
 //
 // 等价 QuerySelfEvaluation 但保留平台原始字段。
-// Fallback 链：returnData → dataMap → dataList[0]（与原方法一致）。
+// 结构化方法内部是 returnData → dataMap → dataList[0] 三解码器 fallback 链；
+// 本方法走 rawSingleObjectBytes：returnData 对象优先，其次 dataList[0]，再 dataMap。
 // 对账口径：前端唯一读取通道是 dataMap（mainLeft.vue）；若服务端异常地
 // 双容器并存且内容不同，本方法透传的是 returnData 内容，与网页所见可能
 // 不一致——对账请以结构化方法或 dataMap 字段为准。

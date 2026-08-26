@@ -82,7 +82,7 @@ type AddHonorPayload struct {
 	CertImgAttachmentID int64 `json:"certImgAttachmentId,omitempty"`
 	// Score 分值。前端 form 默认 0 且无 v-model；零值也会序列化进请求体。
 	// float64：入站兼容列表记录常见的 4.0 字面量（encoding/json 拒 4.0→int），
-	// 出站零值序列化仍为 "score":0 与前端 form 默认逐字节一致。
+	// 出站零值序列化仍为 "score":0，与前端 form 默认（JS number 0）数值等价。
 	Score float64 `json:"score"`
 }
 

@@ -6,6 +6,7 @@
 //	GET  /api/studentMoralEduNew/getHonorLevel          — 获取荣誉级别（dataList，需 honorTypeId 参数）
 //	GET  /api/studentMoralEduNew/getHonorByStudentId    — 查询已有荣誉（分页，需 &key=）
 //	POST /api/studentMoralEduNew/addHonor               — 申报荣誉
+//	POST /api/studentMoralEduNew/updateHonor            — 更新荣誉（未审核记录）
 //	GET  /api/studentMoralEduNew/deleteHonorById        — 删除荣誉
 package client
 
@@ -36,6 +37,9 @@ func (c *Client) GetHonorTypes(ctx context.Context, token string) ([]types.Honor
 		var err error
 		dataListTypes, err = types.DecodeDataList[types.HonorType](*resp)
 		if err != nil {
+			// ponytail: dataList 含类型不符字段时此处硬失败，returnData 兜底不可达——
+			// 与 GetHonorTypesJSON 的容错口径有意不同（规范 #19 锁定 fallback 保留决策）。
+			// 未来收口则改 logDebug + 继续尝试 returnData。
 			return nil, fmt.Errorf("GetHonorTypes 解析失败: %w", err)
 		}
 		if len(dataListTypes) > 0 {
