@@ -433,8 +433,9 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 	}
 	defer drainAndClose(resp.Body)
 
-	// HTTP-2 契约（P1-1，19 轮审计）：doBizGet 读响应体同样封顶 1MB——
-	// 与 httpDo 同构，防异常/被劫持服务端塞超大 body 造成内存放大。
+	// HTTP-2 契约（P1-1，19 轮审计）：doBizGet 读响应体同样封顶
+	// maxResponseBodySize（当前 4MB，2026-08-27 事故后放宽）——与 httpDo 同构，
+	// 防异常/被劫持服务端塞超大 body 造成内存放大。
 	// doBizGet 是激活步骤1（持 sm.mu 锁）/ InitSession / 验证码拉取三处共用 helper，
 	// 一处修复同时治愈三处无上限读体（session.go:108 / auth.go:27 / auth.go:353）。
 	// 超限分支直 Close 放弃 keep-alive（对齐 2356484 于 httpDo:377-381 的修复纪律，
