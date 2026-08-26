@@ -78,4 +78,16 @@ package version
 //		会话激活 sm.mu 临界区（锁窗口不再被网络往返放大到秒级，单测消除生产 SSO 外呼）；荣誉 typeName 反查改 int64
 //		比较；honor add / task preview 校验顺序收敛为先 payload 后建客户端；session activate 双注册删除；
 //		.env.example 补日志变量与 download 超时档披露等文档组六处
-var Version = "1.5.2"
+//	1.5.3 — 十六域全量深审修复：9 个 commit 0 P0 / 0 P1 / 12 P2 全清零
+//		- A1/A2 测试锁定：remark 关键词强制传图分支（task.go:320-325）+ 典型案例批删空切片守卫（typical_case.go:213-215）
+//		- A3 行为：DownloadFile 中途传输失败包 ErrNetwork 哨兵（file.go:435-441），含 ctx 取消豁免测试
+//		- A4 行为：业务层四处 DecodeResponse 接入 decodeOrInvalidResponse helper（auth.go:49/274 + user.go:69 + raw_json.go:591）
+//		- A5 测试：WithHTTPClient 超时继承双序断言（client.go:219-228 prevTimeout 继承）
+//		- A6 行为：honor update 校验 payload 正数 id 字段（平移 typicalCasePayloadIDValid 为共享 PayloadPositiveIDValid）
+//		- A7 行为：postProcessSchoolFallback 锁外原地突变数据竞争窗口（新增 sm.fallbackDone atomic.Bool 标志，
+//		  -race detector 100 goroutine 复现原窗；fast path DCL 同一缓存指针契约保持）
+//		- A8 文档：rejectLoneOffset godoc 加披露「四命令允许 buildBizClient 之后调用」
+//		- A9 行为：honor list / typical-case list 分页参数非负校验（与 circle_metadata.go:83-90 纪律对齐）
+//		- D1/D2/D3/D4 文档：self_eval_submit_test:307 注释与断言对齐 / file.go:25+:71 「前端限制 10MB」改「前端镜像文案 20MB」
+//		  / task.go:407 EditCircle 26 字段全量模式披露 / user.go:30 GetMyInfo fast path 描述与实现对齐
+var Version = "1.5.3"

@@ -1,5 +1,30 @@
 # CHANGELOG
 
+## [1.5.3] - 2026-08-26
+
+### 修复
+
+- 写实 remark 关键词强制传图分支无回归测试锁定：task.go:320-325（SDK 单方面发明的校验——前端 remark 仅作展示无此校验）的「备注含照片/图片/pdf + pictureList 为空 → ErrInvalidPayload」逻辑原本仅靠实现存在，重构误删不会有任何失败信号。新增 task_remark_image_required_test.go 表驱动测试 10 例覆盖（commit `897f9ac`）。
+- 典型案例批删空切片守卫缺 pkg/client 层回归：typical_case.go:213-215 的 `len(ids)==0 → ErrInvalidPayload` 实现正确（commit 1522446 修复本体），但客户端层无任何测试断言该守卫。test/e2e:109 与 cmd/nazhi/missing_cli_capabilities_test.go:51-62 两处引用均只覆盖相邻路径。新增 typical_case_batch_empty_test.go 客户端层回归 2 例（nil + 空切片双态，httptest server 零业务请求计数）（commit `07fb3da`）。
+- DownloadFile 中途传输失败缺 ErrNetwork 哨兵：file.go:435-438 copyErr 路径裸 `fmt.Errorf("写入文件失败: %w", copyErr)` 让 SDK 调用方按 `errors.Is(err, ErrInvalidResponse)` / `ErrNetwork` 判重试时不可识别（服务端 200+HTML 已被主管线拦截，但 mid-stream EOF/连接重置场景下 do() 拿不到响应头仅拿到 copyErr）；同函数 `:441` closeErr 路径同样裸包装。修复：copyErr 非 ctx 取消时包装 ErrNetwork 哨兵（用户主动 ctx 取消不归类为网络故障，避免自动重试误触发），closeErr 包 ErrNetwork。新增 file_download_midstream_test.go 回归 2 例（commit `83d1f41`）。
+- 业务层四处 DecodeResponse 裸包装与主管线分叉：auth.go:49 GetSchoolID + auth.go:274 验证码预校验 + user.go:69 GetMyInfo + raw_json.go:591 fetchTasksDimensionJSON 自行调 `types.DecodeResponse` 后裸 `fmt.Errorf`，让 `errors.Is(err, ErrInvalidResponse)` 在服务端 200+HTML（WAF/维护页）场景下落空，CLI 漏斗走 default 500/exit2，与主管线 `doBizAndDecode` (request.go:234) 双 %w 哨兵口径分叉。修复：抽 `decodeOrInvalidResponse(opName, bodyBytes)` helper 接管 DecodeResponse + ErrInvalidResponse 包装；四处调用方各改一行（commit `b6b64b4`）。
+- honor update 缺 payload 正数 id 校验：cmd/nazhi/honor.go:170-199 update 命令对 `payload["id"]` 零校验，会发出无 id 的业务请求，与 cmd/nazhi/typical_case.go:225-228 + 同文件 delete/levels 双重分叉。前端 performanceM.vue:489 编辑提交必然注入记录 id，此处对齐该契约。修复：平移 `typicalCasePayloadIDValid` 为共享 helper `PayloadPositiveIDValid` 到 cmd/nazhi/payload.go；honor update Run 在 json.Unmarshal 后调用该 helper，缺 id 或非正数 → envelope.Error(400) + exit 3 不发业务请求；typical-case update 改为调用共享 helper。新增 honor_update_id_test.go RED→GREEN 测试 1 例（commit `4f69402`）。
+- postProcessSchoolFallback 锁外原地突变数据竞争窗口（防御纵深上沿）：ActivateSession 出口在 sm.mu 锁外对共享缓存指针（RecordSuccess 原指针入缓存）原地写 SchoolID/SchoolName，与 fast path 并发读取方形成真实数据竞争（Go 内存模型下 string 头撕裂风险）。本 API 的 godoc 明确承诺并发安全，但 `-race` detector 在 100 goroutine 并发激活测试中可复现。修复：新增 sm.fallbackDone atomic.Bool 标志区分首次激活与重入；首次激活走 `infoCopy := *info` 浅拷贝 + fallback 改副本 + `UpdateCachedUserInfo(&infoCopy)` 替换缓存指针 + fallbackDone 设 true；重入/fast path 命中直接返回缓存指针保持 DCL 同一缓存指针契约；RecordFailure 清 fallbackDone。pkg/client 全域 29 秒 -race 全绿（commit `b480538`）。
+- honor list / typical-case list 分页参数缺非负校验：cmd/nazhi/honor.go:71-72 与 cmd/nazhi/typical_case.go:90-92 对 `--page`/`--page-size` 负值原样透传 SDK 查询串（`raw_json.go:749` 直拼 `strconv.Itoa(pageNo)`），对照组 cmd/nazhi/circle_metadata.go:83-90 对同形状参数有完整校验。修复：两处各加 4 行非负守卫 + envelope.Error(400) + exit 3（commit `926c897`）。
+- WithHTTPClient 超时继承语义无专项回归测试：pkg/client/client.go:219-228 prevTimeout 继承是 #22 证伪后的行为加固产物，但仅由 godoc 承载；重构误删该逻辑 CI 全绿静默回归，重新引入 Option 声明顺序敏感性。新增 option_inherit_timeout_test.go 表驱动测试 2 例（双序）锁定（commit `926c897`）。
+
+### 文档
+
+- self_eval_submit_test.go:307 块注释「业务错误应触发 pendingExitCode=2（envelope.Error 5xx → exit code 2）」与紧随断言（:308）与 t.Errorf 文案（:309）均锁定 pendingExitCode=1（ErrBusinessRejected → 422 → exit 1）矛盾。CLAUDE.md #29 记载「同步更新 task_submit_test 与 self_eval_submit_test 两处锁定断言为 exit 1」时改了断言与 t.Errorf，漏改上一行的块注释。修正：块注释 2 改 1（commit `013a311`）。
+- file.go:25 + :71 注释「前端限制 10MB」与 reference/nazhi 经典案例镜像实际提示文案「20MB」矛盾（commits ac2986a/1e34350 已同步镜像）。修正：两处注释「前端限制 10MB」改「前端镜像文案 20MB」（commit `013a311`）。
+- task.go:407 EditCircle godoc 披露范围不足：原 godoc 点名回填例外仅 hours 与图片两项，首句「用户字段空串原样发送」在编辑语境下构成误导。前端 openEdit→getCircleTypeByTaskId 把列表记录 26 个活动字段（name/hostName/circleDate/rank/level/circleBeginDate/circleEndDate/checkResult/patentType/patentNum/address/termName/各类型专属字段/playRole/likeSpecialty1-3 等）整体回填 JSON.stringify 后整包提交；SDK 编辑路径若只填 `{id,taskId,content}`（CLI 官方示例正是如此引导），上述字段全部以空串上线。修正：godoc 扩写披露「前端编辑是 26 字段全量回填模式——任何留空的专属字段 SDK 均发空串，要保留原值请从 CircleRecord 对应字段回填」（commit `013a311`）。
+- user.go:30 GetMyInfo godoc fast path 描述与实现相反：原注释「session 已激活（fast path）时返回 nil,nil」与实际不符——sm.Activate 持锁 fast path 命中返回 `(sm.cachedUserInfo, nil)` 非 nil，全链路不存在 (nil,nil) 返回。复用机制正因 fast path 返回非 nil info 被 :35-38 直接采纳。修正：注释「返回 nil,nil」改「返回缓存指针（非 nil）」（commit `013a311`）。
+- cmd/nazhi/output.go:101 rejectLoneOffset godoc 缺调用次序披露：四写实列表命令允许在 buildBizClient 之后调用（task_teacher/public/submitted/withdrawn），与 honor delete / typical-case delete 等先校后建派两派并存。修正：godoc 加披露段说明「重构如欲收敛到先校后建，需同步四调用点的位置；当前两派并存是历史累积的有意保留」（commit `013a311`）。
+
+### 工程
+
+- gofmt 对齐 pkg/client/request.go + cmd/nazhi/payload.go 两个主树文件（commit `8b9620c`）。
+
 ## [1.5.2] - 2026-08-26
 
 ### 修复
