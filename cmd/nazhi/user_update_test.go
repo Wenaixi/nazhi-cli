@@ -153,3 +153,58 @@ func TestUserUpdateCmd_InvalidGender(t *testing.T) {
 		t.Errorf("非法 genderName 应设置 pendingExitCode≠0，实际 0；stderr=%q", stderr)
 	}
 }
+
+// TestUserUpdateCmd_UnknownTopLevelKey_Rejects 锁定 19 轮审计 user-info P2-3：
+// CLI user update --payload 的未知顶层键被 json.Unmarshal 静默丢弃，
+// 全零命中 USER-1 no-op 分支（uc/user_update.go:99）→ 输出 204 成功但服务端零修改。
+func TestUserUpdateCmd_UnknownTopLevelKey_Rejects(t *testing.T) {
+	requestHit := false
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","studentNumber":"TEST2025001"}}`))
+		case "/api/studentInfo/updateMyInfo":
+			requestHit = true
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	cmd := &cobra.Command{Use: "user-update"}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("token", "", "")
+	_ = cmd.Flags().Set("token", "test-token")
+	cmd.Flags().String("payload", "", "")
+	_ = cmd.Flags().Set("payload", `{"telephoneX":"13800138000"}`)
+	cmd.Flags().String("base-url", "", "")
+	_ = cmd.Flags().Set("base-url", srv.URL)
+	cmd.Flags().Int("timeout", 5, "")
+
+	quiet = false
+	pendingExitCode.Store(0)
+
+	_, stderrBuf, restore := captureStdio(t)
+	userUpdateCmd.Run(cmd, nil)
+	restore()
+	stderr := stderrBuf.String()
+
+	if requestHit {
+		t.Fatal("未知键 payload 不应发出业务请求")
+	}
+	if got := pendingExitCode.Load(); got != 3 {
+		t.Errorf("未知键应走参数错误退出码 3，实际 %d", got)
+	}
+	if !strings.Contains(stderr, `"status": "error"`) || !strings.Contains(stderr, `"code": 400`) {
+		t.Errorf("stderr 应输出 400 参数错误 envelope，实际: %q", stderr)
+	}
+	if !strings.Contains(stderr, "未知键") {
+		t.Errorf("stderr 应含未知键提示，实际: %q", stderr)
+	}
+}

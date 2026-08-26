@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -44,6 +45,13 @@ var userUpdateCmd = &cobra.Command{
 			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}
+		// P2-3（19 轮审计 user-info）：未知顶层键静默丢弃会让拼错键名（如 telephoneX）
+		// 走全零 no-op 分支输出 204 成功但服务端零修改。解码后校验键集合，
+		// 未知键以参数错误拒绝（400/exit3），与 --payload 顶层对象校验互补。
+		if unknown := unknownUserUpdateKeys(payloadBytes); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi user update --help）", unknown))
+			return
+		}
 
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -66,6 +74,35 @@ var userInfoCmd = &cobra.Command{
 	Short: "查看个人信息（whoami 别名）",
 	Args:  cobra.NoArgs,
 	Run:   whoamiCmd.Run,
+}
+
+// userUpdateAllowedKeys 是 UserUpdateInput 的全部顶层 JSON 键（含只读忽略的
+// nationalStudentNumber——Structured 忽略它但允许显式传入以对齐前端整表 stringify）。
+var userUpdateAllowedKeys = map[string]struct{}{
+	"name": {}, "studentNumber": {}, "nationalStudentNumber": {},
+	"telephone": {}, "familyAddress": {}, "hobbies": {},
+	"genderName": {}, "youthLeague": {}, "nationName": {}, "idCardType": {},
+	"idCard": {}, "birthday": {}, "birthdayStr": {}, "studentUuid": {}, "seat": {},
+}
+
+// unknownUserUpdateKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名（含重复/空串归一）。
+func unknownUserUpdateKeys(payloadBytes []byte) []string {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(payloadBytes, &top); err != nil {
+		return nil // 解析已在调用方完成并报错，此处不重复
+	}
+	var unknown []string
+	for k := range top {
+		if _, ok := userUpdateAllowedKeys[k]; !ok {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	// 稳定排序保证错误消息确定性
+	sort.Strings(unknown)
+	return unknown
 }
 
 func init() {
