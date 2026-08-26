@@ -1,5 +1,27 @@
 # CHANGELOG
 
+## [Unreleased]
+
+### 修复
+
+- ActivateSessionJSON 改调 GetMyInfo 使学校信息 SSO 降级补全真实生效（原实现直通 sm.Activate 后 Marshal，godoc 承诺的补全从未执行）；空数据仍返回 (nil,nil) 保持原契约（commit `a621901`）。
+- UpdateCachedUserInfo 显式比对 token：签名加 forToken 参数，跨 token 的迟到写入（多 goroutine 场景）不再污染新 token 的缓存（commit `9f36dea`）。
+- 日志脱敏先于截断：新增 logx.RedactBodyThenTruncate，修复敏感值跨 100 字节截断边界时正则失配泄漏前缀；request.go/file.go/auth.go 七处消费点统一改调，auth.go 四处 debug bodySnippet 同步改为脱敏版（commit `cdec8b9`）。
+- httpDo 响应体读取封顶 1MB：异常/被劫持服务端塞超大 body 不再整体入内存，超限归 ErrInvalidResponse（commit `07ad8a5`）。
+- UpdateMyInfoStructured 全零输入视为 no-op：不再发出仅含 studentUuid 空串的空 POST 并失效本地缓存（CLI --payload '{}' 可达）（commit `85ed8f9`）。
+- 本地 IO 错误归参数档：上传附件不存在 / 图片解码打开失败 / 下载目标路径不可写由 SDK 包 ErrInvalidPayload 哨兵，CLI 退出码从 500/exit2 纠正为 400/exit3，脚本不再对永久性本地输入错误无限重试（commit `f42df62`）。
+
+### 文档
+
+- GetDate wire 形态披露：前端 el-date-picker 无 value-format 实际提交 ISO 8601 时间戳，纯日期是否被服务端接受以平台裁决为准（types/honor.go + honor 命令 Long）。
+- 典型案例 status 合法集合注释修正为 0/1/2/3（原漏 0=未审核）。
+- GetSubmittedCirclesJSON godoc 修正为「恒为合法 JSON 数组」（原「可能为 null」失实）。
+
+### 工程
+
+- user update 测试 helper 单次 Body.Read 改 io.ReadAll 消除理论欠读（commit `b229b7d`）。
+- gofmt 对齐 honor Long 与 client.go 空行（commit `b520bf2`）。
+
 ## [1.5.3] - 2026-08-26
 
 ### 修复
