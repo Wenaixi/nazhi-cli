@@ -58,8 +58,32 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 		return info, err
 	}
 	// P1-B：学校信息 SSO 回退在 sm.mu 锁外执行（幂等：字段已齐则零开销直通）。
-	c.postProcessSchoolFallback(ctx, info)
-	c.sm.UpdateCachedUserInfo(info)
+	//
+	// P0-A7（十六域审计）：info 与 sm.cachedUserInfo 是同一指针（RecordSuccess 原指针入缓存），
+	// 锁外直接 postProcessSchoolFallback(ctx, info) 会原地改共享缓存指针，与 fast path
+	// 并发读取方形成数据竞争（Go 内存模型下 string 头撕裂风险）。
+	// 修法：浅拷贝出 infoCopy，让 postProcessSchoolFallback 改副本；UpdateCachedUserInfo(infoCopy)
+	// 把缓存指针替换为 infoCopy（不同指针但 token 一致 → 走替换分支）；fast path 命中后
+	// 继续返回 infoCopy（同一指针），保持 DCL 同一缓存指针契约。原 info（步骤 4 网络响应对象）
+	// 不再被并发读到。
+	// P1-B + P0-A7（十六域审计）：学校信息 SSO 回退在 sm.mu 锁外执行。
+	//
+	// 修复要点：info 与 sm.cachedUserInfo 是同一指针（RecordSuccess 原指针入缓存），
+	// 锁外直接 postProcessSchoolFallback(ctx, info) 会原地改共享缓存指针，与 fast path
+	// 并发读取方形成数据竞争（Go 内存模型下 string 头撕裂风险）。
+	//
+	// 修法：用 sm.fallbackDone 原子标志判断当前缓存是否已 fallback 补完成。
+	//   - false（首次激活或缓存被 RecordFailure 清空后）：浅拷贝出 infoCopy，让 fallback 改副本，
+	//     UpdateCachedUserInfo(&infoCopy) 把缓存指针替换为 infoCopy；fallbackDone 设回 true。
+	//     fast path 重入返回的也是 infoCopy（同一指针），保持 DCL 同一缓存指针契约。
+	//   - true（上次已 fallback）：直接返回 info，缓存指针不变，DCL 同一指针契约保持。
+	if !c.sm.fallbackDone.Load() {
+		infoCopy := *info
+		c.postProcessSchoolFallback(ctx, &infoCopy)
+		c.sm.UpdateCachedUserInfo(&infoCopy)
+		c.sm.fallbackDone.Store(true)
+		return &infoCopy, nil
+	}
 	return info, nil
 }
 
@@ -171,6 +195,8 @@ type sessionManager struct {
 	lastFailedToken string
 	cachedUserInfo  *types.UserInfo // 持锁 fast path 缓存。CLI 单进程命中一次，
 	// SDK 多 goroutine 并发 FetchTasks 可复用步骤 4 数据。
+	fallbackDone atomic.Bool // 标记当前 cachedUserInfo 是否已走 postProcessSchoolFallback，
+	// 锁外读安全。ActivateSession 据此跳过重复 fallback（重复 fallback 替换缓存指针会破坏 DCL 同一指针契约）。
 }
 
 // isBackoffHit 检查给定 token 是否在 backoff 冷却窗口内。
@@ -258,6 +284,7 @@ func (sm *sessionManager) RecordFailure(token string, err error) {
 	// 污染当前活跃 token 的 cachedUserInfo
 	if sm.LoadToken() == token {
 		sm.cachedUserInfo = nil
+		sm.fallbackDone.Store(false)
 	}
 }
 
