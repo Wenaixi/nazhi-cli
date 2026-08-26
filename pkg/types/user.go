@@ -76,13 +76,13 @@ type UserInfo struct {
 	Telephone string `json:"telephone,omitempty"` // 电话号码
 
 	// 个人信息
-	GenderName      string `json:"genderName,omitempty"`      // 性别名称
-	BirthdayStr     string `json:"birthdayStr,omitempty"`     // 生日字符串
+	GenderName      string  `json:"genderName,omitempty"`      // 性别名称
+	BirthdayStr     string  `json:"birthdayStr,omitempty"`     // 生日字符串
 	YouthLeagueFlag FlexInt `json:"youthLeagueFlag,omitempty"` // 团员标志
 	Nation          FlexInt `json:"nation,omitempty"`          // 民族（数字 1=汉族 等）
-	FamilyAddress   string `json:"familyAddress,omitempty"`   // 家庭地址
-	Hobbies         string `json:"hobbies,omitempty"`         // 爱好
-	IDCard          string `json:"idCard,omitempty"`          // 身份证号
+	FamilyAddress   string  `json:"familyAddress,omitempty"`   // 家庭地址
+	Hobbies         string  `json:"hobbies,omitempty"`         // 爱好
+	IDCard          string  `json:"idCard,omitempty"`          // 身份证号
 	IDType          FlexInt `json:"idType,omitempty"`          // 证件类型（数字）
 
 	// 前端 getMyInfo 响应的额外原始字段

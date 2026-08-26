@@ -244,6 +244,7 @@ func parseHours(userInput string, metaHours float64, targetType int) (float64, e
 // 对齐前端（输入暴露原则）：
 //   - circleTaskId/circleTypeId/dimensionId/hours(预设>0)：SDK 从 getCircleTypeByTaskId 自动填
 //   - Address/OrgName/Level/PlayRole 等：用户填什么发什么；空串原样，不发明学校名或等级「5」
+//
 // countValidImages 统计将进入 pictureList 的有效图片总数：
 // ImageIDs 中 >0 的条目 + ImagePaths 中非空白路径。须与合并/上传循环的去重口径保持一致。
 func countValidImages(input types.TaskInput) int {
