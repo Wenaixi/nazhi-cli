@@ -407,6 +407,14 @@ func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResu
 // 用户字段（address/level/playRole 等活动字段）空串原样发送，不发明学校名或等级 5；
 // 任务元数据与图片由 SDK 自动补齐。
 //
+// 编辑模式特别提示（CLAUDE.md #31 披露）：前端 openEdit→getCircleTypeByTaskId
+// 把列表记录的 26 个活动字段（name/hostName/circleDate/rank/level/circleBeginDate/
+// circleEndDate/checkResult/patentType/patentNum/address/termName/各类型专属字段/
+// playRole/likeSpecialty1-3 等）整体回填，JSON.stringify 后整包提交。SDK 编辑路径
+// 若只填 {id,taskId,content}，则上述字段全部以空串上线——CLI 官方示例正是如此引导。
+// 要保留原记录任何字段的值，调用方应从 CircleRecord 对应字段显式赋值给 input，
+// 否则与原记录不同的字段会被空串静默改写（服务端对空串是否覆盖未抓包证实，挂账）。
+//
 // hours 例外——编辑留空时回填任务元数据预设（getCircleTypeByTaskId.hours），
 // 而前端编辑是用列表记录值覆盖任务预设。要保留原记录值，请从列表记录
 // （CircleRecord 的 hours）显式赋值给 input.Hours，否则与预设不同的记录会被静默改写。

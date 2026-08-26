@@ -102,6 +102,11 @@ func printParamError(err error) {
 // 输出参数错误信封并返回 true。offset>0 而 limit<=0 会被 SDK 全量路径静默忽略；
 // offset<0 在 limit 模式下等效归零、全量模式下整体失效——分页脚本 page 计算
 // 出错时会无声拿到错误切片。四命令统一拒绝以防静默错误数据。
+//
+// 调用次序（CLAUDE.md #31 披露）：本函数允许在 buildBizClient 之后调用（task_teacher/
+// task_public/task_submitted/task_withdrawn 四命令均如此），与 honor delete / typical-case
+// delete 等先校后建派的双参数缺失时首报消息与 stdout/stderr 通道漂移（退出码恒 3 无损）。
+// 重构如欲收敛到先校后建，需同步四调用点的位置；当前两派并存是历史累积的有意保留。
 func rejectLoneOffset(cmd *cobra.Command) bool {
 	offset, _ := cmd.Flags().GetInt("offset")
 	limit, _ := cmd.Flags().GetInt("limit")

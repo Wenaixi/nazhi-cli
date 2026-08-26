@@ -27,7 +27,8 @@ import (
 // 业务成功但无数据时返回 ErrEmptyUserInfo 哨兵，cmd 层可据此走 status envelope。
 func (c *Client) GetMyInfo(ctx context.Context, token string) (*types.UserInfo, error) {
 	// ActivateSession 若由步骤 4 完成激活会返回其获取的 UserInfo；
-	// GetMyInfo 直接复用避免重复请求。session 已激活（fast path）时返回 nil,nil。
+	// GetMyInfo 直接复用避免重复请求。session 已激活（fast path）时返回缓存指针（非 nil），
+	// 复用机制正因 fast path 返回非 nil info 而成立；若按 nil 返回本函数会落到下面重复发一次 getMyInfo 请求。
 	info, err := c.ActivateSession(ctx, token)
 	if err != nil {
 		return nil, fmt.Errorf("GetMyInfo 预热 session 失败: %w", err)

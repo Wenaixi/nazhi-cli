@@ -304,7 +304,7 @@ func TestSelfEvalSubmitCmd_ServerError(t *testing.T) {
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
 
-	// 业务错误应触发 pendingExitCode=2（envelope.Error 5xx → exit code 2）
+	// 业务错误应触发 pendingExitCode=1（ErrBusinessRejected → 422 → exit code 1）
 	if got := pendingExitCode.Load(); got != 1 {
 		t.Errorf("业务拒绝（ErrBusinessRejected）应触发 pendingExitCode=1，实际 %d", got)
 	}
