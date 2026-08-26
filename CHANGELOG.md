@@ -1,5 +1,24 @@
 # CHANGELOG
 
+## [未发布]
+
+### 修复
+
+- 文件下载 404/403 被误判为网络故障：DownloadFile 非 2xx 分支的 default 哨兵此前挂 ErrNetwork，确定性失败（附件已删/风控拦截）映射 502/exit2，脚本按「可重试」对永久失败无限重试；改归 ErrInvalidResponse（429→限流、5xx→服务端不可用分支不变），与 httpDo/doBizGet/doGetMenu/UploadFile 四个兄弟分支同口径，退出码纠正为 422/exit1（commit `563d1d1`）。
+- 会话激活锁窗口可被放大到秒级：学校信息 SSO 回退补全（getMyInfo 缺 schoolId/schoolName 时）曾在 sm.mu 持锁路径内同步发起真实 SSO 域 POST，最坏把多 goroutine 并发激活的阻塞时间从数百毫秒放大到 HTTP 超时秒级，违背 ActivateSession 并发契约；回退已移至解锁后执行（幂等，字段已齐零开销），className 清理留锁内（commit `7a8d014`）。附带治理：两个单测夹具此前每次运行都向生产 SSO 域发真实请求，现已注入本地测试服务器。
+- 荣誉 typeName 自动反查在大 id 下失效：反查比较用平台相关 int 宽度，typeId 超 2^31 时 32 位编译目标静默截断导致必不命中、退化为空 typeName 提交；统一 int64 比较（commit `730b3df`）。
+- honor add 缺 --payload 的报错顺序与同族命令分叉：先建客户端后校验 payload，双参数缺失时报 token 配置错误而非参数错误；已收敛为先校验后建客户端的统一规范（commit `afc9806`）。
+- task preview 同款校验顺序分叉：「先校验 payload 后建客户端」不变式的漏网第三处（submit/edit 已于上轮修复），位置对齐并补回归（commit `5467ce3`）。
+- session --help 出现两行相同的 activate 条目：activate 子命令被注册两次而 cobra 不去重，删除重复注册点（commit `22b4093`）。
+
+### 文档
+
+- .env.example 补 NAZHI_LOG_LEVEL / NAZHI_LOG_FORMAT / NAZHI_LOG_FILE 三个环境变量示例，并披露 file download 与 upload 同为 30 秒超时档（commit `59b546d`）。
+- typical-case submit 示例去除手填 typeName：示例引导用户手填展示名会使 SDK 自动补全链路失效，改由代码映射自动生成（与 honor add 示例同款修正）（commit `59b546d`）。
+- 自我评价 *JSON 透传方法补充对账口径披露：前端唯一读取通道是 dataMap，双容器并存时透传内容可能与网页所见不一致（commit `59b546d`）。
+- UserUpdateInput.Seat 注释明确字面 "0" 视为跳过不发送；如需强制清零走裸 map 路径（commit `59b546d`）。
+- newCleanClient godoc 披露上传/下载通道超时下限 30s（小于该值静默上浮并告警）与无超时时 5 分钟兜底（commit `59b546d`）。
+
 ## [1.5.1] - 2026-08-25
 
 ### 修复
