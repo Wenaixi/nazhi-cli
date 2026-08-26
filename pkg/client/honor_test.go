@@ -1,4 +1,4 @@
-﻿// honor_test.go 荣誉申报 SDK 测试。
+// honor_test.go 荣誉申报 SDK 测试。
 package client_test
 
 import (
@@ -17,15 +17,15 @@ import (
 // honorRecordJSON 生成一条荣誉记录（snake_case 字段名对齐 API）。
 func honorRecordJSON(id int64, name, statusName string) map[string]any {
 	return map[string]any{
-		"id":                     id,
-		"type_name":              name,
-		"level_name":             "校",
-		"level":                  5,
-		"dimension_name":         "思想品德",
-		"approved":               true,
-		"statusName":             statusName,
-		"get_date":               "2026-06-30T00:00:00+08:00",
-		"evaluation_agency":      "示例中学",
+		"id":                id,
+		"type_name":         name,
+		"level_name":        "校",
+		"level":             5,
+		"dimension_name":    "思想品德",
+		"approved":          true,
+		"statusName":        statusName,
+		"get_date":          "2026-06-30T00:00:00+08:00",
+		"evaluation_agency": "示例中学",
 		// 19 轮审计 P2-2：补齐入站展示字段夹具——cert_img_attachment_id 用真实平台
 		// 形态（完整图片 URL 字符串，performanceM.vue:25 直接 <img :src> 消费），
 		// 锁定 string 建模不被误改 int64（URL 字符串会让 DecodeDataList 整页失败）。

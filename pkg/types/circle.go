@@ -34,8 +34,8 @@ type CircleRecord struct {
 	Content  string `json:"content"`
 	TypeName string `json:"type_name"`
 	// Approved：业务以 Status 为准；解码兼容 bool/0/1（见 FlexBool）。
-	Approved       FlexBool      `json:"approved"`
-	CircleDate     string        `json:"circle_date"`
+	Approved   FlexBool `json:"approved"`
+	CircleDate string   `json:"circle_date"`
 	// Hours 为数值（平台返回 number，前端模板字符串拼接展示「X小时」）；
 	// 空值语义请用 Hours==0 判定，不要做字符串空串判断（19 轮审计 P2-1 披露）。
 	Hours          float64       `json:"hours"`
