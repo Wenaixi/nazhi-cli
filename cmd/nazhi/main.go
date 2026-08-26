@@ -117,8 +117,7 @@ func init() {
 	rootCmd.AddCommand(loginCmd)
 
 	// session
-	rootCmd.AddCommand(sessionCmd) // session parent
-	sessionCmd.AddCommand(sessionActivateCmd)
+	rootCmd.AddCommand(sessionCmd) // session parent（activate 子命令在 session.go init 内注册，勿在此重复添加——cobra AddCommand 不去重，双注册会让 --help 出现重复条目）
 
 	// task
 	rootCmd.AddCommand(taskCmd) // task parent

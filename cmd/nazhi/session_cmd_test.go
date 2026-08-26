@@ -253,3 +253,18 @@ func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {
 		t.Errorf("stdout 应包含冷却提示，实际: %q", stdout)
 	}
 }
+
+// TestSessionCmd_ActivateRegisteredOnce 回归：activate 子命令只能注册一次。
+// cobra AddCommand 不去重（直接 append），历史双注册（main.go 与 session.go init
+// 各注册一次同一指针）让 nazhi session --help 出现两行相同的 activate 条目。
+func TestSessionCmd_ActivateRegisteredOnce(t *testing.T) {
+	count := 0
+	for _, sub := range sessionCmd.Commands() {
+		if sub.Name() == "activate" {
+			count++
+		}
+	}
+	if count != 1 {
+		t.Errorf("session activate 应恰好注册 1 次，实际 %d 次", count)
+	}
+}
