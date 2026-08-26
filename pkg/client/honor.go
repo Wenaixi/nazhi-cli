@@ -160,7 +160,10 @@ func (c *Client) ensureHonorTypeName(ctx context.Context, token string, typeID i
 		return "", fmt.Errorf("自动反查 typeName 失败: %w", err)
 	}
 	for _, opt := range opts {
-		if opt.Value == int(typeID) {
+		// int64 比较：typeId 是平台 id 域（JSON number），int 转换在 32 位编译目标
+		// 会静默截断高位导致反查必不命中；HonorSelectOption.Value 同为 int 建模，
+		// 比较时统一提升到 int64。
+		if int64(opt.Value) == typeID {
 			c.logDebug("ensureHonorTypeName 自动补全 typeName: typeId=%d → %q", typeID, opt.Label)
 			return opt.Label, nil
 		}

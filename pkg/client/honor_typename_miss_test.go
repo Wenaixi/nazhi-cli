@@ -102,3 +102,48 @@ func TestUpdateHonor_TypeNameLookupMiss_WritesEmptyString(t *testing.T) {
 		t.Errorf("未命中时 typeName 应为空串, 实际 %v", v)
 	}
 }
+
+// TestAddHonor_TypeNameLookup_LargeTypeID_NoTruncation 锁定反查比较的位宽正确性：
+// honor.go 曾用 opt.Value == int(typeID) 比较，typeId 超过平台相关 int 位宽
+// （32 位平台 2^31，64 位平台理论不截断但 32 位编译目标必现）时静默截断为低位值，
+// 与选项表比较必不命中 → 反查失效退化为空 typeName 放行。前端 JS 宽松相等无此天花板。
+// 修复后统一按 int64 比较，历史大 id 记录回填场景可正常命中补全。
+func TestAddHonor_TypeNameLookup_LargeTypeID_NoTruncation(t *testing.T) {
+	const bigTypeID = int64(9_999_999_999) // > 2^31-1，32 位 int 必截断
+
+	var gotBody map[string]any
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/studentMoralEduNew/getHonorTypeForSelect":
+			w.Header().Set("Content-Type", "application/json")
+			resp := map[string]any{
+				"code":       1,
+				"dataList":   []map[string]any{{"label": "历史荣誉", "value": bigTypeID}},
+				"returnData": []map[string]any{{"label": "校", "value": 5}},
+			}
+			_ = json.NewEncoder(w).Encode(resp)
+			return
+		case "/api/studentMoralEduNew/addHonor":
+			_ = json.NewDecoder(r.Body).Decode(&gotBody)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"添加成功"}`))
+			return
+		}
+		w.WriteHeader(http.StatusNotFound)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	err := c.AddHonor(context.Background(), "test-token", types.AddHonorPayload{
+		TypeID:           bigTypeID,
+		Level:            5,
+		EvaluationAgency: "示例中学",
+		GetDate:          "2026-06-30",
+	})
+	if err != nil {
+		t.Fatalf("大 typeId 反查应命中补全并提交, 实际报错: %v", err)
+	}
+	if v, ok := gotBody["typeName"]; !ok || v != "历史荣誉" {
+		t.Errorf("大 typeId 应命中选项表补全 typeName=历史荣誉, 实际 %v (present=%v)", v, ok)
+	}
+}
