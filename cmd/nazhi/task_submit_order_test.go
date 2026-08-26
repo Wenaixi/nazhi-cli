@@ -74,3 +74,36 @@ func TestHonorAddCmd_MissingPayloadTakesPrecedenceOverMissingToken(t *testing.T)
 		t.Errorf("payload 缺失应优先于 token 缺失在 stdout 报告，实际: %q", stdout)
 	}
 }
+
+// TestTaskPreviewCmd_MissingPayloadTakesPrecedenceOverMissingToken 回归测试：
+// task preview 遵守与 submit/edit 相同的「先校验 payload 后建客户端」不变式。
+// 十五域审计发现 preview 是该不变式的漏网第三处（submit/edit 已在十三域 P2-E 修复）。
+func TestTaskPreviewCmd_MissingPayloadTakesPrecedenceOverMissingToken(t *testing.T) {
+	cmd := &cobra.Command{Use: "task-preview"}
+	cmd.SetContext(context.Background())
+	cmd.Flags().String("token", "", "")
+	// 不设置 token
+	cmd.Flags().String("base-url", "", "")
+	cmd.Flags().Int("timeout", 5, "")
+	cmd.Flags().String("payload", "", "")
+	// 不设置 payload
+	cmd.Flags().String("address", "", "")
+	cmd.Flags().String("level", "", "")
+	cmd.Flags().Bool("edit", false, "")
+
+	quiet = false
+	pendingExitCode.Store(0)
+	t.Cleanup(func() {
+		pendingExitCode.Store(0)
+		_ = closeAllClients()
+	})
+
+	stdoutBuf, _, restore := captureStdio(t)
+	taskPreviewCmd.Run(cmd, nil)
+	restore()
+	stdout := stdoutBuf.String()
+
+	if !strings.Contains(stdout, "--payload 为必填") {
+		t.Errorf("payload 缺失应优先于 token 缺失在 stdout 报告，实际: %q", stdout)
+	}
+}
