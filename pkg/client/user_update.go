@@ -94,6 +94,11 @@ func (c *Client) InvalidateCachedUserInfo() {
 // 可选高级：Name→studentName、StudentNumber
 // 不写入：NationalStudentNumber（前端只读，Structured 忽略以免误改学籍）
 func (c *Client) UpdateMyInfoStructured(ctx context.Context, token string, input types.UserUpdateInput) error {
+	// USER-1：全零输入视为 no-op——不组装、不发仅含 studentUuid 的空 POST、
+	// 不失效本地缓存（CLI --payload '{}' 即触发此路径；前端无零字段提交入口）。
+	if input == (types.UserUpdateInput{}) {
+		return nil
+	}
 	updates := make(map[string]any, 16)
 
 	// 基础身份（可选高级回传；前端主路径不编辑）
