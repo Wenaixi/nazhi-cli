@@ -29,7 +29,7 @@ var typicalCaseSubmitCmd = &cobra.Command{
 	Short: "提交典型案例",
 	Long: `提交一条典型案例。payload 是 addTypicalCase 请求体 JSON，
 可用 @file.json 从文件读取，或 - 从 stdin 读取。`,
-	Example: `  nazhi typical-case submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"title":"...","type":"1","typeName":"研究性学习报告","teacherName":"王隆滨","content":"..."}'
+	Example: `  nazhi typical-case submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"title":"...","type":"1","teacherName":"王隆滨","content":"..."}'
   nazhi typical-case submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @case.json
   echo '{"title":"..."}' | nazhi typical-case submit --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {

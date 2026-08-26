@@ -649,10 +649,9 @@ func (c *Client) GetMyInfoJSON(ctx context.Context, token string) (json.RawMessa
 //
 // 等价 QuerySelfEvaluation 但保留平台原始字段。
 // Fallback 链：returnData → dataMap → dataList[0]（与原方法一致）。
-//
-// 返回值：
-//   - json.RawMessage：单条状态对象的原始 JSON；空数据时返回 (nil, nil)。
-//   - error：网络/解析/业务错误
+// 对账口径：前端唯一读取通道是 dataMap（mainLeft.vue）；若服务端异常地
+// 双容器并存且内容不同，本方法透传的是 returnData 内容，与网页所见可能
+// 不一致——对账请以结构化方法或 dataMap 字段为准。
 func (c *Client) QuerySelfEvaluationJSON(ctx context.Context, token string) (json.RawMessage, error) {
 	resp, err := c.doBizAndDecode(ctx, token, "QuerySelfEvaluationJSON",
 		"/api/studentMoralEduNew/querySelfEvaluation", http.MethodGet, nil)
@@ -671,6 +670,8 @@ func (c *Client) QuerySelfEvaluationJSON(ctx context.Context, token string) (jso
 // 等价 QuerySelfGradEvaluation 但保留平台原始字段。
 // 前端 mainLeft.vue 主读 dataMap.student_comment / isGrad；
 // 本方法走 rawSingleObjectBytes：returnData 对象优先，其次 dataList[0]，再 dataMap。
+// 对账口径：若服务端异常地双容器并存且内容不同，透传的是 returnData 内容，
+// 与网页所见的 dataMap 可能不一致——对账请以结构化方法或 dataMap 字段为准。
 // 空数据时返回 (nil, nil)。
 func (c *Client) QuerySelfGradEvaluationJSON(ctx context.Context, token string) (json.RawMessage, error) {
 	resp, err := c.doBizAndDecode(ctx, token, "QuerySelfGradEvaluationJSON",

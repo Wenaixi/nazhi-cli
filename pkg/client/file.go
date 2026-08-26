@@ -517,6 +517,11 @@ type writeCloser interface {
 // 若有状态的自定义 RT（如认证拦截器），UploadFile 的 clean client 意外附带
 // 业务鉴权头到文件上传公共服务。当前代码库内不存在有状态自定义 RT，
 // 但 WithHTTPClient 的消费者应确保自定义 RT 不会在 upload 路径泄漏鉴权头。
+//
+// 超时下限：上传/下载通道超时下限 30s（小于 30s 静默上浮并 WARN，防大文件被过短
+// 超时截断；clean_client_cache_test 锁定）；主 Client 无超时时兜底 5 分钟，
+// 有超时时上限沿用 c.http.Timeout。WithTimeout 注释不重复此细节，SDK 调用方
+// 若需要更短超时预算请注意此下限。
 func newCleanClient(c *Client) *http.Client {
 	var transport http.RoundTripper
 	switch t := c.http.Transport.(type) {

@@ -39,7 +39,9 @@ type UserUpdateInput struct {
 	// 密码（studentUuid；空串表示不修改）
 	StudentUuid string `json:"studentUuid,omitempty"`
 
-	// 座号（0 表示跳过；FlexInt 兼容前端 el-input 回显的字符串形态）
+	// 座号（0 表示跳过——字面 "0"/0 同样视为跳过不发送，而前端整表 stringify 会原样发
+	// seat:0；如需强制清零请走 UpdateMyInfo 裸 map 路径。FlexInt 兼容前端 el-input
+	// 回显的字符串形态）
 	Seat FlexInt `json:"seat,omitempty"`
 }
 

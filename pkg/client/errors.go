@@ -94,7 +94,8 @@ var (
 	//   - ErrBusinessRejected：业务校验失败（HTTP 200 + code=0 或 业务 4xx）
 	//   - ErrNetwork：网络层失败（连接拒绝/超时等），与服务端策略无关
 	//
-	// request.go 的 doBizGet 在收到 429 时包装本哨兵，
+	// classifyHTTPStatus 的各调用方（request.go httpDo/doBizGet、session.go doGetMenu、
+	// file.go 上传/下载）在收到 429 时包装本哨兵，
 	// SDK 用户通过 errors.Is(err, ErrRateLimited) 精确识别限流场景，
 	// 触发退避策略而非立即报错或重连。
 	ErrRateLimited = errors.New("rate limited: HTTP 429 too many requests")
@@ -108,7 +109,8 @@ var (
 	//   - ErrNetwork：客户端网络层失败（连不上服务端）
 	//   - ErrRateLimited：限流（429），属于可预期的服务端策略
 	//
-	// request.go 的 doBizGet 在收到 5xx 时包装本哨兵。
+	// classifyHTTPStatus 的各调用方（request.go httpDo/doBizGet、session.go doGetMenu、
+	// file.go 上传/下载）在收到 5xx 时包装本哨兵。
 	ErrServiceUnavailable = errors.New("service unavailable: HTTP 5xx")
 
 	// ErrTimeout 请求超时。
@@ -131,7 +133,8 @@ var (
 	//   - ErrBusinessRejected：业务逻辑拒绝（HTTP 200 + code=0）
 	//   - ErrRateLimited：HTTP 429 限流（独立处理）
 	//
-	// request.go 的 doBizGet 在收到 4xx-other 时包装本哨兵，
+	// classifyHTTPStatus 的各调用方（request.go httpDo/doBizGet、session.go doGetMenu、
+	// file.go 上传/下载）在收到 4xx-other 时包装本哨兵，
 	// 让 SDK 用户能精确识别「HTTP 层错误」与「业务层错误」，
 	// 避免错误地把 404 等当成业务拒绝走重登录流程。
 	ErrInvalidResponse = errors.New("invalid response: HTTP non-200 non-429")
