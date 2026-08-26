@@ -17,15 +17,24 @@ import (
 // honorRecordJSON 生成一条荣誉记录（snake_case 字段名对齐 API）。
 func honorRecordJSON(id int64, name, statusName string) map[string]any {
 	return map[string]any{
-		"id":                id,
-		"type_name":         name,
-		"level_name":        "校",
-		"level":             5,
-		"dimension_name":    "思想品德",
-		"approved":          true,
-		"statusName":        statusName,
-		"get_date":          "2026-06-30T00:00:00+08:00",
-		"evaluation_agency": "示例中学",
+		"id":                     id,
+		"type_name":              name,
+		"level_name":             "校",
+		"level":                  5,
+		"dimension_name":         "思想品德",
+		"approved":               true,
+		"statusName":             statusName,
+		"get_date":               "2026-06-30T00:00:00+08:00",
+		"evaluation_agency":      "示例中学",
+		// 19 轮审计 P2-2：补齐入站展示字段夹具——cert_img_attachment_id 用真实平台
+		// 形态（完整图片 URL 字符串，performanceM.vue:25 直接 <img :src> 消费），
+		// 锁定 string 建模不被误改 int64（URL 字符串会让 DecodeDataList 整页失败）。
+		"cert_img_attachment_id": "http://www.nazhisoft.com/common/attachment/getImg?id=5140894",
+		"ifshow":                 "是",
+		"student_name":           "高博文",
+		"class_name":             "高一八班",
+		"score":                  4.0,
+		"show_report_flag":       1,
 	}
 }
 
@@ -224,6 +233,14 @@ func TestGetHonorList(t *testing.T) {
 	}
 	if result.Records[0].TypeName != "阅读之星" || result.Records[0].ApprovedName != "审核通过" {
 		t.Errorf("字段解析错误: %+v", result.Records[0])
+	}
+	// 19 轮审计 P2-2：入站展示字段解析断言——cert_img_attachment_id 是完整图片 URL
+	// 字符串（非附件 ID），ifshow/student_name/class_name 同平台 wire 形态。
+	if got := result.Records[0].CertImgAttachmentID; got != "http://www.nazhisoft.com/common/attachment/getImg?id=5140894" {
+		t.Errorf("CertImgAttachmentID 应解析为完整图片 URL 字符串，实际 %q", got)
+	}
+	if result.Records[0].IfShow != "是" || result.Records[0].StudentName != "高博文" || result.Records[0].ClassName != "高一八班" {
+		t.Errorf("展示字段解析错误: %+v", result.Records[0])
 	}
 	if result.Page == nil || result.Page.TotalNum != 1 {
 		t.Errorf("分页信息错误: %+v", result.Page)
