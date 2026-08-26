@@ -46,7 +46,11 @@ type HonorRecord struct {
 
 	// 前端 performanceM.vue 中实际使用的字段
 	TypeID              int64  `json:"type_id,omitempty"`                // 荣誉类型 ID
-	CertImgAttachmentID string `json:"cert_img_attachment_id,omitempty"` // 证书图片附件 ID
+	// CertImgAttachmentID 入站展示字段：前端 performanceM.vue:25 将 scope.row.cert_img_attachment_id
+	// 直接作 <img :src>（不拼接 getImg?id=），故值形态是完整图片 URL 字符串而非附件 ID，建模为 string。
+	// 18 轮对抗复核：勿改 int64——URL 字符串会让 DecodeDataList 整页失败；若未来 HAR 证明平台
+	// 返回数字 ID，应改 FlexString 兼容层。
+	CertImgAttachmentID string `json:"cert_img_attachment_id,omitempty"`
 	// Score：列表实测 JSON number（常为 4.0）；禁止 int（encoding/json 拒 4.0→int）。
 	Score     float64 `json:"score,omitempty"`
 	ScoreName string  `json:"score_name,omitempty"` // 分数描述
