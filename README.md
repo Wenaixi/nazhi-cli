@@ -128,6 +128,7 @@ nazhi
 │   ├── public                   获取公示的全部写实记录
 │   ├── withdrawn                获取被撤回的写实记录
 │   ├── edit                     修改已提交的写实记录
+│   ├── preview                  预览提交/编辑的最终 JSON payload（不调写接口）
 │   ├── dimensions              获取写实维度列表
 │   └── circle-type              获取任务写实元数据
 ├── self-eval
@@ -200,13 +201,13 @@ nazhi
 | 字段 | 类型 | 说明 |
 |------|------|------|
 | `status` | string | `success` / `partial` / `error` |
-| `code` | int | HTTP 风格状态码：成功固定 `200`，失败为 4xx/5xx |
+| `code` | int | HTTP 风格状态码：成功为 `200`（空数据成功为 `204`，如写操作成功），失败为 4xx/5xx |
 | `message` | string | 错误或提示消息，成功时为空 |
 | `data` | any | 业务载荷（object / array / scalar） |
 
-> **双层 code 对照**：CLI 信封的 `envelope.code==200` 表示成功；平台原始业务响应
+> **双层 code 对照**：CLI 信封的 `envelope.code` 表示成功（200 或空数据成功 204）；平台原始业务响应
 > （`pkg/types.UnifiedResponse.code`）的成功值是 `1`。两层同名不同层——
-> 脚本判成功请用 `.status == "success"` 或 `.code == 200`，**不要**沿用业务层 `jq .code==1` 的习惯。
+> 脚本判成功请统一用 `.status == "success"`（兼容 200 与 204 两种成功形态），**不要**只判 `.code == 200`，也**不要**沿用业务层 `jq .code==1` 的习惯。
 
 退出码三分：
 
