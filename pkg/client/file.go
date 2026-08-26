@@ -217,10 +217,11 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
 	}
 
-	// 5. 解析响应
+	// 5. 解析响应。200+非 JSON（WAF 挑战页/维护页 HTML）与主管线同口径归 ErrInvalidResponse，
+	// 保证 errors.Is 判定全覆盖、退出码漏斗不再落 default。
 	unified, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("解析上传响应失败: %w", err)
+		return nil, fmt.Errorf("解析上传响应失败: %w: %w", ErrInvalidResponse, err)
 	}
 
 	// 故意不走 types.CheckCode，统一响应码 ≠ 1 仍用
