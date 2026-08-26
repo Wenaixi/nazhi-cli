@@ -32,6 +32,7 @@ var typicalCaseSubmitCmd = &cobra.Command{
 	Example: `  nazhi typical-case submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"title":"...","type":"1","teacherName":"王隆滨","content":"..."}'
   nazhi typical-case submit --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @case.json
   echo '{"title":"..."}' | nazhi typical-case submit --token "xxx" --payload -`,
+	Args: cobra.NoArgs, // 输入全走 flag，位置参数无语义；与 delete-batch 及全仓多数派对齐
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		if payloadRaw == "" {
@@ -80,6 +81,7 @@ var typicalCaseListCmd = &cobra.Command{
 	Example: `  nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --status 1
   nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
@@ -197,6 +199,7 @@ var typicalCaseUpdateCmd = &cobra.Command{
 	Use:   "update",
 	Short: "更新典型案例",
 	Long:  `按 ID 更新典型案例内容。payload 为 updateTypicalCase 请求体对象，必填 id 字段。`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		if payloadRaw == "" {
@@ -240,6 +243,7 @@ var typicalCaseDeleteCmd = &cobra.Command{
 	Use:   "delete",
 	Short: "删除典型案例",
 	Long:  `按 ID 删除一条典型案例记录。--id 必填且必须为正整数。`,
+	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
 		idStr, _ := cmd.Flags().GetString("id")
 		if idStr == "" {
