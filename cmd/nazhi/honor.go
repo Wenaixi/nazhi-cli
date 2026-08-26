@@ -184,6 +184,12 @@ var honorUpdateCmd = &cobra.Command{
 			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}
+		// 前端编辑提交必然注入记录 id（performanceM.vue:489），此处对齐契约：
+		// 缺 id 或非正数时拒绝，不发业务请求（与同文件 delete/levels + typical-case update 口径一致）。
+		if !PayloadPositiveIDValid(payload) {
+			printEnvelope(envelope.Error(400, "payload 必须包含正数 id 字段"))
+			return
+		}
 
 		c, token, err := buildBizClient(cmd)
 		if err != nil {

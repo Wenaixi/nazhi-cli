@@ -185,20 +185,6 @@ func parseTypicalCaseBatchIDs(raw string) ([]int64, error) {
 	return ids, nil
 }
 
-// typicalCasePayloadIDValid 校验 update payload 携带正数 id。
-// 兼容 float64（encoding/json 默认）与 json.Number 两种解码产物。
-func typicalCasePayloadIDValid(payload map[string]any) bool {
-	switch v := payload["id"].(type) {
-	case float64:
-		return v > 0 && v == float64(int64(v))
-	case json.Number:
-		n, err := v.Int64()
-		return err == nil && n > 0
-	default:
-		return false
-	}
-}
-
 // typicalCaseUpdateCmd 表示 nazhi typical-case update 命令。
 var typicalCaseUpdateCmd = &cobra.Command{
 	Use:   "update",
@@ -222,7 +208,7 @@ var typicalCaseUpdateCmd = &cobra.Command{
 		}
 		// 前端编辑提交必然注入记录 id（classiccanter.vue:327），此处对齐契约：
 		// 缺 id 或非正数时拒绝，不发业务请求（与同文件 delete/delete-batch 口径一致）。
-		if !typicalCasePayloadIDValid(payload) {
+		if !PayloadPositiveIDValid(payload) {
 			printEnvelope(envelope.Error(400, "payload 必须包含正数 id 字段"))
 			return
 		}
