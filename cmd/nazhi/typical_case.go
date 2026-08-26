@@ -93,8 +93,9 @@ var typicalCaseListCmd = &cobra.Command{
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		status, _ := cmd.Flags().GetInt("status")
 		// 分页参数非负守卫：与 honor list / circle_metadata.go:83-89 纪律对齐。
-		// status=-1 也是非法值（典型案例 status 合法值仅 1/2/3 与默认 3），但为避免破坏现有
-		// 用户脚本（可能用 -1 表达「全部」），此处仅拒绝 pageNo/pageSize 负值；status 校验留待服务端。
+		// status 合法值为 0/1/2/3（0 未审核 / 1 通过 / 2 驳回 / 3 全部·默认，前端 classiccanter.vue el-option 相同）。
+		// status=-1 虽非法，但为避免破坏现有用户脚本（可能用 -1 表达「全部」），
+		// 此处仅拒绝 pageNo/pageSize 负值；status 校验留待服务端。
 		if pageNo < 0 || pageSize < 0 {
 			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为非负整数"))
 			return

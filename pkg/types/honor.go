@@ -76,7 +76,10 @@ type AddHonorPayload struct {
 	TypeName         string `json:"typeName"`
 	Level            int    `json:"level"`
 	EvaluationAgency string `json:"evaluationAgency"`
-	GetDate          string `json:"getDate"`
+	// GetDate：原始日期字符串透传。前端 el-date-picker 无 value-format（performanceM.vue:106/176），
+	// JSON.stringify 后实际提交 ISO 8601 UTC 时间戳（如 "2026-06-30T16:00:00.000Z"），
+	// 列表回填 get_date 亦为带时区完整时间戳形态；纯日期（"2026-06-30"）是否被服务端接受以服务端裁决为准。
+	GetDate string `json:"getDate"`
 	// CertImgAttachmentID：出站对齐前端裸 number（performanceM.vue:576 赋 returnData.id），
 	// 无附件时 omitempty 省略键；入站经 UnmarshalJSON 兼容 number/数字字符串/空串/null。
 	CertImgAttachmentID int64 `json:"certImgAttachmentId,omitempty"`

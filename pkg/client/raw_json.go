@@ -78,7 +78,8 @@ func rawSingleObjectBytes(resp types.UnifiedResponse) []byte {
 // key 为搜索关键字（可空，对应 getStudentCircle 的 key 查询参数）。
 //
 // 返回值：
-//   - json.RawMessage：dataList 风格的 JSON 数组（可能为 null 当服务端确实无记录）
+//   - json.RawMessage：dataList 风格的 JSON 数组——恒为合法数组（服务端无记录或 dataList:null 时归一为 []），
+//     不存在成功路径返回 null 的情形；错误场景返回 (nil, err)
 //   - error：网络/解析/业务错误
 //
 // 取消语义：ctx 取消时返回 (已有合并数据, ctx.Err())，调用方按 partial envelope 处理。
