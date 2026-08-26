@@ -245,9 +245,11 @@ func (sm *sessionManager) Reset() {
 // 持锁，调用方无需关心并发安全。
 //
 // 典型场景：UpdateMyInfo 成功后调用，避免后续 GetMyInfo 返回更新前的快照。
+// 同步重置 fallbackDone：新缓存尚未经过学校回退，出口门控不得因残留标志跳过它。
 func (sm *sessionManager) InvalidateCachedUserInfo() {
 	sm.mu.Lock()
 	sm.cachedUserInfo = nil
+	sm.fallbackDone.Store(false)
 	sm.mu.Unlock()
 }
 
@@ -296,6 +298,9 @@ func (sm *sessionManager) RecordSuccess(token string, info *types.UserInfo) {
 	if info != nil {
 		sm.cachedUserInfo = info
 	}
+	// 新缓存的学校回退尚未执行，重置标志让 ActivateSession 出口门控重新走补全分支
+	// （否则换 token / 缓存重建后 SchoolID/SchoolName 静默为空，直到同 token 失败一次才自愈）。
+	sm.fallbackDone.Store(false)
 }
 
 // SetBackoff 设置 backoff 窗口。
