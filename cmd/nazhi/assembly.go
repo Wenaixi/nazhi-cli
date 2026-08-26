@@ -99,6 +99,16 @@ var urlOptMap = map[string]urlOptDef{
 	"upload": {"upload-url", "NAZHI_UPLOAD_URL", client.WithUploadURL},
 }
 
+// warnToStderr 配置类告警统一出口：--quiet 承诺「关闭所有 stderr 输出」，
+// 此前三处 fmt.Fprintf(os.Stderr) 直写绕过了该承诺（timeout/log-level/log-format），
+// CI 以 stderr 非空为异常信号会误判。
+func warnToStderr(msg string) {
+	if quiet {
+		return
+	}
+	fmt.Fprint(os.Stderr, msg)
+}
+
 // resolveTimeoutSec 解析最终生效的 HTTP 超时秒数：flag 显式值优先，
 // 未显式时回落 NAZHI_TIMEOUT 等环境变量，均非法（≤0）时回退注册默认 15 秒并告警。
 // 三通道同因同果：flag 非法与 env 非法产出一致（此前 30 秒兜底与 15 秒默认分叉）。
@@ -109,7 +119,7 @@ func resolveTimeoutSec(cmd *cobra.Command, envKey string) int {
 		timeoutSec = envInt(envKey, timeoutSec)
 	}
 	if timeoutSec <= 0 {
-		fmt.Fprintf(os.Stderr, "warn: timeout 值 %d 无效（flag 或环境变量），使用默认 %d 秒超时\n", timeoutSec, defaultTimeout)
+		warnToStderr(fmt.Sprintf("warn: timeout 值 %d 无效（flag 或环境变量），使用默认 %d 秒超时\n", timeoutSec, defaultTimeout))
 		return defaultTimeout
 	}
 	return timeoutSec
@@ -153,7 +163,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	}
 	lvl, err := logx.ParseLevel(levelStr)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "warn: %v，使用 warn 级别\n", err)
+		warnToStderr(fmt.Sprintf("warn: %v，使用 warn 级别\n", err))
 		lvl = slog.LevelWarn
 	}
 	formatStr := strings.TrimSpace(cliLogFormat)
@@ -164,7 +174,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 		formatStr = "text"
 	}
 	if _, err := logx.ParseFormat(formatStr); err != nil {
-		fmt.Fprintf(os.Stderr, "warn: %v，使用 text 格式\n", err)
+		warnToStderr(fmt.Sprintf("warn: %v，使用 text 格式\n", err))
 		formatStr = "text"
 	}
 	filePath := strings.TrimSpace(cliLogFile)
