@@ -156,10 +156,10 @@ func (c *Client) fetchTasksForDimension(ctx context.Context, dim types.Dimension
 		return nil, err // propagate 网络错误到 dimErrs，不再静默吞咽
 	}
 
-	statResp, err := types.DecodeResponse(statBody)
+	statResp, err := decodeOrInvalidResponse("FetchTasks getCircleStatistics", statBody)
 	if err != nil {
 		c.logDebug("FetchTasks 维度 %d(%s) 响应解析失败: %v", dim.ID, dim.Name, err)
-		return nil, err // propagate 解析错误到 dimErrs，不再静默吞咽
+		return nil, err // propagate 解析错误到 dimErrs，不再静默吞咽（含 ErrInvalidResponse 哨兵）
 	}
 	if err := types.CheckCode(statResp); err != nil {
 		return nil, fmt.Errorf("%w: 维度 %d(%s) 业务错误: %w", ErrBusinessRejected, dim.ID, dim.Name, err)

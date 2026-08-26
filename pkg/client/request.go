@@ -240,13 +240,15 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 	return &resp, nil
 }
 
-// decodeOrInvalidResponse 是业务层四处 DecodeResponse 调用的统一哨兵包装 helper。
+// decodeOrInvalidResponse 是业务层五处 DecodeResponse 调用的统一哨兵包装 helper。
 // 主管线 doBizAndDecode (request.go:230-235) 已用双 %w 包装 ErrInvalidResponse；
-// 业务层 GetSchoolID / 验证码预校验 / GetMyInfo / fetchTasksDimensionJSON 自行调
-// types.DecodeResponse 后裸 fmt.Errorf，让 errors.Is(err, ErrInvalidResponse) 在
-// 服务端 200+HTML（WAF/维护页）场景下落空，CLI 漏斗走 default 500/exit2。
+// 业务层 GetSchoolID / 验证码预校验 / GetMyInfo / fetchTasksDimensionJSON /
+// fetchTasksForDimension(getCircleStatistics) 自行调 types.DecodeResponse 后裸 fmt.Errorf，
+// 让 errors.Is(err, ErrInvalidResponse) 在服务端 200+HTML（WAF/维护页）场景下落空，
+// CLI 漏斗走 default 500/exit2。
 //
-// 此 helper 把主管线哨兵口径拉到业务层四处调用方，保证 errors.Is 判定全覆盖。
+// 此 helper 把主管线哨兵口径拉到业务层全部调用方，保证 errors.Is 判定全覆盖。新增
+// types.DecodeResponse 裸调用前先考虑接入本 helper，勿再扩大裸调用面。
 func decodeOrInvalidResponse(opName string, bodyBytes []byte) (types.UnifiedResponse, error) {
 	resp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
