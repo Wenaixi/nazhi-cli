@@ -25,7 +25,7 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 | 荣誉列表/类型 | `GetHonorList`, `GetHonorTypes` 等 | client/honor.go | performance/performanceM.vue（HonorBox.vue 为静态假数据页） | studentMoralEduNew/getHonor* |
 | 荣誉增删改 | `AddHonor`, `UpdateHonor`, `DeleteHonor` | client/honor.go | performance/performanceM.vue `submit()`/`submit2()` | addHonor, updateHonor, deleteHonorById |
 | 典型案例 CRUD | `GetTypicalCaseList` 等 5 方法 | client/typical_case.go | classic/classiccanter.vue | studentCircleNew/getTypicalCase 等 |
-| 自我评价 | `SubmitSelfEvaluation`, `QuerySelfEvaluation` | client/self_eval.go | main/mainLeft.vue | query/addSelfEvaluation |
+| 自我评价 | `SubmitSelfEvaluation`, `SubmitSelfEvaluationStructured`, `QuerySelfEvaluation` | client/self_eval.go | main/mainLeft.vue, selfgaintloss.vue（结构化） | query/addSelfEvaluation |
 | 毕业评价 | `SubmitSelfGradEvaluation` 等 | client/self_eval.go | main/mainLeft.vue | query/addSelfGradEvaluation |
 | 用户信息读 | `GetMyInfo` | client/user.go | user/userBox.vue | studentInfo/getMyInfo |
 | 用户信息写 | `UpdateMyInfo` | client/user_update.go | user/modifyBox.vue | studentInfo/updateMyInfo |

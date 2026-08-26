@@ -8,7 +8,8 @@ import (
 
 // SelfEvalStatus 是自我评价状态。
 //
-// 查询接口 dataMap 前端读 student_comment / teacher_comment（mainLeft.vue、selfgaintloss.vue）；
+// 前端仅读 student_comment（mainLeft.vue:90/:132、selfgaintloss.vue:107）；teacher_comment
+// 为平台响应字段（HAR 可见），SDK 建模备用，无前端读取点（19 轮审计 P2-1 修正注释）。
 // 部分 mock / returnData 为 camelCase。Unmarshal 双键兼容；Marshal 输出 camelCase
 // （与提交 addSelfEvaluation 的 studentComment 请求键一致）。
 type SelfEvalStatus struct {

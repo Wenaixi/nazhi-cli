@@ -18,7 +18,7 @@ var selfEvalStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "查询自我评价状态",
 	Args:  cobra.NoArgs,
-	Long:  `查询自我评价提交状态以及教师评语。`,
+	Long:  `查询自我评价提交状态。输出为原始 JSON 透传（returnData → dataList[0] → dataMap 优先级），字段以平台响应为准；结构化教师评语请用 SDK QuerySelfEvaluation。`,
 	Example: `  nazhi self-eval status --token eyJhbGciOiJIUzI1NiJ9.xxx
   nazhi self-eval status --token eyJhbGciOiJIUzI1NiJ9.xxx --base-url http://139.159.205.146:8280`,
 	Run: func(cmd *cobra.Command, args []string) {

@@ -36,12 +36,16 @@ type CircleRecord struct {
 	// Approved：业务以 Status 为准；解码兼容 bool/0/1（见 FlexBool）。
 	Approved       FlexBool      `json:"approved"`
 	CircleDate     string        `json:"circle_date"`
+	// Hours 为数值（平台返回 number，前端模板字符串拼接展示「X小时」）；
+	// 空值语义请用 Hours==0 判定，不要做字符串空串判断（19 轮审计 P2-1 披露）。
 	Hours          float64       `json:"hours"`
 	ImgList        []CircleImage `json:"imgList"`
 	ImgPreViewList []string      `json:"imgPreViewList"`
 	Remark         string        `json:"remark"`
 
-	// 类型与状态编号
+	// 类型与状态编号（19 轮审计 P2-2 披露语义，防历史误读复发）：
+	// Type = 前端 tab：1 公示 / 2 教师写实 / 3 我发布 / 4 被撤回（getStudentCircle 的 type 参数）。
+	// Status：0 已发布（可编辑删除）/ 1 已锁定（不可编辑）/ 2 被撤回（配 auditRemark 红字原因）。
 	Type   int `json:"type,omitempty"`
 	Status int `json:"status,omitempty"`
 

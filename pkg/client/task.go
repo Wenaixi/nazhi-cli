@@ -418,6 +418,10 @@ func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResu
 // hours 例外——编辑留空时回填任务元数据预设（getCircleTypeByTaskId.hours），
 // 而前端编辑是用列表记录值覆盖任务预设。要保留原记录值，请从列表记录
 // （CircleRecord 的 hours）显式赋值给 input.Hours，否则与预设不同的记录会被静默改写。
+// 注意（19 轮审计 P2-1）：任务预设 hours<=0 且 targetType∈{1,6,10} 时，Hours 留空不会
+// 回填而是直接拒绝（ErrInvalidPayload，parseHours）——此时必须从列表记录显式回填 Hours。
+// playRole/level 恒以字符串发送；前端编辑回填列表记录时为 number（HAR 实证 editCircle
+// body playRole:3/level:5），服务端对两形态均已接受（19 轮审计 P2-2 披露）。
 //
 // 图片同理——不传 ImageIDs 时 wire 上发送 pictureList:[]，而前端编辑恒把原记录
 // 图片回填进 pictureList（openEdit→imgList）。若服务端以空数组覆盖原附件则编辑会

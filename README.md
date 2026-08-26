@@ -1,4 +1,4 @@
-# nazhi-cli
+﻿# nazhi-cli
 
 **纳智综合评价系统 自动化 CLI + Go SDK**
 
@@ -91,7 +91,7 @@ nazhi self-eval status
 nazhi file upload -f ./photo.jpg
 
 # 5. 下载附件（按 ID 拿到 task submitted 里的图片）
-nazhi task submitted | jq -r '.data.records[].imgList[].attachment_id' | \
+nazhi task submitted | jq -r '.data[]?.imgList[]?.attachment_id // .data.records[]?.imgList[]?.attachment_id' | \
   xargs -I {} nazhi file download --id {} --output ./img_{}.jpg
 ```
 
@@ -122,7 +122,7 @@ nazhi
 ├── task
 │   ├── list                     列出全维度任务
 │   ├── submit                   提交任务（支持 @payload.json）
-│   ├── submitted                获取班级已提交写实记录（含同班同学姓名/学号）
+│   ├── submitted                获取我发布的写实记录（type=3，仅本人；全班公示用 public）
 │   ├── done                     同 task submitted（别名）
 │   ├── teacher                  获取教师代写的写实记录
 │   ├── public                   获取公示的全部写实记录
