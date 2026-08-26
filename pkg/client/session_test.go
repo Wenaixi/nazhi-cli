@@ -51,6 +51,7 @@ func TestActivateSessionIfNeeded_BackoffHundredConcurrent(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 		WithSessionBackoff(time.Hour), // 大窗口保证所有 goroutine 命中
 	)
@@ -121,6 +122,7 @@ func TestActivateSessionIfNeeded_BackoffIsScopedToToken(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(failSrv.URL),
+		WithSSOBase(failSrv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 	c.sm.SetBackoff(time.Hour)
@@ -163,6 +165,7 @@ func TestActivateSessionIfNeeded_BackoffHitsForSameToken(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(failSrv.URL),
+		WithSSOBase(failSrv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 	c.sm.SetBackoff(time.Hour)
@@ -207,6 +210,7 @@ func TestDoGetMenu_DoesNotNeedClone(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -250,6 +254,7 @@ func TestActivateFailedToken_DoesNotClearOtherTokenCache_SameClient(t *testing.T
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -327,6 +332,7 @@ func TestActivateSessionIfNeeded_ConcurrentSameToken(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -389,6 +395,7 @@ func TestActivateSessionIfNeeded_ConcurrentDifferentTokens(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -462,6 +469,7 @@ func TestActivateSession_ConcurrentNoDeadlock(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -515,6 +523,7 @@ func TestGetMyInfoRaw_EmptyResponse_ReturnsErrEmptyUserInfo(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -544,6 +553,7 @@ func TestGetMyInfoRaw_ValidResponse_ReturnsUserInfo(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -573,6 +583,7 @@ func TestGetMyInfo_EmptyResponse_PropagatesErrEmptyUserInfo(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
@@ -613,6 +624,7 @@ func TestActivateSessionIfNeeded_ThunderingHerd(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 	c.sm.SetBackoff(time.Hour)
@@ -975,6 +987,7 @@ func TestActivateSession_DCLFastPath_BackoffNotBlockNonSameToken(t *testing.T) {
 
 	c, _ := New(
 		WithBaseURL(srv.URL),
+		WithSSOBase(srv.URL), // 测试卫生：学校回退指向测试 SSO 域，不得出网
 		WithTimeout(5*time.Second),
 	)
 
