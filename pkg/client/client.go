@@ -387,7 +387,6 @@ func (c *Client) LogInfoForTest(ctx context.Context, format string, args ...any)
 	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
 }
 
-
 // safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
 //
 // Recognize 实现可能在不可预见的边界条件下

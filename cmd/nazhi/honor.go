@@ -95,7 +95,7 @@ var honorListCmd = &cobra.Command{
 var honorAddCmd = &cobra.Command{
 	Use:   "add",
 	Short: "申报荣誉",
-	Long:  `申报一条荣誉。payload 是 addHonor 请求体 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。
+	Long: `申报一条荣誉。payload 是 addHonor 请求体 JSON，可用 @file.json 从文件读取，或 - 从 stdin 读取。
 getDate 示例用纯日期仅为可读性；前端实际提交 ISO 8601 时间戳（el-date-picker 无 value-format），服务端对纯日期是否接受以平台裁决为准。`,
 	Example: `  nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload '{"typeId":1147,"level":5,"evaluationAgency":"示例中学","getDate":"2026-06-30"}'
   nazhi honor add --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor.json
