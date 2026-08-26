@@ -602,7 +602,6 @@ func (c *Client) fetchTasksDimensionJSON(ctx context.Context, dim types.Dimensio
 	return *resp.DataList, nil
 }
 
-
 // marshalUserInfoJSON 将 UserInfo 序列化为 JSON，输出前剔除 StudentUuid 敏感值。
 //
 // P2-1（user-info 域 18 轮审计）：StudentUuid 是密码/学生 UUID 载体（写侧），

@@ -622,6 +622,7 @@ func TestActivateSession_Step4NetworkErrorPropagates(t *testing.T) {
 		t.Fatal("步骤 4 网络失败应返回 error，实际 nil")
 	}
 }
+
 // TestDoGetMenu_Non200_ErrorBodySummary 锁定 P2-1：doGetMenu（ActivateSession 步骤 2/3）
 // 非 200 失败时错误消息必须附脱敏 body 摘要，与全 SDK 其余出口（httpDo/doBizGet/file.go/
 // auth.go）的诊断口径拉平——维护页/WAF 拦截场景下用户能定位根因而非只见状态码。

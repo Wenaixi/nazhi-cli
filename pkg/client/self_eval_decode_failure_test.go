@@ -106,6 +106,7 @@ func TestParseStudentComment(t *testing.T) {
 		t.Fatalf("带空格 JSON 应解析成功，got m=%v err=%v", m, err)
 	}
 }
+
 // TestNormalizeSelfEvalStatus_PlatformIDAliasNarrowed 锁定 P2-1 收窄：
 // normalizeSelfEvalStatus 的 ID 兜底别名 platformId/selfEvalId 无任何前端读取点
 // 或抓包依据（mainLeft.vue/selfgaintloss.vue 全镜像零命中，HAR dataMap 主键为 id，
