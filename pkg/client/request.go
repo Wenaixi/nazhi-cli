@@ -367,9 +367,15 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	}
 	defer drainAndClose(resp.Body)
 
-	respBytes, err := io.ReadAll(resp.Body)
+	// HTTP-2：响应体读取封顶 1MB，防异常/被劫持服务端塞超大 body 造成内存放大。
+	// 与 file.go 错误体限读 64KB 的既有纪律对齐；正常平台响应 <1KB（见本文件头部注释）。
+	// io.LimitReader 读满上限即返回 EOF 错误——此时 body 已超限，归 ErrInvalidResponse（非网络故障）。
+	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		return nil, fmt.Errorf("%w: 读取响应体失败: %w", ErrNetwork, err)
+	}
+	if len(respBytes) > maxResponseBodySize {
+		return nil, fmt.Errorf("%w: 响应体超过 %d 字节上限", ErrInvalidResponse, maxResponseBodySize)
 	}
 
 	c.logWithLevel(ctx, levelForStatus(resp.StatusCode), "← %d %s (%d bytes) body=%s", resp.StatusCode, logx.RedactBody(url), len(respBytes), logx.RedactBodyThenTruncate(respBytes, 100))
@@ -383,6 +389,10 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	}
 	return respBytes, nil
 }
+
+// maxResponseBodySize 是 httpDo 读取响应体的上限（1MB）。
+// 正常平台业务响应 <1KB（见 c.do 注释），此上限仅防异常/恶意服务端内存放大。
+const maxResponseBodySize = 1 << 20
 
 // rawDoWithResp 执行请求并返回 *http.Response（调用者负责关闭 Body）。
 func (c *Client) rawDoWithResp(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Response, error) {
