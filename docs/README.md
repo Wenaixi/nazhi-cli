@@ -12,7 +12,7 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 | 功能 | SDK 方法 | Go 源码（pkg/） | 前端参照（本地镜像 src/components/） | 业务接口 |
 |------|----------|-----------------|---------------------------------------------|----------|
 | 登录 | `Login` | client/auth.go | — （SSO 独立页） | SSO validate |
-| 会话激活 | `ActivateSession` | client/session.go | management.vue 加载链 | getMenu ×2 / getMyInfo |
+| 会话激活 | `ActivateSession` | client/session.go | layout.vue /homepage → getMenu，header.vue /home getMenu + getMyInfo（首页加载链） | getMenu ×2 / getMyInfo |
 | 我的任务列表 | `FetchTasks` | client/task.go | managementLeftBottom.vue, managementRightTop.vue | getDimensions, getCircleStatistics |
 | 类别/任务元数据 | `GetCircleTypes`, `GetCircleTasks` | client/circle.go | managementRightTop.vue | getCircleType, getCircleTask |
 | 任务提交元数据 | 内部 `getCircleTypeByTaskId` | client/task.go | managementRightBottom.vue `getCircleTypeByTaskId()` | getCircleTypeByTaskId |
@@ -21,7 +21,7 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 | 写实编辑 | `EditCircle`, `PreviewEditPayload` | client/task.go | managementRightBottom.vue `openEdit()` | editCircle |
 | 写实删除 | `DeleteCircle` | client/circle.go | managementRightBottom.vue `open2()` | deleteCircle |
 | 评论 / 点赞 | `AddCircleComment`, `SetCircleLike` | client/circle.go | managementRightBottom.vue `addComment()` `likeIt()` | addCircleComment, setCircleLikeById |
-| 写实图片查询 | `GetCircleImages` | client/circle.go | managementRightBottom.vue 图片区 | getCircleImg |
+| 写实图片查询 | `GetCircleImages` | client/circle.go | managementLeftTop.vue（图片轮播区） | getCircleImg |
 | 荣誉列表/类型 | `GetHonorList`, `GetHonorTypes` 等 | client/honor.go | performance/performanceM.vue（HonorBox.vue 为静态假数据页） | studentMoralEduNew/getHonor* |
 | 荣誉增删改 | `AddHonor`, `UpdateHonor`, `DeleteHonor` | client/honor.go | performance/performanceM.vue `submit()`/`submit2()` | addHonor, updateHonor, deleteHonorById |
 | 典型案例 CRUD | `GetTypicalCaseList` 等 5 方法 | client/typical_case.go | classic/classiccanter.vue | studentCircleNew/getTypicalCase 等 |
