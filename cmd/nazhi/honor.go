@@ -95,14 +95,16 @@ var honorAddCmd = &cobra.Command{
   echo '{"typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -`,
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
+		// 与 task submit/edit 同规范：先做本地参数校验再建客户端——缺 --payload
+		// 的参数错误不应依赖 token/base-url 配置是否正确。
+		if payloadRaw == "" {
+			printEnvelope(envelope.Error(400, "--payload 为必填"))
+			return
+		}
 
 		c, token, err := buildBizClient(cmd)
 		if err != nil {
 			printParamError(err)
-			return
-		}
-		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
 			return
 		}
 
