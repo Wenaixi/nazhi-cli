@@ -602,6 +602,30 @@ func (c *Client) fetchTasksDimensionJSON(ctx context.Context, dim types.Dimensio
 	return *resp.DataList, nil
 }
 
+
+// marshalUserInfoJSON 将 UserInfo 序列化为 JSON，输出前剔除 StudentUuid 敏感值。
+//
+// P2-1（user-info 域 18 轮审计）：StudentUuid 是密码/学生 UUID 载体（写侧），
+// 前端 modifyBox.vue:185 读取 getMyInfo 响应后显式清零佐证其只写不读的敏感属性。
+// 结构化 GetMyInfo 返回的 info 保留该字段（Go 调用方自行裁决）；
+// 但 JSON 透传路径（CLI whoami / GetMyInfoJSON / ActivateSessionJSON 消费）必须剔除，
+// 防止敏感值经 envelope 原样透给脚本消费者与日志。
+//
+// 关键约束（P0-A7 教训）：info 与 sm.cachedUserInfo 共享同一指针，禁止原地置空；
+// 必须浅拷贝副本后置空。拷贝只涉及 string 字段，成本 O(1) 级。
+func marshalUserInfoJSON(info *types.UserInfo, caller string) (json.RawMessage, error) {
+	if info == nil {
+		return nil, nil
+	}
+	copyInfo := *info
+	copyInfo.StudentUuid = ""
+	raw, err := json.Marshal(&copyInfo)
+	if err != nil {
+		return nil, fmt.Errorf("%s 序列化失败: %w", caller, err)
+	}
+	return raw, nil
+}
+
 // ActivateSessionJSON 激活业务 session，返回 /api/studentInfo/getMyInfo 的 JSON（经 SDK 后处理）。
 //
 // 经 sessionManager 激活（含 4 步 HAR 请求），Marshal 其返回的后处理 UserInfo 为 JSON。
@@ -625,11 +649,7 @@ func (c *Client) ActivateSessionJSON(ctx context.Context, token string) (json.Ra
 	if info == nil {
 		return nil, nil
 	}
-	raw, err := json.Marshal(info)
-	if err != nil {
-		return nil, fmt.Errorf("ActivateSessionJSON 序列化失败: %w", err)
-	}
-	return raw, nil
+	return marshalUserInfoJSON(info, "ActivateSessionJSON")
 }
 
 // GetMyInfoJSON 获取当前用户完整个人资料的 JSON（经 SDK 后处理）。
@@ -646,11 +666,7 @@ func (c *Client) GetMyInfoJSON(ctx context.Context, token string) (json.RawMessa
 	if err != nil {
 		return nil, err
 	}
-	raw, err := json.Marshal(info)
-	if err != nil {
-		return nil, fmt.Errorf("GetMyInfoJSON 序列化失败: %w", err)
-	}
-	return raw, nil
+	return marshalUserInfoJSON(info, "GetMyInfoJSON")
 }
 
 // QuerySelfEvaluationJSON 查询自我评价状态的原始 JSON。
