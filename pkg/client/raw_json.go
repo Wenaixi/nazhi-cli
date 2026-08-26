@@ -612,8 +612,13 @@ func (c *Client) fetchTasksDimensionJSON(ctx context.Context, dim types.Dimensio
 //   - json.RawMessage：处理后的 UserInfo JSON 字节；数据为空时返回 nil。
 //   - error：网络/解析/业务错误（含 ErrEmptyUserInfo / ErrSessionBackoff）
 func (c *Client) ActivateSessionJSON(ctx context.Context, token string) (json.RawMessage, error) {
-	info, err := c.sm.Activate(ctx, token, c.activateSessionLocked)
+	info, err := c.GetMyInfo(ctx, token)
 	if err != nil {
+		// GetMyInfo 空数据返回 ErrEmptyUserInfo —— 保持 ActivateSessionJSON 原契约：
+		// 数据为空时返回 (nil, nil)，不向调用方暴露哨兵。
+		if errors.Is(err, ErrEmptyUserInfo) {
+			return nil, nil
+		}
 		return nil, err
 	}
 	if info == nil {
