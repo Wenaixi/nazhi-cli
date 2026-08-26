@@ -53,7 +53,8 @@ URL 流程：
 		// "sso" 路径同时短路 token 读取（公开服务无 token）
 		c, err := buildClient(cmd, "sso", "NAZHI_TIMEOUT")
 		if err != nil {
-			printError(fmt.Errorf("构造 Client 失败: %w", err))
+			// 构造失败属本地配置问题，走参数档。当前 urlType="sso" 组装链路实际不可达此分支，防御保留。
+			printParamError(fmt.Errorf("构造 Client 失败: %w", err))
 			return
 		}
 

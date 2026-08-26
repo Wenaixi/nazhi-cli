@@ -33,7 +33,9 @@ SDK 内部不产生任何鉴权头（独立 clean http.Client，无 cookie jar�
 		// urlType="upload" 走 --upload-url flag + NAZHI_UPLOAD_URL env。
 		c, err := buildClient(cmd, "upload", "NAZHI_TIMEOUT")
 		if err != nil {
-			printError(fmt.Errorf("构造 Client 失败: %w", err))
+			// 构造失败属本地配置问题（URL/timeout 解析），走参数档而非服务端档。
+			// 当前 urlType="upload" 组装链路实际不可达此分支（无 token 读取、无其他错误出口），防御保留。
+			printParamError(fmt.Errorf("构造 Client 失败: %w", err))
 			return
 		}
 
