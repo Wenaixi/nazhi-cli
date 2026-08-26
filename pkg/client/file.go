@@ -434,11 +434,17 @@ func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 	closeErr := f.Close()
 	if copyErr != nil {
 		_ = osRemove(dst)
-		return fmt.Errorf("写入文件失败: %w", copyErr)
+		// 中途传输失败（连接重置 / 意外 EOF）必须包 ErrNetwork 哨兵，
+		// 让 SDK 调用方按 errors.Is(err, ErrNetwork) 判可重试；
+		// 用户主动 ctx 取消不归类为网络故障，避免自动重试误触发。
+		if errors.Is(copyErr, context.Canceled) || errors.Is(copyErr, context.DeadlineExceeded) {
+			return fmt.Errorf("写入文件失败: %w", copyErr)
+		}
+		return fmt.Errorf("%w: 写入文件失败: %w", ErrNetwork, copyErr)
 	}
 	if closeErr != nil {
 		_ = osRemove(dst)
-		return fmt.Errorf("关闭目标文件失败: %w", closeErr)
+		return fmt.Errorf("%w: 关闭目标文件失败: %w", ErrNetwork, closeErr)
 	}
 	if written == 0 {
 		_ = osRemove(dst)
