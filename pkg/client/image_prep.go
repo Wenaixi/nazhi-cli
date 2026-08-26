@@ -153,7 +153,9 @@ func decodeImage(path string) (image.Image, error) {
 				return nil, fmt.Errorf("%w: BMP（请先用图片工具转为 PNG/JPG）", ErrUnsupportedFormat)
 			}
 		}
-		return nil, fmt.Errorf("图片解码失败: %w", err)
+		// FILE-1 同款策略：本地解码失败（目录/损坏文件等调用方可控输入）包 ErrInvalidPayload
+		// 让 CLI 漏斗归 400/exit3，而非 500/exit2 被脚本无限重试（P2-2）。
+		return nil, fmt.Errorf("图片解码失败: %w", errors.Join(ErrInvalidPayload, err))
 	}
 	return img, nil
 }

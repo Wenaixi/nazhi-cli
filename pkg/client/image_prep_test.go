@@ -707,3 +707,21 @@ func TestUploadFile_PrepErrorIncludesErrFileTooLarge(t *testing.T) {
 		t.Errorf("UploadFile 错误 wrap 应使用 errors.Join(ErrFileTooLarge, err)，未检测到。")
 	}
 }
+
+// TestDecodeImage_BadInput_IsInvalidPayload 锁定 P2-2：图片解码失败（目录路径/损坏文件）
+// 是调用方可控输入问题，必须包 ErrInvalidPayload——目录 os.Open 成功但 imaging.Decode
+// 读取目录会失败（Windows/Linux 均可），走 decodeImage:156 分支；若不包哨兵则 CLI 漏斗
+// 归 500/exit2 被脚本无限重试，与 FILE-1 契约矛盾。
+func TestDecodeImage_BadInput_IsInvalidPayload(t *testing.T) {
+	tmp := t.TempDir() // 目录路径：os.Open 成功，imaging.Decode 失败
+	img, err := decodeImage(tmp)
+	if img != nil {
+		t.Fatalf("解码目录应失败，got image %v", img)
+	}
+	if err == nil {
+		t.Fatal("解码目录应报错")
+	}
+	if !errors.Is(err, ErrInvalidPayload) {
+		t.Errorf("解码失败应包 ErrInvalidPayload，实际 %v", err)
+	}
+}
