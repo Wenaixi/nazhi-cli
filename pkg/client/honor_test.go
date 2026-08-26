@@ -1,4 +1,4 @@
-// honor_test.go 荣誉申报 SDK 测试。
+﻿// honor_test.go 荣誉申报 SDK 测试。
 package client_test
 
 import (
@@ -31,7 +31,7 @@ func honorRecordJSON(id int64, name, statusName string) map[string]any {
 		// 锁定 string 建模不被误改 int64（URL 字符串会让 DecodeDataList 整页失败）。
 		"cert_img_attachment_id": "http://www.nazhisoft.com/common/attachment/getImg?id=5140894",
 		"ifshow":                 "是",
-		"student_name":           "高博文",
+		"student_name":           "王小明",
 		"class_name":             "高一八班",
 		"score":                  4.0,
 		"show_report_flag":       1,
@@ -239,7 +239,7 @@ func TestGetHonorList(t *testing.T) {
 	if got := result.Records[0].CertImgAttachmentID; got != "http://www.nazhisoft.com/common/attachment/getImg?id=5140894" {
 		t.Errorf("CertImgAttachmentID 应解析为完整图片 URL 字符串，实际 %q", got)
 	}
-	if result.Records[0].IfShow != "是" || result.Records[0].StudentName != "高博文" || result.Records[0].ClassName != "高一八班" {
+	if result.Records[0].IfShow != "是" || result.Records[0].StudentName != "王小明" || result.Records[0].ClassName != "高一八班" {
 		t.Errorf("展示字段解析错误: %+v", result.Records[0])
 	}
 	if result.Page == nil || result.Page.TotalNum != 1 {
