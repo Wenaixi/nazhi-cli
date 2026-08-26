@@ -73,4 +73,9 @@ package version
 //		写实 content 超 200 字显式拒绝；任务提交状态子串匹配兼容文案变体；CircleRecord.LikeList 键名修正；
 //		AddHonorPayload.CertImgAttachmentID 改 int64+omitempty（出站裸数字）、空 Name 不再上线（wire 对齐前端）；
 //		自评别名链收窄为 snake 主读；附件 Stat 预检与 @file 16MiB 上限
-var Version = "1.5.1"
+//	1.5.2 — 十五域全量深审修复：DownloadFile 非 2xx default 哨兵 ErrNetwork→ErrInvalidResponse（404/403 不再误判
+//		为可重试网络故障，退出码纠正为 exit1）+ 上传/下载错误 body 摘要统一包 RedactBody；学校信息 SSO 回退移出
+//		会话激活 sm.mu 临界区（锁窗口不再被网络往返放大到秒级，单测消除生产 SSO 外呼）；荣誉 typeName 反查改 int64
+//		比较；honor add / task preview 校验顺序收敛为先 payload 后建客户端；session activate 双注册删除；
+//		.env.example 补日志变量与 download 超时档披露等文档组六处
+var Version = "1.5.2"
