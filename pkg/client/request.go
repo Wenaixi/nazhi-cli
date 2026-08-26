@@ -372,14 +372,14 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 		return nil, fmt.Errorf("%w: 读取响应体失败: %w", ErrNetwork, err)
 	}
 
-	c.logWithLevel(ctx, levelForStatus(resp.StatusCode), "← %d %s (%d bytes) body=%s", resp.StatusCode, logx.RedactBody(url), len(respBytes), logx.RedactBody(logSafeBody(respBytes)))
+	c.logWithLevel(ctx, levelForStatus(resp.StatusCode), "← %d %s (%d bytes) body=%s", resp.StatusCode, logx.RedactBody(url), len(respBytes), logx.RedactBodyThenTruncate(respBytes, 100))
 
 	// 非 2xx：返回 sentinel，不把 body 当作成功 JSON 交给上层解码。
 	// 2xx（含 201/204 等）视为传输成功，业务 code 仍由 DecodeResponse/CheckCode 判定。
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: %s %s 返回状态码 %d body=%s",
-			sentinel, method, logx.RedactBody(url), resp.StatusCode, logx.RedactBody(logSafeBody(respBytes)))
+			sentinel, method, logx.RedactBody(url), resp.StatusCode, logx.RedactBodyThenTruncate(respBytes, 100))
 	}
 	return respBytes, nil
 }
@@ -427,7 +427,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		// sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
-			sentinel, logx.RedactBody(url), resp.StatusCode, logx.RedactBody(logSafeBody(bodyBytes)))
+			sentinel, logx.RedactBody(url), resp.StatusCode, logx.RedactBodyThenTruncate(bodyBytes, 100))
 	}
 	return bodyBytes, nil
 }

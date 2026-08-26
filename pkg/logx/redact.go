@@ -61,6 +61,18 @@ func RedactBody(s string) string {
 	return red
 }
 
+// RedactBodyThenTruncate 先脱敏再截断（HTTP-1 契约）。
+// 旧顺序（logSafeBody 先裸截 100 字节再 RedactBody）会让跨截断边界的敏感值
+// 因正则失配而泄漏前缀；本函数保证截断窗口内的敏感内容全部先被掩码。
+// max 为截断上限；RedactBody 内部另有 256 字符硬上限，先执行保证幂等。
+func RedactBodyThenTruncate(body []byte, max int) string {
+	s := RedactBody(string(body))
+	if len(s) > max {
+		return s[:max]
+	}
+	return s
+}
+
 // RedactValue 按 key 判断是否需掩码。
 func RedactValue(key, val string) string {
 	if isSensitiveKey(key) {

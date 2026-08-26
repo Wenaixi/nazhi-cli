@@ -216,7 +216,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		// 复用 request.go 的 classifyHTTPStatus 统一 sentinel 分类。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrUploadRejected)
-		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBody(logSafeBody(errBody)))
+		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBodyThenTruncate(errBody, 100))
 	}
 
 	bodyBytes, err := io.ReadAll(resp.Body)
@@ -367,7 +367,7 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
-		return fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBody(logSafeBody(errBody)))
+		return fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBodyThenTruncate(errBody, 100))
 	}
 
 	// 5. 流式写入（ctx 感知：ctx 取消时立即中断，删除半成品）

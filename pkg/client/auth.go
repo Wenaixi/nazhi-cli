@@ -166,7 +166,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return nil, fmt.Errorf("Login 读取响应体失败: status=%d read=%d bytes: %w",
 			httpResp.StatusCode, len(bodyBytes), err)
 	}
-	bodySnippet := logSafeBody(bodyBytes)
+	bodySnippet := logx.RedactBodyThenTruncate(bodyBytes, 100)
 
 	if httpResp.StatusCode == http.StatusOK {
 		loginResp, err := types.DecodeResponse(bodyBytes)
@@ -213,11 +213,11 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	} else if err := types.CheckCode(errResp); err != nil {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
-	// 错误消息附带 logSafeBody 截断摘要：非预期状态码的典型场景是 nginx 503、
+	// 错误消息附带 RedactBodyThenTruncate 截断脱敏摘要：非预期状态码的典型场景是 nginx 503、
 	// CDN challenge 等 HTML 响应；不带 body 片段时用户难以定位根因。
 	// 摘要再过 RedactBody 与 request.go 同类分支脱敏口径拉平（90ccd64 先例）。
 	return nil, fmt.Errorf("%w: 非预期状态码 %d body=%s",
-		ErrLoginRejected, httpResp.StatusCode, logx.RedactBody(logSafeBody(bodyBytes)))
+		ErrLoginRejected, httpResp.StatusCode, logx.RedactBodyThenTruncate(bodyBytes, 100))
 }
 
 // warnIfExpiresAtFallback 在 expiresAt 异常时输出 WARN 日志。两条 Login 路径

@@ -387,14 +387,6 @@ func (c *Client) LogInfoForTest(ctx context.Context, format string, args ...any)
 	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
 }
 
-// logSafeBody 截断到 100 字符限制日志体积；脱敏由 logx.RedactBody 负责。
-func logSafeBody(body []byte) string {
-	s := string(body)
-	if len(s) > 100 {
-		s = s[:100]
-	}
-	return s
-}
 
 // safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
 //
