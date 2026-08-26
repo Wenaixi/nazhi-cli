@@ -74,7 +74,11 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 		return nil, fmt.Errorf("%w: GetSchoolID school_id=%q 不是有效数字: %w", ErrInvalidPayload, schoolIDStr, err)
 	}
 	schoolName := ""
+	// P2-3：学校名键双兼容——服务端 school_id 用小写键、NAME 用大写键，风格不一致；
+	// 部分部署可能返回小写 name。NAME 优先，name 兜底。
 	if v, ok := school["NAME"]; ok {
+		schoolName = fmt.Sprintf("%v", v)
+	} else if v, ok := school["name"]; ok {
 		schoolName = fmt.Sprintf("%v", v)
 	}
 
