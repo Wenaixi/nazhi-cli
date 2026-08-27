@@ -11,6 +11,7 @@ import (
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
+	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 )
 
 // pendingExitCode 追踪本进程退出码。三分退出码：0 成功 / 1 partial/业务 / 2 服务端 / 3 参数。
@@ -125,6 +126,15 @@ func rejectLoneOffset(cmd *cobra.Command) bool {
 	return false
 }
 
+// redactErrorMessage 统一处理 CLI 错误信封中的底层错误文本，避免 URL 查询参数中的
+// token、userName 等敏感值绕过请求层脱敏后直接回显。
+func redactErrorMessage(err error) string {
+	if err == nil {
+		return ""
+	}
+	return logx.RedactBody(err.Error())
+}
+
 // printErrorWithCode 是 printError / printParamError 的共享实现。
 func printErrorWithCode(err error, httpCode int) {
 	if err == nil {
@@ -134,7 +144,7 @@ func printErrorWithCode(err error, httpCode int) {
 	if printErrorDepth.Add(1) > 1 {
 		// 二次调用（兜底路径又失败）→ 直接降级为 fmt.Fprintf，不再递归
 		if !quiet {
-			_, _ = fmt.Fprintf(os.Stderr, "ERROR: %s\n", err.Error())
+			_, _ = fmt.Fprintf(os.Stderr, "ERROR: %s\n", redactErrorMessage(err))
 		}
 		printErrorDepth.Add(-1)
 		return
@@ -142,7 +152,7 @@ func printErrorWithCode(err error, httpCode int) {
 	defer printErrorDepth.Add(-1)
 
 	// 把 error 包成 envelope，按 ExitCode 设退出码。
-	e := envelope.Error(httpCode, err.Error())
+	e := envelope.Error(httpCode, redactErrorMessage(err))
 
 	// quiet 模式下只标记退出码，不写 stderr
 	if !quiet {

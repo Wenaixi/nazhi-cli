@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"strings"
@@ -56,6 +57,38 @@ func TestPrintError_DoesNotCallOsExit(t *testing.T) {
 	}
 	if !strings.Contains(stderrOutput, `"status": "error"`) {
 		t.Errorf("stderr 应包含 envelope status=error 标记，实际: %q", stderrOutput)
+	}
+}
+
+// TestPrintError_RedactsWrappedURLSecrets 锁定错误信封不会回显底层 URL 中的凭据。
+func TestPrintError_RedactsWrappedURLSecrets(t *testing.T) {
+	origStderr := os.Stderr
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stderr = w
+	t.Cleanup(func() {
+		os.Stderr = origStderr
+		_ = r.Close()
+		_ = w.Close()
+	})
+
+	const secretToken = "TOKEN-DO-NOT-LEAK"
+	pendingExitCode.Store(0)
+	printError(fmt.Errorf("请求失败: GET https://example.test/api?token=%s&userName=TESTUSER", secretToken))
+
+	_ = w.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("读取 stderr 失败: %v", err)
+	}
+	output := buf.String()
+	if strings.Contains(output, secretToken) {
+		t.Fatalf("错误信封泄漏底层 URL 凭据: %q", output)
+	}
+	if !strings.Contains(output, "token=***") || !strings.Contains(output, "userName=***") {
+		t.Fatalf("错误信封应保留参数名并掩码敏感值: %q", output)
 	}
 }
 
