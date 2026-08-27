@@ -284,7 +284,3 @@ func TestWithSubmittedPageSize_RejectsNonPositive(t *testing.T) {
 	}
 }
 
-// loginRequest 测试 helper：构造最简 LoginRequest。
-func loginRequest(user, pass string) *types.LoginRequest {
-	return &types.LoginRequest{Username: user, Password: pass}
-}
