@@ -1,6 +1,6 @@
 package client
 
-import captchasdk "nazhi-captcha-sdk"
+import captchasdk "github.com/Wenaixi/nazhi-captcha-sdk"
 
 // builtinCaptchaRecognizer 用 nazhi-captcha-sdk 内置预训练库做纯本地验证码识别。
 // 零外部依赖、零网络 OCR 调用；未命中返回空串让 Login 换图重试。

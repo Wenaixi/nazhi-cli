@@ -60,8 +60,10 @@ jobs:
           fi
           "$(go env GOPATH)/bin/golangci-lint" --version
 
-      - name: 验证 go.mod 整洁
-        run: go mod tidy && git diff --exit-code go.mod go.sum
+      - name: 移除本地 replace（CI 无本地依赖目录）并验证 go.mod 整洁
+        run: |
+          sed -i '/replace github.com\/Wenaixi\/nazhi-captcha-sdk/d' go.mod
+          go mod tidy && git diff --exit-code go.mod go.sum
 
       - name: golangci-lint
         run: |
@@ -150,6 +152,7 @@ jobs:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "0"
         run: |
+          sed -i '/replace github.com\/Wenaixi\/nazhi-captcha-sdk/d' go.mod
           mkdir -p bin
           go build -ldflags="-s -w" \
             -o "bin/nazhi-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}" \
@@ -197,6 +200,7 @@ jobs:
           NAZHI_USERNAME: ${{ secrets.NAZHI_USERNAME }}
           NAZHI_PASSWORD: ${{ secrets.NAZHI_PASSWORD }}
         run: |
+          sed -i '/replace github.com\/Wenaixi\/nazhi-captcha-sdk/d' go.mod
           if [ -z "$NAZHI_USERNAME" ] || [ -z "$NAZHI_PASSWORD" ]; then
             echo "::warning::NAZHI_USERNAME 或 NAZHI_PASSWORD secret 未设置，跳过"
             exit 0
