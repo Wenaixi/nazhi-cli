@@ -53,8 +53,8 @@ func TestLoginCmd_ErrOCRNotConfigured_ActionableOutput(t *testing.T) {
 		t.Errorf("code 应 = 503，实际: %d", env.Code)
 	}
 	want := []string{
-		"识别器未配置",      // message 包含但不含 "OCR" 字面字
-		"内置识别器",        // 默认内置识别器应自动生效
+		"识别器未配置",        // message 包含但不含 "OCR" 字面字
+		"内置识别器",         // 默认内置识别器应自动生效
 		"WithCustomOCR", // SDK 注入自定义识别器的唯一入口
 	}
 	lower := lowerASCII(env.Message)

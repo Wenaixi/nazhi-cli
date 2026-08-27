@@ -78,6 +78,9 @@ package version
 //		会话激活 sm.mu 临界区（锁窗口不再被网络往返放大到秒级，单测消除生产 SSO 外呼）；荣誉 typeName 反查改 int64
 //		比较；honor add / task preview 校验顺序收敛为先 payload 后建客户端；session activate 双注册删除；
 //		.env.example 补日志变量与 download 超时档披露等文档组六处
+//	1.6.0 — 内置本地验证码识别器：SDK 默认集成 nazhi-captcha-sdk 预训练库（纯本地查表、
+//	        零 API Key、零网络调用），Login 零配置即可用；移除外部视觉模型 OCR 依赖与
+//	        NAZHI_SILICONFLOW_API_KEY 配置链；集成/e2e 测试与文档同步（6450ffc）
 //	1.5.3 — 十六域全量深审修复：9 个 commit 0 P0 / 0 P1 / 12 P2 全清零
 //		- A1/A2 测试锁定：remark 关键词强制传图分支（task.go:320-325）+ 典型案例批删空切片守卫（typical_case.go:213-215）
 //		- A3 行为：DownloadFile 中途传输失败包 ErrNetwork 哨兵（file.go:435-441），含 ctx 取消豁免测试
@@ -90,4 +93,4 @@ package version
 //		- A9 行为：honor list / typical-case list 分页参数非负校验（与 circle_metadata.go:83-90 纪律对齐）
 //		- D1/D2/D3/D4 文档：self_eval_submit_test:307 注释与断言对齐 / file.go:25+:71 「前端限制 10MB」改「前端镜像文案 20MB」
 //		  / task.go:407 EditCircle 26 字段全量模式披露 / user.go:30 GetMyInfo fast path 描述与实现对齐
-var Version = "1.5.3"
+var Version = "1.6.0"
