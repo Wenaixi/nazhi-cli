@@ -84,7 +84,8 @@ func rawSingleObjectBytes(resp types.UnifiedResponse) []byte {
 //
 // 取消语义：ctx 取消时返回 (已有合并数据, ctx.Err())，调用方按 partial envelope 处理。
 func (c *Client) GetSubmittedCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 3, key, "GetSubmittedCirclesJSON")
+	raw, _, err := c.getCirclesJSON(ctx, token, 3, key, "GetSubmittedCirclesJSON")
+	return raw, err
 }
 
 // GetSubmittedCirclesLimitJSON 按偏移和条数限制拉取当前用户自己发布的写实记录（原始 JSON）。
@@ -104,7 +105,8 @@ func (c *Client) GetSubmittedCirclesLimitJSON(ctx context.Context, token string,
 // GetTeacherCirclesJSON 获取教师代写的全部写实记录，返回平台原始 JSON 数组。
 // key 为搜索关键字（可空）。
 func (c *Client) GetTeacherCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 2, key, "GetTeacherCirclesJSON")
+	raw, _, err := c.getCirclesJSON(ctx, token, 2, key, "GetTeacherCirclesJSON")
+	return raw, err
 }
 
 // GetTeacherCirclesLimitJSON 按偏移和条数限制拉取教师写实记录（原始 JSON）。
@@ -116,7 +118,8 @@ func (c *Client) GetTeacherCirclesLimitJSON(ctx context.Context, token string, o
 // GetWithdrawnCirclesJSON 获取被撤回的全部写实记录，返回平台原始 JSON 数组。
 // key 为搜索关键字（可空）。
 func (c *Client) GetWithdrawnCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 4, key, "GetWithdrawnCirclesJSON")
+	raw, _, err := c.getCirclesJSON(ctx, token, 4, key, "GetWithdrawnCirclesJSON")
+	return raw, err
 }
 
 // GetWithdrawnCirclesLimitJSON 按偏移和条数限制拉取被撤回写实记录（原始 JSON）。
@@ -128,7 +131,8 @@ func (c *Client) GetWithdrawnCirclesLimitJSON(ctx context.Context, token string,
 // GetPublicCirclesJSON 获取公示的全部写实记录（全班），返回平台原始 JSON 数组。
 // key 为搜索关键字（可空）。
 func (c *Client) GetPublicCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	return c.getCirclesJSON(ctx, token, 1, key, "GetPublicCirclesJSON")
+	raw, _, err := c.getCirclesJSON(ctx, token, 1, key, "GetPublicCirclesJSON")
+	return raw, err
 }
 
 // GetPublicCirclesLimitJSON 按偏移和条数限制拉取公示写实记录（原始 JSON）。
@@ -186,21 +190,21 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 // 多页时使用 errgroup 并发翻页（与 fetchAllCirclePages 对齐），
 // 避免串行循环在数据量大时慢 2-5 倍。
 // key 透传到 getStudentCircle 的 key 查询参数。
-func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType int, key string, methodName string) (json.RawMessage, error) {
+func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType int, key string, methodName string) (json.RawMessage, *types.PageBean, error) {
 	pageSize := c.effectivePageSize()
 
 	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, key)
 	if err != nil {
-		return nil, fmt.Errorf("%s 失败: %w", methodName, err)
+		return nil, nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
 
 	// ponytail: 与 fetchAllCirclePages 同款天花板——短路看 TotalNum、翻页上界只用 TotalPage，
 	// 服务端 totalPage 虚低（双重违约）时会静默截断；防御改法见 submitted.go 注释。
 	if pb == nil || pb.TotalPage <= 1 || pb.TotalNum <= pageSize {
 		if len(raw1) == 0 {
-			return []byte("[]"), nil
+			return []byte("[]"), pb, nil
 		}
-		return raw1, nil
+		return raw1, pb, nil
 	}
 
 	// 多页：预分配索引切片 + errgroup 并发翻页，保持页号顺序
@@ -227,11 +231,13 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 
 	if err := g.Wait(); err != nil {
 		// 部分失败时，已成功的页仍有效；按已有页顺序拼接
-		return assembleCirclesJSON(raw1, results, pb.TotalPage,
+		raw, assembleErr := assembleCirclesJSON(raw1, results, pb.TotalPage,
 			fmt.Errorf("%s 部分页失败: %w", methodName, err))
+		return raw, pb, assembleErr
 	}
 
-	return assembleCirclesJSON(raw1, results, pb.TotalPage, nil)
+	raw, assembleErr := assembleCirclesJSON(raw1, results, pb.TotalPage, nil)
+	return raw, pb, assembleErr
 }
 
 // getCirclesLimitJSON 是各类型写实记录按偏移/条数限制拉取的通用实现。
@@ -244,8 +250,8 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 	pageSize := c.effectivePageSize()
 
 	if limit <= 0 {
-		raw, err := c.getCirclesJSON(ctx, token, circleType, key, methodName)
-		return raw, nil, err
+		raw, pb, err := c.getCirclesJSON(ctx, token, circleType, key, methodName)
+		return raw, pb, err
 	}
 
 	pb, raw1, err := c.fetchCirclePageJSON(ctx, token, 1, pageSize, circleType, key)

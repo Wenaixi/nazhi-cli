@@ -162,3 +162,56 @@ func TestGetCirclesLimitJSON_EndPageByOffsetLimit(t *testing.T) {
 		t.Errorf("不应请求 page4/5, hits4=%d hits5=%d", pageHits[4], pageHits[5])
 	}
 }
+
+// TestGetCirclesLimitJSON_FullModeKeepsPageBean 锁定全量模式仍返回分页元数据。
+func TestGetCirclesLimitJSON_FullModeKeepsPageBean(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			http.NotFound(w, r)
+			return
+		}
+		pageNo, _ := strconv.Atoi(r.URL.Query().Get("pageNo"))
+		w.Header().Set("Content-Type", "application/json")
+		records := []map[string]any{{"id": 101}}
+		if pageNo > 1 {
+			records = []map[string]any{}
+		}
+		body := map[string]any{
+			"code":     1,
+			"dataList": records,
+			"pageBean": map[string]any{
+				"pageNo": 1, "pageSize": 500, "totalNum": 2532, "totalPage": 6,
+			},
+		}
+		_ = json.NewEncoder(w).Encode(body)
+	})))
+	defer biz.Close()
+
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithSSOBase(biz.URL),
+		client.WithUploadURL(biz.URL),
+	)
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	raw, page, err := c.GetSubmittedCirclesLimitJSON(context.Background(), "test-token", 0, 0, "")
+	if err != nil {
+		t.Fatalf("GetSubmittedCirclesLimitJSON 全量模式失败: %v", err)
+	}
+	if page == nil {
+		t.Fatal("全量模式应返回 PageBean")
+	}
+	if page.TotalNum != 2532 || page.TotalPage != 6 {
+		t.Fatalf("全量模式分页元数据错误: %+v", page)
+	}
+	var records []map[string]any
+	if err := json.Unmarshal(raw, &records); err != nil {
+		t.Fatalf("全量模式原始 JSON 非法: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("全量模式记录数错误: %d", len(records))
+	}
+}
