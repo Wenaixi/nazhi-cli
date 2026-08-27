@@ -36,11 +36,9 @@ var (
 
 	// ErrOCRNotConfigured 表示 Client 未配置验证码识别器。
 	//
-	// 触发场景：SDK 不内置任何 OCR；调用方未通过 WithCustomOCR
-	// 注入识别器，此时调用 Login() 必失败（safeOCRRecognize 检测 c.ocr == nil）。
-	//
-	// SDK 不提供默认验证码识别器。所有调用方（含 cmd/nazhi）必须通过
-	// WithCustomOCR 注入识别器（典型为硅基流动 Qwen3-Omni 视觉模型）。
+	// 触发场景：SDK 默认内置 nazhi-captcha-sdk 本地识别器，正常情况下不会触发；
+	// 仅当调用方通过 WithCustomOCR(nil) 显式禁用（但 withNilGuard 会拒绝 nil）或
+	// 内部状态异常时才会出现。保留哨兵供 errors.Is 兼容。
 	//
 	// 错误消息带稳定前缀 errors.ocr_not_configured 便于匹配。
 	// SDK 用户建议用 errors.Is(err, ErrOCRNotConfigured) 而非字符串匹配。

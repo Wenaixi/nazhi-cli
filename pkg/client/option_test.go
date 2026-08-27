@@ -21,8 +21,8 @@ import (
 //   - WithLogger / WithCustomOCR nil 守卫
 //   - WithSessionBackoff 正/零/负值处理
 //
-// SDK 不提供本地识别器或相关构建选项。
-// 选项测试聚焦 OCR 注入契约：未注入即 Login 返回 ErrOCRNotConfigured。
+// SDK 默认内置 nazhi-captcha-sdk 本地识别器（builtinCaptchaRecognizer）。
+// 选项测试聚焦 OCR 注入契约：默认内置可用，WithCustomOCR 可覆盖。
 type mockCaptchaRecognizer struct{ closed bool }
 
 func (m *mockCaptchaRecognizer) Recognize([]byte) (string, error) { return "ok", nil }
@@ -53,21 +53,44 @@ func TestWithCustomOCR_Nil_Rejects(t *testing.T) {
 	}
 }
 
-// TestNew_WithoutOCR_Login_ReturnsConfiguredError 验证 New() 后不注入 OCR 直接 Login()
-// 返回 ErrOCRNotConfigured（强制契约：必须 WithCustomOCR）。
-func TestNew_WithoutOCR_Login_ReturnsConfiguredError(t *testing.T) {
+// TestNew_DefaultBuiltinOCR_LoginWorks 验证 New() 默认内置识别器——
+// 不注入任何 OCR 时 Login 不再返回 ErrOCRNotConfigured，而是走内置识别器。
+func TestNew_DefaultBuiltinOCR_LoginWorks(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"ok"}`))
+		case "/teacher/auth/studentLogin/validate":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"ok","returnData":{"token":"tok"}}`))
+		}
 	}))
 	defer srv.Close()
-	c, err := New(WithSSOBase(srv.URL))
+	c, err := New(WithSSOBase(srv.URL), WithBaseURL(srv.URL))
 	if err != nil {
 		t.Fatalf("New 失败: %v", err)
 	}
 	defer c.Close()
-	loginReq := loginRequest("u", "p")
-	if _, err := c.Login(context.Background(), *loginReq); !errors.Is(err, ErrOCRNotConfigured) {
-		t.Errorf("未注入 OCR 时 Login() 应返回 ErrOCRNotConfigured，实际: %v", err)
+	// 默认内置识别器：ocr 非 nil
+	if c.ocr == nil {
+		t.Fatal("New() 后 c.ocr 不应为 nil（默认内置识别器）")
+	}
+	// 断言类型为内置识别器
+	if _, ok := c.ocr.(*builtinCaptchaRecognizer); !ok {
+		t.Fatalf("默认识别器应为 builtinCaptchaRecognizer，实际 %T", c.ocr)
+	}
+	// Login 不再返回 ErrOCRNotConfigured（内置识别器对 fake-jpeg 未命中 → 空串 → 换图重试 → 9 次后失败）
+	// 但错误不应是 ErrOCRNotConfigured
+	_, err = c.Login(context.Background(), types.LoginRequest{Username: "u", Password: "p", SchoolID: "173"})
+	if errors.Is(err, ErrOCRNotConfigured) {
+		t.Fatalf("默认内置后 Login 不应返回 ErrOCRNotConfigured，实际: %v", err)
 	}
 }
 

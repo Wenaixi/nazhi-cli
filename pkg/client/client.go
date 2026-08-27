@@ -291,10 +291,8 @@ func WithSubmittedPageSize(n int) Option {
 //	    nazhicli.WithCustomOCR(myRecognizer),
 //	)
 //
-// SDK 不提供默认验证码识别器。
-// 调用方必须在 New() 之前或之后第一时间注入 WithCustomOCR，否则 Login() 会立即
-// 返回 ErrOCRNotConfigured。cmd/nazhi 默认通过 omni_ocr.go 注入硅基流动
-// Qwen3-Omni 视觉识别器。
+// SDK 默认内置 nazhi-captcha-sdk 本地验证码识别器（纯本地查表，零外部依赖）。
+// 调用方可通过 WithCustomOCR 注入自定义识别器（如 AI 视觉模型、远程服务、测试 mock）覆盖默认。
 //
 // Option 处理顺序：所有 Options 跑完后，若有 WithToken 注入，则在最终 c.http.Jar /
 // c.ssoBaseURL / c.baseURL 已知的前提下统一 syncCookieToken（避免顺序敏感性 bug）。
@@ -310,7 +308,7 @@ func New(opts ...Option) (*Client, error) {
 		uploadURL:         defaultUploadURL,
 		http:              newHTTPClient(),
 		logger:            slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:               nil, // 必须通过 WithCustomOCR 注入，参见上面注释
+		ocr:               newBuiltinCaptchaRecognizer(), // 默认内置 nazhi-captcha-sdk 本地识别器，WithCustomOCR 可覆盖
 		sm:                &sessionManager{},
 		submittedPageSize: defaultSubmittedPageSize,
 	}
