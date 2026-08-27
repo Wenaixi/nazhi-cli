@@ -14,18 +14,15 @@ import (
 //
 //	nazhi login -u <username> -p <password> [--sso-base <url>] [--timeout <秒>]
 //
-// 验证码由硅基流动 Qwen3-Omni 视觉模型识别（通过 NAZHI_SILICONFLOW_API_KEY 注入，兼容旧别名）。
-// SDK 不内置验证码识别器，必须配置视觉模型或注入自定义识别器，否则 login 直接返回 503 引导。
+// 验证码由内置 nazhi-captcha-sdk 本地预训练库识别（零外部依赖、零 API Key）。
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "SSO 登录纳智综合评价系统",
-	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → 视觉识别器处理验证码 → Login。
+	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → 内置识别器处理验证码 → Login。
 
-	验证码必须配置 Nazhi-auto 同款硅基流动 Qwen3-Omni API key（NAZHI_SILICONFLOW_API_KEY）。
-兼容 NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY 旧别名。
-可选通过 NAZHI_OCR_BASE_URL / NAZHI_OCR_MODEL 覆盖识别端点与模型名（默认走硅基流动官方地址与 Qwen3-Omni）。SDK 不内置本地验证码识别器，未配置时 login 直接返回错误退出。`,
-	Example: `  export NAZHI_SILICONFLOW_API_KEY=sk-...      # 先设置视觉模型 key
-  nazhi login -u 学号 -p 密码                       # 视觉识别器自动处理验证码
+	验证码由内置 nazhi-captcha-sdk 本地预训练库自动识别，无需任何外部 OCR 配置。
+	可选通过 --sso-base 指定 SSO 根地址（默认 https://www.nazhisoft.com）。`,
+	Example: `  nazhi login -u 学号 -p 密码                       # 内置识别器自动处理验证码
   nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -47,7 +44,7 @@ var loginCmd = &cobra.Command{
 			return
 		}
 
-		printVerbose("正在调用视觉识别器处理验证码并登录...")
+		printVerbose("正在识别验证码并登录...")
 		resp, err := c.Login(cmd.Context(), types.LoginRequest{
 			Username: username,
 			Password: password,
@@ -56,7 +53,7 @@ var loginCmd = &cobra.Command{
 			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
 			switch {
 			case errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic):
-				printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。请设置 Nazhi-auto 同款环境变量 NAZHI_SILICONFLOW_API_KEY 接入硅基流动 Qwen3-Omni 视觉模型（兼容 NAZHI_OCR_API_KEY / SILICONFLOW_API_KEY），或通过 SDK WithCustomOCR 注入自定义识别器。"))
+				printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。默认内置识别器应自动生效；如仍报错，请通过 SDK WithCustomOCR 注入自定义识别器。"))
 			case errors.Is(err, client.ErrLoginRejected):
 				printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error())))
 			default:

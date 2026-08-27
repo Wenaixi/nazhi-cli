@@ -198,25 +198,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 	}
 	lg := logx.NewLogger(lvl, formatStr, writers...)
 	opts = append(opts, client.WithLogger(lg))
-	if ocr := omniOCRFromEnv(); ocr != nil {
-		opts = append(opts, client.WithCustomOCR(ocr))
-	}
 	return opts, token, nil
-}
-
-// omniOCRFromEnv 读取硅基流动 Qwen3-Omni 配置。
-func omniOCRFromEnv() *omniOCR {
-	key := strings.TrimSpace(os.Getenv("NAZHI_SILICONFLOW_API_KEY"))
-	if key == "" {
-		key = strings.TrimSpace(os.Getenv("NAZHI_OCR_API_KEY"))
-	}
-	if key == "" {
-		key = strings.TrimSpace(os.Getenv("SILICONFLOW_API_KEY"))
-	}
-	if key == "" {
-		return nil
-	}
-	return newOmniOCR(key, os.Getenv("NAZHI_OCR_BASE_URL"), os.Getenv("NAZHI_OCR_MODEL"))
 }
 
 func newClientWithOpts(opts ...client.Option) (*client.Client, error) {
