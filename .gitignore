@@ -108,3 +108,6 @@ test/e2e/.token_cache
 # ─── 前端源码参照库（本地对照用，不入库）─────────
 # reference/nazhi 是纳智前端本地镜像，仅 grep 对照用；升级参照库时 robocopy 重新镜像
 reference/
+
+go.work
+go.work.sum

@@ -2,8 +2,6 @@ module github.com/Wenaixi/nazhi-cli
 
 go 1.26.1
 
-replace github.com/Wenaixi/nazhi-captcha-sdk => E:/newCC/life-new2026/nazhi-captcha-sdk
-
 require (
 	github.com/disintegration/imaging v1.6.2
 	github.com/spf13/cobra v1.10.2
@@ -16,5 +14,3 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 )
-
-replace github.com/Wenaixi/nazhi-captcha-sdk => E:/newCC/life-new2026/nazhi-captcha-sdk
