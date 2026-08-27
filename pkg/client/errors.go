@@ -43,12 +43,10 @@ var (
 	// 错误消息带稳定前缀 errors.ocr_not_configured 便于匹配。
 	// SDK 用户建议用 errors.Is(err, ErrOCRNotConfigured) 而非字符串匹配。
 	ErrOCRNotConfigured = errors.New(
-		"errors.ocr_not_configured: OCR 识别器未配置：SDK 不内置 OCR。" +
-			"请通过 SDK 调用 client.WithCustomOCR(myRecognizer) 注入识别器" +
-			"（典型为硅基流动 Qwen3-Omni 视觉模型）。" +
-			" (OCR recognizer not configured: SDK does not ship a built-in OCR. " +
-			"Inject your recognizer via client.WithCustomOCR(myRecognizer); " +
-			"the CLI uses SiliconFlow Qwen3-Omni by default.)",
+		"errors.ocr_not_configured: OCR 识别器未配置：SDK 内置本地识别器，正常情况下不会触发。" +
+			"若需自定义识别器，请通过 client.WithCustomOCR(myRecognizer) 注入" +
+			" (OCR recognizer not configured: SDK ships a built-in recognizer; " +
+			"inject your own via client.WithCustomOCR(myRecognizer) if needed.)",
 	)
 
 	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。

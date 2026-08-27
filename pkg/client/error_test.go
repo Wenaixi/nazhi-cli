@@ -73,11 +73,11 @@ func TestErrOCRNotConfigured_LocalizedMessage(t *testing.T) {
 		t.Errorf("错误消息应以 i18n key 'errors.ocr_not_configured' 开头，实际: %s", msg)
 	}
 
-	// 中文 actionable 指引必须存在（SDK 不内置 OCR）
+	// 中文 actionable 指引必须存在（默认内置识别器，仅自定义时需注入）
 	wantCN := []string{
 		"OCR 识别器未配置",
 		"client.WithCustomOCR",
-		"硅基流动",
+		"内置本地识别器",
 	}
 	for _, want := range wantCN {
 		if !strings.Contains(msg, want) {

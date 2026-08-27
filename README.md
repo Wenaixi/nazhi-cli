@@ -1,4 +1,4 @@
-﻿# nazhi-cli
+# nazhi-cli
 
 **纳智综合评价系统 自动化 CLI + Go SDK**
 
@@ -7,7 +7,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/Wenaixi/nazhi-cli/ci.yml?branch=main)](https://github.com/Wenaixi/nazhi-cli/actions)
 
-一站式命令行工具 + Go SDK，面向纳智综合评价系统的全流程自动化：SSO 登录（视觉识别器自动处理验证码）、Session 激活、写实记录全生命周期管理（查询 / 提交 / 编辑 / 删除 / 评论 / 点赞）、任务与元数据、荣誉申报、典型案例、自我评价与毕业评价、用户信息维护、文件上传下载。所有 CLI 命令输出统一 JSON envelope，便于脚本解析与自动化编排。
+一站式命令行工具 + Go SDK，面向纳智综合评价系统的全流程自动化：SSO 登录（内置本地识别器自动处理验证码）、Session 激活、写实记录全生命周期管理（查询 / 提交 / 编辑 / 删除 / 评论 / 点赞）、任务与元数据、荣誉申报、典型案例、自我评价与毕业评价、用户信息维护、文件上传下载。所有 CLI 命令输出统一 JSON envelope，便于脚本解析与自动化编排。
 
 ## 仓库一览
 
@@ -22,9 +22,9 @@
 
 ## 特色
 
-- **视觉模型验证码识别** — 登录验证码通过 `WithCustomOCR` 注入 Nazhi-auto 同款硅基流动 Qwen3-Omni，支持多图重试
-- **纯 Go 构建** — SDK 不内置本地验证码识别器、模型或原生运行库，无 CGO、无额外模型文件
-- **统一配置** — CLI 正式读取 `NAZHI_SILICONFLOW_API_KEY`，兼容 `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY`
+- **内置本地验证码识别** — 登录验证码由 nazhi-captcha-sdk 预训练库本地识别（零 API Key、零网络调用），未命中自动换图重试
+- **纯 Go 构建** — SDK 内置纯本地验证码识别器，无 CGO、无模型文件随二进制打包
+- **统一配置** — 登录零配置即可用；`WithCustomOCR` 仍可注入自定义识别器覆盖默认
 - **HAR 验证 4 步 Session 激活** — `pkg/client/session.go` 的 `sessionManager` 状态机 + DCL fast-path + 同 token backoff 缓存
 - **完整错误链** — 16 个哨兵错误（`ErrNetwork` / `ErrRateLimited` / `ErrRetryable` 等），`errors.Is` 精确分支
 - **Cookie + Header 双重 Token 注入** — 业务服务器要求 `X-Auth-Token` 双形态存在，SDK 一次性处理
@@ -43,7 +43,7 @@
 | Linux | amd64 / arm64 | `nazhi-linux-amd64` / `nazhi-linux-arm64` |
 | macOS | arm64 (Apple Silicon) | `nazhi-darwin-arm64` |
 
-> 各平台发布包均为纯 Go 二进制；验证码视觉模型通过运行时 API 配置，不随二进制打包。
+> 各平台发布包均为纯 Go 二进制；验证码识别库随二进制内置，开箱即用。
 
 ### `go install`
 
@@ -62,15 +62,13 @@ make build           # 当前平台纯 Go 构建
 make release         # 全平台纯 Go 构建（CI 等价）
 ```
 
-> **登录需要视觉模型密钥**：运行 `nazhi login` 前设置 `NAZHI_SILICONFLOW_API_KEY`。
-> 该变量对应 Nazhi-auto 的正式配置；CLI 仍兼容 `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY`。
-> 未配置视觉识别器时不会退回本地实现，而是返回 `ErrOCRNotConfigured`。
+> **登录零配置**：SDK 默认内置 nazhi-captcha-sdk 本地验证码识别器，无需任何 API Key；
+> 未命中时自动换图重试。需要更高识别率时可注入自定义识别器（如 AI 视觉模型）。
 
 ## 快速开始
 
 ```bash
-# 1. 配置 Nazhi-auto 同款视觉模型并登录
-export NAZHI_SILICONFLOW_API_KEY=sk-...
+# 1. 登录（内置本地验证码识别器，零配置）
 export NAZHI_USERNAME=学号
 export NAZHI_PASSWORD=密码
 TOKEN=$(nazhi login | jq -r .data.token)
@@ -115,7 +113,7 @@ nazhi task submitted | jq -r '.data[]?.imgList[]?.attachment_id // .data.records
 
 ```
 nazhi
-├── login                       SSO 登录（视觉识别器自动处理验证码）
+├── login                       SSO 登录（内置本地识别器自动处理验证码）
 ├── session
 │   └── activate                 激活业务 Session（HAR 4 步）
 ├── whoami                      获取当前用户信息（含 schoolId）
@@ -252,14 +250,13 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse" // SSO token 解析（可独立使用）
 )
 
-// CaptchaRecognizer 由调用方实现（AI 视觉模型 / 远程服务 / 测试 mock）
-recognizer := newMyCaptchaRecognizer()
+// 默认内置 nazhi-captcha-sdk 本地验证码识别器，Login 零配置即可用；
+// 需要覆盖时用 WithCustomOCR 注入自定义识别器（AI 视觉模型 / 远程服务 / 测试 mock）。
 c, err := client.New(
 	client.WithSSOBase("https://www.nazhisoft.com"),   // 可省，默认即此
 	client.WithBaseURL("http://139.159.205.146:8280"), // 可省，默认即此
 	client.WithTimeout(30*time.Second),
 	client.WithSessionBackoff(5*time.Second), // Session 激活失败冷却窗口
-	client.WithCustomOCR(recognizer),         // Login 必需，未注入返回 ErrOCRNotConfigured
 )
 if err != nil {
 	log.Fatalf("Client 初始化失败：%v", err)
@@ -308,8 +305,6 @@ if err != nil {
 
 | 变量 | 作用 | 适用命令 | 默认值 |
 |---|---|---|---|
-| `NAZHI_SILICONFLOW_API_KEY` | 硅基流动 Qwen3-Omni 视觉模型密钥，**登录必填**（兼容别名见下） | `login` | — |
-| `NAZHI_OCR_API_KEY` / `SILICONFLOW_API_KEY` | 上者的兼容别名 | `login` | — |
 | `NAZHI_USERNAME` | 学号 | `login` | — |
 | `NAZHI_PASSWORD` | 密码 | `login` | — |
 | `NAZHI_TOKEN` | X-Auth-Token | `session`、`whoami`、`task`、`self-eval`、`honor` | — |
@@ -380,7 +375,6 @@ make test-integration
 
 ## 致谢
 
-- [硅基流动](https://siliconflow.cn/) — Qwen3-Omni 视觉模型服务
 - [cobra](https://github.com/spf13/cobra) — CLI 框架
 
 ---

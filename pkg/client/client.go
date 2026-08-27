@@ -23,8 +23,9 @@ import (
 
 // CaptchaRecognizer 是验证码识别器接口。
 //
-// SDK 不内置本地识别器，调用方必须通过 WithCustomOCR
-// 注入识别器（如 AI 视觉模型、远程服务、单元测试 mock 等）。
+// SDK 默认内置 nazhi-captcha-sdk 本地识别器（零配置）；调用方可通过
+// WithCustomOCR 注入自定义识别器覆盖默认（如 AI 视觉模型、远程服务、
+// 单元测试 mock 等）。
 //
 // 注意：实现必须同时实现 Close() error——只要识别器已注入，
 // Close() 必然调用其 Close()。
@@ -228,16 +229,15 @@ var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client
 	}
 })
 
-// WithCustomOCR 注入自定义验证码识别器。
+// WithCustomOCR 覆盖默认验证码识别器。
 //
-// SDK 不提供内置 OCR，所有调用方（含 CLI）必须通过本 Option
-// 注入识别器。注入时机无要求，建议在 New() 之后第一时间注入以避免 Login 阶段
-// 才补注的竞争窗口。
+// SDK 默认内置 nazhi-captcha-sdk 本地识别器（零配置）；需要更高识别率或
+// 特殊场景时通过本 Option 注入自定义识别器覆盖默认。注入时机无要求，
+// 建议在 New() 之后第一时间注入以避免 Login 阶段才补注的竞争窗口。
 //
 // 适用场景：
-//   - CLI 默认通过 cmd/nazhi/omni_ocr.go 注入硅基流动 Qwen3-Omni 识别器
 //   - 单元测试注入 mock 识别器（如 pkg/client 包内测试的 fakeOCRSimple）
-//   - 第三方集成注入自研识别器
+//   - 第三方集成注入自研识别器（AI 视觉模型 / 远程服务）
 //
 // 行为约定：
 //   - r == nil：拒绝设置并 warn，保持当前值（防止 nil 静默覆盖

@@ -11,6 +11,10 @@
 - UpdateMyInfoStructured 全零输入视为 no-op：不再发出仅含 studentUuid 空串的空 POST 并失效本地缓存（CLI --payload '{}' 可达）（commit `85ed8f9`）。
 - 本地 IO 错误归参数档：上传附件不存在 / 图片解码打开失败 / 下载目标路径不可写由 SDK 包 ErrInvalidPayload 哨兵，CLI 退出码从 500/exit2 纠正为 400/exit3，脚本不再对永久性本地输入错误无限重试（commit `f42df62`）。
 
+### 特性
+
+- CLI 与 SDK 内置 nazhi-captcha-sdk 本地验证码识别器，Login 零配置可用，移除外部视觉模型 OCR 依赖（commit `25e02bb` 起；本提交同步清理集成测试与文档）。
+
 ### 文档
 
 - GetDate wire 形态披露：前端 el-date-picker 无 value-format 实际提交 ISO 8601 时间戳，纯日期是否被服务端接受以平台裁决为准（types/honor.go + honor 命令 Long）。

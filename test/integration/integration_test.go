@@ -15,11 +15,8 @@
 package integration
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"image"
 	"image/color"
 	"image/png"
@@ -41,7 +38,7 @@ const (
 	defaultSSOBase    = "https://www.nazhisoft.com"
 	defaultBizBase    = "http://139.159.205.146:8280"
 	defaultUploadBase = "http://doc.nazhisoft.com"
-	loginTimeout      = 90 * time.Second // OCR + 网络 + 99 次重试
+	loginTimeout      = 90 * time.Second // 内置识别 + 网络 + 99 次重试
 	apiTimeout        = 30 * time.Second
 )
 
@@ -64,116 +61,16 @@ func loadCreds(t *testing.T) (string, string, string, string) {
 	return username, password, ssoBase, bizBase
 }
 
-// resolveOCRKey 解析验证码识别密钥：环境变量优先，回落 Nazhi-auto 本地配置。
-// 与 e2e harness 同源逻辑（_test 符号无法跨包复用，测试代码允许这份轻度重复）。
-func resolveOCRKey() string {
-	for _, k := range []string{"NAZHI_SILICONFLOW_API_KEY", "NAZHI_OCR_API_KEY", "SILICONFLOW_API_KEY"} {
-		if v := strings.TrimSpace(os.Getenv(k)); v != "" {
-			return v
-		}
-	}
-	for _, p := range []string{
-		"E:/newCC/life-new2026/Nazhi-auto/backend/data/settings.yaml",
-		"E:/newCC/life-new2026/Nazhi-auto/data/settings.yaml",
-	} {
-		data, err := os.ReadFile(p)
-		if err != nil {
-			continue
-		}
-		idx := strings.Index(string(data), "sk-")
-		if idx < 0 {
-			continue
-		}
-		tail := data[idx:]
-		end := len(tail)
-		for i, r := range tail {
-			if r == '"' || r == '\'' || r == ' ' || r == '\t' || r == '\n' || r == '\r' {
-				if i > 3 {
-					end = i
-					break
-				}
-			}
-		}
-		return strings.Trim(string(tail[:end]), "\"' ")
-	}
-	return ""
-}
-
-// miniOmniOCR 是硅基流动 Qwen3-Omni 验证码识别的最小实现，
-// 复刻 cmd/nazhi/omni_ocr.go 与 e2e harness 的同源逻辑（_test 符号无法跨包复用）。
-type miniOmniOCR struct {
-	apiKey string
-	http   *http.Client
-}
-
-func (o *miniOmniOCR) Recognize(img []byte) (string, error) {
-	if o == nil || o.apiKey == "" {
-		return "", fmt.Errorf("Omni OCR 未配置 API Key")
-	}
-	if len(img) == 0 {
-		return "", nil
-	}
-	body := map[string]any{
-		"model": "Qwen/Qwen3-Omni-30B-A3B-Instruct",
-		"messages": []any{
-			map[string]any{"role": "system", "content": "Output 4 alphanumeric characters."},
-			map[string]any{"role": "user", "content": []any{
-				map[string]any{"type": "image_url", "image_url": map[string]string{"url": "data:image/jpeg;base64," + base64.StdEncoding.EncodeToString(img)}},
-			}},
-		},
-		"temperature": 0,
-		"max_tokens":  256,
-	}
-	raw, err := json.Marshal(body)
-	if err != nil {
-		return "", err
-	}
-	req, _ := http.NewRequest(http.MethodPost, "https://api.siliconflow.cn/v1/chat/completions", bytes.NewReader(raw))
-	req.Header.Set("Authorization", "Bearer "+o.apiKey)
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := o.http.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	// 用 map 解码避免匿名 struct 的 tag 书写；choices[0].message.content 可能是 string 或分段数组
-	var parsed struct {
-		Choices []map[string]any `json:"choices"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
-		return "", err
-	}
-	if len(parsed.Choices) == 0 {
-		return "", fmt.Errorf("Omni OCR 无返回")
-	}
-	msg, _ := parsed.Choices[0]["message"].(map[string]any)
-	if msg == nil {
-		return "", fmt.Errorf("Omni OCR 响应缺 message")
-	}
-	// content 可能是 string 或分段数组，统一 fmt 后只保留字母数字
-	content := strings.TrimSpace(fmt.Sprintf("%v", msg["content"]))
-	return strings.Join(strings.FieldsFunc(content, func(r rune) bool {
-		return !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z'))
-	}), ""), nil
-}
-
-// Close 实现 client.CaptchaRecognizer 接口（HTTP 客户端无资源需释放）。
-func (o *miniOmniOCR) Close() error { return nil }
-
 // newClient 构造一个真实环境 Client。
-// 检测到 OCR 密钥时自动注入视觉识别器（环境变量或 Nazhi-auto 配置）。
+// Login 使用 SDK 默认内置的 nazhi-captcha-sdk 本地验证码识别器，零配置。
 func newClient(t *testing.T, ssoBase, bizBase string) *client.Client {
 	t.Helper()
-	opts := []client.Option{
+	c, _ := client.New(
 		client.WithSSOBase(ssoBase),
 		client.WithBaseURL(bizBase),
 		client.WithUploadURL(defaultUploadBase),
 		client.WithTimeout(apiTimeout),
-	}
-	if k := resolveOCRKey(); k != "" {
-		opts = append(opts, client.WithCustomOCR(&miniOmniOCR{apiKey: k, http: &http.Client{Timeout: 45 * time.Second}}))
-	}
-	c, _ := client.New(opts...)
+	)
 	t.Cleanup(func() { _ = c.Close() })
 	return c
 }
@@ -184,7 +81,7 @@ func sharedLogin(t *testing.T, c *client.Client, username, password string) stri
 	ctx, cancel := context.WithTimeout(context.Background(), loginTimeout)
 	defer cancel()
 
-	t.Logf("① 全自动 OCR 登录 (学号=%s)", maskUsername(username))
+	t.Logf("① 内置识别器自动登录 (学号=%s)", maskUsername(username))
 	resp, err := c.Login(ctx, types.LoginRequest{
 		Username: username,
 		Password: password,

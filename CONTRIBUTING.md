@@ -12,7 +12,7 @@
 ## 环境要求
 
 - Go 1.26+（见 `go.mod`）
-- 交叉编译无需 CGO 或本地模型依赖；验证码识别由运行时注入视觉模型完成
+- 交叉编译无需 CGO；验证码识别由内置 nazhi-captcha-sdk 本地识别器完成，无外部依赖
 - 首次贡献推荐本地跑通 `make build` 与 `make test`
 
 ## 当前版本
@@ -26,7 +26,7 @@
 ## 本地开发
 
 ```bash
-# 构建（纯 Go；登录时通过 NAZHI_SILICONFLOW_API_KEY 注入视觉模型）
+# 构建（纯 Go；登录内置本地验证码识别器，零配置）
 go build -o bin/nazhi.exe ./cmd/nazhi
 
 # 运行测试（race 检测）
@@ -38,7 +38,7 @@ make lint
 make fmt
 ```
 
-> **验证码识别说明**：SDK 不内置本地识别器。`nazhi login` 必须通过 `NAZHI_SILICONFLOW_API_KEY` 注入 Nazhi-auto 同款硅基流动 Qwen3-Omni 视觉模型；未配置时返回 `ErrOCRNotConfigured`。CLI 兼容 `NAZHI_OCR_API_KEY` 和 `SILICONFLOW_API_KEY` 旧别名。
+> **验证码识别说明**：SDK 默认内置 nazhi-captcha-sdk 本地验证码识别器，`nazhi login` 零配置即可用，无需任何 API Key；需要更高识别率时可通过代码 `WithCustomOCR` 注入自定义识别器覆盖默认。
 
 ## 提交规范
 

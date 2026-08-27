@@ -6,12 +6,11 @@ VERSION := $(shell grep -E '^\s*var\s+Version\s*=' internal/version/version.go |
 LDFLAGS := -ldflags="-s -w"
 
 # ─── 构建 ───
-# SDK 不内置本地验证码识别器；纯 Go 构建，无 CGO 依赖。
-# 验证码识别必须通过 NAZHI_SILICONFLOW_API_KEY 注入 Nazhi-auto 同款视觉模型（详见 docs/cli/README.md）。
+# SDK 内置 nazhi-captcha-sdk 本地验证码识别器；纯 Go 构建，无 CGO 依赖，login 零配置。
 
 build: clean-bin
 	go build $(LDFLAGS) -o bin/nazhi.exe ./cmd/nazhi
-	@echo "构建完成: bin/nazhi.exe（纯 Go；login 需设置 NAZHI_SILICONFLOW_API_KEY）"
+	@echo "构建完成: bin/nazhi.exe（纯 Go；login 内置本地识别器零配置）"
 
 build-linux:
 	GOOS=linux GOARCH=amd64 go build $(LDFLAGS) -o bin/nazhi-linux-amd64 ./cmd/nazhi
@@ -104,7 +103,7 @@ clean:
 help:
 	@echo "nazhi-cli v$(VERSION) — 构建命令"
 	@echo "═══════════════════════════════════════"
-	@echo "  make build        编译 CLI（纯 Go，OCR 走视觉模型） → bin/nazhi.exe"
+	@echo "  make build        编译 CLI（纯 Go，内置本地验证码识别） → bin/nazhi.exe"
 	@echo "  make build-linux  交叉编译 Linux amd64"
 	@echo "  make build-darwin 交叉编译 macOS arm64"
 	@echo "  make build-windows 交叉编译 Windows amd64"
