@@ -480,14 +480,15 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 	select {
 	case <-page2Started:
 		cancel()
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
+		// CI runner 上 session warmup 可达 4s+，page1+page2 排队可能超 5s（实测假阳性）
 		t.Fatal("超时：未等到 page2 请求（检查 pageSize/TotalNum 是否触发翻页）")
 	}
 
 	var r getResult
 	select {
 	case r = <-resultCh:
-	case <-time.After(5 * time.Second):
+	case <-time.After(15 * time.Second):
 		t.Fatal("超时：GetSubmittedCircles 未在 cancel 后返回")
 	}
 
