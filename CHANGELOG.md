@@ -1,5 +1,22 @@
 # CHANGELOG
 
+## [1.6.2] - 2026-08-28
+
+发布链接：[v1.6.2](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.6.2)
+
+### 修复
+
+- 三个时间敏感测试适配 CI 慢 runner，修复 v1.6.1 起 CI 红灯导致 Release 链断裂（commit `a7b27fe`）：TestFetchTasks_Parallel 的 1200ms 绝对耗时断言降级为观察日志（判别力由 ConcurrentLimitBounded 的 in-flight 峰值计数承担，CI 实测 5.11s vs 本机 1.2s）；TestFetchTasks_MixedBizAndCancel 的 ctx 1.5s→4s、handler 睡眠 2s→6s 保持 ctx 先超时语义；TestGetSubmittedCircles_CancelDuringPaging 两处 5s 保护超时放宽至 15s。
+
+## [1.6.1] - 2026-08-28
+
+发布链接：[v1.6.1](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.6.1)
+
+### 修复
+
+- 移除 go.mod 本地 replace（指向本机绝对路径导致异机/CI 构建失败），改为 go.mod 声明远程版本 + 本地开发用不入库 go.work 覆盖（本地优先/远程兜底）（commit `de969b5`）。
+- captcha-sdk 依赖升级 v0.2.1（含 README import 路径修复与 CI 断言收紧）。
+
 ## [1.6.0] - 2026-08-27
 
 ### 修复
