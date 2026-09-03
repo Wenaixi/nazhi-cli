@@ -409,6 +409,12 @@ var (
 var submittedBlacklist = []string{"未提交"}
 
 func (t *Task) SetSubmittedByStatus() {
+	// H-A 修复：空串保守视为未提交——平台不返回 status 字段时
+	// 误判已提交会隐藏学生提交入口。
+	if strings.TrimSpace(t.CircleTaskStatus) == "" {
+		t.Submitted = false
+		return
+	}
 	for _, kw := range submittedBlacklist {
 		if strings.Contains(t.CircleTaskStatus, kw) {
 			t.Submitted = false
