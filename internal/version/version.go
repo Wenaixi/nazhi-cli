@@ -93,4 +93,5 @@ package version
 //		- A9 行为：honor list / typical-case list 分页参数非负校验（与 circle_metadata.go:83-90 纪律对齐）
 //		- D1/D2/D3/D4 文档：self_eval_submit_test:307 注释与断言对齐 / file.go:25+:71 「前端限制 10MB」改「前端镜像文案 20MB」
 //		  / task.go:407 EditCircle 26 字段全量模式披露 / user.go:30 GetMyInfo fast path 描述与实现对齐
-var Version = "1.6.0"
+//	1.6.3 — 修复文档规则路径与 CI 治理门禁；修复错误输出失败时退出码未正确记录
+var Version = "1.6.3"

@@ -1,5 +1,13 @@
 # CHANGELOG
 
+## [1.6.3] - 2026-09-05
+
+### 修复
+
+- 修复文档规则仍读取已删除的 `docs/cli/README.md` 与 `docs/sdk/README.md`，改为校验当前唯一的 `docs/README.md` 源码地图。
+- 将文档规则和仓库元数据检查接入 Makefile 与 CI，避免治理测试脱离发布门禁。
+- 修复 stderr 写入失败时 `printError` 未设置最终退出码的问题，确保异常输出路径仍返回非零退出状态。
+
 ## [1.6.2] - 2026-08-28
 
 发布链接：[v1.6.2](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.6.2)
