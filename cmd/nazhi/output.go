@@ -159,7 +159,8 @@ func printErrorWithCode(err error, httpCode int) {
 		enc := json.NewEncoder(os.Stderr)
 		enc.SetIndent("", "  ")
 		if enc.Encode(e) != nil {
-			// 兜底：JSON 编码失败时也必须走 pendingExitCode 路径
+			// stderr 写入失败时无法输出信封，但退出码仍必须反映原始错误。
+			pendingExitCode.Store(int32(e.ExitCode()))
 			printErrorWithCode(fmt.Errorf("printError JSON 编码失败: %w", err), httpCode)
 			return
 		}
