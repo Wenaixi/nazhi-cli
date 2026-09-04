@@ -1,4 +1,4 @@
-.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
+.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration test-docrules test-verify lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
 
 # ─── 版本 ───
 
@@ -40,6 +40,13 @@ test-integration:
 	go test -count=1 -tags=integration -race -v ./test/integration/...
 	@echo "集成测试完成（未设置 NAZHI_USERNAME/NAZHI_PASSWORD 时自动跳过）"
 
+test-docrules:
+	go test -count=1 -tags=docrules ./test/docrules/...
+
+# 仓库元数据检查（仅验证构建标签，默认不触发 git 调用）
+test-verify:
+	go test -count=1 -tags=verify ./test/integration/verify_gitignore/...
+
 # ─── 代码质量 ───
 
 lint:
@@ -70,8 +77,8 @@ test-coverage:
 	go test -count=1 -race -coverprofile=coverage.out ./pkg/...
 	go tool cover -func=coverage.out | tail -1
 
-# 本地一键跑完 CI 的核心 gate（tidy → lint → vet → 单测 → 集成测试）
-ci-local: tidy-check lint vet test test-integration
+# 本地一键跑完 CI 的核心 gate（tidy → lint → vet → 单测 → 集成测试 → 文档/元数据检查）
+ci-local: tidy-check lint vet test test-integration test-docrules test-verify
 	@echo "ci-local 全绿"
 
 # ─── 安装 ───
