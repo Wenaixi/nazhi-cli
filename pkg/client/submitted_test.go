@@ -166,6 +166,36 @@ func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 	}
 }
 
+// TestGetSubmittedCircles_TotalNumRequiresMorePages 验证 totalNum 比 totalPage 推导出的页数更大时，客户端仍继续拉取缺失页。
+func TestGetSubmittedCircles_TotalNumRequiresMorePages(t *testing.T) {
+	const pageSize = 2
+	var hits atomic.Int32
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			http.NotFound(w, r)
+			return
+		}
+		pageNo, _ := strconv.Atoi(r.URL.Query().Get("pageNo"))
+		hits.Add(1)
+		records := []map[string]any{{"id": pageNo*10 + 1}, {"id": pageNo*10 + 2}}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 1, "dataList": records, "pageBean": map[string]any{"pageNo": pageNo, "pageSize": pageSize, "totalNum": 6, "totalPage": 1}})
+	})))
+	defer biz.Close()
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithTimeout(5*time.Second), client.WithSubmittedPageSize(pageSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	records, err := c.GetSubmittedCircles(context.Background(), "token", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 6 || hits.Load() != 3 {
+		t.Fatalf("totalNum=6/pageSize=2 应请求 3 页并返回 6 条，得到 hits=%d records=%d", hits.Load(), len(records))
+	}
+}
+
 // TestGetSubmittedCircles_Empty 验证没有记录时返回空切片。
 func TestGetSubmittedCircles_Empty(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {

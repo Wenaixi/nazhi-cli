@@ -208,9 +208,7 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 		return nil, nil, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
 
-	// ponytail: 与 fetchAllCirclePages 同款天花板——短路看 TotalNum、翻页上界只用 TotalPage，
-	// 服务端 totalPage 虚低（双重违约）时会静默截断；防御改法见 submitted.go 注释。
-	if pb == nil || pb.TotalPage <= 1 || pb.TotalNum <= pageSize {
+	if pb == nil || pb.TotalNum <= pageSize {
 		if len(raw1) == 0 {
 			return []byte("[]"), pb, nil
 		}
@@ -221,17 +219,22 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 	// C-F 修复：TotalPage 来自服务端单字段声明，恶意/异常值直接驱动 make 分配——
 	// 服务端被攻陷时单请求 OOM 崩进程。超钳制值时直接截断（只返回首页），
 	// 不翻页——钳制的意义是防放大而不是真翻 10000 页。
-	if pb.TotalPage > maxTotalPage {
-		slog.Warn("raw_json: totalPage 超过钳制上限，截断到首页", "total_page", pb.TotalPage, "max", maxTotalPage)
+	declaredPages := pb.TotalPage
+	derivedPages := (pb.TotalNum + pageSize - 1) / pageSize
+	if declaredPages < derivedPages {
+		declaredPages = derivedPages
+	}
+	if declaredPages > maxTotalPage {
+		slog.Warn("raw_json: totalPage 超过钳制上限，截断到首页", "total_page", declaredPages, "max", maxTotalPage)
 		return raw1, pb, nil
 	}
-	results := make([]rawResult, pb.TotalPage+1)
+	results := make([]rawResult, declaredPages+1)
 	results[1] = rawResult{raw: raw1}
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(concurrentPageLimit)
 
-	for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+	for pageNo := 2; pageNo <= declaredPages; pageNo++ {
 		pn := pageNo
 		g.Go(func() error {
 			if err := gctx.Err(); err != nil {
@@ -248,12 +251,12 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 
 	if err := g.Wait(); err != nil {
 		// 部分失败时，已成功的页仍有效；按已有页顺序拼接
-		raw, assembleErr := assembleCirclesJSON(raw1, results, pb.TotalPage,
+		raw, assembleErr := assembleCirclesJSON(raw1, results, declaredPages,
 			fmt.Errorf("%s 部分页失败: %w", methodName, err))
 		return raw, pb, assembleErr
 	}
 
-	raw, assembleErr := assembleCirclesJSON(raw1, results, pb.TotalPage, nil)
+	raw, assembleErr := assembleCirclesJSON(raw1, results, declaredPages, nil)
 	return raw, pb, assembleErr
 }
 
@@ -282,15 +285,20 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 		return []byte("[]"), pb, nil
 	}
 
-	// 只拉到覆盖 offset+limit 的最后一页，不全量翻页
-	// endPage = ceil((offset+limit)/pageSize)，再与 TotalPage 取 min
+	// 只拉到覆盖 offset+limit 的最后一页，不全量翻页。
+	// totalPage 虚低或为 0 时，以 totalNum 推导页数作为安全下界。
 	need := offset + limit
 	endPage := (need + pageSize - 1) / pageSize
+	declaredPages := pb.TotalPage
+	derivedPages := (pb.TotalNum + pageSize - 1) / pageSize
+	if declaredPages < derivedPages {
+		declaredPages = derivedPages
+	}
+	if endPage > declaredPages {
+		endPage = declaredPages
+	}
 	if endPage < 1 {
 		endPage = 1
-	}
-	if endPage > pb.TotalPage {
-		endPage = pb.TotalPage
 	}
 
 	// 多页：预分配索引切片 + errgroup 并发翻页，保持页号顺序
@@ -335,11 +343,10 @@ func (c *Client) assembleCirclesLimitJSON(results []rawResult, pb *types.PageBea
 	taken := 0
 	skipped := 0
 
-	// 按页号顺序处理数据，应用 offset/limit 规则（只遍历已请求页）
-	if endPage > pb.TotalPage {
-		endPage = pb.TotalPage
-	}
-	for pn := 1; pn <= endPage; pn++ {
+	// 按页号顺序处理数据，应用 offset/limit 规则（只遍历已请求页）。
+	// endPage 已由调用方按 totalNum/totalPage 推导并与 results 长度对齐，
+	// 不能再次按原始 totalPage 截断，否则虚低声明会丢失已请求页。
+	for pn := 1; pn <= endPage && pn < len(results); pn++ {
 		if len(results[pn].raw) == 0 {
 			continue
 		}

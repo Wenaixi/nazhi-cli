@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
@@ -160,6 +161,67 @@ func TestGetCirclesLimitJSON_EndPageByOffsetLimit(t *testing.T) {
 	}
 	if pageHits[4] != 0 || pageHits[5] != 0 {
 		t.Errorf("不应请求 page4/5, hits4=%d hits5=%d", pageHits[4], pageHits[5])
+	}
+}
+
+// TestGetSubmittedCirclesJSON_TotalNumRequiresMorePages 验证原始 JSON 路径不因 totalPage 虚低而截断。
+func TestGetSubmittedCirclesJSON_TotalNumRequiresMorePages(t *testing.T) {
+	const pageSize = 2
+	var hits atomic.Int32
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			http.NotFound(w, r)
+			return
+		}
+		pageNo, _ := strconv.Atoi(r.URL.Query().Get("pageNo"))
+		hits.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"code": 1, "dataList": []map[string]any{{"id": pageNo*10 + 1}}, "pageBean": map[string]any{"pageNo": pageNo, "pageSize": pageSize, "totalNum": 3, "totalPage": 1}})
+	})))
+	defer biz.Close()
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithTimeout(5*time.Second), client.WithSubmittedPageSize(pageSize))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	raw, _, err := c.GetSubmittedCirclesLimitJSON(context.Background(), "token", 0, 0, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var records []map[string]any
+	if err := json.Unmarshal(raw, &records); err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 2 || hits.Load() != 2 {
+		t.Fatalf("原始 JSON 应按 totalNum 推导请求 2 页并返回 2 条，得到 hits=%d records=%d", hits.Load(), len(records))
+	}
+}
+
+func TestGetCirclesLimitJSON_InconsistentTotalPage(t *testing.T) {
+	for _, totalPage := range []int{0, 1} {
+		t.Run(strconv.Itoa(totalPage), func(t *testing.T) {
+			biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+				pn, _ := strconv.Atoi(r.URL.Query().Get("pageNo"))
+				records := []map[string]any{{"id": pn*2 - 1}, {"id": pn * 2}}
+				_ = json.NewEncoder(w).Encode(map[string]any{"code": 1, "dataList": records, "pageBean": map[string]any{"totalNum": 6, "totalPage": totalPage, "pageSize": 2}})
+			})))
+			defer biz.Close()
+			c, err := client.New(client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL), client.WithSubmittedPageSize(2))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer c.Close()
+			raw, pb, err := c.GetSubmittedCirclesLimitJSON(t.Context(), "token", 2, 2, "")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if string(raw) != `[{"id":3},{"id":4}]` {
+				t.Fatalf("应返回偏移后的完整记录，实际 %s", raw)
+			}
+			if pb.TotalPage != totalPage {
+				t.Fatalf("不能篡改服务端分页元数据: %+v", pb)
+			}
+		})
 	}
 }
 

@@ -94,8 +94,15 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	// ponytail: 短路谓词看 TotalNum，翻页上界却只用 TotalPage——二者均信任服务端自洽。
 	// 若服务端同一响应内 totalPage 虚低于 ceil(totalNum/pageSize)（双重违约，真实抓包未现），
 	// 会静默截断尾部数据；需要防御时把循环上界改为 max(TotalPage, ceil(TotalNum/pageSize))。
-	if pb == nil || pb.TotalPage <= 1 || pb.TotalNum <= pageSize {
+	if pb == nil || pb.TotalNum <= pageSize {
 		return page1, nil
+	}
+
+	// 以 totalNum 推导页数作为下界，防止服务端 totalPage 虚低造成静默截断。
+	declaredPages := pb.TotalPage
+	derivedPages := (pb.TotalNum + pageSize - 1) / pageSize
+	if declaredPages < derivedPages {
+		declaredPages = derivedPages
 	}
 
 	// 多页：预分配容量后并发翻页。
@@ -117,17 +124,17 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	// results 按页号索引，预分配避免竞态
 	// C-F 修复：TotalPage 来自服务端单字段声明，超钳制值时直接截断（只返回
 	// 首页），不翻页——防服务端异常值驱动 make 分配 OOM。
-	if pb.TotalPage > maxTotalPage {
-		slog.Warn("submitted: totalPage 超过钳制上限，截断到首页", "total_page", pb.TotalPage, "max", maxTotalPage)
+	if declaredPages > maxTotalPage {
+		slog.Warn("submitted: totalPage 超过钳制上限，截断到首页", "total_page", declaredPages, "max", maxTotalPage)
 		return all, nil
 	}
-	results := make([]pageResult, pb.TotalPage+1)
+	results := make([]pageResult, declaredPages+1)
 	results[1] = pageResult{records: page1}
 
 	g, gctx := errgroup.WithContext(ctx)
 	g.SetLimit(concurrentPageLimit)
 
-	for pageNo := 2; pageNo <= pb.TotalPage; pageNo++ {
+	for pageNo := 2; pageNo <= declaredPages; pageNo++ {
 		pn := pageNo
 		g.Go(func() error {
 			if err := gctx.Err(); err != nil {
@@ -146,14 +153,14 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	if err := g.Wait(); err != nil {
 		// 有部分失败，但已成功拉取的页仍然有效
 		// 收集已有数据
-		for pn := 2; pn <= pb.TotalPage; pn++ {
+		for pn := 2; pn <= declaredPages; pn++ {
 			all = append(all, results[pn].records...)
 		}
 		return all, err
 	}
 
 	// 全部成功，按页号顺序合并
-	for pn := 2; pn <= pb.TotalPage; pn++ {
+	for pn := 2; pn <= declaredPages; pn++ {
 		all = append(all, results[pn].records...)
 	}
 
