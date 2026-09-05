@@ -87,15 +87,18 @@ func TestNewCleanClient_DefaultTransportNotCached(t *testing.T) {
 	}
 }
 
-// TestNewCleanClient_CustomRoundTripperPassthrough 验证自定义 RoundTripper 透传。
-func TestNewCleanClient_CustomRoundTripperPassthrough(t *testing.T) {
+// TestNewCleanClient_CustomRoundTripperIsNotUsedForUpload 验证上传 clean client 不复用无法隔离的自定义传输器。
+func TestNewCleanClient_CustomRoundTripperIsNotUsedForUpload(t *testing.T) {
 	customRT := customRoundTripper{}
 	c := &Client{
 		http: &http.Client{Transport: customRT, Timeout: 5 * time.Second},
 	}
 	cc := newCleanClient(c)
-	if cc.Transport != customRT {
-		t.Error("自定义 RoundTripper 应透传，不应 Clone")
+	if cc.Transport == customRT {
+		t.Error("上传 clean client 不应复用调用方自定义 RoundTripper")
+	}
+	if cc.Transport != http.DefaultTransport {
+		t.Errorf("无法安全 Clone 自定义 RoundTripper 时应使用 http.DefaultTransport，实际 %T", cc.Transport)
 	}
 }
 

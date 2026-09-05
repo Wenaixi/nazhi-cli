@@ -7,6 +7,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 )
@@ -220,6 +221,37 @@ func TestSelfEvalSubmitCmd_EmptyStdin_PrintsError(t *testing.T) {
 		t.Errorf("stdout 应包含空评价提示，实际: %q", stdout)
 	}
 	_ = stderr
+}
+
+// TestReadStdinWithTimeout_CancelStopsBlockedRead 验证取消会终止底层阻塞读取，避免后台 goroutine 悬挂。
+func TestReadStdinWithTimeout_CancelStopsBlockedRead(t *testing.T) {
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("创建 stdin 管道失败: %v", err)
+	}
+	defer writer.Close()
+	originalStdin := os.Stdin
+	os.Stdin = reader
+	t.Cleanup(func() {
+		os.Stdin = originalStdin
+		reader.Close()
+	})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if _, err := readStdinWithTimeout(ctx, 60); err == nil {
+		t.Fatal("已取消的 stdin 读取应返回 context 错误")
+	}
+	done := make(chan struct{})
+	go func() {
+		_, _ = reader.Read(make([]byte, 1))
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(2 * time.Second):
+		t.Fatal("取消后 stdin 底层读取仍然阻塞")
+	}
 }
 
 // TestSelfEvalSubmitCmd_StdinReadError_Propagates 验证 stdin 读取发生 I/O 错误时

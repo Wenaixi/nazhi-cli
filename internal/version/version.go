@@ -94,4 +94,5 @@ package version
 //		- D1/D2/D3/D4 文档：self_eval_submit_test:307 注释与断言对齐 / file.go:25+:71 「前端限制 10MB」改「前端镜像文案 20MB」
 //		  / task.go:407 EditCircle 26 字段全量模式披露 / user.go:30 GetMyInfo fast path 描述与实现对齐
 //	1.6.3 — 修复文档规则路径与 CI 治理门禁；修复错误输出失败时退出码未正确记录
-var Version = "1.6.3"
+//	1.6.4 — 修复异常分页元数据漏页、原始列表类型错误、上传传输器隔离和 stdin 取消读取
+var Version = "1.6.4"

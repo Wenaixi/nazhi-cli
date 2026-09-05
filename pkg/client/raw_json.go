@@ -43,7 +43,11 @@ func rawListBytes(resp types.UnifiedResponse) []byte {
 	if resp.DataList == nil {
 		return nil
 	}
-	return *resp.DataList
+	raw := bytes.TrimSpace(*resp.DataList)
+	if !json.Valid(raw) {
+		return nil
+	}
+	return raw
 }
 
 // rawSingleObjectBytes 返回单个对象的原始 JSON。

@@ -4,6 +4,7 @@ package client_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -222,6 +223,24 @@ func TestGetCirclesLimitJSON_InconsistentTotalPage(t *testing.T) {
 				t.Fatalf("不能篡改服务端分页元数据: %+v", pb)
 			}
 		})
+	}
+}
+
+// TestGetSubmittedCirclesJSON_InvalidDataListRejects 验证非法 dataList 不会被静默归一为空成功。
+func TestGetSubmittedCirclesJSON_InvalidDataListRejects(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1,"dataList":{"id":1},"pageBean":{"pageSize":2,"totalNum":1,"totalPage":1}}`))
+	})))
+	defer biz.Close()
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithTimeout(5*time.Second))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	_, err = c.GetSubmittedCirclesJSON(context.Background(), "token", "")
+	if err == nil || !errors.Is(err, client.ErrInvalidResponse) {
+		t.Fatalf("非法 dataList 应返回 ErrInvalidResponse，实际 %v", err)
 	}
 }
 

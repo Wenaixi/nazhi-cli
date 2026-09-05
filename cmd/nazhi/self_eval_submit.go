@@ -111,16 +111,17 @@ func init() {
 // 当 stdin 是管道且对端未关闭时，原始 reader.ReadString(0) 会无限阻塞，
 // 此函数通过 goroutine + select 实现超时保护。
 //
-// ponytail: 超时/取消后后台 goroutine 仍阻塞在 ReadString 上无法回收——
-// os.Stdin 无中断读机制。CLI 单次进程无害；长驻宿主复用本回调时注意此天花板。
+// 取消或超时后关闭 stdin 文件描述符，主动唤醒底层读取，避免后台 goroutine 悬挂。
+// CLI 是单次进程模型；长驻宿主不应复用已被关闭的全局 os.Stdin。
 func readStdinWithTimeout(ctx context.Context, timeoutSec int) (string, error) {
 	type result struct {
 		text string
 		err  error
 	}
 	ch := make(chan result, 1)
+	stdin := os.Stdin
 	go func() {
-		reader := bufio.NewReader(os.Stdin)
+		reader := bufio.NewReader(stdin)
 		input, err := reader.ReadString(0)
 		ch <- result{strings.TrimSpace(input), err}
 	}()
@@ -130,6 +131,7 @@ func readStdinWithTimeout(ctx context.Context, timeoutSec int) (string, error) {
 
 	select {
 	case <-ctx.Done():
+		_ = stdin.Close()
 		return "", ctx.Err()
 	case res := <-ch:
 		if res.err != nil && !errors.Is(res.err, io.EOF) { //nolint:errorlint // io.EOF 哨兵用 errors.Is 更健壮，显式处理包装错误
@@ -137,6 +139,7 @@ func readStdinWithTimeout(ctx context.Context, timeoutSec int) (string, error) {
 		}
 		return res.text, nil
 	case <-timer.C:
+		_ = stdin.Close()
 		return "", fmt.Errorf("stdin 读取超时（%d 秒无输入），请通过 --comment 参数直接传入内容", timeoutSec)
 	}
 }

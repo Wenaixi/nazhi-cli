@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -65,7 +66,17 @@ func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, 
 	if err != nil {
 		return nil, nil, fmt.Errorf("fetchCirclePageJSON 解析分页信息失败: %w", err)
 	}
-	return pb, rawListBytes(*resp), nil
+	raw := rawListBytes(*resp)
+	if resp.DataList != nil && raw == nil {
+		return nil, nil, fmt.Errorf("fetchCirclePageJSON dataList 不是合法 JSON 数组: %w", ErrInvalidResponse)
+	}
+	if raw != nil {
+		var list []json.RawMessage
+		if err := json.Unmarshal(raw, &list); err != nil {
+			return nil, nil, fmt.Errorf("fetchCirclePageJSON dataList 不是 JSON 数组: %w", ErrInvalidResponse)
+		}
+	}
+	return pb, raw, nil
 }
 
 // concurrentPageLimit 是翻页并发的上限，避免打爆服务端。

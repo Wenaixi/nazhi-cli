@@ -540,11 +540,9 @@ type writeCloser interface {
 // 重置 idle conn pool），确保运行时 c.http.Transport 变更（如测试中
 // mock RoundTripper）能被即时感知，不被任何缓存字段粘住。
 //
-// 自定义 RoundTripper 共享风险：当 c.http.Transport 是自定义 RoundTripper
-// （非 *http.Transport 且非 nil）时，本函数直接共享该 Transport 引用而不做 Clone。
-// 若有状态的自定义 RT（如认证拦截器），UploadFile 的 clean client 意外附带
-// 业务鉴权头到文件上传公共服务。当前代码库内不存在有状态自定义 RT，
-// 但 WithHTTPClient 的消费者应确保自定义 RT 不会在 upload 路径泄漏鉴权头。
+// 自定义 RoundTripper 隔离：非标准 *http.Transport 无法安全 Clone，文件通道回退到
+// 无状态的 http.DefaultTransport，避免认证拦截器或其他状态把业务凭据带到公共上传域。
+// WithHTTPClient 仍可控制业务请求；上传通道不继承其自定义 RoundTripper。
 //
 // 超时下限：上传/下载通道超时下限 30s（小于 30s 静默上浮并 WARN，防大文件被过短
 // 超时截断；clean_client_cache_test 锁定）；主 Client 无超时时兜底 5 分钟，
@@ -559,14 +557,9 @@ func newCleanClient(c *Client) *http.Client {
 		// 远低于一次 TLS 握手。运行时 Transport 变更即时感知。
 		transport = t.Clone()
 	default:
-		// nil (fallback http.DefaultTransport) 或自定义 RoundTripper 不 Clone
-		//  - nil：用 http.DefaultTransport（进程单例，Clone 会创建额外 idle 池）
-		//  - 自定义 RT：无法 Clone，直接共享引用（见上方注释的共享风险）
-		if c.http.Transport == nil {
-			transport = http.DefaultTransport
-		} else {
-			transport = c.http.Transport
-		}
+		// nil 或无法安全 Clone 的自定义 RoundTripper 均回退到无状态默认传输器。
+		// 文件上传不能继承调用方的认证拦截器或状态，否则可能把业务凭据带到公共上传域。
+		transport = http.DefaultTransport
 	}
 	timeout := c.http.Timeout
 	if timeout == 0 {
