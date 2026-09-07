@@ -1,6 +1,17 @@
 # CHANGELOG
 
+## [1.6.5] - 2026-09-08
+
+发布链接：[v1.6.5](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.6.5)
+
+### 文档与工程
+
+- 清理全模块深度审查报告临时文件，收敛仓库交付物。
+- 完善发布与文档治理规范，更新核心记忆库与版本索引。
+
 ## [1.6.4] - 2026-09-05
+
+发布链接：[v1.6.4](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.6.4)
 
 ### 修复
 
@@ -10,6 +21,8 @@
 - stdin 读取在取消或超时后关闭实际句柄，唤醒后台阻塞读取。
 
 ## [1.6.3] - 2026-09-05
+
+发布链接：[v1.6.3](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.6.3)
 
 ### 修复
 

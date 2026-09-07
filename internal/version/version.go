@@ -95,4 +95,5 @@ package version
 //		  / task.go:407 EditCircle 26 字段全量模式披露 / user.go:30 GetMyInfo fast path 描述与实现对齐
 //	1.6.3 — 修复文档规则路径与 CI 治理门禁；修复错误输出失败时退出码未正确记录
 //	1.6.4 — 修复异常分页元数据漏页、原始列表类型错误、上传传输器隔离和 stdin 取消读取
-var Version = "1.6.4"
+//	1.6.5 — 清理全模块深度审查报告，完善发布记录与文档治理
+var Version = "1.6.5"
