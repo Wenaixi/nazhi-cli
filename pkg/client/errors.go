@@ -9,6 +9,14 @@ var (
 	// ErrLoginRejected 登录被拒绝（凭证无效或验证码错误）。
 	ErrLoginRejected = errors.New("login rejected: invalid credentials or captcha")
 
+	// ErrCookieSyncFailed 登录成功但 token 同步到 cookie jar 失败（C86-CLI#7）。
+	//
+	// 触发场景：Login 使用 HTTP client 的 Jar 不是 *cookiejar.Jar（如调用方
+	// WithHTTPClient(customClient{Jar:nil})）——Login 返回的 token 无法被后续
+	// 业务请求携带，所有 dataList 接口会静默返回空。此前只 warn（调用方拿到
+	// token+nil 完全感知不到），现在返回错误让调用方立即感知并修复客户端配置。
+	ErrCookieSyncFailed = errors.New("login succeeded but cookie sync failed")
+
 	// ErrNetwork 网络错误（连接超时、DNS 解析失败等）。
 	ErrNetwork = errors.New("network error")
 

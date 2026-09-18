@@ -1776,3 +1776,48 @@ func TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername(t *testing.T) {
 	// "userName=TESTUSER..."（Go net/http 的 *url.Error 内嵌，stdlib intrinsic，
 	// 需要在 cmd 层 printError 出口再做整体 redact 才能消除——属更上层防御纵深挂账）。
 }
+
+// TestLogin_CookieSyncFailure_ReturnsError 锁死 C86-CLI#7：Login 成功但
+// token 同步到 cookie jar 失败（Jar 非 *cookiejar.Jar，如自定义 http.Client
+// 无 Jar）时必须返回错误，不再只 warn——调用方拿 token+nil 完全感知不到
+// cookie 未同步，后续业务 dataList 接口全部静默空数据。
+func TestLogin_CookieSyncFailure_ReturnsError(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"token":"jwt-cookie-fail"}}`))
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	defer srv.Close()
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       &http.Client{Timeout: 5 * time.Second}, // Jar 为 nil → sync 必败
+		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u", Password: "p", SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("Login cookie 同步失败应返回错误，实际 nil")
+	}
+	if !errors.Is(err, ErrCookieSyncFailed) {
+		t.Errorf("错误应 wrap ErrCookieSyncFailed，实际: %v", err)
+	}
+}

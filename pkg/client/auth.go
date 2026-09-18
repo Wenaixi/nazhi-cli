@@ -197,7 +197,10 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: 200 响应中未找到 token: %w", ErrLoginRejected, err)
 		}
 		c.warnIfExpiresAtFallback(expiresAt, "200")
-		return c.buildLoginResponse(token, expiresAt, bodyBytes, "200"), nil
+		if err := c.syncCookieToken(token); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrCookieSyncFailed, err)
+		}
+		return &types.LoginResponse{Token: token, ExpiresAt: expiresAt}, nil
 	}
 
 	if httpResp.StatusCode == http.StatusFound {
@@ -214,7 +217,10 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 			return nil, fmt.Errorf("%w: Location 头中未找到 token: %s", ErrLoginRejected, logx.RedactBody(location))
 		}
 		c.warnIfExpiresAtFallback(expiresAt, "302 fallback")
-		return c.buildLoginResponse(token, expiresAt, bodyBytes, "302 fallback"), nil
+		if err := c.syncCookieToken(token); err != nil {
+			return nil, fmt.Errorf("%w: %w", ErrCookieSyncFailed, err)
+		}
+		return &types.LoginResponse{Token: token, ExpiresAt: expiresAt}, nil
 	}
 
 	errResp, err := types.DecodeResponse(bodyBytes)
