@@ -296,3 +296,74 @@ func TestGetCirclesLimitJSON_FullModeKeepsPageBean(t *testing.T) {
 		t.Fatalf("全量模式记录数错误: %d", len(records))
 	}
 }
+
+// TestGetCirclesLimitJSON_HugeLimitClamped 锁死 C86-CLI#2：limit 派生 endPage
+// 超 maxTotalPage 时必须钳制截断到首页，不得 make 百万槽位预分配。
+// 服务端 totalNum 单字段虚高（1e9）时 need=offset+limit 派生 endPage 达百万，
+// 旧实现无钳制（getCirclesJSON 已有 C-F clamp，limit 路径漏网点）。
+func TestGetCirclesLimitJSON_HugeLimitClamped(t *testing.T) {
+	var pageHits [3]int32
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getStudentCircle" {
+			http.NotFound(w, r)
+			return
+		}
+		q := r.URL.Query()
+		pageNo, _ := strconv.Atoi(q.Get("pageNo"))
+		if pageNo >= 1 && pageNo <= 2 {
+			atomic.AddInt32(&pageHits[pageNo], 1)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		// 服务端虚报 totalNum=1e9、totalPage=5——limit 极大时 endPage
+		// 派生到百万级，必须被钳制。
+		body := map[string]any{
+			"code": 1,
+			"dataList": []map[string]any{
+				{"id": pageNo*10 + 1},
+				{"id": pageNo*10 + 2},
+			},
+			"pageBean": map[string]any{
+				"pageNo":    pageNo,
+				"pageSize":  2,
+				"totalNum":  1000000000,
+				"totalPage": 5,
+			},
+		}
+		_ = json.NewEncoder(w).Encode(body)
+	})))
+	defer biz.Close()
+
+	c, err := client.New(
+		client.WithBaseURL(biz.URL),
+		client.WithSSOBase(biz.URL),
+		client.WithUploadURL(biz.URL),
+		client.WithSubmittedPageSize(2),
+	)
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	// limit=1e9 派生 endPage = ceil((0+1e9)/2) = 5e8 页——超钳制上限
+	raw, pb, err := c.GetSubmittedCirclesLimitJSON(context.Background(), "test-token", 0, 1000000000, "")
+	if err != nil {
+		t.Fatalf("GetSubmittedCirclesLimitJSON: %v", err)
+	}
+	if pb == nil {
+		t.Fatal("应返回 PageBean")
+	}
+	var arr []map[string]any
+	if jerr := json.Unmarshal(raw, &arr); jerr != nil {
+		t.Fatalf("结果非合法 JSON: %v body=%s", jerr, raw)
+	}
+	if len(arr) == 0 {
+		t.Fatal("钳制截断到首页后应仍有首页数据")
+	}
+	// 只应请求 page1（endPage 被截到 1）
+	if pageHits[1] == 0 {
+		t.Error("钳制后应请求 page1")
+	}
+	if pageHits[2] != 0 {
+		t.Errorf("钳制截断到首页后不应请求 page2, hits=%d", pageHits[2])
+	}
+}

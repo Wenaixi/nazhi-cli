@@ -301,6 +301,15 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 	if endPage > declaredPages {
 		endPage = declaredPages
 	}
+	// C86-CLI#2：endPage 仍可能驱动超大 make 分配——limit 来自调用方，
+	// 服务端 totalNum 单字段虚高（如 1e9）时 need=offset+limit 派生的
+	// endPage 可达百万，make([]rawResult, endPage+1) 一次预分配几十 MB。
+	// 与 getCirclesJSON 的 C-F 钳制同纪律：endPage 超 maxTotalPage 直接
+	// 截断到上界（返回首页快照 + 空增量，防放大优先于精确分页完整性）。
+	if endPage > maxTotalPage {
+		slog.Warn("raw_json: limit 派生页数超过钳制上限，截断到首页", "end_page", endPage, "max", maxTotalPage)
+		endPage = 1
+	}
 	if endPage < 1 {
 		endPage = 1
 	}
