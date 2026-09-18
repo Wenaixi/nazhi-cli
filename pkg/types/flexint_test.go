@@ -52,3 +52,28 @@ func TestUserInfo_IntegerFieldsTolerateFloatLiterals(t *testing.T) {
 		t.Errorf("字段值不符: seat=%d youth=%d nation=%d idType=%d", u.Seat, u.YouthLeagueFlag, u.Nation, u.IDType)
 	}
 }
+
+// TestFlexInt_RejectsHugeIntegerLiteral 锁死 C86-CLI#19：>2^63 整数字面量
+// 不得静默回绕。旧实现 `value != float64(int64(value))` 对 2^63..2^64 范围
+// 的 int64 往返溢出回绕、可能恰好相等造成静默错误解码（污染后续业务判断）。
+func TestFlexInt_RejectsHugeIntegerLiteral(t *testing.T) {
+	// 2^64（18446744073709551616）：int64 溢出为 0，旧代码 float64(0)==0
+	// 相等 → 静默当成 0；应拒绝或明确报错。
+	var v FlexInt
+	if err := json.Unmarshal([]byte(`18446744073709551616`), &v); err == nil {
+		t.Error("超出 int64 的整数字面量应报错，不能静默回绕")
+	}
+	// 2^63（9223372036854775808）：int64 溢出为负最小值，同样应拒绝。
+	var v2 FlexInt
+	if err := json.Unmarshal([]byte(`9223372036854775808`), &v2); err == nil {
+		t.Error("2^63 整数字面量应报错，不能回绕为负值")
+	}
+	// 合法大数（2^40，身份证号段）仍应正常解码——不误伤真实业务。
+	var v3 FlexInt
+	if err := json.Unmarshal([]byte(`1099511627776`), &v3); err != nil {
+		t.Fatalf("2^40 合法大数不应误拒: %v", err)
+	}
+	if v3 != 1099511627776 {
+		t.Errorf("2^40 解码 = %d, want 1099511627776", v3)
+	}
+}
