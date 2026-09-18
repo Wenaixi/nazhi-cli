@@ -70,20 +70,27 @@ func TestNewCleanClient_EachCallGetsFreshClone(t *testing.T) {
 }
 
 // TestNewCleanClient_DefaultTransportNotCached 验证 Transport=nil 时
-// 回退 http.DefaultTransport（进程单例，不 Clone）。
+// 回退 Proxy:nil 的独立 Transport（不再是 http.DefaultTransport 本身，
+// 防环境变量代理劫持 C86-CLI#1）。
 func TestNewCleanClient_DefaultTransportNotCached(t *testing.T) {
 	c := &Client{
 		http: &http.Client{Timeout: 10 * time.Second}, // Transport = nil
 	}
 
 	cc1 := newCleanClient(c)
-	if cc1.Transport != http.DefaultTransport {
-		t.Fatalf("Transport=nil 应回退 http.DefaultTransport，实际 %T", cc1.Transport)
+	if cc1.Transport == http.DefaultTransport {
+		t.Fatal("fallback 路径必须返回 Proxy:nil 的独立 Transport（不再是 http.DefaultTransport 本身，防代理劫持）")
+	}
+	if tr, ok := cc1.Transport.(*http.Transport); !ok || tr.Proxy != nil {
+		t.Fatalf("fallback Transport 应为 *http.Transport 且 Proxy=nil，实际 %T proxy=%v", cc1.Transport, (tr.Proxy != nil))
 	}
 
 	cc2 := newCleanClient(c)
-	if cc2.Transport != http.DefaultTransport {
-		t.Errorf("fallback 路径应持续返回 DefaultTransport，实际 %T", cc2.Transport)
+	if cc2.Transport == http.DefaultTransport {
+		t.Errorf("fallback 路径应持续返回独立 Transport，实际 %T", cc2.Transport)
+	}
+	if tr, ok := cc2.Transport.(*http.Transport); !ok || tr.Proxy != nil {
+		t.Errorf("cc2 fallback Transport 应为 *http.Transport 且 Proxy=nil，实际 %T proxy=%v", cc2.Transport, (tr.Proxy != nil))
 	}
 }
 
@@ -97,20 +104,26 @@ func TestNewCleanClient_CustomRoundTripperIsNotUsedForUpload(t *testing.T) {
 	if cc.Transport == customRT {
 		t.Error("上传 clean client 不应复用调用方自定义 RoundTripper")
 	}
-	if cc.Transport != http.DefaultTransport {
-		t.Errorf("无法安全 Clone 自定义 RoundTripper 时应使用 http.DefaultTransport，实际 %T", cc.Transport)
+	if cc.Transport == http.DefaultTransport {
+		t.Error("回退 Transport 不应是 http.DefaultTransport 本身（需 Proxy:nil 独立实例）")
+	}
+	if tr, ok := cc.Transport.(*http.Transport); !ok || tr.Proxy != nil {
+		t.Errorf("回退 Transport 应为 *http.Transport 且 Proxy=nil，实际 %T proxy=%v", cc.Transport, (tr.Proxy != nil))
 	}
 }
 
 // TestNewCleanClient_FallbackToDefaultTransport 验证未注入 Transport 时
-// 回退 http.DefaultTransport。
+// 回退 Proxy:nil 独立 Transport。
 func TestNewCleanClient_FallbackToDefaultTransport(t *testing.T) {
 	c := &Client{
 		http: &http.Client{Timeout: 10 * time.Second},
 	}
 	cc := newCleanClient(c)
-	if cc.Transport != http.DefaultTransport {
-		t.Error("c.http.Transport=nil 时应回退 http.DefaultTransport")
+	if cc.Transport == http.DefaultTransport {
+		t.Error("c.http.Transport=nil 时应回退 Proxy:nil 独立 Transport（防代理劫持）")
+	}
+	if tr, ok := cc.Transport.(*http.Transport); !ok || tr.Proxy != nil {
+		t.Errorf("回退 Transport 应为 *http.Transport 且 Proxy=nil，实际 %T", cc.Transport)
 	}
 	if cc.Jar != nil {
 		t.Error("cleanClient.Jar 必须 nil")

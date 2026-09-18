@@ -555,11 +555,22 @@ func newCleanClient(c *Client) *http.Client {
 		// 每次现场 Clone，不缓存到 Client 字段。
 		// Clone 成本 O(1) struct copy + 重置 idle conn pool，
 		// 远低于一次 TLS 握手。运行时 Transport 变更即时感知。
-		transport = t.Clone()
+		// Clone 后显式 Proxy:nil——主 client Transport 若经
+		// http.DefaultTransport（ProxyFromEnvironment）克隆而来会读系统
+		// 代理，上传/下载通道必须直连（与 request.go newHTTPClient
+		// 同契约；历史事故：代理断流导致 OCR 卡 120s，C86-CLI#1）。
+		clone := t.Clone()
+		clone.Proxy = nil
+		transport = clone
 	default:
-		// nil 或无法安全 Clone 的自定义 RoundTripper 均回退到无状态默认传输器。
-		// 文件上传不能继承调用方的认证拦截器或状态，否则可能把业务凭据带到公共上传域。
-		transport = http.DefaultTransport
+		// nil 或无法安全 Clone 的自定义 RoundTripper 均回退到无状态默认
+		// 传输器。文件上传不能继承调用方的认证拦截器或状态，否则可能把
+		// 业务凭据带到公共上传域。
+		// 注意：http.DefaultTransport 的 Proxy=ProxyFromEnvironment——上传
+		// 通道显式 Proxy:nil 防环境变量代理劫持（同 C86-CLI#1）。
+		dtr := http.DefaultTransport.(*http.Transport).Clone()
+		dtr.Proxy = nil
+		transport = dtr
 	}
 	timeout := c.http.Timeout
 	if timeout == 0 {
