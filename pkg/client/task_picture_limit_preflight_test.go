@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strconv"
 	"sync/atomic"
 	"testing"
 
@@ -95,5 +96,76 @@ func TestSubmitTask_TooManyPicturesSkipsUpload(t *testing.T) {
 	}
 	if n := uploadCalls.Load(); n != 0 {
 		t.Errorf("拒绝必须发生在任何上传之前，实际已上传 %d 次", n)
+	}
+}
+
+// TestSubmitTask_DuplicateImagePathUploadedOnce 锁死 C86-CLI#13：同 path 出现
+// 在 ImagePaths 两个槽位时只上传一次——旧实现上传两次产生两个服务端孤儿
+// 附件（前端 el-upload :limit=2「最多 2 个文件」语义，重复 path 可绕过检查）。
+func TestSubmitTask_DuplicateImagePathUploadedOnce(t *testing.T) {
+	var uploadCalls atomic.Int32
+	upload := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		uploadCalls.Add(1)
+		w.Header().Set("Content-Type", "application/json")
+		// 上传响应需要 returnData.id（UploadFile 提取 AttachmentID）
+		_, _ = w.Write([]byte(`{"code":1,"returnData":{"id":` + strconv.Itoa(int(uploadCalls.Load())) + `}}`))
+	}))
+	defer upload.Close()
+
+	biz := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/", "/api/studentInfo/getMenu":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/api/studentInfo/getMyInfo":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"name":"张三","schoolName":"测试中学"}}`))
+		case "/api/studentCircleNew/getCircleTypeByTaskId":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","dataMap":{"task_name":"班会","circle_type_id":9256,"hours":1.0,"type_name":"主题班会","dimension_id":9,"dimension_name":"思想品德","task_id":1001,"remark":"","type":10}}`))
+		case "/api/studentCircleNew/addCircle":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"code":1,"msg":"提交成功"}`))
+		default:
+			t.Errorf("意外路径: %s", r.URL.Path)
+			w.WriteHeader(http.StatusInternalServerError)
+		}
+	}))
+	defer biz.Close()
+
+	// 临时真实图片文件（上传器需要可读文件）
+	tmpDir := t.TempDir()
+	imgPath := filepath.Join(tmpDir, "dup.png")
+	f, err := os.Create(imgPath)
+	if err != nil {
+		t.Fatalf("创建测试图片: %v", err)
+	}
+	if err := png.Encode(f, image.NewRGBA(image.Rect(0, 0, 10, 10))); err != nil {
+		t.Fatalf("编码测试图片: %v", err)
+	}
+	f.Close()
+
+	c, err := New(
+		WithBaseURL(biz.URL),
+		WithSSOBase(biz.URL),
+		WithUploadURL(upload.URL),
+		WithTimeout(5*1000*1000*1000),
+	)
+	if err != nil {
+		t.Fatalf("New() failed: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+
+	_, err = c.SubmitTask(context.Background(), "test-token", types.TaskSubmitInput{
+		TaskID:     1001,
+		Content:    "测试重复图片路径",
+		ImagePaths: []string{imgPath, imgPath},
+	})
+	if err != nil {
+		t.Fatalf("SubmitTask: %v", err)
+	}
+	if uploadCalls.Load() != 1 {
+		t.Errorf("上传次数 = %d, want 1（重复 path 只传一次）", uploadCalls.Load())
 	}
 }

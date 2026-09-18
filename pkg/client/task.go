@@ -299,11 +299,19 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		pictureList = append(pictureList, id)
 	}
 	if uploader != nil {
+		// 同 path 重复出现会重复上传产生服务端孤儿附件（C86-CLI#13）：
+		// 去重后再上传，与前端 el-upload :limit=2「最多 2 个文件」语义对齐。
+		seen := make(map[string]struct{}, len(input.GetImagePaths()))
 		for _, path := range input.GetImagePaths() {
-			if strings.TrimSpace(path) == "" {
+			trimmed := strings.TrimSpace(path)
+			if trimmed == "" {
 				continue
 			}
-			result, upErr := uploader(ctx, path)
+			if _, dup := seen[trimmed]; dup {
+				continue
+			}
+			seen[trimmed] = struct{}{}
+			result, upErr := uploader(ctx, trimmed)
 			if upErr != nil {
 				if len(pictureList) > 0 {
 					return nil, fmt.Errorf("%s 上传图片失败（已上传的 attachmentID: %v）: %w", callerName, pictureList, upErr)
