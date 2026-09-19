@@ -39,6 +39,12 @@ func printEnvelope(e *envelope.Envelope) {
 	if e == nil {
 		return
 	}
+	// 统一脱敏（C2）：Message 可能直拼底层错误链（login.go 等的 err.Error() 包含
+	// SDK 已部分脱敏文本；若未来新增未脱敏错误片段，stdout 通道不得静默泄露）。
+	// RedactBody 幂等（已有值再脱敏不影响），保持与 printError 的 stderr 通道同口径。
+	if e.Message != "" {
+		e.Message = logx.RedactBody(e.Message)
+	}
 	enc := json.NewEncoder(os.Stdout)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(e); err != nil {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 )
 
 // TestPrintError_DoesNotCallOsExit 回归测试：printError 必须不调用 os.Exit。
@@ -57,6 +58,40 @@ func TestPrintError_DoesNotCallOsExit(t *testing.T) {
 	}
 	if !strings.Contains(stderrOutput, `"status": "error"`) {
 		t.Errorf("stderr 应包含 envelope status=error 标记，实际: %q", stderrOutput)
+	}
+}
+
+// TestPrintEnvelope_RedactsURLSecrets（C2 修正版）锁定：printEnvelope 输出到 stdout
+// 的错误信封 Message 统一过 logx.RedactBody，与 printError（stderr 通道）脱敏口径
+// 对齐。历史：printEnvelope 不脱敏，login.go:58 等直拼 err.Error() 时若 SDK 未来新增
+// 未脱敏错误文本（如 URL 查询串里的 token），stdout 通道会静默泄露。
+func TestPrintEnvelope_RedactsURLSecrets(t *testing.T) {
+	origStdout := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe 失败: %v", err)
+	}
+	os.Stdout = w
+	t.Cleanup(func() { os.Stdout = origStdout; _ = r.Close(); _ = w.Close() })
+
+	const secretToken = "SECRET-TOKEN-NOT-LEAK"
+	pendingExitCode.Store(0)
+	printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: 请求 https://office.example/api?token=%s&userName=TESTUSER", secretToken)))
+
+	_ = w.Close()
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		t.Fatalf("读取 stdout 失败: %v", err)
+	}
+	out := buf.String()
+	if strings.Contains(out, secretToken) {
+		t.Fatalf("printEnvelope 泄漏底层 URL 凭据: %q", out)
+	}
+	if !strings.Contains(out, "token=***") || !strings.Contains(out, "userName=***") {
+		t.Fatalf("printEnvelope 应保留参数名并掩码敏感值: %q", out)
+	}
+	if pendingExitCode.Load() != 1 {
+		t.Errorf("printEnvelope(Error(401)) 应设 pendingExitCode=1，实际 %d", pendingExitCode.Load())
 	}
 }
 
