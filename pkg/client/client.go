@@ -322,6 +322,17 @@ func New(opts ...Option) (*Client, error) {
 	} else {
 		c.logger.Warn("New: 预解析 baseURL 失败", "baseURL", c.baseURL, "error", err)
 	}
+	// 明文 HTTP 告警（cli #10，P2 升级）：业务 API 与上传服务器默认 http:// 明文，
+	// 且携带 X-Auth-Token——局域网/ISP 中间人可直接截获 token 与 userName 等 PII。
+	// 厂商固定端点不支持 HTTPS 是客观约束，但零告警使该风险完全不可见（且 README
+	// 声称有「New 非 HTTPS WARN」，此前并无落地实现）。这里对 baseURL 与 uploadURL
+	// 各输出一次 Warn，让调用方在启动期即感知。
+	for name, raw := range map[string]string{"baseURL": c.baseURL, "uploadURL": c.uploadURL} {
+		if u, err := url.Parse(raw); err == nil && u.Scheme == "http" {
+			c.logger.Warn("New: 目标服务使用明文 HTTP（建议 HTTPS，中间人可截获 token 与账号信息）",
+				"component", name, "url", raw)
+		}
+	}
 	if c.pendingToken != "" {
 		if err := c.syncCookieToken(c.pendingToken); err != nil {
 			return c, err // 仍返回 c 让调用方能 Close() 清理资源，但 error 必须 propagate
