@@ -81,8 +81,15 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 	if !c.sm.fallbackDone.Load() {
 		infoCopy := *info
 		c.postProcessSchoolFallback(ctx, &infoCopy)
+		// 出口门控 CAS 独占声明：UpdateCachedUserInfo 已按 token 匹配决定
+		// 是否替换缓存（跨 token 迟到写入被忽略）。Store(true) 只在
+		// 缓存实际被本 token 补全后执行——否则 A 的 fallback 被 B 的
+		// RecordSuccess 重置标志后，A 的无条件 Store(true) 会让 B 跳过
+		// 学校回退（缓存中 B 的 SchoolID/SchoolName 静默为空），C87-CLI#8。
 		c.sm.UpdateCachedUserInfo(&infoCopy, token)
-		c.sm.fallbackDone.Store(true)
+		if c.sm.fallbackDone.CompareAndSwap(false, true) {
+			return &infoCopy, nil
+		}
 		return &infoCopy, nil
 	}
 	return info, nil

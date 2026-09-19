@@ -190,7 +190,9 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 			writers = append(writers, fw)
 			trackLogFile(fw)
 		} else {
-			fmt.Fprintf(os.Stderr, "warn: 无法打开 log-file %q: %v\n", filePath, ferr)
+			// 走 warnToStderr（--quiet 关闭所有 stderr 的契约：log-file 打开
+			// 失败是配置类告警，与 timeout/log-level 同族，C87-CLI-N1）。
+			warnToStderr(fmt.Sprintf("warn: 无法打开 log-file %q: %v\n", filePath, ferr))
 		}
 	}
 	if len(writers) == 0 {
