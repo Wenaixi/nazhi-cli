@@ -39,11 +39,23 @@ import (
 // 远超任何真实业务数据量。
 const maxTotalPage = 10000
 
+// isNullJSON 判断一段原始 JSON 是否为 null 形态：字面 null 或字符串 "null"。
+// 平台偶发把空列表序列化为 dataList:"null"（字符串），字面 null 在解码层已折叠为
+// nil 指针，这里统一识别两种形态，归一为 nil 让调用方走空值契约（[] 或 fallback）。
+func isNullJSON(raw []byte) bool {
+	trimmed := bytes.TrimSpace(raw)
+	return bytes.Equal(trimmed, []byte("null")) || bytes.Equal(trimmed, []byte(`"null"`))
+}
+
 func rawListBytes(resp types.UnifiedResponse) []byte {
 	if resp.DataList == nil {
 		return nil
 	}
 	raw := bytes.TrimSpace(*resp.DataList)
+	// null 形态（字面/字符串）视为空列表，不当作非法 JSON 或原样透传
+	if isNullJSON(raw) {
+		return nil
+	}
 	if !json.Valid(raw) {
 		return nil
 	}

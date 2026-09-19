@@ -67,7 +67,8 @@ func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, 
 		return nil, nil, fmt.Errorf("fetchCirclePageJSON 解析分页信息失败: %w", err)
 	}
 	raw := rawListBytes(*resp)
-	if resp.DataList != nil && raw == nil {
+	// null 形态（字面/字符串）是合法空数据，不算非法 JSON；只有真非法 JSON 才拒绝
+	if resp.DataList != nil && raw == nil && !isNullJSON(*resp.DataList) {
 		return nil, nil, fmt.Errorf("fetchCirclePageJSON dataList 不是合法 JSON 数组: %w", ErrInvalidResponse)
 	}
 	if raw != nil {
