@@ -50,8 +50,12 @@ func main() {
 	defer func() {
 		if r := recover(); r != nil {
 			printError(fmt.Errorf("内部错误: %v", r))
-			// 借用 recoverx.RecoverPanic 统一输出 debug.Stack()，不关心返回的 error（printError 已覆盖）
-			_ = recoverx.RecoverPanic(r, nil, "main")
+			// --quiet 契约：quiet 时不写 debug.Stack()（printError 自带 quiet 守卫，
+			// 退出码照常设置）。非 quiet 时借用 recoverx.RecoverPanic 输出 stack
+			// 辅助定位，不关心返回的 error（printError 已覆盖）。
+			if !quiet {
+				_ = recoverx.RecoverPanic(r, nil, "main")
+			}
 		}
 	}()
 
