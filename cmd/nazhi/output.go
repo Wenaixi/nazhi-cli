@@ -73,11 +73,12 @@ func mapSentinelToHTTPCode(err error) int {
 	// ErrInvalidPayload 哨兵归 400/exit3（见 file.go/image_prep.go）。
 	// 不再在漏斗层匹配 *fs.PathError——stdin 读错误（关闭句柄）也是 PathError 链，
 	// 且既有契约锁定其为 exit 2（管道场景可瞬时恢复，不应与永久性参数错误混淆）。
-	case errors.Is(err, client.ErrBusinessRejected),
-		errors.Is(err, client.ErrLoginRejected),
-		errors.Is(err, client.ErrInvalidResponse),
-		errors.Is(err, client.ErrUploadRejected):
-		return 422
+	// L1（Cycle 97）：网络/限流/超时/5xx 类哨兵必须先于 ErrBusinessRejected 判定。
+	// FetchTasks/FetchTasksJSON 全维度失败汇总时外层包 ErrBusinessRejected、内层
+	// errors.Join 的子错误已带网络类哨兵（%w 链）；若先命中 422 分支，服务端整体
+	// 宕机会被误报为「业务拒绝」——脚本按 exit1 无退避重放，违反「网络/限流/超时
+	// 用稳定哨兵、HTTP 映射 502/503/429」契约。顺序即优先级：确定性服务端/网络类
+	// 在前，业务拒绝兜底在后。
 	case errors.Is(err, client.ErrRateLimited),
 		errors.Is(err, client.ErrSessionBackoff):
 		return 429
@@ -87,6 +88,11 @@ func mapSentinelToHTTPCode(err error) int {
 		errors.Is(err, client.ErrTimeout),
 		errors.Is(err, client.ErrServiceUnavailable):
 		return 502
+	case errors.Is(err, client.ErrBusinessRejected),
+		errors.Is(err, client.ErrLoginRejected),
+		errors.Is(err, client.ErrInvalidResponse),
+		errors.Is(err, client.ErrUploadRejected):
+		return 422
 	default:
 		return 500
 	}

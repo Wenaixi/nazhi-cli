@@ -99,3 +99,106 @@ func mockFetchTasksServer(t *testing.T, dims []types.Dimension, failDimID int64)
 }
 
 func sprintInt64(v int64) string { return strconv.FormatInt(v, 10) }
+
+// ─── L1：全维度 5xx → 汇总错误必须保留 ErrServiceUnavailable 哨兵 ───
+
+// TestFetchTasks_AllDimsServiceUnavailable_HitsErrServiceUnavailable 锁定 L1 的 SDK 侧契约：
+// 全部维度 getCircleStatistics 返回 503 时，FetchTasks 的汇总错误除 ErrBusinessRejected 外，
+// errors.Is 必须仍命中 ErrServiceUnavailable（errors.Join/%w 链保留维度级哨兵），
+// 供 CLI 漏斗按网络类哨兵优先映射 502，而非误报业务拒绝 422。
+func TestFetchTasks_AllDimsServiceUnavailable_HitsErrServiceUnavailable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getDimensions":
+			resp := types.UnifiedResponse{Code: 1}
+			raw, _ := json.Marshal([]types.Dimension{{ID: 1, Name: "d1"}, {ID: 2, Name: "d2"}})
+			rawMsg := json.RawMessage(raw)
+			resp.DataList = &rawMsg
+			_ = json.NewEncoder(w).Encode(resp)
+		case "/api/studentCircleNew/getCircleStatistics":
+			// 服务端整体宕机：HTTP 503
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("upstream down"))
+		case "/", "/api/studentInfo/getMenu":
+			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, Msg: ptr("ok")})
+		case "/api/studentInfo/getMyInfo":
+			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1"}`)
+			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, ReturnData: &raw})
+		default:
+			t.Logf("mockFetchTasksServer 未命中 %s", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+
+	c, err := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL), WithTimeout(5*1e9))
+	if err != nil {
+		t.Fatalf("New() 失败: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+	c.sm.StoreToken("test-token")
+
+	tasks, err := c.FetchTasks(context.Background(), "test-token")
+	if err == nil {
+		t.Fatal("全部维度 503 应返回非 nil error")
+	}
+	if len(tasks) != 0 {
+		t.Fatalf("全部失败时不应有任务，实际 %d", len(tasks))
+	}
+	if !errors.Is(err, ErrServiceUnavailable) {
+		t.Errorf("汇总错误必须 errors.Is(ErrServiceUnavailable)，实际 err=%v", err)
+	}
+	if !errors.Is(err, ErrBusinessRejected) {
+		t.Errorf("汇总错误应同时 errors.Is(ErrBusinessRejected)，实际 err=%v", err)
+	}
+}
+
+// TestFetchTasksJSON_AllDimsServiceUnavailable_HitsErrServiceUnavailable FetchTasksJSON 对称锁定：
+// 全部维度 5xx 时汇总错误同样保留 ErrServiceUnavailable 哨兵。
+func TestFetchTasksJSON_AllDimsServiceUnavailable_HitsErrServiceUnavailable(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/api/studentCircleNew/getDimensions":
+			resp := types.UnifiedResponse{Code: 1}
+			raw, _ := json.Marshal([]types.Dimension{{ID: 1, Name: "d1"}, {ID: 2, Name: "d2"}})
+			rawMsg := json.RawMessage(raw)
+			resp.DataList = &rawMsg
+			_ = json.NewEncoder(w).Encode(resp)
+		case "/api/studentCircleNew/getCircleStatistics":
+			w.WriteHeader(http.StatusServiceUnavailable)
+			_, _ = w.Write([]byte("upstream down"))
+		case "/", "/api/studentInfo/getMenu":
+			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, Msg: ptr("ok")})
+		case "/api/studentInfo/getMyInfo":
+			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1"}`)
+			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, ReturnData: &raw})
+		default:
+			t.Logf("mockFetchTasksServer 未命中 %s", r.URL.Path)
+			w.WriteHeader(404)
+		}
+	}))
+	defer srv.Close()
+
+	c, err := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL), WithTimeout(5*1e9))
+	if err != nil {
+		t.Fatalf("New() 失败: %v", err)
+	}
+	defer func() { _ = c.Close() }()
+	c.sm.StoreToken("test-token")
+
+	raw, err := c.FetchTasksJSON(context.Background(), "test-token")
+	if err == nil {
+		t.Fatal("全部维度 503 应返回非 nil error")
+	}
+	if raw != nil {
+		t.Fatalf("全部失败时不应有合并字节，实际 %q", string(raw))
+	}
+	if !errors.Is(err, ErrServiceUnavailable) {
+		t.Errorf("汇总错误必须 errors.Is(ErrServiceUnavailable)，实际 err=%v", err)
+	}
+	if !errors.Is(err, ErrBusinessRejected) {
+		t.Errorf("汇总错误应同时 errors.Is(ErrBusinessRejected)，实际 err=%v", err)
+	}
+}
