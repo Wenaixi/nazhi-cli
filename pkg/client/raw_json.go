@@ -39,6 +39,11 @@ import (
 // 远超任何真实业务数据量。
 const maxTotalPage = 10000
 
+// maxAssembleBuffer assembleCirclesJSON 预分配容量上界（CC1 修复）——
+// len(raw1)×totalPage 可达 4MB×10000=40GB 单次 make，攻陷服务端可借首页大响应
+// + 虚高 totalNum 驱动单请求 OOM。64MB 足够覆盖任何真实拼接输出。
+const maxAssembleBuffer = 64 << 20
+
 // isNullJSON 判断一段原始 JSON 是否为 null 形态：字面 null 或字符串 "null"。
 // 平台偶发把空列表序列化为 dataList:"null"（字符串），字面 null 在解码层已折叠为
 // nil 指针，这里统一识别两种形态，归一为 nil 让调用方走空值契约（[] 或 fallback）。
@@ -180,7 +185,9 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 	if totalPage > maxTotalPage {
 		totalPage = maxTotalPage
 	}
-	buf := bytes.NewBuffer(make([]byte, 0, len(raw1)*totalPage))
+	// CC1 修复：预分配容量钳制到固定上界——len(raw1)×totalPage 可达 40GB，
+	// 攻陷服务端可借首页大响应+虚高 totalNum 驱动单请求 OOM。
+	buf := bytes.NewBuffer(make([]byte, 0, assembleBufferCapHint(totalPage, len(raw1))))
 	buf.WriteByte('[')
 	first := true
 	// page1 可能为空数组 "[]"，trim 后长度为 0，不得写逗号
@@ -209,6 +216,17 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 		return json.RawMessage(trimArrayToCurrent(buf.Bytes())), partialErr
 	}
 	return buf.Bytes(), nil
+}
+
+// assembleBufferCapHint 返回 assembleCirclesJSON 的预分配容量（CC1 修复）。
+// 页数×首頁字節數乘積被鉗制到固定上界 maxAssembleBuffer，防攻陷服務端
+// 借大響應×虛高頁數驅動單請求 OOM；正常組合不受影響。
+func assembleBufferCapHint(pageCount, firstPageLen int) int {
+	capHint := pageCount * firstPageLen
+	if capHint > maxAssembleBuffer {
+		capHint = maxAssembleBuffer
+	}
+	return capHint
 }
 
 // getCirclesJSON 是各类型写实记录全量拉取的通用实现。
