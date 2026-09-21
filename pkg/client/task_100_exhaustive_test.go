@@ -77,7 +77,10 @@ func TestParseHours_Exhaustive(t *testing.T) {
 		{"whitespace uses meta", "   ", 3.5, 6, false, 3.5},
 		{"whitespace required still error", "   ", 0, 6, true, 0},
 		{"explicit zero", "0", 0, 6, false, 0},
-		{"explicit negative", "-1", 1, 1, false, -1},
+		// I-02：负数 hours 与非法同族拒绝 ErrInvalidPayload（改前直接上 wire -1）
+		{"explicit negative", "-1", 1, 1, true, 0},
+		{"explicit negative non-required", "-2", 0, 2, true, 0},
+		{"negative zero -0 allowed", "-0", 1, 1, false, 0},
 		{"explicit scientific", "1e2", 1, 1, false, 100},
 		{"invalid abc", "abc", 1, 1, true, 0},
 		{"invalid NaN", "NaN", 1, 1, true, 0},
