@@ -55,7 +55,18 @@ var loginCmd = &cobra.Command{
 			case errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic):
 				printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。默认内置识别器应自动生效；如仍报错，请通过 SDK WithCustomOCR 注入自定义识别器。"))
 			case errors.Is(err, client.ErrLoginRejected):
-				printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error())))
+				// G1（Cycle 101）：SDK 层已先按 classifyHTTPStatus 分类（429→ErrRateLimited、
+				// 5xx→ErrServiceUnavailable、其余→ErrLoginRejected）。登录被限流或服务端
+				// 故障时按哨兵映射确定性状态码，不再误报为凭证错误 —— 对齐
+				// mapSentinelToHTTPCode 语义（429→429、5xx→502）。
+				switch {
+				case errors.Is(err, client.ErrRateLimited):
+					printEnvelope(envelope.Error(429, fmt.Sprintf("登录失败：请求被限流，请稍后退避重试（%s）", err.Error())))
+				case errors.Is(err, client.ErrServiceUnavailable):
+					printEnvelope(envelope.Error(502, fmt.Sprintf("登录失败：SSO 服务端暂时不可用，请稍后重试（%s）", err.Error())))
+				default:
+					printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error())))
+				}
 			default:
 				printError(fmt.Errorf("登录失败: %w", err))
 			}

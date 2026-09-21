@@ -223,17 +223,23 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return &types.LoginResponse{Token: token, ExpiresAt: expiresAt}, nil
 	}
 
+	// G1（Cycle 101）：非 200/302 状态码先按 classifyHTTPStatus 分类，
+	// 429→ErrRateLimited、5xx→ErrServiceUnavailable、其余→ErrLoginRejected。
+	// 修复前一律包 ErrLoginRejected，CLI 把登录被限流/服务端故障误报为
+	// 「凭证错误」exit 1、不退避；errors.Is(err, ErrRateLimited) 现在可精确识别限流。
+	sentinel := classifyHTTPStatus(httpResp.StatusCode, ErrLoginRejected)
+
 	errResp, err := types.DecodeResponse(bodyBytes)
 	if err != nil {
 		c.logDebugCtx(ctx, "Login 非预期状态码 %d 响应非 JSON: %v body=%s", httpResp.StatusCode, err, bodySnippet)
 	} else if err := types.CheckCode(errResp); err != nil {
-		return nil, fmt.Errorf("%w: code=%d msg=%s", ErrLoginRejected, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
+		return nil, fmt.Errorf("%w: code=%d msg=%s", sentinel, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
 	// 错误消息附带 RedactBodyThenTruncate 截断脱敏摘要：非预期状态码的典型场景是 nginx 503、
 	// CDN challenge 等 HTML 响应；不带 body 片段时用户难以定位根因。
 	// 摘要再过 RedactBody 与 request.go 同类分支脱敏口径拉平（90ccd64 先例）。
 	return nil, fmt.Errorf("%w: 非预期状态码 %d body=%s",
-		ErrLoginRejected, httpResp.StatusCode, logx.RedactBodyThenTruncate(bodyBytes, 100))
+		sentinel, httpResp.StatusCode, logx.RedactBodyThenTruncate(bodyBytes, 100))
 }
 
 // warnIfExpiresAtFallback 在 expiresAt 异常时输出 WARN 日志。两条 Login 路径

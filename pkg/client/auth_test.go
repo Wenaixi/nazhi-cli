@@ -1630,11 +1630,14 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 		Password: "p",
 		SchoolID: "173",
 	})
+	// G1（Cycle 101）语义修订：非 200/302 状态码按 classifyHTTPStatus 分类，
+	// 503 现包装 ErrServiceUnavailable（errors.Is 可识别服务端故障），不再笼统包
+	// ErrLoginRejected。本测试改为锁定「服务端故障可识别」的新哨兵语义。
 	if err == nil {
 		t.Fatal("期望 Login 返回错误，实际 nil")
 	}
-	if !errors.Is(err, ErrLoginRejected) {
-		t.Fatalf("期望包装 ErrLoginRejected，得到: %v", err)
+	if !errors.Is(err, ErrServiceUnavailable) {
+		t.Fatalf("503 应包装 ErrServiceUnavailable，得到: %v", err)
 	}
 
 	// 关键断言：错误消息必须含 body 摘要（截断 100 字）
@@ -1645,6 +1648,98 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 	// 摘要应包含原 body 的前 100 字节内容（这里 body 较短，全部包含）
 	if !strings.Contains(errMsg, "503") || !strings.Contains(errMsg, "html") {
 		t.Errorf("body 摘要应包含原 body 关键内容（503/html）。实际 errMsg=%q", errMsg)
+	}
+}
+
+// ─── Cycle 101 G1：Login 非 200/302 状态码按 classifyHTTPStatus 分类 ───
+
+// TestLogin_429_RateLimitedSentinel 验证 Login 收到 429 时返回 ErrRateLimited 哨兵，
+// 而不是笼统的 ErrLoginRejected。
+// 背景（Cycle 101 G1）：非 200/302 一律包 ErrLoginRejected，CLI 把限流误报为
+// 「登录失败」exit 1、不退避；修复后 errors.Is(err, ErrRateLimited) 可精确识别限流。
+func TestLogin_429_RateLimitedSentinel(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/uiStudentLogin/login":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("<html>ok</html>"))
+		case "/kaptcha/kaptcha.jpg":
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte("fake-jpeg-bytes"))
+		case "/uiStudentLogin/validateCaptcha":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+		case "/teacher/auth/studentLogin/validate":
+			w.WriteHeader(http.StatusTooManyRequests)
+			_, _ = w.Write([]byte("too many requests"))
+		}
+	}))
+	defer srv.Close()
+
+	c := &Client{
+		ssoBaseURL: srv.URL,
+		baseURL:    srv.URL,
+		uploadURL:  srv.URL,
+		http:       newHTTPClient(),
+		ocr:        &countMockOCR{returnText: "AB12"},
+	}
+
+	_, err := c.Login(context.Background(), types.LoginRequest{
+		Username: "u",
+		Password: "p",
+		SchoolID: "173",
+	})
+	if err == nil {
+		t.Fatal("期望 Login 返回错误，实际 nil")
+	}
+	if !errors.Is(err, ErrRateLimited) {
+		t.Errorf("429 应包装 ErrRateLimited（而非 ErrLoginRejected），实际: %v", err)
+	}
+}
+
+// TestLogin_5xx_ServiceUnavailableSentinel 验证 Login 收到 5xx 时返回
+// ErrServiceUnavailable 哨兵，而不是 ErrLoginRejected。
+func TestLogin_5xx_ServiceUnavailableSentinel(t *testing.T) {
+	for _, code := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
+		t.Run(fmt.Sprintf("code_%d", code), func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				switch r.URL.Path {
+				case "/uiStudentLogin/login":
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("<html>ok</html>"))
+				case "/kaptcha/kaptcha.jpg":
+					w.WriteHeader(http.StatusOK)
+					_, _ = w.Write([]byte("fake-jpeg-bytes"))
+				case "/uiStudentLogin/validateCaptcha":
+					w.Header().Set("Content-Type", "application/json")
+					_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
+				case "/teacher/auth/studentLogin/validate":
+					w.WriteHeader(code)
+					_, _ = w.Write([]byte("server down"))
+				}
+			}))
+			defer srv.Close()
+
+			c := &Client{
+				ssoBaseURL: srv.URL,
+				baseURL:    srv.URL,
+				uploadURL:  srv.URL,
+				http:       newHTTPClient(),
+				ocr:        &countMockOCR{returnText: "AB12"},
+			}
+
+			_, err := c.Login(context.Background(), types.LoginRequest{
+				Username: "u",
+				Password: "p",
+				SchoolID: "173",
+			})
+			if err == nil {
+				t.Fatalf("%d 应返回非 nil error", code)
+			}
+			if !errors.Is(err, ErrServiceUnavailable) {
+				t.Errorf("%d 应包装 ErrServiceUnavailable（而非 ErrLoginRejected），实际: %v", code, err)
+			}
+		})
 	}
 }
 
