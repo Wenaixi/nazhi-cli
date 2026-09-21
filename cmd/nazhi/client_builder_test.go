@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"strings"
 	"testing"
 
@@ -54,10 +53,10 @@ func itoa(n int) string {
 // TestBuildClient_DefaultsToNoError 验证 buildClient 在没有任何 flag 的情况下
 // 不返回错误（与 buildBizClient 不同——它会因缺 token 报错）。
 func TestBuildClient_DefaultsToNoError(t *testing.T) {
-	// 清理可能干扰的环境变量
-	_ = os.Unsetenv("NAZHI_SSO_BASE")
-	_ = os.Unsetenv("NAZHI_BASE_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	// t.Setenv 自动恢复环境变量，避免裸 Unsetenv 污染进程级环境影响后续测试（T10）
+	t.Setenv("NAZHI_SSO_BASE", "")
+	t.Setenv("NAZHI_BASE_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"sso-base": "",
@@ -77,9 +76,9 @@ func TestBuildClient_DefaultsToNoError(t *testing.T) {
 // TestBuildClient_HonorsBaseURLFlag 验证 buildClient 接受 base-url flag 而不报错。
 // 不验证 client 内部 baseURL（client 是 opaque pointer），只验证不返回 error。
 func TestBuildClient_HonorsBaseURLFlag(t *testing.T) {
-	_ = os.Unsetenv("NAZHI_SSO_BASE")
-	_ = os.Unsetenv("NAZHI_BASE_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_SSO_BASE", "")
+	t.Setenv("NAZHI_BASE_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"sso-base": "",
@@ -98,9 +97,9 @@ func TestBuildClient_HonorsBaseURLFlag(t *testing.T) {
 
 // TestBuildClient_HonorsSSOBaseFlag 验证 buildClient 接受 sso-base flag。
 func TestBuildClient_HonorsSSOBaseFlag(t *testing.T) {
-	_ = os.Unsetenv("NAZHI_SSO_BASE")
-	_ = os.Unsetenv("NAZHI_BASE_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_SSO_BASE", "")
+	t.Setenv("NAZHI_BASE_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"sso-base": "https://sso.example.com",
@@ -120,8 +119,8 @@ func TestBuildClient_HonorsSSOBaseFlag(t *testing.T) {
 // TestBuildClient_EnvFallback 验证环境变量 NAZHI_SSO_BASE 仍可作为 fallback。
 func TestBuildClient_EnvFallback(t *testing.T) {
 	t.Setenv("NAZHI_SSO_BASE", "https://env.example.com")
-	_ = os.Unsetenv("NAZHI_BASE_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_BASE_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"sso-base": "",
@@ -141,9 +140,9 @@ func TestBuildClient_EnvFallback(t *testing.T) {
 // TestBuildBizClient_StillRequiresToken 回归测试：拆分后 buildBizClient
 // 仍必须对 token 必填校验。目的是防止重构后无意中放宽契约。
 func TestBuildBizClient_StillRequiresToken(t *testing.T) {
-	_ = os.Unsetenv("NAZHI_TOKEN")
-	_ = os.Unsetenv("NAZHI_BASE_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_TOKEN", "")
+	t.Setenv("NAZHI_BASE_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"token":    "",
@@ -162,9 +161,9 @@ func TestBuildBizClient_StillRequiresToken(t *testing.T) {
 
 // TestBuildBizClient_HappyPath 验证 buildBizClient 在 token 提供时不报错。
 func TestBuildBizClient_HappyPath(t *testing.T) {
-	_ = os.Unsetenv("NAZHI_TOKEN")
-	_ = os.Unsetenv("NAZHI_BASE_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_TOKEN", "")
+	t.Setenv("NAZHI_BASE_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"token":    "test-token-abc",
@@ -187,8 +186,8 @@ func TestBuildBizClient_HappyPath(t *testing.T) {
 // TestBuildClient_UploadURLType 验证 urlType="upload" 路径（file_upload 命令用）。
 // C2 回归测试：确保 --upload-url flag + NAZHI_UPLOAD_URL env 被正确处理。
 func TestBuildClient_UploadURLType(t *testing.T) {
-	_ = os.Unsetenv("NAZHI_UPLOAD_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_UPLOAD_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"upload-url": "http://upload.example.com",
@@ -207,7 +206,7 @@ func TestBuildClient_UploadURLType(t *testing.T) {
 // TestBuildClient_UploadURLEnvFallback 验证 urlType="upload" 走 NAZHI_UPLOAD_URL env。
 func TestBuildClient_UploadURLEnvFallback(t *testing.T) {
 	t.Setenv("NAZHI_UPLOAD_URL", "http://env-upload.example.com")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"upload-url": "",
@@ -226,7 +225,7 @@ func TestBuildClient_UploadURLEnvFallback(t *testing.T) {
 // TestBuildClient_UnknownURLTypeRejected 验证未知 urlType 被拒绝（fail-fast）。
 // 防止"调用方写错 urlType 时悄无声息丢 URL"。
 func TestBuildClient_UnknownURLTypeRejected(t *testing.T) {
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"sso-base": "",
@@ -247,9 +246,9 @@ func TestBuildClient_UnknownURLTypeRejected(t *testing.T) {
 // 必须自动注册到 pendingClients（main 退出前 defer closeAllClients 会释放）。
 // 这是核心目的——消除 inline client.New 让 trackClient 路径统一。
 func TestBuildClient_TrackedInPendingClients(t *testing.T) {
-	_ = os.Unsetenv("NAZHI_SSO_BASE")
-	_ = os.Unsetenv("NAZHI_BASE_URL")
-	_ = os.Unsetenv("NAZHI_TIMEOUT")
+	t.Setenv("NAZHI_SSO_BASE", "")
+	t.Setenv("NAZHI_BASE_URL", "")
+	t.Setenv("NAZHI_TIMEOUT", "")
 
 	// 记录测试前的 baseline
 	pendingClientsMu.Lock()
