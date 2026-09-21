@@ -192,6 +192,51 @@ func TestGetTypicalCaseList_Empty(t *testing.T) {
 	}
 }
 
+// ─── Cycle 101 G2：assembleRecordsPageJSON 对 dataList null 形态归一 ───
+
+// TestGetTypicalCaseListJSON_StringNullRecordsNormalized（RED）
+// 服务端返回 dataList:"null"（字符串形态）时，GetTypicalCaseListJSON 拼装的
+// records 必须归一为 [] 空数组，而不是脏数组 ["null"]。
+// 背景（Cycle 101 G2）：assembleRecordsPageJSON 直接取原始字节仅 len==0 归 []，
+// 未调 isNullJSON 归一（rawListBytes 同款）；对齐契约：成功路径恒为合法数组。
+func TestGetTypicalCaseListJSON_StringNullRecordsNormalized(t *testing.T) {
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/studentCircleNew/getTypicalCase" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		resp := map[string]any{
+			"code":     1,
+			"pageBean": typicalCasePageBeanJSON(1, 20, 0),
+			"dataList": json.RawMessage(`"null"`),
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	})))
+	defer biz.Close()
+
+	c := newTestClient(nil, biz, nil)
+	raw, err := c.GetTypicalCaseListJSON(context.Background(), "test-token", 1, 20)
+	if err != nil {
+		t.Fatalf("GetTypicalCaseListJSON: %v", err)
+	}
+
+	var parsed map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		t.Fatalf("解析 JSON 失败: %v body=%s", err, raw)
+	}
+	var records []json.RawMessage
+	if err := json.Unmarshal(parsed["records"], &records); err != nil {
+		t.Fatalf("records 应为合法数组: %v records=%s", err, parsed["records"])
+	}
+	if len(records) != 0 {
+		t.Fatalf("字符串 null 应归一为 [] 空数组（不能出现含空串的脏元素）: records=%s", parsed["records"])
+	}
+	if got := string(parsed["records"]); got != `[]` {
+		t.Fatalf("records 应严格为 []，实际 %s", got)
+	}
+}
+
 // TestGetTypicalCaseListJSON 验证原生 JSON 输出。
 func TestGetTypicalCaseListJSON(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {

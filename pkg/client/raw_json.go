@@ -816,6 +816,12 @@ func assembleRecordsPageJSON(resp *types.UnifiedResponse) json.RawMessage {
 	var recordsRaw json.RawMessage
 	if resp.DataList != nil {
 		recordsRaw = *resp.DataList
+		// G2（Cycle 101）：dataList 的 null 形态（字面 null / 字符串 "null"）先归一，
+		// 防脏数组元素 ["null"]。rawListBytes 同款归一（Cycle 94 F1 覆盖 getStudentCircle/
+		// getHonorType，本函数是 GetHonorListJSON/GetTypicalCaseListJSON 共用拼装点）。
+		if isNullJSON(recordsRaw) {
+			recordsRaw = nil
+		}
 	}
 	var pageBeanRaw json.RawMessage
 	if resp.PageBean != nil {
