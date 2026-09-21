@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -246,8 +247,17 @@ func firstInt64(m map[string]any, keys ...string) int64 {
 		}
 		switch v := value.(type) {
 		case float64:
+			// I-08：非整 float64 静默 int64(v) 截断（4.7→4）丢精度。
+			// 对齐 FlexInt 的 math.Trunc 判定：非整值忽略（ID 无有效值），
+			// 不产生截断结果，返回 0 继续查下一个 key。
+			if v != math.Trunc(v) {
+				return 0
+			}
 			return int64(v)
 		case float32:
+			if v != float32(math.Trunc(float64(v))) {
+				return 0
+			}
 			return int64(v)
 		case int:
 			return int64(v)

@@ -7,6 +7,7 @@ import (
 	"io"
 	"math"
 	"os"
+	"sort"
 	"strings"
 )
 
@@ -14,7 +15,7 @@ const maxPayloadSize = 16 << 20
 
 // parsePayloadFromArg 解析命令行 payload 参数，支持 @file.json 和 -（stdin）语法。
 // 这是 task_submit.go 和 honor.go 中公共的 payload 读取逻辑抽取。
-func parsePayloadFromArg(raw string) ([]byte, error) {
+func parsePayloadFromArg(ctx context.Context, raw string) ([]byte, error) {
 	if strings.HasPrefix(raw, "@") {
 		// 与 stdin 路径对齐：@file 也受 16 MiB 上限保护，防止误传大文件撑爆内存
 		f, err := os.Open(raw[1:])
@@ -34,8 +35,9 @@ func parsePayloadFromArg(raw string) ([]byte, error) {
 	if raw == "-" {
 		// 与 self-eval submit 的 stdin 保护对齐：交互终端下先给提示符，
 		// 再走带超时的读取——避免手滑写 - 时无提示无超时地永久阻塞。
+		// I-05：继承调用方 cmd.Context() 而非 context.Background()，Ctrl+C 可中断。
 		printPrompt("请输入 payload JSON（Ctrl+D 结束）: ")
-		content, readErr := readStdinWithTimeout(context.Background(), 60)
+		content, readErr := readStdinWithTimeout(ctx, 60)
 		if readErr != nil {
 			return nil, readErr
 		}
@@ -50,8 +52,8 @@ func parsePayloadFromArg(raw string) ([]byte, error) {
 
 // parseJSONObjectPayload 读取并校验对象型 JSON payload。
 // 文件、stdin 和内联 JSON 的读取语义保持由 parsePayloadFromArg 负责。
-func parseJSONObjectPayload(raw string) ([]byte, error) {
-	payload, err := parsePayloadFromArg(raw)
+func parseJSONObjectPayload(ctx context.Context, raw string) ([]byte, error) {
+	payload, err := parsePayloadFromArg(ctx, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -85,4 +87,25 @@ func PayloadPositiveIDValid(payload map[string]any) bool {
 	default:
 		return false
 	}
+}
+
+// unknownUpdatePayloadKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名（稳定排序）。
+// 与 unknownUserUpdateKeys 同构；I-04/I-06 让 honor/typical-case update 与 user update
+// 共享同一未知键拒绝语义。
+func unknownUpdatePayloadKeys(payloadBytes []byte, allowed map[string]struct{}) []string {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(payloadBytes, &top); err != nil {
+		return nil // 解析已在调用方完成并报错，此处不重复
+	}
+	var unknown []string
+	for k := range top {
+		if _, ok := allowed[k]; !ok {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return unknown
 }

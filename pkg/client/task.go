@@ -225,7 +225,9 @@ func parseHours(userInput string, metaHours float64, targetType int) (float64, e
 		return 0, nil
 	}
 	parsed, err := strconv.ParseFloat(h, 64)
-	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) {
+	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed < 0 {
+		// I-02：负数 hours 直接上 wire payload.Hours=-5，与非法/非有限同族拒绝。
+		// 学时不可能为负，负数属于调用方输入错误，统一 ErrInvalidPayload。
 		return 0, fmt.Errorf("%w: hours 非法: %q", ErrInvalidPayload, h)
 	}
 	return parsed, nil

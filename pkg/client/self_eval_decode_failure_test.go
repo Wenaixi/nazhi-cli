@@ -127,3 +127,28 @@ func TestNormalizeSelfEvalStatus_PlatformIDAliasNarrowed(t *testing.T) {
 		t.Fatalf("主路径 id 应生效且 ID=3，got %+v", s)
 	}
 }
+
+// I-08：firstInt64 对非整 float64/float32 直接 int64() 截断（4.7→4）静默丢精度。
+// 对齐 FlexInt 的 math.Trunc 语义：非整值忽略（视为无有效 ID），不产生截断值。
+func TestFirstInt64_RejectsFractionalFloat(t *testing.T) {
+	// 非整 float64 应忽略返回 0（对齐 FlexInt 显式拒绝非整数值的语义）
+	if got := firstInt64(map[string]any{"id": 4.7}, "id"); got != 0 {
+		t.Fatalf("非整 float64 4.7 应忽略返回 0，实际截断为 %d", got)
+	}
+	// 整值浮点正常返回
+	if got := firstInt64(map[string]any{"id": float64(4)}, "id"); got != 4 {
+		t.Fatalf("整值 float64 4 应返回 4，实际 %d", got)
+	}
+	// 非整 float32 同理
+	if got := firstInt64(map[string]any{"id": float32(2.9)}, "id"); got != 0 {
+		t.Fatalf("非整 float32 2.9 应忽略返回 0，实际截断为 %d", got)
+	}
+	// 整值 float32 正常返回
+	if got := firstInt64(map[string]any{"id": float32(2)}, "id"); got != 2 {
+		t.Fatalf("整值 float32 2 应返回 2，实际 %d", got)
+	}
+	// int/int64/int32 不受影响
+	if got := firstInt64(map[string]any{"id": int64(-3)}, "id"); got != -3 {
+		t.Fatalf("int64 -3 应原样返回，实际 %d", got)
+	}
+}

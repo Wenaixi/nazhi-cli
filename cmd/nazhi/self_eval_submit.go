@@ -53,7 +53,7 @@ var selfEvalSubmitCmd = &cobra.Command{
 
 		// 结构化模式：--payload
 		if payloadMode {
-			payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+			payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 			if err != nil {
 				printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 				return

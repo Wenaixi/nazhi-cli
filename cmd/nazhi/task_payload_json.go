@@ -20,6 +20,60 @@ var taskInputNumericStringFields = [...]string{
 	"playRole",
 }
 
+// taskInputDeprecatedFields 是 TaskSubmitInput/TaskEditInput 中前端表单有键但
+// 无 v-model（用户从不手填）的历史兼容字段。CLI 允许传入但 SDK 不消费——
+// 与 user update 的 nationalStudentNumber 同理：避免把"旧调用方还在传"误判
+// 为"未知键"，否则会误伤历史 payload。
+// 前端 form 对照实证：practice 表单 JSON.stringify 恒含 id/""、name/""、hostName/""、
+// circleDate/""、rank/""、level/""、termName/""；art 表单含 name；edit 恒注入 id。
+var taskInputDeprecatedFields = map[string]struct{}{
+	"id": {}, "name": {}, "hostName": {}, "circleDate": {}, "rank": {},
+	"level": {}, "termName": {},
+}
+
+// taskInputAllowedKeys 是 task submit/edit payload 顶层 JSON 的全部允许键：
+// TaskInput 消费的 json 键 + 别名对（circleTaskId/pictureList）+ 历史兼容字段。
+// I-04：清晰列出允许集，未知键以参数错误拒绝（对齐 user update）。
+var taskInputAllowedKeys = func() map[string]struct{} {
+	allowed := map[string]struct{}{
+		// TaskInput 消费的普通字段（TaskAddCirclePayload 出站 json 键全集）
+		"id": {}, "name": {}, "hostName": {}, "circleDate": {}, "rank": {},
+		"level": {}, "content": {}, "pictureList": {}, "circleTaskId": {},
+		"circleTypeId": {}, "dimensionId": {}, "hours": {}, "circleBeginDate": {},
+		"circleEndDate": {}, "checkResult": {}, "patentType": {}, "patentNum": {},
+		"address": {}, "termName": {}, "activityName": {}, "sportsName": {},
+		"teamName": {}, "orgName": {}, "resultsName": {}, "obtainTime": {},
+		"specialtyTechnology": {}, "playRole": {}, "likeSpecialty1": {},
+		"likeSpecialty2": {}, "likeSpecialty3": {},
+		// CLI 输入别名（decodeTaskInputJSON 归一）
+		"imagePaths": {}, "imageIDs": {},
+	}
+	for k := range taskInputDeprecatedFields {
+		allowed[k] = struct{}{}
+	}
+	return allowed
+}()
+
+// unknownTaskInputKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名。
+// 大小写变体按 findTaskInputField 语义允许（normalize 后比较允许集）。
+func unknownTaskInputKeys(payloadBytes []byte) []string {
+	var top map[string]json.RawMessage
+	if err := json.Unmarshal(payloadBytes, &top); err != nil {
+		return nil // 解析已在调用方完成并报错，此处不重复
+	}
+	var unknown []string
+	for k := range top {
+		if _, ok := taskInputAllowedKeys[strings.ToLower(k)]; !ok {
+			unknown = append(unknown, k)
+		}
+	}
+	if len(unknown) == 0 {
+		return nil
+	}
+	sort.Strings(unknown)
+	return unknown
+}
+
 var taskInputFieldAliases = [...]struct {
 	canonical string
 	alias     string

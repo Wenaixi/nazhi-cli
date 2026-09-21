@@ -35,7 +35,7 @@ var userUpdateCmd = &cobra.Command{
 			return
 		}
 
-		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return

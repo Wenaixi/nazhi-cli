@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 
@@ -49,6 +50,15 @@ var honorTypesCmd = &cobra.Command{
 	},
 }
 
+// honorUpdateAllowedKeys 是 honor update payload 顶层 JSON 的全部允许键：
+// AddHonorPayload 出站 json 键 + SDK UpdateHonor 消费键 + 编辑记录 id。
+// I-06：未知键（如 evaluationAgencyX 拼错）此前静默透传服务端被忽略，
+// 对齐 user update 用 unknownUpdatePayloadKeys 拒绝。
+var honorUpdateAllowedKeys = map[string]struct{}{
+	"id": {}, "name": {}, "typeId": {}, "typeName": {}, "level": {},
+	"evaluationAgency": {}, "getDate": {}, "certImgAttachmentId": {}, "score": {},
+}
+
 // honorListCmd 表示 nazhi honor list 命令
 //
 //	nazhi honor list --token <token> [--page <页>] [--page-size <条>] [--base-url <url>] [--timeout <秒>]
@@ -73,10 +83,11 @@ var honorListCmd = &cobra.Command{
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		key, _ := cmd.Flags().GetString("key")
-		// 分页参数非负守卫：负值透传会发出 pageNo=-1 等异常请求，
-		// 与 cmd/nazhi/circle_metadata.go:83-90 同形状参数的纪律对齐。
-		if pageNo < 0 || pageSize < 0 {
-			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为非负整数"))
+		// 分页参数非负守卫：负值透传会发出 pageNo=-1 等异常请求；
+		// 0 同样非法——circle_metadata.go:83-89 同形状参数要求 >0，
+		// I-03 对齐为 ≤0 拒绝（400/exit3），与正数契约统一。
+		if pageNo <= 0 || pageSize <= 0 {
+			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为正整数"))
 			return
 		}
 
@@ -118,7 +129,7 @@ getDate 示例用纯日期仅为可读性；前端实际提交 ISO 8601 时间�
 			return
 		}
 
-		payload, err := parseAddHonorPayload(payloadRaw)
+		payload, err := parseAddHonorPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(err)
 			return
@@ -185,7 +196,7 @@ var honorUpdateCmd = &cobra.Command{
 			return
 		}
 
-		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
@@ -193,6 +204,12 @@ var honorUpdateCmd = &cobra.Command{
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
+			return
+		}
+		// I-06：honor update map payload 未知键静默透传服务端：拼错键名→服务端
+		// 忽略→204 成功但零修改。与 user update 一致增加未知键拒绝（400/exit3）。
+		if unknown := unknownUpdatePayloadKeys(payloadBytes, honorUpdateAllowedKeys); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi honor update --help）", unknown))
 			return
 		}
 		// 前端编辑提交必然注入记录 id（performanceM.vue:489），此处对齐契约：
@@ -252,8 +269,9 @@ var honorLevelsCmd = &cobra.Command{
 
 // parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
 // 委托 parseJSONObjectPayload 处理 @file.json / - / 原始字符串，并校验顶层对象。
-func parseAddHonorPayload(raw string) (*types.AddHonorPayload, error) {
-	payloadBytes, err := parseJSONObjectPayload(raw)
+// honor add 的 Run 已持有 cmd.Context()，透传以防 stdin 分支丢失取消语义。
+func parseAddHonorPayload(ctx context.Context, raw string) (*types.AddHonorPayload, error) {
+	payloadBytes, err := parseJSONObjectPayload(ctx, raw)
 	if err != nil {
 		return nil, fmt.Errorf("读取 payload 失败: %w", err)
 	}

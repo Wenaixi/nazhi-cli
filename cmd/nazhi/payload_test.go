@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"math"
 	"os"
 	"strings"
@@ -25,7 +26,7 @@ func TestParsePayloadFromArgRejectsOversizedStdin(t *testing.T) {
 	os.Stdin = file
 	t.Cleanup(func() { os.Stdin = originalStdin })
 
-	_, err = parsePayloadFromArg("-")
+	_, err = parsePayloadFromArg(context.Background(), "-")
 	if err == nil {
 		t.Fatal("超过 16 MiB 的 stdin payload 应返回错误")
 	}
@@ -54,7 +55,7 @@ func TestParsePayloadFromArg_StdinPipelineStillWorks(t *testing.T) {
 	os.Stdin = file
 	t.Cleanup(func() { os.Stdin = originalStdin })
 
-	got, err := parsePayloadFromArg("-")
+	got, err := parsePayloadFromArg(context.Background(), "-")
 	if err != nil {
 		t.Fatalf("管道 stdin 应正常读取，实际错误: %v", err)
 	}

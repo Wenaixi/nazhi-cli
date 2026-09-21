@@ -36,9 +36,17 @@ var taskSubmitCmd = &cobra.Command{
 			return
 		}
 
-		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
+		}
+
+		// I-04：task submit payload 未知顶层键静默忽略会让拼错键名（如 imagePath
+		// 单数）图片不上传仍照常发请求。解码前校验键集合，未知键以参数错误拒绝
+		// （400/exit3），对齐 user update 的 unknownUserUpdateKeys 模式。
+		if unknown := unknownTaskInputKeys(payloadBytes); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi task submit --help）", unknown))
 			return
 		}
 

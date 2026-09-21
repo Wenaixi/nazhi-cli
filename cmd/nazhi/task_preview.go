@@ -36,7 +36,7 @@ hours 在任务预设 >0 且用户留空时自动填充；pictureList 只含 Ima
 			printParamError(err)
 			return
 		}
-		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return

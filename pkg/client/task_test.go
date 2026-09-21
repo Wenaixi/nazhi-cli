@@ -263,6 +263,26 @@ func TestParseHours_RejectsNonFinite(t *testing.T) {
 	}
 }
 
+// I-02：parseHours 只拒绝 NaN/Inf，负数直接上 wire payload.Hours=-5。
+// 学时不可能为负，负数属于调用方输入错误，应与非法/非有限同族拒绝。
+func TestParseHours_RejectsNegative(t *testing.T) {
+	for _, input := range []string{"-1", "-0.5", "-5", "-1e3"} {
+		t.Run(input, func(t *testing.T) {
+			_, err := parseHours(input, 1.5, 6)
+			if err == nil {
+				t.Fatalf("负 hours %q 应返回 error", input)
+			}
+			if !errors.Is(err, ErrInvalidPayload) {
+				t.Fatalf("应 errors.Is(ErrInvalidPayload)，实际: %v", err)
+			}
+		})
+	}
+	// -0 是合法的零，不应被误拒（与 ParseFloat 语义一致）
+	if got, err := parseHours("-0", 1.5, 6); err != nil || got != 0 {
+		t.Fatalf("-0 应解析为 0 放行，实际 got=%v err=%v", got, err)
+	}
+}
+
 // TestParseHours_EmptyFallsBackWhenMetaPositive 空串且任务预设 >0 → 用元数据（前端只读自动填）。
 func TestParseHours_EmptyFallsBackWhenMetaPositive(t *testing.T) {
 	got, err := parseHours("  ", 2.5, 6)

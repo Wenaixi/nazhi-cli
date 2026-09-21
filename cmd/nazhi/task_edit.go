@@ -42,9 +42,15 @@ var taskEditCmd = &cobra.Command{
 			return
 		}
 
-		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
+		}
+
+		// I-04：task edit payload 未知顶层键同款拒绝（对齐 task submit / user update）。
+		if unknown := unknownTaskInputKeys(payloadBytes); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi task edit --help）", unknown))
 			return
 		}
 

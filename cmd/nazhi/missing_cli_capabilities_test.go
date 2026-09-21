@@ -50,12 +50,12 @@ func TestTypicalCaseDeleteBatchCommandRegistered(t *testing.T) {
 
 // TestParseTypicalCaseBatchIDs 验证批量删除 payload 的数组边界。
 func TestParseTypicalCaseBatchIDs(t *testing.T) {
-	valid, err := parseTypicalCaseBatchIDs(`[1,2,3]`)
+	valid, err := parseTypicalCaseBatchIDs(context.Background(), `[1,2,3]`)
 	if err != nil || len(valid) != 3 || valid[0] != 1 || valid[2] != 3 {
 		t.Fatalf("合法 ID 数组解析错误: ids=%v err=%v", valid, err)
 	}
 	for _, raw := range []string{"null", "{}", "[]", "[0]", "[-1]", "[1.5]", "[" + `"1"` + "]"} {
-		if _, err := parseTypicalCaseBatchIDs(raw); err == nil {
+		if _, err := parseTypicalCaseBatchIDs(context.Background(), raw); err == nil {
 			t.Errorf("非法批量 ID payload 应失败: %s", raw)
 		}
 	}

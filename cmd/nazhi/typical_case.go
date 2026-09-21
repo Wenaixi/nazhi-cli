@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strconv"
@@ -46,7 +47,7 @@ var typicalCaseSubmitCmd = &cobra.Command{
 			return
 		}
 
-		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
@@ -93,11 +94,12 @@ var typicalCaseListCmd = &cobra.Command{
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		status, _ := cmd.Flags().GetInt("status")
 		// 分页参数非负守卫：与 honor list / circle_metadata.go:83-89 纪律对齐。
+		// 0 同样非法（I-03 对齐 ≤0 拒绝），避免发出 pageNo=0 请求。
 		// status 合法值为 0/1/2/3（0 未审核 / 1 通过 / 2 驳回 / 3 全部·默认，前端 classiccanter.vue el-option 相同）。
 		// status=-1 虽非法，但为避免破坏现有用户脚本（可能用 -1 表达「全部」），
-		// 此处仅拒绝 pageNo/pageSize 负值；status 校验留待服务端。
-		if pageNo < 0 || pageSize < 0 {
-			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为非负整数"))
+		// 此处仅拒绝 pageNo/pageSize 非正数；status 校验留待服务端。
+		if pageNo <= 0 || pageSize <= 0 {
+			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为正整数"))
 			return
 		}
 
@@ -154,7 +156,7 @@ var typicalCaseDeleteBatchCmd = &cobra.Command{
 			printEnvelope(envelope.Error(400, "--payload 为必填"))
 			return
 		}
-		ids, err := parseTypicalCaseBatchIDs(payloadRaw)
+		ids, err := parseTypicalCaseBatchIDs(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
@@ -175,8 +177,8 @@ var typicalCaseDeleteBatchCmd = &cobra.Command{
 }
 
 // parseTypicalCaseBatchIDs 读取并校验批量删除的纯 ID 数组。
-func parseTypicalCaseBatchIDs(raw string) ([]int64, error) {
-	payload, err := parsePayloadFromArg(raw)
+func parseTypicalCaseBatchIDs(ctx context.Context, raw string) ([]int64, error) {
+	payload, err := parsePayloadFromArg(ctx, raw)
 	if err != nil {
 		return nil, err
 	}
@@ -195,6 +197,15 @@ func parseTypicalCaseBatchIDs(raw string) ([]int64, error) {
 	return ids, nil
 }
 
+// typicalCaseUpdateAllowedKeys 是 typical-case update payload 顶层 JSON 的全部允许键：
+// AddTypicalCasePayload 出站 json 键 + SDK UpdateTypicalCase 消费键 + 编辑记录 id。
+// I-06：未知键（如 titel 拼错）此前静默透传服务端被忽略，对齐 user update 拒绝。
+var typicalCaseUpdateAllowedKeys = map[string]struct{}{
+	"id": {}, "title": {}, "type": {}, "typeName": {}, "teacherName": {},
+	"partnerName": {}, "role": {}, "roleName": {}, "remark": {}, "content": {},
+	"level": {}, "levelName": {}, "attachmentId": {}, "attachmentName": {},
+}
+
 // typicalCaseUpdateCmd 表示 nazhi typical-case update 命令。
 var typicalCaseUpdateCmd = &cobra.Command{
 	Use:   "update",
@@ -207,7 +218,7 @@ var typicalCaseUpdateCmd = &cobra.Command{
 			printEnvelope(envelope.Error(400, "--payload 为必填"))
 			return
 		}
-		payloadBytes, err := parseJSONObjectPayload(payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
@@ -215,6 +226,12 @@ var typicalCaseUpdateCmd = &cobra.Command{
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
 			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
+			return
+		}
+		// I-06：typical-case update map payload 未知键静默透传服务端（拼错键名→
+		// 服务端忽略→204 成功但零修改）。与 user update 一致增加未知键拒绝（400/exit3）。
+		if unknown := unknownUpdatePayloadKeys(payloadBytes, typicalCaseUpdateAllowedKeys); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi typical-case update --help）", unknown))
 			return
 		}
 		// 前端编辑提交必然注入记录 id（classiccanter.vue:327），此处对齐契约：
