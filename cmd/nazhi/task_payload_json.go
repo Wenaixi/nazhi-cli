@@ -34,28 +34,31 @@ var taskInputDeprecatedFields = map[string]struct{}{
 // taskInputAllowedKeys 是 task submit/edit payload 顶层 JSON 的全部允许键：
 // TaskInput 消费的 json 键 + 别名对（circleTaskId/pictureList）+ 历史兼容字段。
 // I-04：清晰列出允许集，未知键以参数错误拒绝（对齐 user update）。
+// 注意：键集统一存小写（unknownTaskInputKeys 对用户键 ToLower 后比较），
+// 大小写变体按 findTaskInputField 的 EqualFold 语义天然允许。
 var taskInputAllowedKeys = func() map[string]struct{} {
 	allowed := map[string]struct{}{
-		// TaskInput 消费的普通字段（TaskAddCirclePayload 出站 json 键全集）
-		"id": {}, "name": {}, "hostName": {}, "circleDate": {}, "rank": {},
-		"level": {}, "content": {}, "pictureList": {}, "circleTaskId": {},
-		"circleTypeId": {}, "dimensionId": {}, "hours": {}, "circleBeginDate": {},
-		"circleEndDate": {}, "checkResult": {}, "patentType": {}, "patentNum": {},
-		"address": {}, "termName": {}, "activityName": {}, "sportsName": {},
-		"teamName": {}, "orgName": {}, "resultsName": {}, "obtainTime": {},
-		"specialtyTechnology": {}, "playRole": {}, "likeSpecialty1": {},
-		"likeSpecialty2": {}, "likeSpecialty3": {},
-		// CLI 输入别名（decodeTaskInputJSON 归一）
-		"imagePaths": {}, "imageIDs": {},
+		// TaskInput 消费的普通字段（TaskAddCirclePayload 出站 json 键全集，统一小写）
+		"id": {}, "name": {}, "hostname": {}, "circledate": {}, "rank": {},
+		"level": {}, "content": {}, "picturelist": {}, "circletaskid": {},
+		"circletypeid": {}, "dimensionid": {}, "hours": {}, "circlebegindate": {},
+		"circleenddate": {}, "checkresult": {}, "patenttype": {}, "patentnum": {},
+		"address": {}, "termname": {}, "activityname": {}, "sportsname": {},
+		"teamname": {}, "orgname": {}, "resultsname": {}, "obtaintime": {},
+		"specialtytechnology": {}, "playrole": {}, "likespecialty1": {},
+		"likespecialty2": {}, "likespecialty3": {},
+		// TaskInput 接口消费但非出站 json 键的输入字段（小写）
+		"taskid": {}, "imagepaths": {}, "imageids": {},
 	}
 	for k := range taskInputDeprecatedFields {
-		allowed[k] = struct{}{}
+		allowed[strings.ToLower(k)] = struct{}{}
 	}
 	return allowed
 }()
 
 // unknownTaskInputKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名。
-// 大小写变体按 findTaskInputField 语义允许（normalize 后比较允许集）。
+// 允许集统一小写存储，用户键 ToLower 后比较（大小写变体不视为未知键，
+// 与 findTaskInputField 的 EqualFold 解码语义一致）。
 func unknownTaskInputKeys(payloadBytes []byte) []string {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(payloadBytes, &top); err != nil {

@@ -63,10 +63,10 @@ func TestTaskSubmit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	if pendingExitCode.Load() != 3 {
 		t.Errorf("未知键应走参数错误退出码 3，实际 %d", pendingExitCode.Load())
 	}
-	if !strings.Contains(stdout.String(), `"code": 400`) && !strings.Contains(stderr.String(), `"code": 400`) {
+	if !strings.Contains(stdout.String()+stderr.String(), `"code": 400`) {
 		t.Errorf("应输出 400 参数错误 envelope，实际 stdout=%s stderr=%s", stdout.String(), stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "未知键") && !strings.Contains(stderr.String(), "未知键") {
+	if !strings.Contains(stdout.String()+stderr.String(), "未知键") {
 		t.Errorf("应含未知键提示，实际 stdout=%s stderr=%s", stdout.String(), stderr.String())
 	}
 }
@@ -103,10 +103,10 @@ func TestTaskEdit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	if pendingExitCode.Load() != 3 {
 		t.Errorf("未知键应走参数错误退出码 3，实际 %d", pendingExitCode.Load())
 	}
-	if !strings.Contains(stdout.String(), `"code": 400`) && !strings.Contains(stderr.String(), `"code": 400`) {
+	if !strings.Contains(stdout.String()+stderr.String(), `"code": 400`) {
 		t.Errorf("应输出 400 参数错误 envelope，实际 stdout=%s stderr=%s", stdout.String(), stderr.String())
 	}
-	if !strings.Contains(stdout.String(), "未知键") && !strings.Contains(stderr.String(), "未知键") {
+	if !strings.Contains(stdout.String()+stderr.String(), "未知键") {
 		t.Errorf("应含未知键提示，实际 stdout=%s stderr=%s", stdout.String(), stderr.String())
 	}
 }
