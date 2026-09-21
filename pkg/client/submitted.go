@@ -130,6 +130,15 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	if capacity > maxTotalPage*pageSize {
 		capacity = maxTotalPage * pageSize
 	}
+	// I-01：capacity 双重钳制——先按服务端 totalNum，再按"条数上界"（约 10 万条，
+	// 与 assembleBufferCapHint 的字节预算同纪律，防恶意 totalNum 驱动 make 分配 GB 级内存）。
+	// 注意：pageSize 是调用方可调大的（WithSubmittedPageSize 10 万），仅页数×pageSize
+	// 的钳制会随 pageSize 膨胀到 1e9 条，条数上界是与其解耦的独立第二道闸。
+	const maxSubmittedRecords = 100_000
+	if capacity > maxSubmittedRecords {
+		slog.Warn("submitted: 记录数超过条数上界，截断到首页", "capacity", capacity, "max", maxSubmittedRecords)
+		return page1, nil
+	}
 	all := make([]types.CircleRecord, len(page1), capacity)
 	copy(all, page1)
 
