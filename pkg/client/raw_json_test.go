@@ -209,8 +209,9 @@ func TestGetSubmittedCirclesJSON_ContextCancel(t *testing.T) {
 	}
 	defer c.Close()
 
-	// 80ms 后取消，足以让 page1 拿到，但 page2 sleep 500ms 会被 ctx 截断
-	ctx, cancel := context.WithTimeout(context.Background(), 80*time.Millisecond)
+	// 窗口须覆盖 4 步 session 预热（/ getMenu×2 getMyInfo）往返后才轮到 page1，
+	// 且必须 < 500ms 延迟页才能触发 page2 cancel；80–100ms 在 CI 并行满负载下会被前置预热 RTT 吃掉（Cycle 97 记录的 flaky）。
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 
 	raw, err := c.GetSubmittedCirclesJSON(ctx, "test-token", "")
@@ -561,8 +562,9 @@ func TestGetCirclesJSON_BufferAssemblyConsistency(t *testing.T) {
 	}
 	defer c.Close()
 
-	// 用短超时的 ctx，让第二页的延迟触发超时
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	// 用短超时的 ctx，让第二页的延迟触发超时。
+	// 窗口须覆盖 4 步预热 + page1 往返且 < 500ms 延迟页（对齐 :213 窗口口径，80–100ms 会被预热 RTT 吃掉）。
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 
 	raw, err := c.GetSubmittedCirclesJSON(ctx, "test-token", "")
@@ -644,8 +646,9 @@ func TestGetCirclesLimitJSON_ConcurrentPagination(t *testing.T) {
 	}
 	defer c.Close()
 
-	// 用短超时的 ctx，让第二页的延迟触发超时
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	// 用短超时的 ctx，让并发翻页在第二页返回前超时。
+	// 窗口须覆盖 4 步预热 + page1 往返且 < 500ms 延迟页（对齐 :213 窗口口径，80–100ms 会被预热 RTT 吃掉）。
+	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 
 	// offset=0, limit=4 表示全量，应该触发翻页
