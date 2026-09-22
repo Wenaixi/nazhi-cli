@@ -28,8 +28,6 @@
 //   - 3: 参数错误 (400)
 package envelope
 
-import "encoding/json"
-
 // Status 是 envelope 的状态字段。
 type Status string
 
@@ -95,9 +93,4 @@ func Partial(code int, msg string, data any) *Envelope {
 // Error 构造错误 envelope。
 func Error(code int, msg string) *Envelope {
 	return &Envelope{Status: StatusError, Code: code, Message: msg, Data: nil}
-}
-
-// Marshal 返回两空格缩进的 JSON 编码。
-func (e *Envelope) Marshal() ([]byte, error) {
-	return json.MarshalIndent(e, "", "  ")
 }
