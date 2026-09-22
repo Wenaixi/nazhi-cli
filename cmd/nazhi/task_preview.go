@@ -41,6 +41,15 @@ hours 在任务预设 >0 且用户留空时自动填充；pictureList 只含 Ima
 			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
 			return
 		}
+
+		// I3-01：与 task submit/edit 同族入口共用未知键白名单——拼错键（如 imagePath
+		// 单数）在 preview 此前静默丢弃、submit/edit 却 400 拒绝，两套契约让用户在
+		// 真正提交时才被拒。解码前校验键集合，未知键以参数错误拒绝（400/exit3）。
+		if unknown := unknownTaskInputKeys(payloadBytes); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi task preview --help）", unknown))
+			return
+		}
+
 		if isEdit {
 			input, err := decodeTaskEditInput(payloadBytes)
 			if err != nil {
