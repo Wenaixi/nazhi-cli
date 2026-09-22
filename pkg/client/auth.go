@@ -18,9 +18,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// ─── Login ───
-
-// md5Hex 计算小写十六进制 MD5（与官方五育 APK hex_md5 一致）。
+// ─── GetSchoolID ───
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
 func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.SchoolInfo, error) {
