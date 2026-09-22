@@ -10,6 +10,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// maxPageSize 是 honor list / typical-case list 的 page-size 上界。
+// 对齐 pkg/client/request.go:73 defaultSubmittedPageSize=500（实测服务端
+// pageSize 上限 500），超限以参数错误拒绝而非透传让服务端静默截断
+// （C-04 修复；常量在 page_size_cap_test.go 也引用，同源测试锁定）。
+const maxPageSize = 500
+
 // honorCmd 表示 nazhi honor 父命令，下辖 8 个子命令：
 //
 //	types / list / add / delete / update / levels / type-options / level-options

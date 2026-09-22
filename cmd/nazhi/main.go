@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/Wenaixi/nazhi-cli/internal/version"
@@ -43,6 +45,15 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
+	// N-01：SIGINT/SIGTERM → context 取消。cobra Execute 用 rootCmd.Context()，
+	// PersistentPreRun 从 cmd.Context() 派生——信号到达后 Run 回调内的网络
+	// 调用（含 --payload - 的 stdin 挂起）能感知 ctx.Done 提前中止，而不是
+	// Go 默认直接杀进程跳过 closeAllClients（keep-alive 泄漏）。
+	// 根 ctx 在 rootCmd.SetContext 注册，子命令 Run 经 cmd.Context() 继承。
+	sigCtx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	rootCmd.SetContext(sigCtx)
+
 	// 顶层 panic recover 契约：panic 经 printError 输出 JSON envelope 并以
 	// 退出码 2（printError 默认 HTTP 500 → ExitCode=2 服务端错误档）退出，
 	// 同时 debug.Stack() 写 stderr 辅助定位。

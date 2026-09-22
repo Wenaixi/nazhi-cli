@@ -15,11 +15,7 @@ import (
 // 以错误的 pageSize 计算页数，拿到截断数据却不自知。
 // 修复：参数层钳制 pageSize<=500（对齐 SDK defaultSubmittedPageSize 纪律），
 // 超限以参数错误拒绝（400/exit3），与现有 ≤0 拒绝语义同族。
-
-// maxPageSize 是 honor list / typical-case list 的 page-size 上界。
-// 对齐 pkg/client/request.go:73 defaultSubmittedPageSize=500（实测服务端
-// pageSize 上限 500），超限以参数错误拒绝而非透传让服务端静默截断。
-const maxPageSize = 500
+// 常量定义已上提 honor.go（Cmd 包共享），本文件引用同源锁定。
 
 // pageSizeListTestCmd 创建带通用业务参数与指定 page-size 的 list 测试命令。
 func pageSizeListTestCmd(t *testing.T, baseURL, pageSize string) *cobra.Command {

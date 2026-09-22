@@ -111,3 +111,32 @@ func TestAssembleCirclesJSON_CapHintClamped(t *testing.T) {
 		t.Fatal("結果不應為空")
 	}
 }
+
+// N-04：capAssembledSlice 对多页累积原始字节做总量预算判定——首页 4MB +
+// 每页 4MB 连续多页累积越过 64MB 预算即返回 true（防攻陷服务端报
+// 10000 页×4MB≈40GB 渐进填充进程内累积）。
+func TestCapAssembledSlice_BudgetExceeded(t *testing.T) {
+	// 首页 1 页满 4MB
+	raw1 := bytes.Repeat([]byte("x"), maxResponseBodySize)
+	// 20 页每页 4MB → 累积 80MB > 64MB 预算
+	results := make([]rawResult, 21)
+	for i := 2; i <= 20; i++ {
+		results[i] = rawResult{raw: bytes.Repeat([]byte("y"), maxResponseBodySize)}
+	}
+	if !capAssembledSlice(raw1, results, 20) {
+		t.Fatalf("累积 80MB 应越过 64MB 预算（N-04 未生效）")
+	}
+	if got := cumulativeSliceBytes(raw1, results, 20); got != 20*maxResponseBodySize {
+		t.Fatalf("cumulativeSliceBytes = %d, want %d", got, 20*maxResponseBodySize)
+	}
+	// 小量翻页不误伤：仅首页 + 2 页小数据
+	small := make([]rawResult, 3)
+	small[2] = rawResult{raw: []byte(`[{"id":1}]`)}
+	if capAssembledSlice(raw1, small, 2) {
+		t.Fatal("小量累积不应被误判超预算")
+	}
+	// 页号越界不 panic
+	if capAssembledSlice(raw1, small, 100) {
+		t.Fatal("越界页号应安全返回（不越界访问 results）")
+	}
+}

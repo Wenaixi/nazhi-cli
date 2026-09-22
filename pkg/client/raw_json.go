@@ -44,6 +44,27 @@ const maxTotalPage = 10000
 // + 虚高 totalNum 驱动单请求 OOM。64MB 足够覆盖任何真实拼接输出。
 const maxAssembleBuffer = 64 << 20
 
+// capAssembledSlice 对已累积的 rawResult 切片做总量预算截断（N-04）。
+// getCirclesJSON/getCirclesLimitJSON 翻页时把每页原始字节累积进 results，
+// 预算只覆盖预分配容量（assembleBufferCapHint），累积量（页数×每页实际
+// 字节）无上界——服务端报 10000 页×4MB≈40GB 渐进填充。超出预算返回 true，
+// 调用方截断到已合并合法前缀。
+func capAssembledSlice(raw1 []byte, results []rawResult, untilPage int) bool {
+	if untilPage < 1 {
+		return false
+	}
+	return cumulativeSliceBytes(raw1, results, untilPage) > maxAssembleBuffer
+}
+
+// cumulativeSliceBytes 统计 raw1 到 untilPage 的原始字节累积总量。
+func cumulativeSliceBytes(raw1 []byte, results []rawResult, untilPage int) int {
+	total := len(raw1)
+	for pn := 2; pn <= untilPage && pn < len(results); pn++ {
+		total += len(results[pn].raw)
+	}
+	return total
+}
+
 // isNullJSON 判断一段原始 JSON 是否为 null 形态：字面 null 或字符串 "null"。
 // 平台偶发把空列表序列化为 dataList:"null"（字符串），字面 null 在解码层已折叠为
 // nil 指针，这里统一识别两种形态，归一为 nil 让调用方走空值契约（[] 或 fallback）。
@@ -290,6 +311,15 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 		return raw, pb, assembleErr
 	}
 
+	// N-04：页面累积原始字节越过 maxAssembleBuffer 预算时截断到已合并
+	// 前缀（对齐 submitted 条数闸的语义；这里按字节而非条数判）。
+	if capAssembledSlice(raw1, results, declaredPages) {
+		slog.Warn("raw_json: 多页累积量超过合并预算，截断到已合并前缀",
+			"total_bytes", cumulativeSliceBytes(raw1, results, declaredPages), "max", maxAssembleBuffer)
+		raw, assembleErr := assembleCirclesJSON(raw1, results, declaredPages, nil)
+		return raw, pb, assembleErr
+	}
+
 	raw, assembleErr := assembleCirclesJSON(raw1, results, declaredPages, nil)
 	return raw, pb, assembleErr
 }
@@ -344,9 +374,15 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 		endPage = 1
 	}
 
-	// 多页：预分配索引切片 + errgroup 并发翻页，保持页号顺序
+	// N-04：预先按页数×单页字节估算累计量是否越预算——越界直接截断到
+	// 首页（防放大优先于精确分页完整性），避免翻页把几十 GB 累积进内存。
 	results := make([]rawResult, endPage+1)
 	results[1] = rawResult{raw: raw1}
+	if endPage > 1 && capAssembledSlice(raw1, results, endPage) {
+		slog.Warn("raw_json: limit 翻页预估累积量超过合并预算，截断到首页",
+			"estimated_bytes", cumulativeSliceBytes(raw1, results, endPage), "max", maxAssembleBuffer)
+		endPage = 1
+	}
 
 	if endPage > 1 {
 		g, gctx := errgroup.WithContext(ctx)
