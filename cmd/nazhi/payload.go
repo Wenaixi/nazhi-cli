@@ -92,6 +92,9 @@ func PayloadPositiveIDValid(payload map[string]any) bool {
 // unknownUpdatePayloadKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名（稳定排序）。
 // 与 unknownUserUpdateKeys 同构；I-04/I-06 让 honor/typical-case update 与 user update
 // 共享同一未知键拒绝语义。
+// N-08：允许集统一小写存储，用户键 ToLower 后比较——与 task 族
+// unknownTaskInputKeys（task_payload_json.go）的 EqualFold 语义对齐，
+// 避免用户传 CERTIMGATTACHMENTID/Telephone 等大小写变体被误拒。
 func unknownUpdatePayloadKeys(payloadBytes []byte, allowed map[string]struct{}) []string {
 	var top map[string]json.RawMessage
 	if err := json.Unmarshal(payloadBytes, &top); err != nil {
@@ -99,7 +102,7 @@ func unknownUpdatePayloadKeys(payloadBytes []byte, allowed map[string]struct{}) 
 	}
 	var unknown []string
 	for k := range top {
-		if _, ok := allowed[k]; !ok {
+		if _, ok := allowed[strings.ToLower(k)]; !ok {
 			unknown = append(unknown, k)
 		}
 	}

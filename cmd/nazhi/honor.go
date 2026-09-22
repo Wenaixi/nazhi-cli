@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 
@@ -61,8 +60,19 @@ var honorTypesCmd = &cobra.Command{
 // I-06：未知键（如 evaluationAgencyX 拼错）此前静默透传服务端被忽略，
 // 对齐 user update 用 unknownUpdatePayloadKeys 拒绝。
 var honorUpdateAllowedKeys = map[string]struct{}{
-	"id": {}, "name": {}, "typeId": {}, "typeName": {}, "level": {},
-	"evaluationAgency": {}, "getDate": {}, "certImgAttachmentId": {}, "score": {},
+	// 键统一小写存储，unknownUpdatePayloadKeys 对用户键 ToLower 后比较
+	// （N-08 与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
+	"id": {}, "name": {}, "typeid": {}, "typename": {}, "level": {},
+	"evaluationagency": {}, "getdate": {}, "certimgattachmentid": {}, "score": {},
+}
+
+// honorAddAllowedKeys 是 honor add payload 顶层 JSON 的全部允许键
+// （AddHonorPayload 出站 json 键全集）。N-07：honor add 此前按 struct
+// 反序列化静默丢弃未知顶层键，拼错键名（如 typeid → 服务端忽略）会
+// 204 报成功但零申报——与 update 同款拒绝（400/exit3）。
+var honorAddAllowedKeys = map[string]struct{}{
+	"name": {}, "typeid": {}, "typename": {}, "level": {},
+	"evaluationagency": {}, "getdate": {}, "certimgattachmentid": {}, "score": {},
 }
 
 // honorListCmd 表示 nazhi honor list 命令
@@ -143,14 +153,28 @@ getDate 示例用纯日期仅为可读性；前端实际提交 ISO 8601 时间�
 			return
 		}
 
-		payload, err := parseAddHonorPayload(cmd.Context(), payloadRaw)
+		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
 		if err != nil {
-			printParamError(err)
+			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
+			return
+		}
+
+		// N-07：honor add 此前按 struct 反序列化静默丢弃未知顶层键——
+		// 拼错键名（如 typeid 而非 typeId）服务端忽略该键，204 报成功
+		// 但申报零字段。与 honor update / task submit 同款未知键拒绝。
+		if unknown := unknownUpdatePayloadKeys(payloadBytes, honorAddAllowedKeys); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi honor add --help）", unknown))
+			return
+		}
+
+		var payload types.AddHonorPayload
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
 			return
 		}
 
 		printVerbose("正在申报荣誉...")
-		if err := c.AddHonor(cmd.Context(), token, *payload); err != nil {
+		if err := c.AddHonor(cmd.Context(), token, payload); err != nil {
 			printError(fmt.Errorf("申报荣誉失败: %w", err))
 			return
 		}
@@ -279,21 +303,6 @@ var honorLevelsCmd = &cobra.Command{
 		}
 		printEnvelope(envelope.Success(opts))
 	},
-}
-
-// parseAddHonorPayload 从命令行参数解析 AddHonorPayload JSON。
-// 委托 parseJSONObjectPayload 处理 @file.json / - / 原始字符串，并校验顶层对象。
-// honor add 的 Run 已持有 cmd.Context()，透传以防 stdin 分支丢失取消语义。
-func parseAddHonorPayload(ctx context.Context, raw string) (*types.AddHonorPayload, error) {
-	payloadBytes, err := parseJSONObjectPayload(ctx, raw)
-	if err != nil {
-		return nil, fmt.Errorf("读取 payload 失败: %w", err)
-	}
-	var payload types.AddHonorPayload
-	if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-		return nil, fmt.Errorf("解析 payload JSON 失败: %w", err)
-	}
-	return &payload, nil
 }
 
 func init() {

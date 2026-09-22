@@ -59,6 +59,14 @@ var typicalCaseSubmitCmd = &cobra.Command{
 			return
 		}
 
+		// N-07：typical-case submit 与 honor add 同款未知键拒绝——struct
+		// 反序列化静默丢弃未知顶层键，拼错键名（如 titlee）服务端忽略，
+		// 204 报成功但提交零字段。
+		if unknown := unknownUpdatePayloadKeys(payloadBytes, typicalCaseAddAllowedKeys); len(unknown) > 0 {
+			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi typical-case submit --help）", unknown))
+			return
+		}
+
 		printVerbose("正在提交典型案例...")
 		if err := c.AddTypicalCase(cmd.Context(), token, payload); err != nil {
 			printError(fmt.Errorf("提交典型案例失败: %w", err))
@@ -209,9 +217,21 @@ func parseTypicalCaseBatchIDs(ctx context.Context, raw string) ([]int64, error) 
 // AddTypicalCasePayload 出站 json 键 + SDK UpdateTypicalCase 消费键 + 编辑记录 id。
 // I-06：未知键（如 titel 拼错）此前静默透传服务端被忽略，对齐 user update 拒绝。
 var typicalCaseUpdateAllowedKeys = map[string]struct{}{
-	"id": {}, "title": {}, "type": {}, "typeName": {}, "teacherName": {},
-	"partnerName": {}, "role": {}, "roleName": {}, "remark": {}, "content": {},
-	"level": {}, "levelName": {}, "attachmentId": {}, "attachmentName": {},
+	// 键统一小写存储，unknownUpdatePayloadKeys 对用户键 ToLower 后比较
+	// （N-08 与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
+	"id": {}, "title": {}, "type": {}, "typename": {}, "teachername": {},
+	"partnername": {}, "role": {}, "rolename": {}, "remark": {}, "content": {},
+	"level": {}, "levelname": {}, "attachmentid": {}, "attachmentname": {},
+}
+
+// typicalCaseAddAllowedKeys 是 typical-case submit payload 顶层 JSON 的全部
+// 允许键（AddTypicalCasePayload 出站 json 键全集）。N-07：submit 此前按 struct
+// 反序列化静默丢弃未知顶层键，拼错键名（如 titlee）服务端忽略零字段——
+// 与 update 同款拒绝（400/exit3）。
+var typicalCaseAddAllowedKeys = map[string]struct{}{
+	"title": {}, "type": {}, "typename": {}, "teachername": {},
+	"partnername": {}, "role": {}, "rolename": {}, "remark": {}, "content": {},
+	"level": {}, "levelname": {}, "attachmentid": {}, "attachmentname": {},
 }
 
 // typicalCaseUpdateCmd 表示 nazhi typical-case update 命令。
