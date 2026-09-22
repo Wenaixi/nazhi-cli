@@ -3,6 +3,7 @@ package main
 import (
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
@@ -32,7 +33,9 @@ var loginCmd = &cobra.Command{
 		username := applyURLFlag(cmd, "username", "NAZHI_USERNAME")
 		password := applyURLFlag(cmd, "password", "NAZHI_PASSWORD")
 
-		if username == "" || password == "" {
+		// N-10：空白串用户名/密码校验——纯空格字符串在 trim 后为空，
+		// 直接拒绝避免原样上送 SSO（与 task submit/edit 的 trim 校验同族）。
+		if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
 			printEnvelope(envelope.Error(400, "--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
 			return
 		}

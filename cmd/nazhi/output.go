@@ -132,7 +132,9 @@ func rejectLoneOffset(cmd *cobra.Command) bool {
 	offset, _ := cmd.Flags().GetInt("offset")
 	limit, _ := cmd.Flags().GetInt("limit")
 	if (offset > 0 && limit <= 0) || offset < 0 || limit < 0 {
-		printEnvelope(envelope.Error(400, "--offset 需为非负数且配合 --limit 使用（非法 --offset/--limit 会被忽略或归零，拒绝静默返回错误数据）"))
+		// N-04：违规参数可能是 --limit 负值而非 --offset——文案必须同时点名两个
+		// 参数，避免用户只看到 "--offset" 却摸不着为什么 --limit -1 也被拒。
+		printEnvelope(envelope.Error(400, "--offset/--limit 需为非负数且 offset 仅配合 --limit 使用（非法取值会被忽略或归零，拒绝静默返回错误数据）"))
 		return true
 	}
 	return false

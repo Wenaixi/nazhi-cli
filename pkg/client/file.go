@@ -470,7 +470,10 @@ func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 	}
 	if written == 0 {
 		_ = osRemove(dst)
-		return fmt.Errorf("%w: 服务端返回 0 字节", ErrNetwork)
+		// N-03：200+0 字节是永久性条件（空附件/服务端没给内容），不是瞬时网络
+		// 故障——归 ErrInvalidResponse（exit1/422 不可重试语义）而非 ErrNetwork
+		// （exit2/可重试）。此前脚本对同一空附件按 ErrNetwork 无限重试。
+		return fmt.Errorf("%w: 服务端返回 0 字节", ErrInvalidResponse)
 	}
 	return nil
 }

@@ -145,6 +145,15 @@ func TestDownloadFile_RejectsZeroBytes(t *testing.T) {
 	if !strings.Contains(err.Error(), "0 字节") {
 		t.Errorf("错误信息应含 '0 字节'，实际: %v", err)
 	}
+	// N-03：200+0 字节是永久性条件（空附件），必须归 ErrInvalidResponse
+	// （exit1/422 不可重试）而非 ErrNetwork（exit2/可重试）——同一空附件
+	// 此前被判可重试，脚本无限重试。
+	if !errors.Is(err, ErrInvalidResponse) {
+		t.Errorf("0 字节应归 ErrInvalidResponse（永久），实际: %v", err)
+	}
+	if errors.Is(err, ErrNetwork) {
+		t.Errorf("0 字节不应归 ErrNetwork（非网络故障），实际: %v", err)
+	}
 	// dst 必须不存在（半成品已删除）
 	if _, statErr := os.Stat(dst); statErr == nil {
 		t.Errorf("0 字节响应不应留下 dst 文件: %v", dst)
