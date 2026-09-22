@@ -31,6 +31,9 @@ var rootCmd = &cobra.Command{
 	提供登录、任务管理、自我评价、文件上传等完整功能。
 	所有命令输出 JSON 格式，便于脚本解析。`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// SD-2：--quiet 经 recoverx.SetQuiet 传播到 pkg/client recover 路径
+		// （fetchTasksForDimensionSafe/safeOCRRecognize 无法感知 CLI flag）。
+		recoverx.SetQuiet(quiet)
 		tid := logx.NewTraceID()
 		parent := cmd.Context()
 		if parent == nil {
