@@ -66,7 +66,6 @@ func TestSubmitTask_AutoActivatesSession(t *testing.T) {
 		client.WithSSOBase(srv.URL),
 		client.WithBaseURL(srv.URL),
 		client.WithTimeout(5*time.Second),
-		client.WithCustomOCR(&mockOCR{text: "AB12"}),
 	)
 
 	// 关键：直接调 SubmitTask，**不**先调 FetchTasks

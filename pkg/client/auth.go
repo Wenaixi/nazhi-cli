@@ -3,34 +3,24 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
 	"strconv"
-	"sync/atomic"
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/Wenaixi/nazhi-cli/pkg/tokenparse"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
-	"golang.org/x/sync/errgroup"
 )
 
-// ─── InitSession ───
+// ─── Login ───
 
-// InitSession 访问登录页建立 JSESSIONID Cookie。
-// 内部流程中自动调用，一般不需要外部显式调用。
-func (c *Client) InitSession(ctx context.Context) error {
-	u := c.ssoURL("/uiStudentLogin/login", nil)
-	if _, err := c.doBizGet(ctx, u, c.ssoHeaders()); err != nil {
-		return fmt.Errorf("InitSession 失败: %w", err)
-	}
-	return nil
-}
-
-// ─── GetSchoolID ───
+// md5Hex 计算小写十六进制 MD5（与官方五育 APK hex_md5 一致）。
 
 // GetSchoolID 根据学号查询学校 ID 和学校名称。
 func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.SchoolInfo, error) {
@@ -90,74 +80,44 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 
 // ─── Login ───
 
-const (
-	// maxOCRImagesTotal 是总 OCR 尝试次数上限。
-	// 视觉识别器对同图结果通常稳定，失败时每次尝试都更换验证码图片。
-	// 多数场景 1-3 张即可成功。
-	maxOCRImagesTotal        = 9
-	expiresFallbackThreshold = 1 * time.Hour
-)
+// md5Hex 计算小写十六进制 MD5（与官方五育 APK hex_md5 一致）。
+func md5Hex(s string) string {
+	sum := md5.Sum([]byte(s))
+	return hex.EncodeToString(sum[:])
+}
 
-// ocrTimeout 是 OCR 自动超时时长。
-// 定义为 var 而非 const，允许测试中覆写以加速测试。
-var ocrTimeout = 120 * time.Second
-
-// Login 完成 SSO 登录并返回 Token。
+// Login 完成五育活动端免验证码登录并返回 Token。
 //
-// GetSchoolID 与 OCR 验证码识别无数据依赖，通过 errgroup 并发执行。
-// InitSession 必须在两者之前完成（需要先建立 JSESSIONID Cookie）。
+// 登录流程：
+//   - 若请求未携带 SchoolID，先通过匿名接口 GetSchoolID 自动推断；
+//   - 密码本地计算 MD5（hex_md5 口径，与官方 APK 一致）后，
+//     POST /uiActivityLogin/studentLogin 免验证码直签 JWT；
+//   - 解析 returnData.token 并同步到 cookie jar。
+//
+// 该端点无验证码、无 ticket；与主站 X-Auth-Token 同认证体系。
 func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.LoginResponse, error) {
-	if c.ocr == nil {
-		return nil, ErrOCRNotConfigured
-	}
 	if c.http == nil {
 		return nil, fmt.Errorf("Login 失败: HTTP 客户端为 nil，无法发送请求")
 	}
 
-	// 步骤 1: InitSession（串行前置，必须最先建立 JSESSIONID）
-	if err := c.InitSession(ctx); err != nil {
-		return nil, fmt.Errorf("Login InitSession 失败: %w", err)
-	}
-
-	// 步骤 2&3: GetSchoolID + OCR 识别并发进行（两者无数据依赖）
+	// 步骤 1: 未指定 SchoolID 时自动推断（匿名接口，无验证码前置）
 	schoolID := req.SchoolID
-	var captcha string
-
-	g, gctx := errgroup.WithContext(ctx)
-
 	if schoolID == "" {
-		g.Go(func() error {
-			info, err := c.GetSchoolID(gctx, req.Username)
-			if err != nil {
-				return fmt.Errorf("Login GetSchoolID 失败: %w", err)
-			}
-			schoolID = info.SchoolID
-			return nil
-		})
-	}
-
-	g.Go(func() error {
-		var err error
-		captcha, err = c.ocrRecognizeWithRetry(gctx)
+		info, err := c.GetSchoolID(ctx, req.Username)
 		if err != nil {
-			return fmt.Errorf("Login OCR 自动识别验证码失败: %w", err)
+			return nil, fmt.Errorf("Login GetSchoolID 失败: %w", err)
 		}
-		c.logDebugCtx(ctx, "OCR 识别完成（%d 字符）", len(captcha))
-		return nil
-	})
-
-	if err := g.Wait(); err != nil {
-		return nil, err
+		schoolID = info.SchoolID
 	}
 
 	loginBody := map[string]string{
 		"schoolId": schoolID,
 		"username": req.Username,
-		"password": req.Password,
+		"password": md5Hex(req.Password),
 	}
 
 	httpResp, err := c.rawDoWithResp(ctx, http.MethodPost,
-		c.ssoURL("/teacher/auth/studentLogin/validate", nil),
+		c.ssoURL("/uiActivityLogin/studentLogin", nil),
 		loginBody, c.ssoHeaders(), "",
 	)
 	if err != nil {
@@ -263,120 +223,21 @@ func (c *Client) warnIfExpiresAtFallback(expiresAt time.Time, label string) {
 	remaining := time.Until(expiresAt)
 	// 检测 24h 兜底：remaining ≈24h（22h–25h 区间即视为兜底）。
 	// JWT 自身的 exp（如 14 天）不是 fallback，只有落在该区间才是真兜底。
-	if remaining > tokenparse.DefaultTokenTTL-2*expiresFallbackThreshold &&
-		remaining < tokenparse.DefaultTokenTTL+expiresFallbackThreshold {
+	fallback := 1 * time.Hour
+	if remaining > tokenparse.DefaultTokenTTL-2*fallback &&
+		remaining < tokenparse.DefaultTokenTTL+fallback {
 		c.logger.Warn("Login token 剩余寿命恰好 ≈24h，服务器可能未带 expires_in/exp",
 			"label", label,
 			"remaining", remaining.Round(time.Second),
 			"expiresAt", expiresAt.Format(time.RFC3339))
 		return
 	}
-	if remaining < expiresFallbackThreshold {
+	if remaining < fallback {
 		c.logger.Warn("Login token 已过期或剩余 < 1h，首次业务调用将立即 401",
 			"label", label,
 			"remaining", remaining.Round(time.Second),
 			"expiresAt", expiresAt.Format(time.RFC3339))
 	}
-}
-
-// ─── 验证码内部辅助 ───
-
-func (c *Client) validateCaptcha(ctx context.Context, captcha string) error {
-	bodyBytes, err := c.httpDo(ctx, http.MethodPost,
-		c.ssoURL("/uiStudentLogin/validateCaptcha", nil),
-		map[string]string{"captcha": captcha},
-		c.ssoHeaders(), "",
-	)
-	if err != nil {
-		return fmt.Errorf("验证码预校验请求失败: %w", err)
-	}
-
-	resp, err := decodeOrInvalidResponse("验证码预校验", bodyBytes)
-	if err != nil {
-		return err
-	}
-
-	if err := types.CheckCode(resp); err != nil {
-		// 验证码校验失败属于 Login 流程的错误（不是普通业务 API 拒绝），
-		// 包装 ErrLoginRejected 而非 ErrBusinessRejected，让 SDK 用户
-		// 用 errors.Is(err, ErrLoginRejected) 能命中。
-		return fmt.Errorf("验证码校验失败: %w", errors.Join(ErrLoginRejected, err))
-	}
-
-	return nil
-}
-
-// ocrRecognizeWithRetry 多图多试策略识别验证码。
-//
-// 单通道 OCR：直接用 c.ocr 识别，不分 primary/fallback 级联。
-// 最多尝试 maxOCRImagesTotal 张图，每张图 OCR 一次后立即 validateCaptcha 预校验。
-func (c *Client) ocrRecognizeWithRetry(ctx context.Context) (string, error) {
-	if _, ok := ctx.Deadline(); !ok {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, ocrTimeout)
-		defer cancel()
-	}
-
-	return c.ocrRetryLoop(ctx, c.safeOCRRecognize)
-}
-
-// ocrRetryLoop 执行一轮 OCR 重试循环（最多 maxOCRImagesTotal 张图）。
-// recognizeFn 是实际的识别函数。
-func (c *Client) ocrRetryLoop(ctx context.Context, recognizeFn func([]byte) (string, error)) (string, error) {
-	var lastErr error
-	for imgIdx := 0; imgIdx < maxOCRImagesTotal; imgIdx++ {
-		if ctxErr := ctx.Err(); ctxErr != nil {
-			c.logDebugCtx(ctx, "OCR 循环顶部检测到 ctx cancel（img=%d）: %v", imgIdx+1, ctxErr)
-			return "", fmt.Errorf("OCR 识别被 ctx cancel（已重试 %d 次）: %w", imgIdx, ctxErr)
-		}
-		imgBytes, err := c.fetchCaptchaImage(ctx)
-		if err != nil {
-			lastErr = err
-			c.logDebugCtx(ctx, "OCR 获取第 %d 张验证码失败: %v", imgIdx+1, err)
-			continue
-		}
-		text, err := recognizeFn(imgBytes)
-		switch {
-		case err != nil:
-			lastErr = err
-			c.logDebugCtx(ctx, "OCR 第 %d 张图失败: %v", imgIdx+1, err)
-		case text == "":
-			lastErr = fmt.Errorf("空白结果")
-			c.logDebugCtx(ctx, "OCR 第 %d 张图结果为空白", imgIdx+1)
-		default:
-			c.logDebugCtx(ctx, "OCR 识别成功: img=%d result_len=%d", imgIdx+1, len(text))
-			// 验证码预校验：服务端确认该验证码有效后再返回。
-			// 校验失败（code≠1）不是 OCR 读错了，而是服务端不认这张图的验证码，
-			// 需要换图重试。
-			if err := c.validateCaptcha(ctx, text); err != nil {
-				lastErr = err
-				c.logDebugCtx(ctx, "验证码校验失败(img=%d): %v", imgIdx+1, err)
-				continue
-			}
-			return text, nil
-		}
-	}
-	return "", fmt.Errorf("OCR 识别 %d 张图均失败（共 %d 次尝试），最后错误: %w",
-		maxOCRImagesTotal, maxOCRImagesTotal, lastErr)
-}
-
-var captchaSeq atomic.Int64
-
-// fetchCaptchaImage 拉取一张新的验证码图片。
-//
-// seq 原子计数防缓存碰撞，查询串经 url.Values 编码。
-func (c *Client) fetchCaptchaImage(ctx context.Context) ([]byte, error) {
-	seq := captchaSeq.Add(1)
-	u := c.ssoURL("/kaptcha/kaptcha.jpg", url.Values{"seq": {strconv.FormatInt(seq, 10)}})
-	imgBytes, err := c.doBizGet(ctx, u, c.ssoHeaders())
-	if err != nil {
-		return nil, fmt.Errorf("获取验证码图片失败: %w", err)
-	}
-
-	if len(imgBytes) == 0 {
-		return nil, fmt.Errorf("获取验证码图片响应为空 status=200")
-	}
-	return imgBytes, nil
 }
 
 // ssoURL 拼接 SSO 域名的完整 URL。

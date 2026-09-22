@@ -2,11 +2,11 @@
 //   - Login drain+close 让 keep-alive 池归还连接
 //   - 200/302 路径对称 expiresAt warn + warnSyncCookieToken helper 去重
 //   - tokenparse.ExtractFromLocation 畸形 URL 返回 error（错误传播契约对称）
-//   - captchaSeq atomic 保证验证码 URL 唯一
-//   - tokenparse.ExtractFromFragment URL 解码
-//   - tokenparse.ExtractFromReturnData 解析 expires_in/exp
-//   - Login 200 ReadAll 错误含 status + read 字节数
-//   - stringPtrOr → derefOr 重命名 + nil-safe 语义
+
+// - tokenparse.ExtractFromFragment URL 解码
+// - tokenparse.ExtractFromReturnData 解析 expires_in/exp
+// - Login 200 ReadAll 错误含 status + read 字节数
+// - stringPtrOr → derefOr 重命名 + nil-safe 语义
 package client
 
 import (
@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,19 +40,7 @@ import (
 func TestLogin_200Path_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			// InitSession: 任意 200 即可
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			// 验证码图片: 任意非空字节
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			// 预校验验证码: 业务成功
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 登录: 200 + UnifiedResponse，returnData 含 token 但**无**exp/expires_in
 			// （HAR 验证的现状：server 不带过期信息，200 路径永远走 now+24h 兜底）。
 			// 注意：returnData 是嵌套 JSON 对象（json.RawMessage），不是字符串。
@@ -76,7 +63,6 @@ func TestLogin_200Path_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	resp, err := c.Login(context.Background(), types.LoginRequest{
@@ -116,19 +102,7 @@ func TestLogin_200WithBusinessErrorCode(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			// InitSession: 任意 200 即可
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`<html>ok</html>`))
-		case "/kaptcha/kaptcha.jpg":
-			// 验证码图片: 任意非空字节
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			// 预校验验证码: 业务成功
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 登录: 200 + 业务错误码（关键测试场景）
 			w.WriteHeader(http.StatusOK)
 			_, _ = w.Write([]byte(`{"code":2,"msg":"密码错误"}`))
@@ -146,7 +120,6 @@ func TestLogin_200WithBusinessErrorCode(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.DiscardHandler),
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -165,90 +138,6 @@ func TestLogin_200WithBusinessErrorCode(t *testing.T) {
 	if strings.Contains(err.Error(), "未找到 token") {
 		t.Errorf("错误信息不应是低语义的'未找到 token'，实际: %v", err)
 	}
-}
-
-// ─── auth_captcha_seq_test.go: captchaSeq atomic 唯一性 ───
-
-// TestFetchCaptchaImage_ConcurrentDifferentURLs 验证：8 路 goroutine 并发调用
-// fetchCaptchaImage 拿到 8 个不同的 URL，避免并发 Login 撞同 URL 浪费 OCR 预算。
-// 动机：原版用 time.Now().UnixMilli() 作为 cache-busting 参数，同一毫秒内
-// 并发调用生成完全相同的 URL → 8 路 OCR 拿到同一张验证码图片（同一字符集）→
-// 7 路必失败。
-// 修复后：atomic.Int64 累加 seq 追加到 URL query，URL 唯一性由 atomic 保证。
-func TestFetchCaptchaImage_ConcurrentDifferentURLs(t *testing.T) {
-	// 记录所有进入 mock server 的 URL（含 query string）
-	var (
-		mu   sync.Mutex
-		urls []string
-	)
-	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		mu.Lock()
-		urls = append(urls, r.URL.String())
-		mu.Unlock()
-		w.Header().Set("Content-Type", "image/jpeg")
-		_, _ = w.Write([]byte("fake-jpeg-bytes"))
-	}))
-	defer sso.Close()
-
-	mock := &countMockOCR{failBeforeSuccess: 0, returnText: "ab12"}
-	c := newClientForOCRTest(sso.URL, mock)
-
-	const n = 8
-	var wg sync.WaitGroup
-	start := make(chan struct{})
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			<-start // 8 路同时放行，最大化同毫秒撞车概率
-			if _, err := c.fetchCaptchaImage(context.Background()); err != nil {
-				t.Errorf("fetchCaptchaImage 失败: %v", err)
-			}
-		}()
-	}
-	close(start)
-	wg.Wait()
-
-	mu.Lock()
-	defer mu.Unlock()
-	if len(urls) != n {
-		t.Fatalf("期望 %d 次 fetch，实际 %d", n, len(urls))
-	}
-	seen := make(map[string]bool, n)
-	for _, u := range urls {
-		if seen[u] {
-			t.Errorf("URL 重复: %s", u)
-		}
-		seen[u] = true
-	}
-}
-
-// TestCaptchaSeq_Monotonic 验证 captchaSeq 累加器单调用递增。
-// 防御性测试：未来若有人改回非 atomic 实现（如 sync.Mutex 包裹 int），
-// 此测试会捕获 goroutine 间数据竞争。
-func TestCaptchaSeq_Monotonic(t *testing.T) {
-	const n = 100
-	var seqs [n]int64
-
-	var wg sync.WaitGroup
-	for i := 0; i < n; i++ {
-		wg.Add(1)
-		go func(idx int) {
-			defer wg.Done()
-			seqs[idx] = captchaSeq.Add(1)
-		}(i)
-	}
-	wg.Wait()
-
-	// 验证所有 seq 唯一（atomic.Add 保证）
-	seen := make(map[int64]bool, n)
-	for i, s := range seqs {
-		if seen[s] {
-			t.Errorf("seq %d 重复 (idx=%d)", s, i)
-		}
-		seen[s] = true
-	}
-	_ = atomic.LoadInt64 // touch atomic import even if unused
 }
 
 // ─── auth_drain_test.go: Login drain body 让 keep-alive 池归还连接 ───
@@ -295,8 +184,7 @@ func (rt *readTrackingRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	// Login 走 line 137 错误路径 → defer Close 触发
 	// 修复前：defer 只 Close，剩余 100 字节从未被读 → 连接被强制关闭
 	// 修复后：defer drain 调 io.Copy(io.Discard, body) → 100 字节被读完
-	if strings.Contains(req.URL.Path, "validate") &&
-		!strings.Contains(req.URL.Path, "validateCaptcha") &&
+	if strings.Contains(req.URL.Path, "/uiActivityLogin/studentLogin") &&
 		req.Method == http.MethodPost {
 		body := &readTrackingBody{
 			remaining:   bytes.Repeat([]byte{'D'}, 100),
@@ -347,7 +235,6 @@ func TestLogin_DrainsBody_On200UnexpectedEOFPath(t *testing.T) {
 			Transport: rt,
 		},
 		logger: slog.New(slog.DiscardHandler),
-		ocr:    &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -385,16 +272,7 @@ func TestLogin_DrainsBody_On200UnexpectedEOFPath(t *testing.T) {
 func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 关键：返回 200 + 空对象 {} → json.Unmarshal 成功但无 token 字段
 			w.Header().Set("Content-Type", "application/json")
 			// 返回 returnData=null 让 tokenparse.ExtractFromReturnData 失败
@@ -414,7 +292,6 @@ func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -454,16 +331,7 @@ func TestLogin_200Path_LogsNonJSONBody(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "text/html")
 			_, _ = w.Write([]byte(htmlBody))
 		}
@@ -481,7 +349,6 @@ func TestLogin_200Path_LogsNonJSONBody(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -523,19 +390,7 @@ func TestLogin_302Fallback_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 	// 启动 server：让 validate 路径返回 302 + Location 无 expires
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			// InitSession: 任意 200 即可
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			// 验证码图片: 任意非空字节
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			// 预校验验证码: 业务成功
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 登录: 302 + Location 含 token 但无 expires 参数
 			w.Header().Set("Location", "/homepage?token=jwt-no-expires")
 			w.WriteHeader(http.StatusFound)
@@ -555,7 +410,6 @@ func TestLogin_302Fallback_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	resp, err := c.Login(context.Background(), types.LoginRequest{
@@ -618,8 +472,7 @@ type errAfterBytesRT struct {
 
 func (rt *errAfterBytesRT) RoundTrip(req *http.Request) (*http.Response, error) {
 	atomic.AddInt32(rt.calls, 1)
-	if strings.Contains(req.URL.Path, "validate") &&
-		!strings.Contains(req.URL.Path, "validateCaptcha") &&
+	if strings.Contains(req.URL.Path, "/uiActivityLogin/studentLogin") &&
 		req.Method == http.MethodPost {
 		body := &errAfterBytesBody{
 			remaining: bytes.Repeat([]byte{'X'}, 50),
@@ -667,7 +520,6 @@ func TestLogin_ReadAllError_ContainsStatusAndBytes(t *testing.T) {
 			Transport: rt,
 		},
 		logger: slog.New(slog.DiscardHandler),
-		ocr:    &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -878,22 +730,13 @@ func TestExtractTokenFromReturnData_ExpiresIn_TakesPriorityOverExp(t *testing.T)
 
 // ─── auth_captcha_log_leak_test.go: logDebug 不泄漏验证码原文 ───
 
-// TestLogin_Log_DoesNotLeakCaptcha 验证 Login 流程中 logDebug 不输出验证码原文。
-// 修复前：c.logDebug("OCR 识别结果: %s", captcha) 将验证码明文写入日志。
-// 修复后：只输出长度信息，不输出验证码本身。
+// TestLogin_Log_DoesNotLeakCaptcha 验证 Login 流程中 logDebug 不输出敏感明文。
+// 旧实现曾把验证码明文写入日志；当前登录已无需验证码，改为验证请求日志
+// 不输出 md5 密码或 token 明文。
 func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"code":1,"returnData":{"token":"jwt-test"}}`))
 		}
@@ -905,19 +748,18 @@ func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 		Level: slog.LevelDebug,
 	}))
 
-	const secretCaptcha = "S3CR3T_C4PTCH4_789"
+	const secretPassword = "S3CR3T_PASSWORD_789"
 	c := &Client{
 		ssoBaseURL: srv.URL,
 		baseURL:    srv.URL,
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: secretCaptcha},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "u",
-		Password: "p",
+		Password: secretPassword,
 		SchoolID: "173",
 	})
 	if err != nil {
@@ -925,12 +767,9 @@ func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 	}
 
 	logOutput := logBuf.String()
-	if strings.Contains(logOutput, secretCaptcha) {
-		t.Errorf("FAIL: 日志泄露了验证码原文 %q，日志:\n%s", secretCaptcha, logOutput)
-	}
-	// 正向断言：日志应包含 OCR 相关描述（如"OCR 识别完成"或字符数）
-	if !strings.Contains(logOutput, "OCR 识别") && !strings.Contains(logOutput, "字符") {
-		t.Errorf("日志应输出 OCR 识别相关信息（非明文），实际日志:\n%s", logOutput)
+	// 关键断言：日志不得出现明文密码（Login 不再输出 OCR 明文，但密码是新的敏感面）
+	if strings.Contains(logOutput, secretPassword) {
+		t.Errorf("FAIL: 日志泄露了明文密码 %q，日志:\n%s", secretPassword, logOutput)
 	}
 }
 
@@ -942,16 +781,7 @@ func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 func TestLogin_Log_BodyTruncated(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// non-200 + 长 body → 触发 line 183 logDebug（非预期状态码路径）
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Header().Set("Content-Type", "application/json")
@@ -971,7 +801,6 @@ func TestLogin_Log_BodyTruncated(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -1007,16 +836,7 @@ func TestLogin_Log_BodyTruncated(t *testing.T) {
 func TestLogin_Log_BodyTokenMasked(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "application/json")
 			// 触发 returnData=null 路径（logDebug body=%s 在第 148 行）
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null}`))
@@ -1035,7 +855,6 @@ func TestLogin_Log_BodyTokenMasked(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -1073,16 +892,7 @@ func TestLogin_Log_BodyTokenMasked(t *testing.T) {
 func TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			// 非 JSON body，触发 json.Unmarshal 失败路径（auth.go:134-136）
@@ -1091,7 +901,7 @@ func TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+	c := newClientForLoginTest(srv.URL)
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "u",
@@ -1275,16 +1085,7 @@ func TestDerefOr_NotConfusedWithCmpOr(t *testing.T) {
 func TestLogin_200Path_ExtractTokenError_WrappedWithPercentW(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			// returnData 是 JSON 对象但不含 token 字段 → 触发 tokenparse.ExtractFromReturnData 失败路径（auth.go:151-154）
@@ -1293,7 +1094,7 @@ func TestLogin_200Path_ExtractTokenError_WrappedWithPercentW(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+	c := newClientForLoginTest(srv.URL)
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "u",
@@ -1337,7 +1138,6 @@ func TestLogin_302Path_LocationParseError_WrappedWithPercentW(t *testing.T) {
 			CheckRedirect: noRedirect,
 		},
 		logger: slog.New(slog.DiscardHandler),
-		ocr:    &countMockOCR{returnText: "AB12"},
 	}
 	_, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "u",
@@ -1359,8 +1159,7 @@ func TestLogin_302Path_LocationParseError_WrappedWithPercentW(t *testing.T) {
 type malformedLocationRT struct{}
 
 func (rt *malformedLocationRT) RoundTrip(req *http.Request) (*http.Response, error) {
-	if strings.Contains(req.URL.Path, "validate") &&
-		!strings.Contains(req.URL.Path, "validateCaptcha") &&
+	if strings.Contains(req.URL.Path, "/uiActivityLogin/studentLogin") &&
 		req.Method == http.MethodPost {
 		return &http.Response{
 			StatusCode: http.StatusFound,
@@ -1382,37 +1181,23 @@ func (rt *malformedLocationRT) RoundTrip(req *http.Request) (*http.Response, err
 
 func (rt *malformedLocationRT) Close() error { return nil }
 
-// ─── auth_wrap_test.go: validateCaptcha 错误改用 ErrLoginRejected ───
+// ─── auth_wrap_test.go: 登录业务拒绝归 ErrLoginRejected ───
 
-// TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected 验证 validateCaptcha
-// 返回 code != 1 时，Login 包装的哨兵错误是 ErrLoginRejected 而非
+// TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected 验证登录端点业务拒绝
+// （code≠1）时，Login 包装的哨兵错误是 ErrLoginRejected 而非
 // ErrBusinessRejected。
-//
-// 修复前：errors.Join(ErrBusinessRejected, err) — SDK 用户用
-//
-//	errors.Is(err, ErrLoginRejected) 无法命中。
-//
-// 修复后：errors.Join(ErrLoginRejected, err) — 验证码校验失败属于
-//
-//	Login 流程错误，不是业务 API 拒绝。
 func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "application/json")
-			// code=0：验证码错误，触发 auth.go:206-212 的包装路径
-			_, _ = w.Write([]byte(`{"code":0,"msg":"验证码错误"}`))
+			// code=0：账号或密码不正确，触发 Login 拒绝包装路径
+			_, _ = w.Write([]byte(`{"code":0,"msg":"账号或密码不正确"}`))
 		}
 	}))
 	defer srv.Close()
 
-	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+	c := newClientForLoginTest(srv.URL)
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "u",
@@ -1449,16 +1234,7 @@ func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
 func TestLogin_NullReturnDataWithWhitespace(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 关键:returnData 是 `null`(前后各带一个空格)
 			// 注意:返回的 JSON body 也带空格(模拟真实 server 行为)
 			w.Header().Set("Content-Type", "application/json")
@@ -1467,7 +1243,7 @@ func TestLogin_NullReturnDataWithWhitespace(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c := newClientForOCRTest(srv.URL, &countMockOCR{returnText: "AB12"})
+	c := newClientForLoginTest(srv.URL)
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "u",
@@ -1509,16 +1285,7 @@ func TestLogin_ExpiresAtInPast(t *testing.T) {
 	pastExp := time.Now().Add(-1 * time.Hour).Unix()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// returnData.exp 是过去时间,tokenparse 走 exp 分支
 			w.Header().Set("Content-Type", "application/json")
 			body := fmt.Sprintf(`{"code":1,"msg":"成功","returnData":{"token":"jwt-past-exp","exp":%d}}`, pastExp)
@@ -1538,7 +1305,6 @@ func TestLogin_ExpiresAtInPast(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	resp, err := c.Login(context.Background(), types.LoginRequest{
@@ -1599,16 +1365,7 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 503 + 非 JSON HTML body
 			w.Header().Set("Content-Type", "text/html")
 			w.WriteHeader(http.StatusServiceUnavailable)
@@ -1622,7 +1379,6 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 		baseURL:    srv.URL,
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -1660,16 +1416,7 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 func TestLogin_429_RateLimitedSentinel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			w.WriteHeader(http.StatusTooManyRequests)
 			_, _ = w.Write([]byte("too many requests"))
 		}
@@ -1681,7 +1428,6 @@ func TestLogin_429_RateLimitedSentinel(t *testing.T) {
 		baseURL:    srv.URL,
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -1697,23 +1443,12 @@ func TestLogin_429_RateLimitedSentinel(t *testing.T) {
 	}
 }
 
-// TestLogin_5xx_ServiceUnavailableSentinel 验证 Login 收到 5xx 时返回
-// ErrServiceUnavailable 哨兵，而不是 ErrLoginRejected。
 func TestLogin_5xx_ServiceUnavailableSentinel(t *testing.T) {
 	for _, code := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
 		t.Run(fmt.Sprintf("code_%d", code), func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				switch r.URL.Path {
-				case "/uiStudentLogin/login":
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write([]byte("<html>ok</html>"))
-				case "/kaptcha/kaptcha.jpg":
-					w.WriteHeader(http.StatusOK)
-					_, _ = w.Write([]byte("fake-jpeg-bytes"))
-				case "/uiStudentLogin/validateCaptcha":
-					w.Header().Set("Content-Type", "application/json")
-					_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-				case "/teacher/auth/studentLogin/validate":
+				case "/uiActivityLogin/studentLogin":
 					w.WriteHeader(code)
 					_, _ = w.Write([]byte("server down"))
 				}
@@ -1725,7 +1460,6 @@ func TestLogin_5xx_ServiceUnavailableSentinel(t *testing.T) {
 				baseURL:    srv.URL,
 				uploadURL:  srv.URL,
 				http:       newHTTPClient(),
-				ocr:        &countMockOCR{returnText: "AB12"},
 			}
 
 			_, err := c.Login(context.Background(), types.LoginRequest{
@@ -1756,18 +1490,9 @@ func TestLogin_GetSchoolIDError_DoesNotLeakUsername(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
 		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("boom"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
 		}
 	}))
 	defer srv.Close()
@@ -1777,7 +1502,6 @@ func TestLogin_GetSchoolIDError_DoesNotLeakUsername(t *testing.T) {
 		baseURL:    srv.URL,
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
@@ -1825,7 +1549,6 @@ func TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername(t *testing.T) {
 		baseURL:    srvURL,
 		uploadURL:  srvURL,
 		http:       newHTTPClient(),
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.GetSchoolID(context.Background(), secretUser)
@@ -1879,16 +1602,7 @@ func TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername(t *testing.T) {
 func TestLogin_CookieSyncFailure_ReturnsError(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功"}`))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"token":"jwt-cookie-fail"}}`))
 		default:
@@ -1903,7 +1617,6 @@ func TestLogin_CookieSyncFailure_ReturnsError(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       &http.Client{Timeout: 5 * time.Second}, // Jar 为 nil → sync 必败
 		logger:     slog.New(slog.NewTextHandler(io.Discard, nil)),
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{

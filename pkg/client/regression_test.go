@@ -130,28 +130,18 @@ func TestRegression_WithHTTPClient_NoJar_DoesNotPanic(t *testing.T) {
 func TestRegression_Login_TruncatesTokenAtAmpersand(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("<html>login</html>"))
 		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
 			w.Header().Set("Content-Type", "application/json")
 			w.Write([]byte(`{"code":1,"dataList":[{"school_id":"173","NAME":"测试"}]}`))
-		case "/kaptcha/kaptcha.jpg":
-			w.Write([]byte{0xFF, 0xD8, 0xFF})
-		case "/uiStudentLogin/validateCaptcha":
+		case "/uiActivityLogin/studentLogin":
 			w.Header().Set("Content-Type", "application/json")
-			w.Write([]byte(`{"code":1,"msg":"ok"}`))
-		case "/teacher/auth/studentLogin/validate":
-			// 302 with token + extra query params
-			w.Header().Set("Location", "/homepage?token=eyJhbGciOiJIUzI1NiJ9.payload.sig&foo=bar&baz=qux")
-			w.WriteHeader(http.StatusFound)
+			w.Write([]byte(`{"code":1,"msg":"登陆成功","returnData":{"token":"eyJhbGciOiJIUzI1NiJ9.payload.sig"}}`))
 		}
 	}))
 	defer srv.Close()
 
 	c, err := client.New(
 		client.WithSSOBase(srv.URL),
-		client.WithCustomOCR(&mockOCR{text: "AB12"}),
 	)
 	if err != nil {
 		t.Fatalf("New() 返回错误: %v", err)
@@ -164,8 +154,5 @@ func TestRegression_Login_TruncatesTokenAtAmpersand(t *testing.T) {
 	}
 	if !strings.HasPrefix(resp.Token, "eyJhbGciOiJIUzI1NiJ9") {
 		t.Errorf("token 解析错误，得到: %s", resp.Token)
-	}
-	if strings.Contains(resp.Token, "&") || strings.Contains(resp.Token, "foo") || strings.Contains(resp.Token, "baz") {
-		t.Errorf("token 应在第一个 & 处截断，得到: %s", resp.Token)
 	}
 }

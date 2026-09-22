@@ -56,16 +56,6 @@ func unifiedJSONWithDataMap(code int, msg string, returnData any, dataMap any, d
 	return string(b)
 }
 
-// ─── mock OCR ───
-
-// mockOCR 返回固定验证码文本，用于测试。
-type mockOCR struct{ text string }
-
-func (m *mockOCR) Recognize(_ []byte) (string, error) { return m.text, nil }
-
-// Close 是 CaptchaRecognizer 接口的占位实现, mock 无资源需释放。
-func (m *mockOCR) Close() error { return nil }
-
 // newTestClient 为测试创建 Client（连接 mock server）。
 func newTestClient(ssoServer *httptest.Server, bizServer *httptest.Server, uploadServer *httptest.Server) *client.Client {
 	opts := []client.Option{
@@ -79,20 +69,6 @@ func newTestClient(ssoServer *httptest.Server, bizServer *httptest.Server, uploa
 	}
 	if uploadServer != nil {
 		opts = append(opts, client.WithUploadURL(uploadServer.URL))
-	}
-	c, _ := client.New(opts...)
-	return c
-}
-
-// newTestClientWithOCR 创建 Client 并注入 mock OCR。
-func newTestClientWithOCR(sso *httptest.Server, mockText string, biz *httptest.Server) *client.Client {
-	opts := []client.Option{
-		client.WithSSOBase(sso.URL),
-		client.WithTimeout(5 * time.Second),
-		client.WithCustomOCR(&mockOCR{text: mockText}),
-	}
-	if biz != nil {
-		opts = append(opts, client.WithBaseURL(biz.URL))
 	}
 	c, _ := client.New(opts...)
 	return c
@@ -145,26 +121,6 @@ func warmupBizHandler(t *testing.T, fn http.HandlerFunc) http.HandlerFunc {
 
 // ─── 测试: InitSession ───
 
-func TestInitSession(t *testing.T) {
-	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/uiStudentLogin/login" {
-			t.Errorf("期望路径 /uiStudentLogin/login, 得到 %s", r.URL.Path)
-		}
-		if r.Method != http.MethodGet {
-			t.Errorf("期望 GET, 得到 %s", r.Method)
-		}
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("<html>login</html>"))
-	}))
-	defer sso.Close()
-
-	c := newTestClient(sso, nil, nil)
-	err := c.InitSession(context.Background())
-	if err != nil {
-		t.Fatalf("InitSession 失败: %v", err)
-	}
-}
-
 // ─── 测试: GetSchoolID ───
 
 func TestGetSchoolID(t *testing.T) {
@@ -202,67 +158,23 @@ func TestGetSchoolID(t *testing.T) {
 // ─── 测试: Login ───
 
 func TestLogin(t *testing.T) {
-	var (
-		mu               sync.Mutex
-		initDone         bool
-		gotCaptcha       bool
-		captchaValidated bool
-	)
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			mu.Lock()
-			initDone = true
-			mu.Unlock()
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("<html>login</html>"))
 		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
-			mu.Lock()
-			if !initDone {
-				t.Errorf("getSchoolId 应在 login 之后")
-			}
-			mu.Unlock()
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
 				{"school_id": "173", "NAME": "示例中学"},
 			})))
-		case "/kaptcha/kaptcha.jpg":
-			mu.Lock()
-			if !initDone {
-				t.Errorf("kaptcha 应在 login 之后")
-			}
-			gotCaptcha = true
-			mu.Unlock()
-			w.Header().Set("Content-Type", "image/jpeg")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte{0xFF, 0xD8, 0xFF})
-		case "/uiStudentLogin/validateCaptcha":
-			mu.Lock()
-			if !gotCaptcha {
-				t.Errorf("validateCaptcha 应在 kaptcha 之后")
-			}
-			captchaValidated = true
-			mu.Unlock()
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(unifiedJSON(1, "验证码校验成功", nil, nil)))
-		case "/teacher/auth/studentLogin/validate":
-			mu.Lock()
-			if !captchaValidated {
-				t.Errorf("validate 应在验证码之后")
-			}
-			mu.Unlock()
+		case "/uiActivityLogin/studentLogin":
 			var body map[string]string
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			if body["username"] != "TEST2025001" {
 				t.Errorf("期望 username=TEST2025001, 得到 %s", body["username"])
 			}
-			// HAR 验证：登录请求体无 captcha 字段
-			if _, exists := body["captcha"]; exists {
-				t.Errorf("登录请求体不应包含 captcha 字段（HAR 对齐）")
+			if body["password"] != "058265891d5969fa23b7b007811e0cae" {
+				t.Errorf("期望 password=md5(TestPass123), 得到 %s", body["password"])
 			}
-			// HAR 验证：登录响应 200 JSON（而非 302 redirect）
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"code":1,"returnData":{"token":"eyJhbGciOiJIUzI1NiJ9.test-token-123"}}`))
@@ -270,7 +182,7 @@ func TestLogin(t *testing.T) {
 	}))
 	defer sso.Close()
 
-	c := newTestClientWithOCR(sso, "AB12", nil)
+	c := newTestClient(sso, nil, nil)
 	resp, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "TEST2025001",
 		Password: "TestPass123",
@@ -286,24 +198,13 @@ func TestLogin(t *testing.T) {
 func TestLogin_WrongPassword(t *testing.T) {
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("<html>login</html>"))
 		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
 				{"school_id": "173", "NAME": "示例中学"},
 			})))
-		case "/kaptcha/kaptcha.jpg":
-			w.Header().Set("Content-Type", "image/jpeg")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte{0xFF, 0xD8, 0xFF})
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(unifiedJSON(1, "验证码校验成功", nil, nil)))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 200 OK 但 code=0 表示凭证错误
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
@@ -312,7 +213,7 @@ func TestLogin_WrongPassword(t *testing.T) {
 	}))
 	defer sso.Close()
 
-	c := newTestClientWithOCR(sso, "AB12", nil)
+	c := newTestClient(sso, nil, nil)
 	_, err := c.Login(context.Background(), types.LoginRequest{
 		Username: "TEST2025001",
 		Password: "wrong",
@@ -845,29 +746,18 @@ func TestConcurrentLoginsSucceed(t *testing.T) {
 	counter := 0
 	sso := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte("<html>login</html>"))
 		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(unifiedJSON(1, "成功", nil, []map[string]any{
 				{"school_id": "173", "NAME": "示例中学"},
 			})))
-		case "/kaptcha/kaptcha.jpg":
-			w.Header().Set("Content-Type", "image/jpeg")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte{0xFF, 0xD8, 0xFF})
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(unifiedJSON(1, "成功", nil, nil)))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			mu.Lock()
 			counter++
 			token := "token-" + string(rune('A'+counter-1))
 			mu.Unlock()
-			// 200 JSON 响应（HAR 对齐）
+			// 200 JSON 响应（五育免验证码）
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"code":1,"returnData":{"token":"` + token + `"}}`))
@@ -885,7 +775,7 @@ func TestConcurrentLoginsSucceed(t *testing.T) {
 				}
 				errs <- loginErr
 			}()
-			c := newTestClientWithOCR(sso, "AB12", nil)
+			c := newTestClient(sso, nil, nil)
 			_, loginErr = c.Login(context.Background(), types.LoginRequest{
 				Username: "TEST2025001",
 				Password: "TestPass123",

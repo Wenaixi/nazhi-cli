@@ -25,16 +25,7 @@ func TestLogin_ValidateOversizedBody_Rejects(t *testing.T) {
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte("{\"code\":1,\"msg\":\"成功\"}"))
-		case "/teacher/auth/studentLogin/validate":
+		case "/uiActivityLogin/studentLogin":
 			// 异常/被劫持服务端返回超大但合法的 200 JSON
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = w.Write([]byte(loginBody))
@@ -48,7 +39,6 @@ func TestLogin_ValidateOversizedBody_Rejects(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        &countMockOCR{returnText: "AB12"},
 	}
 
 	_, err := c.Login(context.Background(), types.LoginRequest{
