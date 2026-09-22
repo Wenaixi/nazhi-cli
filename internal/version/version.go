@@ -78,7 +78,7 @@ package version
 //		会话激活 sm.mu 临界区（锁窗口不再被网络往返放大到秒级，单测消除生产 SSO 外呼）；荣誉 typeName 反查改 int64
 //		比较；honor add / task preview 校验顺序收敛为先 payload 后建客户端；session activate 双注册删除；
 //		.env.example 补日志变量与 download 超时档披露等文档组六处
-//	1.6.0 — 内置本地验证码识别器：SDK 默认集成 nazhi-captcha-sdk 预训练库（纯本地查表、
+//	1.6.0 — 内置本地验证码识别器：SDK 默认集成 nazhi-captcha-sdk 预训练库（历史版本，已移除）——纯本地查表、
 //	        零 API Key、零网络调用），Login 零配置即可用；移除外部视觉模型 OCR 依赖与
 //	        NAZHI_SILICONFLOW_API_KEY 配置链；集成/e2e 测试与文档同步（6450ffc）
 //	1.5.3 — 十六域全量深审修复：9 个 commit 0 P0 / 0 P1 / 12 P2 全清零

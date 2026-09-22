@@ -172,7 +172,7 @@ func TestMain(m *testing.M) {
 				fmt.Fprintf(os.Stderr, "[e2e] token 缓存同步失败: %v\n", err3)
 			}
 		} else {
-			// 登录走 SDK 默认内置的 nazhi-captcha-sdk 本地验证码识别器，零配置。
+			// 登录走五育活动端免验证码接口，密码本地 MD5 计算，零配置。
 			cLogin, err3 := client.New(
 				client.WithSSOBase(ssoBase),
 				client.WithBaseURL(bizBase),
