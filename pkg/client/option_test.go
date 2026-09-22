@@ -2,98 +2,18 @@ package client
 
 import (
 	"bytes"
-	"context"
-	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
 // option_test.go 聚合客户端 Option 的白盒测试。
 //
 //   - WithTimeout 守卫：负数/0/nil http
 //   - WithToken 守卫：late binding + trim 空白
-//   - WithLogger / WithCustomOCR nil 守卫
-//   - WithSessionBackoff 正/零/负值处理
-//
-// SDK 默认内置 nazhi-captcha-sdk 本地识别器（builtinCaptchaRecognizer）。
-// 选项测试聚焦 OCR 注入契约：默认内置可用，WithCustomOCR 可覆盖。
-type mockCaptchaRecognizer struct{ closed bool }
-
-func (m *mockCaptchaRecognizer) Recognize([]byte) (string, error) { return "ok", nil }
-func (m *mockCaptchaRecognizer) Close() error                     { m.closed = true; return nil }
-
-// TestWithCustomOCR_Nil_Rejects 验证 WithCustomOCR(nil) 拒绝并保留 c.ocr。
-// OCR 必须由调用方注入，nil 注入会破坏 Login。
-func TestWithCustomOCR_Nil_Rejects(t *testing.T) {
-	var logBuf bytes.Buffer
-	h := slog.NewTextHandler(&logBuf, &slog.HandlerOptions{Level: slog.LevelWarn})
-
-	mock := &mockCaptchaRecognizer{}
-	c, err := New(
-		WithCustomOCR(mock),
-		WithLogger(slog.New(h)),
-		WithCustomOCR(nil), // 应被拒绝
-	)
-	if err != nil {
-		t.Fatalf("New 失败: %v", err)
-	}
-	defer c.Close()
-
-	if c.ocr != mock {
-		t.Errorf("WithCustomOCR(nil) 必须保持 c.ocr 不变，实际被替换")
-	}
-	if !strings.Contains(logBuf.String(), "WithCustomOCR") {
-		t.Errorf("应 warn 提及 WithCustomOCR，实际 log：%s", logBuf.String())
-	}
-}
-
-// TestNew_DefaultBuiltinOCR_LoginWorks 验证 New() 默认内置识别器——
-// 不注入任何 OCR 时 Login 不再返回 ErrOCRNotConfigured，而是走内置识别器。
-func TestNew_DefaultBuiltinOCR_LoginWorks(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiStudentLogin/login":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("<html>ok</html>"))
-		case "/kaptcha/kaptcha.jpg":
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte("fake-jpeg-bytes"))
-		case "/uiStudentLogin/validateCaptcha":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"ok"}`))
-		case "/teacher/auth/studentLogin/validate":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"ok","returnData":{"token":"tok"}}`))
-		}
-	}))
-	defer srv.Close()
-	c, err := New(WithSSOBase(srv.URL), WithBaseURL(srv.URL))
-	if err != nil {
-		t.Fatalf("New 失败: %v", err)
-	}
-	defer c.Close()
-	// 默认内置识别器：ocr 非 nil
-	if c.ocr == nil {
-		t.Fatal("New() 后 c.ocr 不应为 nil（默认内置识别器）")
-	}
-	// 断言类型为内置识别器
-	if _, ok := c.ocr.(*builtinCaptchaRecognizer); !ok {
-		t.Fatalf("默认识别器应为 builtinCaptchaRecognizer，实际 %T", c.ocr)
-	}
-	// Login 不再返回 ErrOCRNotConfigured（内置识别器对 fake-jpeg 未命中 → 空串 → 换图重试 → 9 次后失败）
-	// 但错误不应是 ErrOCRNotConfigured
-	_, err = c.Login(context.Background(), types.LoginRequest{Username: "u", Password: "p", SchoolID: "173"})
-	if errors.Is(err, ErrOCRNotConfigured) {
-		t.Fatalf("默认内置后 Login 不应返回 ErrOCRNotConfigured，实际: %v", err)
-	}
-}
-
 // ─── with_timeout_test.go: WithTimeout 守卫 ───
 
 // TestWithTimeout_NegativeRejected 回归测试：WithTimeout(-1) 必须被拒绝，

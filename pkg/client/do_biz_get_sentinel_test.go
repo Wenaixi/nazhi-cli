@@ -32,7 +32,6 @@ func TestDoBizGet_429_RateLimited(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 	}
 
 	_, err := c.doBizGet(context.Background(), srv.URL+"/limited", nil)
@@ -61,7 +60,6 @@ func TestDoBizGet_5xx_ServiceUnavailable(t *testing.T) {
 				uploadURL:  srv.URL,
 				http:       newHTTPClient(),
 				logger:     nil,
-				ocr:        nil,
 			}
 
 			_, err := c.doBizGet(context.Background(), srv.URL+"/boom", nil)
@@ -92,7 +90,6 @@ func TestDoBizGet_4xxOther_InvalidResponse(t *testing.T) {
 				uploadURL:  srv.URL,
 				http:       newHTTPClient(),
 				logger:     nil,
-				ocr:        nil,
 			}
 
 			_, err := c.doBizGet(context.Background(), srv.URL+"/bad", nil)
@@ -120,7 +117,6 @@ func TestDoBizGet_200_NoError(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 	}
 
 	body, err := c.doBizGet(context.Background(), srv.URL+"/ok", nil)

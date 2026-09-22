@@ -25,7 +25,6 @@ func TestDoBizGet_Non200_ReturnsNilBody(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 	}
 
 	bodyBytes, err := c.doBizGet(context.Background(), srv.URL+"/boom", nil)

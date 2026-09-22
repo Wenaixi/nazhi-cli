@@ -35,7 +35,6 @@ func mockCancelClient(bizURL string) *Client {
 		uploadURL:  bizURL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 		sm:         &sessionManager{},
 	}
 }

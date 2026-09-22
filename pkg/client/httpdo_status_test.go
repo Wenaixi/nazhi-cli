@@ -31,7 +31,6 @@ func TestHttpDo_429_RateLimited(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 	}
 
 	_, err := c.httpDo(context.Background(), http.MethodGet, srv.URL+"/limited", nil, nil, "")
@@ -60,7 +59,6 @@ func TestHttpDo_5xx_ServiceUnavailable(t *testing.T) {
 				uploadURL:  srv.URL,
 				http:       newHTTPClient(),
 				logger:     nil,
-				ocr:        nil,
 			}
 
 			_, err := c.httpDo(context.Background(), http.MethodPost, srv.URL+"/boom", map[string]string{"k": "v"}, nil, "")
@@ -91,7 +89,6 @@ func TestHttpDo_4xxOther_InvalidResponse(t *testing.T) {
 				uploadURL:  srv.URL,
 				http:       newHTTPClient(),
 				logger:     nil,
-				ocr:        nil,
 			}
 
 			_, err := c.httpDo(context.Background(), http.MethodGet, srv.URL+"/bad", nil, nil, "")
@@ -119,7 +116,6 @@ func TestHttpDo_200_NoError(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 	}
 
 	body, err := c.httpDo(context.Background(), http.MethodGet, srv.URL+"/ok", nil, nil, "")

@@ -107,7 +107,6 @@ func TestHttpDo_DrainsAndClosesForKeepAlive(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.DiscardHandler),
-		ocr:        nil,
 	}
 
 	for i := 0; i < 2; i++ {
@@ -161,7 +160,6 @@ func TestDoBizGet_DrainsAndClosesForKeepAlive(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.DiscardHandler),
-		ocr:        nil,
 	}
 
 	for i := 0; i < 2; i++ {
@@ -229,7 +227,6 @@ func TestDoBizVoid_Success(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.DiscardHandler),
-		ocr:        nil,
 		sm:         &sessionManager{},
 	}
 	err := c.doBizVoid(context.Background(), "test-token", "TestOp", "/api/test", http.MethodPost, nil)
@@ -251,7 +248,6 @@ func TestDoBizVoid_BizError(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     slog.New(slog.DiscardHandler),
-		ocr:        nil,
 		sm:         &sessionManager{},
 	}
 	err := c.doBizVoid(context.Background(), "test-token", "TestOp", "/api/test", http.MethodPost, nil)
@@ -290,7 +286,6 @@ func TestRequest_NoTokenLeakInDebugLog(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     logger,
-		ocr:        nil,
 	}
 
 	// 模拟 session.go:37 行为：把完整 token 注入 Referer query string

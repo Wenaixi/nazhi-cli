@@ -6,7 +6,6 @@ package client
 import (
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -61,46 +60,3 @@ func TestCheckCode_ErrorsIsFalse(t *testing.T) {
 
 // strPtr 返回字符串指针。
 func strPtr(s string) *string { return &s }
-
-// ─── errors_ocr_not_configured_test.go: ErrOCRNotConfigured 消息 ───
-
-// TestErrOCRNotConfigured_LocalizedMessage 验证 修复：错误消息含中文 actionable 指引。
-func TestErrOCRNotConfigured_LocalizedMessage(t *testing.T) {
-	msg := ErrOCRNotConfigured.Error()
-
-	// i18n key 必须存在（错误消息可机器解析）
-	if !strings.HasPrefix(msg, "errors.ocr_not_configured") {
-		t.Errorf("错误消息应以 i18n key 'errors.ocr_not_configured' 开头，实际: %s", msg)
-	}
-
-	// 中文 actionable 指引必须存在（默认内置识别器，仅自定义时需注入）
-	wantCN := []string{
-		"OCR 识别器未配置",
-		"client.WithCustomOCR",
-		"内置本地识别器",
-	}
-	for _, want := range wantCN {
-		if !strings.Contains(msg, want) {
-			t.Errorf("错误消息应包含中文 actionable 关键词 %q，实际: %s", want, msg)
-		}
-	}
-
-	// 英文 fallback 保留（SDK 编程接口可读）
-	wantEN := []string{
-		"OCR recognizer not configured",
-		"WithCustomOCR",
-	}
-	for _, want := range wantEN {
-		if !strings.Contains(msg, want) {
-			t.Errorf("错误消息应保留英文 fallback %q，实际: %s", want, msg)
-		}
-	}
-}
-
-// TestErrOCRNotConfigured_ErrorsIs 验证 errors.Is 契约未破坏（修复不应改变哨兵身份）。
-func TestErrOCRNotConfigured_ErrorsIs(t *testing.T) {
-	wrapped := fmt.Errorf("login 流程失败: %w", ErrOCRNotConfigured)
-	if !errors.Is(wrapped, ErrOCRNotConfigured) {
-		t.Errorf("errors.Is 必须能识别包装后的 ErrOCRNotConfigured，实际未识别")
-	}
-}

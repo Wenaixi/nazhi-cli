@@ -17,25 +17,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 )
-
-// CaptchaRecognizer 是验证码识别器接口。
-//
-// SDK 默认内置 nazhi-captcha-sdk 本地识别器（零配置）；调用方可通过
-// WithCustomOCR 注入自定义识别器覆盖默认（如 AI 视觉模型、远程服务、
-// 单元测试 mock 等）。
-//
-// 注意：实现必须同时实现 Close() error——只要识别器已注入，
-// Close() 必然调用其 Close()。
-// 即使实现不做资源清理，Close() 也必须存在且返回 nil。
-type CaptchaRecognizer interface {
-	Recognize([]byte) (string, error)
-	// Close 释放识别器占用的资源。
-	// 所有实现（含 mock）必须提供 Close 方法。
-	Close() error
-}
 
 // ─── Client ───
 
@@ -51,8 +34,7 @@ type Client struct {
 	uploadURL     string       // 文件上传服务器地址
 	http          *http.Client // 独立 cookie jar
 	logger        *slog.Logger
-	ocr           CaptchaRecognizer // 验证码识别器，调用方必须通过 WithCustomOCR 注入
-	pendingToken  string            // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
+	pendingToken  string // 延迟注入的 X-Auth-Token，New() 末尾统一 syncCookieToken
 
 	// submittedPageSize 是 GetSubmittedCircles 每页请求条数。
 	// 默认 defaultSubmittedPageSize（500），服务端 pageSize 上限 500。
@@ -89,7 +71,7 @@ func withURLGuard(name string, setter func(*Client, string)) func(string) Option
 }
 
 // withNilGuard 生成指针/接口型 Option 的守卫工厂，消除 WithHTTPClient /
-// WithLogger / WithCustomOCR 中重复的 nil 守卫 + warn 模式。
+// WithLogger / WithHTTPClient 中重复的 nil 守卫 + warn 模式。
 //
 // 返回 func(T) Option：
 //   - v 为 nil：warn 并拒绝设置，保持当前值
@@ -229,22 +211,6 @@ var WithHTTPClient = withNilGuard[*http.Client]("WithHTTPClient", func(c *Client
 	}
 })
 
-// WithCustomOCR 覆盖默认验证码识别器。
-//
-// SDK 默认内置 nazhi-captcha-sdk 本地识别器（零配置）；需要更高识别率或
-// 特殊场景时通过本 Option 注入自定义识别器覆盖默认。注入时机无要求，
-// 建议在 New() 之后第一时间注入以避免 Login 阶段才补注的竞争窗口。
-//
-// 适用场景：
-//   - 单元测试注入 mock 识别器（如 pkg/client 包内测试的 fakeOCRSimple）
-//   - 第三方集成注入自研识别器（AI 视觉模型 / 远程服务）
-//
-// 行为约定：
-//   - r == nil：拒绝设置并 warn，保持当前值（防止 nil 静默覆盖
-//     已注入的识别器，导致后续 Login 返回 ErrOCRNotConfigured）
-//   - 否则：替换识别器
-var WithCustomOCR = withNilGuard[CaptchaRecognizer]("WithCustomOCR", func(c *Client, r CaptchaRecognizer) { c.ocr = r })
-
 // WithToken 预置 X-Auth-Token（同时写入 Header 和 Cookie）。
 //
 // 用于不经过 Login() 流程、直接从外部传入 token 的场景：
@@ -288,11 +254,10 @@ func WithSubmittedPageSize(n int) Option {
 //	client := nazhicli.New(
 //	    nazhicli.WithSSOBase("https://www.nazhisoft.com"),
 //	    nazhicli.WithTimeout(15*time.Second),
-//	    nazhicli.WithCustomOCR(myRecognizer),
 //	)
 //
-// SDK 默认内置 nazhi-captcha-sdk 本地验证码识别器（纯本地查表，零外部依赖）。
-// 调用方可通过 WithCustomOCR 注入自定义识别器（如 AI 视觉模型、远程服务、测试 mock）覆盖默认。
+// 登录走五育活动端免验证码接口（/uiActivityLogin/studentLogin），
+// 密码本地 MD5 计算，无需验证码识别器。
 //
 // Option 处理顺序：所有 Options 跑完后，若有 WithToken 注入，则在最终 c.http.Jar /
 // c.ssoBaseURL / c.baseURL 已知的前提下统一 syncCookieToken（避免顺序敏感性 bug）。
@@ -308,7 +273,6 @@ func New(opts ...Option) (*Client, error) {
 		uploadURL:         defaultUploadURL,
 		http:              newHTTPClient(),
 		logger:            slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelWarn})),
-		ocr:               newBuiltinCaptchaRecognizer(), // 默认内置 nazhi-captcha-sdk 本地识别器，WithCustomOCR 可覆盖
 		sm:                &sessionManager{},
 		submittedPageSize: defaultSubmittedPageSize,
 	}
@@ -396,25 +360,6 @@ func (c *Client) LogInfoForTest(ctx context.Context, format string, args ...any)
 	c.logWithLevel(ctx, slog.LevelInfo, format, args...)
 }
 
-// safeOCRRecognize 调用 c.ocr.Recognize 并 recover panic，转换为 error。
-//
-// Recognize 实现可能在不可预见的边界条件下
-// panic（如 mock 实现有 bug、AI 服务 panic）。safeOCRRecognize 包装
-// Recognize 调用，捕获 panic 并返回 ErrOCRPanic 哨兵。
-//
-// 注意：c.ocr 为 nil 时直接返回错误（避免 nil deref），而非默默 success。
-func (c *Client) safeOCRRecognize(imgBytes []byte) (text string, err error) {
-	if c.ocr == nil {
-		return "", ErrOCRNotConfigured
-	}
-	defer func() {
-		if err2 := recoverx.RecoverPanic(recover(), ErrOCRPanic, "safeOCRRecognize"); err2 != nil {
-			err = err2
-		}
-	}()
-	return c.ocr.Recognize(imgBytes)
-}
-
 // ─── 资源释放 ───
 
 // Enabled 暴露 logger 的 Enabled 供测试校验级别（不影响生产行为）。
@@ -426,16 +371,10 @@ func (c *Client) Enabled(ctx context.Context, lvl slog.Level) bool {
 }
 
 // Close 释放 Client 持有的资源：
-//   - 通过 WithCustomOCR 注入的验证码识别器
 //   - HTTP Transport 的空闲 keep-alive 连接
 //   - sessionManager backoff 状态
 func (c *Client) Close() error {
 	var errs []error
-	if c.ocr != nil {
-		if err := c.ocr.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("关闭 OCR 识别器: %w", err))
-		}
-	}
 	if c.http != nil {
 		if t, ok := c.http.Transport.(*http.Transport); ok && t != nil {
 			t.CloseIdleConnections()

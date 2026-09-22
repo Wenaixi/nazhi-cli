@@ -62,7 +62,7 @@ func loadCreds(t *testing.T) (string, string, string, string) {
 }
 
 // newClient 构造一个真实环境 Client。
-// Login 使用 SDK 默认内置的 nazhi-captcha-sdk 本地验证码识别器，零配置。
+// Login 走五育活动端免验证码接口，密码本地 MD5 计算。
 func newClient(t *testing.T, ssoBase, bizBase string) *client.Client {
 	t.Helper()
 	c, _ := client.New(
@@ -276,14 +276,8 @@ func TestReal_FullChain(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), apiTimeout)
 	defer cancel()
 
-	// 2. InitSession（已由 Login 内部调用，这里显式测一下）
-	t.Log("② InitSession (SSO Session)")
-	if err := c.InitSession(ctx); err != nil {
-		t.Errorf("InitSession: %v", err)
-	}
-
-	// 3. GetSchoolID
-	t.Log("③ GetSchoolID")
+	// 2. GetSchoolID
+	t.Log("② GetSchoolID")
 	school, err := c.GetSchoolID(ctx, username)
 	if err != nil {
 		t.Errorf("GetSchoolID: %v", err)

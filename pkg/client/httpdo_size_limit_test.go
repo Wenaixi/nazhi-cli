@@ -30,7 +30,6 @@ func TestDoBizGet_RejectsOversizedBody(t *testing.T) {
 		uploadURL:  srv.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 	}
 
 	_, err := c.doBizGet(context.Background(), srv.URL+"/", nil)

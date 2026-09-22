@@ -42,21 +42,6 @@ var (
 	// 否则 SDK 用户按 errors.Is(err, ErrLoginRejected) 判定后会错误地走重新登录。
 	ErrBusinessRejected = errors.New("business request rejected by server")
 
-	// ErrOCRNotConfigured 表示 Client 未配置验证码识别器。
-	//
-	// 触发场景：SDK 默认内置 nazhi-captcha-sdk 本地识别器，正常情况下不会触发；
-	// 仅当调用方通过 WithCustomOCR(nil) 显式禁用（但 withNilGuard 会拒绝 nil）或
-	// 内部状态异常时才会出现。保留哨兵供 errors.Is 兼容。
-	//
-	// 错误消息带稳定前缀 errors.ocr_not_configured 便于匹配。
-	// SDK 用户建议用 errors.Is(err, ErrOCRNotConfigured) 而非字符串匹配。
-	ErrOCRNotConfigured = errors.New(
-		"errors.ocr_not_configured: OCR 识别器未配置：SDK 内置本地识别器，正常情况下不会触发。" +
-			"若需自定义识别器，请通过 client.WithCustomOCR(myRecognizer) 注入" +
-			" (OCR recognizer not configured: SDK ships a built-in recognizer; " +
-			"inject your own via client.WithCustomOCR(myRecognizer) if needed.)",
-	)
-
 	// ErrSessionBackoff session 激活在 backoff 窗口内被抑制（thundering herd 防护）。
 	//
 	// 与 ErrNetwork / ErrBusinessRejected 的语义边界：
@@ -80,14 +65,6 @@ var (
 	// 而非返回 (nil, nil) 让 cmd 层「裸 null」输出。cmd 层用 errors.Is 分支
 	// 输出对称的 {status: empty, reason: ...} envelope，与 whoami 契约一致。
 	ErrEmptyUserInfo = errors.New("getMyInfo returned no user data")
-
-	// ErrOCRPanic OCR 识别器 Recognize panic（被 safeOCRRecognize recover）。
-	//
-	// Recognize 实现（mock / AI 服务 / 第三方 SDK）
-	// 可能在不可预见的边界条件下 panic（如 nil deref / AI 服务 panic）。
-	// safeOCRRecognize 用 defer recover 捕获 panic 并包装为本哨兵，
-	// 避免 panic 扩散到 Login 流程、crash 整个进程。
-	ErrOCRPanic = errors.New("OCR recognizer panic: recovered")
 
 	// ErrRateLimited 服务端限流响应（HTTP 429）。
 	//

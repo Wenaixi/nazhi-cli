@@ -47,7 +47,7 @@ var loginCmd = &cobra.Command{
 			return
 		}
 
-		printVerbose("正在识别验证码并登录...")
+		printVerbose("正在免验证码登录...")
 		resp, err := c.Login(cmd.Context(), types.LoginRequest{
 			Username: username,
 			Password: password,
@@ -55,8 +55,6 @@ var loginCmd = &cobra.Command{
 		if err != nil {
 			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
 			switch {
-			case errors.Is(err, client.ErrOCRNotConfigured) || errors.Is(err, client.ErrOCRPanic):
-				printEnvelope(envelope.Error(503, "登录失败：验证码识别器未配置或出错。默认内置识别器应自动生效；如仍报错，请通过 SDK WithCustomOCR 注入自定义识别器。"))
 			case errors.Is(err, client.ErrLoginRejected):
 				// G1（Cycle 101）：SDK 层已先按 classifyHTTPStatus 分类（429→ErrRateLimited、
 				// 5xx→ErrServiceUnavailable、其余→ErrLoginRejected）。登录被限流或服务端

@@ -32,7 +32,6 @@ func TestGetMyInfo_ClassNameStripGrade(t *testing.T) {
 		uploadURL:  biz.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 		sm:         &sessionManager{},
 	}
 
@@ -67,7 +66,6 @@ func TestGetMyInfo_ClassNameNoGrade_KeepsOriginal(t *testing.T) {
 		uploadURL:  biz.URL,
 		http:       newHTTPClient(),
 		logger:     nil,
-		ocr:        nil,
 		sm:         &sessionManager{},
 	}
 
