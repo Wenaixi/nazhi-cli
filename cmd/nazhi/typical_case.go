@@ -102,6 +102,14 @@ var typicalCaseListCmd = &cobra.Command{
 			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为正整数"))
 			return
 		}
+		// C-04：--page-size 上钳 500（对齐 SDK defaultSubmittedPageSize，
+		// 实测服务端 pageSize 上限 500）。超限透传会被服务端静默截断为 500，
+		// 分页脚本以错误的 pageSize 计算页数拿到截断数据却不自知——以参数
+		// 错误拒绝（400/exit3），与 honor list 同族钳制。
+		if pageSize > maxPageSize {
+			printEnvelope(envelope.Error(400, "--page-size 不能超过 500（服务端单页上限）"))
+			return
+		}
 
 		printVerbose("正在获取典型案例列表...")
 		raw, err := c.GetTypicalCaseListJSON(cmd.Context(), token, pageNo, pageSize, status)
