@@ -507,6 +507,51 @@ func TestFetchTasksJSON_PartialFailureReturnsRawBytes(t *testing.T) {
 	}
 }
 
+// CLI-1：FetchTasksJSON 无维度数上界——getDimensions 服务端声明巨量维度×单页
+// 4MB 累积无预算，攻陷服务端可单请求累积上 GB。修复后钳制到
+// maxFetchTasksDims（128），merged 数组条目数不得超过该值。
+func TestFetchTasksJSON_TrimsExcessiveDimensions(t *testing.T) {
+	const maxFetchTasksDims = 128
+	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.URL.Path == "/api/studentCircleNew/getDimensions":
+			dims := make([]map[string]any, 0, 200)
+			for i := 1; i <= 200; i++ {
+				dims = append(dims, map[string]any{"id": i, "name": "维度" + strconv.Itoa(i)})
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{"code": 1, "dataList": dims})
+		case r.URL.Path == "/api/studentCircleNew/getCircleStatistics":
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"code": 1,
+				"dataList": []map[string]any{{"id": 1001, "name": "任务X"}},
+			})
+		default:
+			http.NotFound(w, r)
+		}
+	})))
+	defer biz.Close()
+
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL), client.WithUploadURL(biz.URL))
+	if err != nil {
+		t.Fatalf("构造 Client: %v", err)
+	}
+	defer c.Close()
+
+	raw, err := c.FetchTasksJSON(context.Background(), "test-token")
+	if err != nil {
+		t.Fatalf("FetchTasksJSON: %v", err)
+	}
+	var arr []map[string]any
+	if jerr := json.Unmarshal(raw, &arr); jerr != nil {
+		t.Fatalf("merged 必须是合法 JSON 数组, err=%v", jerr)
+	}
+	if len(arr) > maxFetchTasksDims {
+		t.Fatalf("merged 维度数 = %d, want ≤ %d（CLI-1：FetchTasksJSON 无维度数上界）", len(arr), maxFetchTasksDims)
+	}
+}
+
 // TestGetCirclesJSON_BufferAssemblyConsistency 验证 getCirclesJSON 成功/错误路径的 buffer 拼接一致性。
 //
 // 测试逻辑：

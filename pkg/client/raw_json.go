@@ -44,6 +44,11 @@ const maxTotalPage = 10000
 // + 虚高 totalNum 驱动单请求 OOM。64MB 足够覆盖任何真实拼接输出。
 const maxAssembleBuffer = 64 << 20
 
+// maxFetchTasksDims FetchTasksJSON 维度数上界（CLI-1 修复）——维度数直接来自
+// getDimensions 服务端声明，恶意值驱动全维度并发拉取 × 单页 4MB（maxResponseBodySize）
+// 累积无预算。128 维远超任何真实学校维度集（通常 <10）。
+const maxFetchTasksDims = 128
+
 // capAssembledSlice 对已累积的 rawResult 切片做总量预算截断（N-04）。
 // getCirclesJSON/getCirclesLimitJSON 翻页时把每页原始字节累积进 results，
 // 预算只覆盖预分配容量（assembleBufferCapHint），累积量（页数×每页实际
@@ -579,6 +584,14 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 	if len(activeDims) == 0 {
 		return []byte("[]"), nil
 	}
+	// CLI-1：维度数上界钳制（对齐 maxTotalPage 纪律）——getDimensions 的
+	// 维度数来自服务端声明，恶意值驱动全维度并发拉取×单页 4MB 累积无预算。
+	// 128 远超任何真实学校维度集（通常 <10），截断保留前 128 维并 Warn。
+	if len(activeDims) > maxFetchTasksDims {
+		slog.Warn("FetchTasksJSON: 维度数超过钳制上限，截断到前 128 维",
+			"dims", len(activeDims), "max", maxFetchTasksDims)
+		activeDims = activeDims[:maxFetchTasksDims]
+	}
 
 	// 使用索引切片按维度顺序收集结果，保持维度顺序确定性。
 	// channel-based 收集顺序取决于 goroutine 调度，结果顺序不可预测。
@@ -620,10 +633,14 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 
 	// 先按维度顺序拼装已有结果，供 cancel / partial 路径复用
 	assemble := func() (json.RawMessage, int) {
-		buf := bytes.NewBuffer(nil)
+		buf := bytes.NewBuffer(make([]byte, 0, 2048))
 		buf.WriteByte('[')
 		first := true
 		totalPages := 0
+		// CLI-1：累积字节预算（对齐 getCirclesJSON 的 maxAssembleBuffer 纪律）。
+		// 各维度单页最大 maxResponseBodySize（4MB）×维度数可单请求累积上 GB；
+		// 超出预算后停止追加，返回已合并的合法 JSON 前缀。
+		assembledLen := 0
 		for _, raw := range results {
 			if len(raw) == 0 {
 				continue
@@ -632,6 +649,11 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 			if len(trimmed) == 0 {
 				continue
 			}
+			if assembledLen+len(trimmed)+2 > maxAssembleBuffer {
+				slog.Warn("FetchTasksJSON: 累积字节超过预算，截断到已合并前缀",
+					"assembled", assembledLen, "max", maxAssembleBuffer)
+				break
+			}
 			if first {
 				buf.Write(trimmed)
 				first = false
@@ -639,6 +661,7 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 				buf.WriteByte(',')
 				buf.Write(trimmed)
 			}
+			assembledLen += len(trimmed) + 1
 			totalPages++
 		}
 		buf.WriteByte(']')
