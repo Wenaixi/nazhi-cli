@@ -115,12 +115,43 @@ func fillTypicalCaseDisplayNamesMap(payload map[string]any) {
 	}
 }
 
+// 典型案例 remark/content 的字数上限，对齐前端 el-input maxlength=
+// classiccanter.vue:124 maxlength="198"（备注）、:130 maxlength="1500"（正文）。
+// 浏览器硬截断保证线上恒发 ≤上限；SDK 不静默截断也不放行超长原文——
+// 显式拒绝（ErrInvalidPayload），与 task content 的 maxTaskContentRunes 纪律同族。
+const (
+	maxTypicalCaseRemarkRunes  = 198
+	maxTypicalCaseContentRunes = 1500
+)
+
+// validateTypicalCaseLengths 校验典型案例 remark/content 的 rune 长度上限。
+// 超长即返回 ErrInvalidPayload（调用方输入问题 → CLI 漏斗 400/exit3），不发业务请求。
+func validateTypicalCaseLengths(payload *types.AddTypicalCasePayload) error {
+	if payload == nil {
+		return fmt.Errorf("%w: 典型案例 payload 为空", ErrInvalidPayload)
+	}
+	if len([]rune(payload.Remark)) > maxTypicalCaseRemarkRunes {
+		return fmt.Errorf("%w: remark 超过 %d 字上限（收到 %d 字）",
+			ErrInvalidPayload, maxTypicalCaseRemarkRunes, len([]rune(payload.Remark)))
+	}
+	if len([]rune(payload.Content)) > maxTypicalCaseContentRunes {
+		return fmt.Errorf("%w: content 超过 %d 字上限（收到 %d 字）",
+			ErrInvalidPayload, maxTypicalCaseContentRunes, len([]rune(payload.Content)))
+	}
+	return nil
+}
+
 // AddTypicalCase 提交一条典型案例。
 //
 // 用户只需填标题/类别代码/角色代码/级别代码/指导教师等；
 // TypeName/RoleName/LevelName 为空时按前端下拉自动补全。
 // 遵循 AddHonor 模式：doBizVoid POST → 成功返回 nil。
 func (c *Client) AddTypicalCase(ctx context.Context, token string, payload types.AddTypicalCasePayload) error {
+	// I3-05：remark/content 长度校验必须先于任何请求——前端 maxlength 截断保证
+	// 线上恒发 ≤上限（198/1500 字），SDK 对超长原文显式拒绝（ErrInvalidPayload）。
+	if err := validateTypicalCaseLengths(&payload); err != nil {
+		return err
+	}
 	fillTypicalCaseDisplayNames(&payload)
 	return c.doBizVoid(ctx, token, "AddTypicalCase",
 		"/api/studentCircleNew/addTypicalCase", http.MethodPost, payload)
