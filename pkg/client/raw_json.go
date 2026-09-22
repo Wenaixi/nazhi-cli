@@ -65,6 +65,16 @@ func cumulativeSliceBytes(raw1 []byte, results []rawResult, untilPage int) int {
 	return total
 }
 
+// estimatePagesBudgeted 以「页数 × 首页字节」估算多页累积量上界（N-04）。
+// 翻页前 results 里 pn≥2 尚未拉取，无法按实际字节统计；真实每页 ≤ 首页
+// 字节（分页语义），故 endPage×len(raw1) 是安全上界。
+func estimatePagesBudgeted(pageCount, firstPageLen int) int {
+	if pageCount < 1 || firstPageLen < 1 {
+		return 0
+	}
+	return pageCount * firstPageLen
+}
+
 // isNullJSON 判断一段原始 JSON 是否为 null 形态：字面 null 或字符串 "null"。
 // 平台偶发把空列表序列化为 dataList:"null"（字符串），字面 null 在解码层已折叠为
 // nil 指针，这里统一识别两种形态，归一为 nil 让调用方走空值契约（[] 或 fallback）。
@@ -313,10 +323,20 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 
 	// N-04：页面累积原始字节越过 maxAssembleBuffer 预算时截断到已合并
 	// 前缀（对齐 submitted 条数闸的语义；这里按字节而非条数判）。
+	// Cycle 105 修正：命中预算后必须传已钳制页数（而非声明页数）给
+	// assembleCirclesJSON——此前传 declaredPages 让 Bytes.Buffer 仍无上限
+	// 增长再做第二次全量拷贝，与「截断防放大」目标矛盾。
 	if capAssembledSlice(raw1, results, declaredPages) {
+		// 二分找「累积不超过预算」的最大页号：页量单调不降，从头线性也可
+		// 接受但 O(n) 在 10000 页时无谓；线性页数已由 maxTotalPage 钳制。
+		budgetPage := declaredPages
+		for budgetPage > 1 && cumulativeSliceBytes(raw1, results, budgetPage) > maxAssembleBuffer {
+			budgetPage--
+		}
 		slog.Warn("raw_json: 多页累积量超过合并预算，截断到已合并前缀",
-			"total_bytes", cumulativeSliceBytes(raw1, results, declaredPages), "max", maxAssembleBuffer)
-		raw, assembleErr := assembleCirclesJSON(raw1, results, declaredPages, nil)
+			"total_bytes", cumulativeSliceBytes(raw1, results, declaredPages),
+			"budget_page", budgetPage, "max", maxAssembleBuffer)
+		raw, assembleErr := assembleCirclesJSON(raw1, results, budgetPage, nil)
 		return raw, pb, assembleErr
 	}
 
@@ -374,13 +394,16 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 		endPage = 1
 	}
 
-	// N-04：预先按页数×单页字节估算累计量是否越预算——越界直接截断到
-	// 首页（防放大优先于精确分页完整性），避免翻页把几十 GB 累积进内存。
+	// N-04（Cycle 105 修正）：getCirclesLimitJSON 的预翻页估算必须以
+	// 「页数 × 首页字节」作上界——此前 capAssembledSlice 看 results 里
+	// 已拉取字节（pn≥2 尚未拉全为 nil），concat 只有 len(raw1)≤4MB，
+	// >64MB 预算永不命中，估算守卫形同虚设。用 endPage×len(raw1) 作为
+	// 单页最坏上界（真实页面 ≤ 首页），越界直接截断到首页。
 	results := make([]rawResult, endPage+1)
 	results[1] = rawResult{raw: raw1}
-	if endPage > 1 && capAssembledSlice(raw1, results, endPage) {
+	if endPage > 1 && estimatePagesBudgeted(endPage, len(raw1)) > maxAssembleBuffer {
 		slog.Warn("raw_json: limit 翻页预估累积量超过合并预算，截断到首页",
-			"estimated_bytes", cumulativeSliceBytes(raw1, results, endPage), "max", maxAssembleBuffer)
+			"estimated_bytes", estimatePagesBudgeted(endPage, len(raw1)), "max", maxAssembleBuffer)
 		endPage = 1
 	}
 

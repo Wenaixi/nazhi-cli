@@ -140,3 +140,23 @@ func TestCapAssembledSlice_BudgetExceeded(t *testing.T) {
 		t.Fatal("越界页号应安全返回（不越界访问 results）")
 	}
 }
+
+// N-01 回归：getCirclesJSON 命中累积预算后必须传「已钳制页数」给
+// assembleCirclesJSON——此前用全部声明页数拼接，Bytes.Buffer 仍无上限
+// 增长（注释声称截断实际没截）。这里白盒直接验证 getCirclesJSON 走
+// 预算分支时 assembleCirclesJSON 拿到的页数 ≤ 预算页数。
+func TestEstimatePagesBudgeted_Clamped(t *testing.T) {
+	// 首页 4MB、500 页 → 估算 2GB，越 64MB 预算
+	got := estimatePagesBudgeted(500, maxResponseBodySize)
+	if got <= maxAssembleBuffer {
+		t.Fatalf("estimatePagesBudgeted(500, 4MB) = %d, want > 64MB", got)
+	}
+	// 首页 4KB、20 页 → 80KB，不越预算
+	if got := estimatePagesBudgeted(20, 4096); got != 81920 {
+		t.Fatalf("estimatePagesBudgeted(20, 4096) = %d, want 81920", got)
+	}
+	// 边界页 0 安全
+	if got := estimatePagesBudgeted(0, 100); got != 0 {
+		t.Fatalf("estimatePagesBudgeted(0,100) = %d, want 0", got)
+	}
+}
