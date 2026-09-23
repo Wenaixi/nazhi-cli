@@ -9,23 +9,18 @@ import (
 	"testing"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// I3-05：典型案例 remark/content 无长度校验。
-// 官方前端 classiccanter.vue:124/130 maxlength=198(remark)/1500(content) 为
-// 浏览器硬截断，线上恒发 ≤198/≤1500 字；SDK 原样透传超长 wire（对齐 task
-// content 的 maxTaskContentRunes=200 拒绝纪律），让服务端裁决。
-// 修复：SDK 层按 rune 长度显式拒绝（ErrInvalidPayload），remark≤198、content≤1500，
-// 与前端 wire 行为对齐为显式拒绝而非静默截断/放行。
-
-// TestAddTypicalCase_TooLongRemarkContentRejected 锁定 I3-05：
-// AddTypicalCase 对超长 remark/content 返回 ErrInvalidPayload 且不发业务请求。
-// 对齐 task content 的 errors.Is(err, ErrInvalidPayload) 契约（CLI 漏斗归 400/exit3）。
-func TestAddTypicalCase_TooLongRemarkContentRejected(t *testing.T) {
+// TestUpdateTypicalCase_TooLongTextRejected 锁定（CLI-111-2）：UpdateTypicalCase
+// 的 map 路径此前无 remark/content rune 长度校验（AddTypicalCase 有 198/1500）。
+// 长度纪律不对称：Add 严、Update 松，超长原文原样上 wire。
+//
+// 断言：remark 199 rune 拒绝（ErrInvalidPayload 且不发业务请求）；content 1501
+// rune 拒绝；边界 198/1500 放行（走到业务层，mock 404 是预期非 ErrInvalidPayload）。
+func TestUpdateTypicalCase_TooLongTextRejected(t *testing.T) {
 	hit := false
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/studentCircleNew/addTypicalCase" {
+		if r.URL.Path == "/api/studentCircleNew/updateTypicalCase" {
 			hit = true
 			w.WriteHeader(http.StatusNotFound)
 			return
@@ -35,13 +30,29 @@ func TestAddTypicalCase_TooLongRemarkContentRejected(t *testing.T) {
 	defer biz.Close()
 
 	c := newTestClient(nil, biz, nil)
+	base := map[string]any{"id": int64(1), "title": "t", "remark": "r", "content": "c"}
 
-	// 先构造合法请求确认 mock 路径可达；都超长时贴到有语义的失败上。
-	t.Run("content 超长 1500 拒绝", func(t *testing.T) {
-		err := c.AddTypicalCase(context.Background(), "test-token", types.AddTypicalCasePayload{
-			Title:   "标题",
-			Content: strings.Repeat("长", 1501),
-		})
+	t.Run("remark 199 rune 拒绝", func(t *testing.T) {
+		hit = false
+		p := cloneMap(base)
+		p["remark"] = strings.Repeat("注", 199)
+		err := c.UpdateTypicalCase(context.Background(), "test-token", p)
+		if err == nil {
+			t.Fatal("超长 remark 应被拒绝")
+		}
+		if !errors.Is(err, client.ErrInvalidPayload) {
+			t.Fatalf("超长 remark 应包 ErrInvalidPayload，实际: %v", err)
+		}
+		if hit {
+			t.Fatal("超长 remark 不应发出业务请求")
+		}
+	})
+
+	t.Run("content 1501 rune 拒绝", func(t *testing.T) {
+		hit = false
+		p := cloneMap(base)
+		p["content"] = strings.Repeat("正", 1501)
+		err := c.UpdateTypicalCase(context.Background(), "test-token", p)
 		if err == nil {
 			t.Fatal("超长 content 应被拒绝")
 		}
@@ -53,30 +64,21 @@ func TestAddTypicalCase_TooLongRemarkContentRejected(t *testing.T) {
 		}
 	})
 
-	t.Run("remark 超长 198 拒绝", func(t *testing.T) {
-		err := c.AddTypicalCase(context.Background(), "test-token", types.AddTypicalCasePayload{
-			Title:  "标题",
-			Remark: strings.Repeat("备注", 99) + "注",
-		})
-		if err == nil {
-			t.Fatal("超长 remark 应被拒绝")
-		}
-		if !errors.Is(err, client.ErrInvalidPayload) {
-			t.Fatalf("超长 remark 应包 ErrInvalidPayload，实际: %v", err)
-		}
-	})
-
-	t.Run("边界长度放行（不许发生业务拒绝）", func(t *testing.T) {
-		// criticism：边界内容必须真正到达 addTypicalCase（mock 返回 404 网络层拒绝
-		// 是预期，只要不是 ErrInvalidPayload 即说明长度校验放行）。放行后与预热
-		// 漏斗同构：content=1500 与 remark=198 恰好合法。
-		err := c.AddTypicalCase(context.Background(), "test-token", types.AddTypicalCasePayload{
-			Title:   "标题",
-			Content: strings.Repeat("正", 1500),
-			Remark:  strings.Repeat("备", 198),
-		})
+	t.Run("边界 198/1500 放行（非 ErrInvalidPayload）", func(t *testing.T) {
+		p := cloneMap(base)
+		p["remark"] = strings.Repeat("注", 198)
+		p["content"] = strings.Repeat("正", 1500)
+		err := c.UpdateTypicalCase(context.Background(), "test-token", p)
 		if err == nil || errors.Is(err, client.ErrInvalidPayload) {
-			t.Fatalf("边界长度应放行到业务层（非 ErrInvalidPayload），实际: %v", err)
+			t.Fatalf("边界应放行到业务层（非 ErrInvalidPayload），实际: %v", err)
 		}
 	})
+}
+
+func cloneMap(m map[string]any) map[string]any {
+	out := make(map[string]any, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
 }

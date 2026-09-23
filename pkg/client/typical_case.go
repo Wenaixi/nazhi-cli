@@ -141,6 +141,38 @@ func validateTypicalCaseLengths(payload *types.AddTypicalCasePayload) error {
 	return nil
 }
 
+// validateTypicalCaseLengthsMap 校验典型案例更新路径（map）的 remark/content
+// rune 上限。与 validateTypicalCaseLengths（Add 路径）同族：超长即
+// ErrInvalidPayload，不发业务请求。CLI-111-2：此前 Update 无校验、Add 有，
+// 长度纪律不对称。
+func validateTypicalCaseLengthsMap(payload map[string]any) error {
+	if len([]rune(firstStringFromMap(payload, "remark"))) > maxTypicalCaseRemarkRunes {
+		return fmt.Errorf("%w: remark 超过 %d 字上限（收到 %d 字）",
+			ErrInvalidPayload, maxTypicalCaseRemarkRunes, len([]rune(firstStringFromMap(payload, "remark"))))
+	}
+	if len([]rune(firstStringFromMap(payload, "content"))) > maxTypicalCaseContentRunes {
+		return fmt.Errorf("%w: content 超过 %d 字上限（收到 %d 字）",
+			ErrInvalidPayload, maxTypicalCaseContentRunes, len([]rune(firstStringFromMap(payload, "content"))))
+	}
+	return nil
+}
+
+// firstStringFromMap 读取 map 中首个非空字符串键值（兼容 string/[]byte/数字）。
+func firstStringFromMap(m map[string]any, key string) string {
+	v, ok := m[key]
+	if !ok || v == nil {
+		return ""
+	}
+	switch s := v.(type) {
+	case string:
+		return s
+	case []byte:
+		return string(s)
+	default:
+		return ""
+	}
+}
+
 // AddTypicalCase 提交一条典型案例。
 //
 // 用户只需填标题/类别代码/角色代码/级别代码/指导教师等；
@@ -221,7 +253,11 @@ func (c *Client) GetTypicalCaseListJSON(ctx context.Context, token string, pageN
 // POST /api/studentCircleNew/updateTypicalCase
 //
 // 与 AddTypicalCase 对称：type/role/level 有值且对应 *Name 为空时自动补展示名。
+// remark/content 长度校验与 Add 同族（198/1500 rune，ErrInvalidPayload）。
 func (c *Client) UpdateTypicalCase(ctx context.Context, token string, payload map[string]any) error {
+	if err := validateTypicalCaseLengthsMap(payload); err != nil {
+		return err
+	}
 	fillTypicalCaseDisplayNamesMap(payload)
 	return c.doBizVoid(ctx, token, "UpdateTypicalCase",
 		"/api/studentCircleNew/updateTypicalCase", http.MethodPost, payload)
