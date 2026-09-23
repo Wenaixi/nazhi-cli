@@ -39,15 +39,15 @@ import (
 // 修复后：c.logger.Warn → 默认 LevelWarn 下用户立即知道 server 行为异常。
 func TestLogin_200Path_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// 登录: 200 + UnifiedResponse，returnData 含 token 但**无**exp/expires_in
-			// （HAR 验证的现状：server 不带过期信息，200 路径永远走 now+24h 兜底）。
-			// 注意：returnData 是嵌套 JSON 对象（json.RawMessage），不是字符串。
-			w.Header().Set("Content-Type", "application/json")
-			// 关键：returnData 只有 token 字段，没有 exp/expires_in
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"token":"jwt-no-expires"}}`))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// 登录: 200 + UnifiedResponse，returnData 含 token 但**无**exp/expires_in
+		// （HAR 验证的现状：server 不带过期信息，200 路径永远走 now+24h 兜底）。
+		// 注意：returnData 是嵌套 JSON 对象（json.RawMessage），不是字符串。
+		w.Header().Set("Content-Type", "application/json")
+		// 关键：returnData 只有 token 字段，没有 exp/expires_in
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":{"token":"jwt-no-expires"}}`))
 	}))
 	defer srv.Close()
 
@@ -271,13 +271,13 @@ func TestLogin_DrainsBody_On200UnexpectedEOFPath(t *testing.T) {
 //	→ 修复后：logDebug 输出 body + 错误
 func TestLogin_200Path_LogsUnmarshalFailure(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// 关键：返回 200 + 空对象 {} → json.Unmarshal 成功但无 token 字段
-			w.Header().Set("Content-Type", "application/json")
-			// 返回 returnData=null 让 tokenparse.ExtractFromReturnData 失败
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null}`))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// 关键：返回 200 + 空对象 {} → json.Unmarshal 成功但无 token 字段
+		w.Header().Set("Content-Type", "application/json")
+		// 返回 returnData=null 让 tokenparse.ExtractFromReturnData 失败
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null}`))
 	}))
 	defer srv.Close()
 
@@ -330,11 +330,11 @@ func TestLogin_200Path_LogsNonJSONBody(t *testing.T) {
 	const htmlBody = "<html><body>500 Internal Server Error</body></html>"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			w.Header().Set("Content-Type", "text/html")
-			_, _ = w.Write([]byte(htmlBody))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		w.Header().Set("Content-Type", "text/html")
+		_, _ = w.Write([]byte(htmlBody))
 	}))
 	defer srv.Close()
 
@@ -389,12 +389,12 @@ func TestLogin_200Path_LogsNonJSONBody(t *testing.T) {
 func TestLogin_302Fallback_ExpiresAtFallback_LogsAtWarn(t *testing.T) {
 	// 启动 server：让 validate 路径返回 302 + Location 无 expires
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// 登录: 302 + Location 含 token 但无 expires 参数
-			w.Header().Set("Location", "/homepage?token=jwt-no-expires")
-			w.WriteHeader(http.StatusFound)
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// 登录: 302 + Location 含 token 但无 expires 参数
+		w.Header().Set("Location", "/homepage?token=jwt-no-expires")
+		w.WriteHeader(http.StatusFound)
 	}))
 	defer srv.Close()
 
@@ -735,11 +735,11 @@ func TestExtractTokenFromReturnData_ExpiresIn_TakesPriorityOverExp(t *testing.T)
 // 不输出 md5 密码或 token 明文。
 func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"returnData":{"token":"jwt-test"}}`))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1,"returnData":{"token":"jwt-test"}}`))
 	}))
 	defer srv.Close()
 
@@ -780,13 +780,13 @@ func TestLogin_Log_DoesNotLeakCaptcha(t *testing.T) {
 // 修复后：body 输出限制在 100 字符以内。
 func TestLogin_Log_BodyTruncated(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// non-200 + 长 body → 触发 line 183 logDebug（非预期状态码路径）
-			w.WriteHeader(http.StatusInternalServerError)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(strings.Repeat("A", 200)))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// non-200 + 长 body → 触发 line 183 logDebug（非预期状态码路径）
+		w.WriteHeader(http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(strings.Repeat("A", 200)))
 	}))
 	defer srv.Close()
 
@@ -835,12 +835,12 @@ func TestLogin_Log_BodyTruncated(t *testing.T) {
 // TestLogin_Log_BodyContainsSensitive 验证 body 输出中敏感字段（token）被掩码。
 func TestLogin_Log_BodyTokenMasked(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			w.Header().Set("Content-Type", "application/json")
-			// 触发 returnData=null 路径（logDebug body=%s 在第 148 行）
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null}`))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		// 触发 returnData=null 路径（logDebug body=%s 在第 148 行）
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData":null}`))
 	}))
 	defer srv.Close()
 
@@ -891,13 +891,13 @@ func TestLogin_Log_BodyTokenMasked(t *testing.T) {
 //	errors.As 可穿透找到 json.SyntaxError。
 func TestLogin_200Path_JSONUnmarshalError_WrappedWithPercentW(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			// 非 JSON body，触发 json.Unmarshal 失败路径（auth.go:134-136）
-			_, _ = w.Write([]byte("not-json-at-all{{{"))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		// 非 JSON body，触发 json.Unmarshal 失败路径（auth.go:134-136）
+		_, _ = w.Write([]byte("not-json-at-all{{{"))
 	}))
 	defer srv.Close()
 
@@ -1084,13 +1084,13 @@ func TestDerefOr_NotConfusedWithCmpOr(t *testing.T) {
 //	errors.Is 可穿透找到 tokenparse 返回的 errors.New("returnData 中无 token 字段")。
 func TestLogin_200Path_ExtractTokenError_WrappedWithPercentW(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			// returnData 是 JSON 对象但不含 token 字段 → 触发 tokenparse.ExtractFromReturnData 失败路径（auth.go:151-154）
-			_, _ = w.Write([]byte(`{"code":1,"returnData":{"other":"value"}}`))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		// returnData 是 JSON 对象但不含 token 字段 → 触发 tokenparse.ExtractFromReturnData 失败路径（auth.go:151-154）
+		_, _ = w.Write([]byte(`{"code":1,"returnData":{"other":"value"}}`))
 	}))
 	defer srv.Close()
 
@@ -1188,12 +1188,12 @@ func (rt *malformedLocationRT) Close() error { return nil }
 // ErrBusinessRejected。
 func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			w.Header().Set("Content-Type", "application/json")
-			// code=0：账号或密码不正确，触发 Login 拒绝包装路径
-			_, _ = w.Write([]byte(`{"code":0,"msg":"账号或密码不正确"}`))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		w.Header().Set("Content-Type", "application/json")
+		// code=0：账号或密码不正确，触发 Login 拒绝包装路径
+		_, _ = w.Write([]byte(`{"code":0,"msg":"账号或密码不正确"}`))
 	}))
 	defer srv.Close()
 
@@ -1233,13 +1233,13 @@ func TestLogin_ValidateCaptcha_ErrorsIsErrLoginRejected(t *testing.T) {
 // 修复后:用 bytes.TrimSpace 容忍尾随空白,让任何 `null` 字面量都能被识别。
 func TestLogin_NullReturnDataWithWhitespace(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// 关键:returnData 是 `null`(前后各带一个空格)
-			// 注意:返回的 JSON body 也带空格(模拟真实 server 行为)
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData": null }`))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// 关键:returnData 是 `null`(前后各带一个空格)
+		// 注意:返回的 JSON body 也带空格(模拟真实 server 行为)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":1,"msg":"成功","returnData": null }`))
 	}))
 	defer srv.Close()
 
@@ -1284,13 +1284,13 @@ func TestLogin_ExpiresAtInPast(t *testing.T) {
 	// exp = 当前 unix 时间 - 1 小时(过去)
 	pastExp := time.Now().Add(-1 * time.Hour).Unix()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// returnData.exp 是过去时间,tokenparse 走 exp 分支
-			w.Header().Set("Content-Type", "application/json")
-			body := fmt.Sprintf(`{"code":1,"msg":"成功","returnData":{"token":"jwt-past-exp","exp":%d}}`, pastExp)
-			_, _ = w.Write([]byte(body))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// returnData.exp 是过去时间,tokenparse 走 exp 分支
+		w.Header().Set("Content-Type", "application/json")
+		body := fmt.Sprintf(`{"code":1,"msg":"成功","returnData":{"token":"jwt-past-exp","exp":%d}}`, pastExp)
+		_, _ = w.Write([]byte(body))
 	}))
 	defer srv.Close()
 
@@ -1364,13 +1364,13 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 	const errBody = "<html><body><h1>503 Service Unavailable - gateway timeout</h1></body></html>"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// 503 + 非 JSON HTML body
-			w.Header().Set("Content-Type", "text/html")
-			w.WriteHeader(http.StatusServiceUnavailable)
-			_, _ = w.Write([]byte(errBody))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// 503 + 非 JSON HTML body
+		w.Header().Set("Content-Type", "text/html")
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = w.Write([]byte(errBody))
 	}))
 	defer srv.Close()
 
@@ -1415,11 +1415,11 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 // 「登录失败」exit 1、不退避；修复后 errors.Is(err, ErrRateLimited) 可精确识别限流。
 func TestLogin_429_RateLimitedSentinel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			w.WriteHeader(http.StatusTooManyRequests)
-			_, _ = w.Write([]byte("too many requests"))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		w.WriteHeader(http.StatusTooManyRequests)
+		_, _ = w.Write([]byte("too many requests"))
 	}))
 	defer srv.Close()
 
@@ -1447,11 +1447,11 @@ func TestLogin_5xx_ServiceUnavailableSentinel(t *testing.T) {
 	for _, code := range []int{http.StatusBadGateway, http.StatusServiceUnavailable, http.StatusGatewayTimeout} {
 		t.Run(fmt.Sprintf("code_%d", code), func(t *testing.T) {
 			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				switch r.URL.Path {
-				case "/uiActivityLogin/studentLogin":
-					w.WriteHeader(code)
-					_, _ = w.Write([]byte("server down"))
+				if r.URL.Path != "/uiActivityLogin/studentLogin" {
+					return
 				}
+				w.WriteHeader(code)
+				_, _ = w.Write([]byte("server down"))
 			}))
 			defer srv.Close()
 
@@ -1489,11 +1489,11 @@ func TestLogin_GetSchoolIDError_DoesNotLeakUsername(t *testing.T) {
 	const secretUser = "TESTUSER20260825"
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/teacher/auth/studentLogin/getSchoolIdByStudentNumber":
-			w.WriteHeader(http.StatusInternalServerError)
-			_, _ = w.Write([]byte("boom"))
+		if r.URL.Path != "/teacher/auth/studentLogin/getSchoolIdByStudentNumber" {
+			return
 		}
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("boom"))
 	}))
 	defer srv.Close()
 

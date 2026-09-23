@@ -24,12 +24,12 @@ func TestLogin_ValidateOversizedBody_Rejects(t *testing.T) {
 	loginBody := fmt.Sprintf("{\"code\":1,\"msg\":\"成功\",\"returnData\":{\"token\":\"%s\"}}", bigToken)
 
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		switch r.URL.Path {
-		case "/uiActivityLogin/studentLogin":
-			// 异常/被劫持服务端返回超大但合法的 200 JSON
-			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(loginBody))
+		if r.URL.Path != "/uiActivityLogin/studentLogin" {
+			return
 		}
+		// 异常/被劫持服务端返回超大但合法的 200 JSON
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(loginBody))
 	}))
 	defer srv.Close()
 
