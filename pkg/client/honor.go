@@ -14,6 +14,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -232,6 +233,8 @@ func honorMapString(v any) string {
 
 // honorMapInt64 从 map[string]any 解析 typeId 类数值。
 // JSON 反序列化常为 float64；也接受 int / int64 / json.Number。
+// float64 分支对齐全仓 math.Trunc 纪律（self_eval.go firstInt64 I-08 /
+// types FlexInt 同款）：非整值拒绝（2.5 不再截成 2 反查错名），整值放行。
 func honorMapInt64(v any) (int64, bool) {
 	switch n := v.(type) {
 	case int64:
@@ -239,6 +242,9 @@ func honorMapInt64(v any) (int64, bool) {
 	case int:
 		return int64(n), true
 	case float64:
+		if n != math.Trunc(n) {
+			return 0, false
+		}
 		return int64(n), true
 	case json.Number:
 		i, err := n.Int64()
