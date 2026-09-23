@@ -13,8 +13,29 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
+// maxSelfEvalRunes 是自我评价/毕业评价文本的字数上限，对齐前端
+// mainLeft.vue:26/39 两处 textarea 的 maxlength="700"。浏览器硬截断保证线上
+// 恒发 ≤上限；SDK 不静默截断也不放行超长原文——显式拒绝（ErrInvalidPayload），
+// 与 typical-case 198/1500、task content 200 的纪律同族。
+// 注意：结构化 --payload 路径（selfgaintloss.vue 11 键表单）无前端 maxlength，
+// 不适用此校验。
+const maxSelfEvalRunes = 700
+
+// validateSelfEvalComment 校验自我评价/毕业评价文本的 rune 长度上限。
+// 超长即返回 ErrInvalidPayload（调用方输入问题 → CLI 漏斗 400/exit3），不发业务请求。
+func validateSelfEvalComment(comment string) error {
+	if len([]rune(comment)) > maxSelfEvalRunes {
+		return fmt.Errorf("%w: 评价超过 %d 字上限（收到 %d 字）",
+			ErrInvalidPayload, maxSelfEvalRunes, len([]rune(comment)))
+	}
+	return nil
+}
+
 // SubmitSelfEvaluation 提交自我评价文本。
 func (c *Client) SubmitSelfEvaluation(ctx context.Context, token string, comment string) error {
+	if err := validateSelfEvalComment(comment); err != nil {
+		return err
+	}
 	_, err := c.doBizAndDecode(ctx, token, "SubmitSelfEvaluation", "/api/studentMoralEduNew/addSelfEvaluation",
 		http.MethodPost, map[string]string{"studentComment": comment})
 	return err
@@ -328,6 +349,9 @@ func (c *Client) QuerySelfGradEvaluation(ctx context.Context, token string) (*ma
 //
 // 与 SubmitSelfEvaluation 对称，使用 {"studentComment": "<评语>"} 请求体。
 func (c *Client) SubmitSelfGradEvaluation(ctx context.Context, token string, comment string) error {
+	if err := validateSelfEvalComment(comment); err != nil {
+		return err
+	}
 	_, err := c.doBizAndDecode(ctx, token, "SubmitSelfGradEvaluation", "/api/studentMoralEduNew/addSelfGradEvaluation",
 		http.MethodPost, map[string]string{"studentComment": comment})
 	return err
