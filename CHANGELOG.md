@@ -1,5 +1,33 @@
 # CHANGELOG
 
+## [1.7.0] - 2026-09-23
+
+发布链接：[v1.7.0](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.7.0)
+
+### 特性
+
+- **免验证码登录**：`Login()` 改走五育活动端 `POST /uiActivityLogin/studentLogin`（密码本地 MD5 计算，与官方 APK `hex_md5` 一致）；schoolId 留空时自动通过匿名接口推断；签发 token 与主站 `X-Auth-Token` 同认证体系，可直接访问业务接口（commit `2b47968`）。
+- **移除验证码识别**：删除 `nazhi-captcha-sdk` 依赖、`CaptchaRecognizer` 接口、`WithCustomOCR`、`c.ocr` 字段、内置识别器及 `ErrOCRNotConfigured`/`ErrOCRPanic` 哨兵（commit `a97d07d`、`d07ea18`）；`nazhi login` 不再需要任何验证码识别配置。
+
+### 修复
+
+- 写实翻页容量按条数上界钳制防 OOM；`assembleCirclesJSON` 预分配钳制防攻陷服务端超大页数（commit `b1b0cbb`、`7df116c`、`7259fe5`）。
+- 原始 JSON 写实列表 `dataList` null 形态归一空列表防 jq 破坏（commit `840107e`、`0bd551e`）。
+- 任务拉取全失败按哨兵优先级映射 502/503/429，服务端宕机不再误报业务拒绝（commit `4cae3f7`）。
+- `Login` cookie 同步失败升级为返回错误防静默空数据（commit `6bc8c90`）。
+- `newCleanClient` 回退分支补 `Proxy:nil` 防环境代理劫持；上传图片路径去重防重复上传孤儿附件（commit `30c2d3f`、`ab47cae`）。
+- FlexInt 大整数字面量拒绝防 int64 回绕静默误解码（commit `fff2c80`）。
+- 写实/荣誉/自评输入 rune 上限显式拒绝：典型案例 198/1500、自我评价 700、honor typeId 非整值反查（commit `8b0daa4`、`26a3b9c`、`c97bf3b`）。
+- `DownloadFile` 流式写补 50MB 字节上限防受信子域无限流写满磁盘（commit `c54b686`）。
+- `FetchTasksJSON` 补维度数与累积字节双钳制防单请求内存放大（commit `5df15d3`）。
+- CLI 参数与载荷校验收敛到严格拒绝语义；`--quiet` 顶层 panic 不再写 stderr stack（commit `599afca`、`defe12c`）。
+- `printEnvelope` 消息统一过 `RedactBody` 消除 stdout 通道脱敏缺口（commit `b4c5d7d`）。
+
+### 工程
+
+- 测试环境变量清理统一 `t.Setenv` 自动恢复；raw_json 取消测试窗口放宽防 CI flaky（commit `68a8ed4`、`b021a01`）。
+- 清理三处免验证码迁移后的陈旧 OCR/验证码文案（commit `a1d62eb`）。
+
 ## [1.6.5] - 2026-09-08
 
 发布链接：[v1.6.5](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.6.5)

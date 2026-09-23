@@ -96,4 +96,9 @@ package version
 //	1.6.3 — 修复文档规则路径与 CI 治理门禁；修复错误输出失败时退出码未正确记录
 //	1.6.4 — 修复异常分页元数据漏页、原始列表类型错误、上传传输器隔离和 stdin 取消读取
 //	1.6.5 — 清理全模块深度审查报告，完善发布记录与文档治理
-var Version = "1.6.5"
+//	1.7.0 — Login 改走五育活动端免验证码接口（密码本地 MD5 计算），移除验证码识别：
+//	        删除 nazhi-captcha-sdk 依赖、CaptchaRecognizer/WithCustomOCR/c.ocr 装配与
+//	        ErrOCRNotConfigured/ErrOCRPanic 哨兵；配套收敛输入上限（写实/荣誉/自评 rune 上限、
+//	        翻页与 JSON 累积内存钳制、下载 50MB 上限）、CLI 错误语义（429/5xx 哨兵、
+//	        --quiet panic 静默、printEnvelope 统一脱敏）与测试基建（t.Setenv、取消窗口放宽）
+var Version = "1.7.0"
