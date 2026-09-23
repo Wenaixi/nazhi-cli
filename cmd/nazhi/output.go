@@ -63,7 +63,7 @@ func printEnvelope(e *envelope.Envelope) {
 // 参数类（含本地文件超限 ErrFileTooLarge）→ 400（exit 3）；业务拒绝/服务端明确 4xx → 422（exit 1）；
 // 限流/会话冷却 → 429（exit 1，客户端已知应等待的确定性状态）；可重试取消 → 503；
 // 网络/超时/5xx → 502（exit 2）；未识别保持 500。
-// OCR 两哨兵（ErrOCRNotConfigured/ErrOCRPanic）有意不映射：login 命令有专用拦截分支与固定文案。
+// 免验证码端点不再使用 OCR 哨兵；遗留注释已清理（CLI-111-1）。
 func mapSentinelToHTTPCode(err error) int {
 	switch {
 	case errors.Is(err, client.ErrInvalidPayload),

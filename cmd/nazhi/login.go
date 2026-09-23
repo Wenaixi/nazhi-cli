@@ -15,15 +15,16 @@ import (
 //
 //	nazhi login -u <username> -p <password> [--sso-base <url>] [--timeout <秒>]
 //
-// 验证码由内置 nazhi-captcha-sdk 本地预训练库识别（零外部依赖、零 API Key）。
+// 免验证码：直接调用免验证码登录端点（/uiActivityLogin/studentLogin），无需
+// 外部 OCR 或验证码配置。
 var loginCmd = &cobra.Command{
 	Use:   "login",
 	Short: "SSO 登录纳智综合评价系统",
-	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → 内置识别器处理验证码 → Login。
+	Long: `完成 SSO 登录全流程：InitSession → GetSchoolID → 免验证码登录（/uiActivityLogin/studentLogin）。
 
-	验证码由内置 nazhi-captcha-sdk 本地预训练库自动识别，无需任何外部 OCR 配置。
+	免验证码端点直接登录，无需任何外部 OCR 或验证码配置。
 	可选通过 --sso-base 指定 SSO 根地址（默认 https://www.nazhisoft.com）。`,
-	Example: `  nazhi login -u 学号 -p 密码                       # 内置识别器自动处理验证码
+	Example: `  nazhi login -u 学号 -p 密码                       # 免验证码直登
   nazhi login -u 学号 -p 密码 --sso-base https://www.nazhisoft.com --timeout 30`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {

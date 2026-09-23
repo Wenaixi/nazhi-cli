@@ -1,6 +1,6 @@
 // error_test.go 聚合 errors.go 内部白盒测试（package client）：
 //   - CheckCode errors.Is + errors.As 双契约
-//   - ErrOCRNotConfigured 错误消息 i18n + 中文 actionable
+//   - ErrInvalidPayload 等输入校验哨兵错误消息中文 actionable
 package client
 
 import (
