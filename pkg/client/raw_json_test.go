@@ -524,7 +524,7 @@ func TestFetchTasksJSON_TrimsExcessiveDimensions(t *testing.T) {
 		case r.URL.Path == "/api/studentCircleNew/getCircleStatistics":
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(map[string]any{
-				"code": 1,
+				"code":     1,
 				"dataList": []map[string]any{{"id": 1001, "name": "任务X"}},
 			})
 		default:
