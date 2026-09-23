@@ -444,6 +444,10 @@ func hasHostSuffix(host, suffix string) bool {
 // 写入 0 字节或失败时关闭文件句柄后删除半成品（不留垃圾）。
 // Windows 注意：必须先 f.Close() 再 os.Remove()——持有 open handle 时 Remove
 // 在 Windows 上静默失败，测试会看到半成品残留。
+//
+// CLI-109-1：流式写无字节上限——受信子域无限流可把磁盘写满。limitReaderOversize
+// 在写入超过 maxDownloadBytes 后返回 errDownloadTooLarge，超限删半成品归
+// ErrInvalidResponse（永久性条件，不可重试，与 0 字节同族）。
 func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 	f, err := osCreate(dst)
 	if err != nil {
@@ -451,16 +455,21 @@ func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 		return fmt.Errorf("创建目标文件失败: %w", errors.Join(ErrInvalidPayload, err))
 	}
 
-	written, copyErr := copyCtx(ctx, src, f)
+	written, copyErr := copyCtx(ctx, &oversizeReader{src: src, limit: maxDownloadBytes}, f)
 	// 显式 Close 在 osRemove 之前（Windows 文件句柄锁问题）
 	closeErr := f.Close()
 	if copyErr != nil {
 		_ = osRemove(dst)
-		// 中途传输失败（连接重置 / 意外 EOF）必须包 ErrNetwork 哨兵，
+		// 中途传输失败（连接重置 / 意外 EOF / 超限）必须包 ErrNetwork 哨兵，
 		// 让 SDK 调用方按 errors.Is(err, ErrNetwork) 判可重试；
 		// 用户主动 ctx 取消不归类为网络故障，避免自动重试误触发。
 		if errors.Is(copyErr, context.Canceled) || errors.Is(copyErr, context.DeadlineExceeded) {
 			return fmt.Errorf("写入文件失败: %w", copyErr)
+		}
+		if errors.Is(copyErr, errDownloadTooLarge) {
+			// 超限是永久性条件（上游持续给流），不是瞬时网络故障——归
+			// ErrInvalidResponse 不可重试语义，与 0 字节同族。
+			return fmt.Errorf("%w: 附件超过 %d 字节", ErrInvalidResponse, maxDownloadBytes)
 		}
 		return fmt.Errorf("%w: 写入文件失败: %w", ErrNetwork, copyErr)
 	}
@@ -476,6 +485,36 @@ func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 		return fmt.Errorf("%w: 服务端返回 0 字节", ErrInvalidResponse)
 	}
 	return nil
+}
+
+// maxDownloadBytes 是 DownloadFile 流式写入的最大字节数（50MB，与图片上传
+// 压缩上限同量级；实际附件图片远小于此，足够覆盖正常业务）。超限归
+// ErrInvalidResponse 不可重试，防受信子域无限流把磁盘写满。
+const maxDownloadBytes = 50 * 1024 * 1024
+
+// errDownloadTooLarge 是 oversizeReader 在读满上限后仍有后续内容的哨兵。
+var errDownloadTooLarge = errors.New("download exceeds max size")
+
+// oversizeReader 把 src 包装成最多读 limit 字节的流；读满 limit 后若底层还有
+// 内容（非 EOF）返回 errDownloadTooLarge，让 copyCtx 中断并删除半成品。
+type oversizeReader struct {
+	src   io.Reader
+	limit int64
+	n     int64
+}
+
+func (r *oversizeReader) Read(p []byte) (int, error) {
+	if r.n >= r.limit {
+		// limit 已耗尽且还能被继续 Read——说明上游流超过上限（恰好在 EOF
+		// 处结束的合法流下一次 Read 会从 src 得到 EOF，走到这里说明还有内容）。
+		return 0, errDownloadTooLarge
+	}
+	if int64(len(p)) > r.limit-r.n {
+		p = p[:r.limit-r.n]
+	}
+	n, err := r.src.Read(p)
+	r.n += int64(n)
+	return n, err
 }
 
 // copyCtx 是 io.Copy 的 ctx 感知版本：ctx 取消时立刻终止复制。
