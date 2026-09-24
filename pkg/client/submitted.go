@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -71,11 +70,13 @@ func (c *Client) fetchCirclePageJSON(ctx context.Context, token string, pageNo, 
 	if resp.DataList != nil && raw == nil && !isNullJSON(*resp.DataList) {
 		return nil, nil, fmt.Errorf("fetchCirclePageJSON dataList 不是合法 JSON 数组: %w", ErrInvalidResponse)
 	}
-	if raw != nil {
-		var list []json.RawMessage
-		if err := json.Unmarshal(raw, &list); err != nil {
-			return nil, nil, fmt.Errorf("fetchCirclePageJSON dataList 不是 JSON 数组: %w", ErrInvalidResponse)
-		}
+	// 顶层必须是数组。rawListBytes 已做 json.Valid + isNullJSON，整体合法性由其
+	// 保证；此处只需确认优雅形态（合法 JSON 但不是数组，如对象型）也被拦截——
+	// 用首字符判定：json.Valid 通过后首字符只可能是 '{' / '[' / 字面量之一。
+	// 替换旧实现的二次全量 json.Unmarshal（profile：encoding/json.parse 占本路径
+	// 37% CPU，且逐元素分配 json.RawMessage 头），行为等价且省去逐元素分配。
+	if len(raw) > 0 && raw[0] != '[' {
+		return nil, nil, fmt.Errorf("fetchCirclePageJSON dataList 不是 JSON 数组: %w", ErrInvalidResponse)
 	}
 	return pb, raw, nil
 }

@@ -47,6 +47,12 @@ const (
 	// 实测基线：0（Go 1.26.1，commit 1445073）——全部经 atomic.Pointer，
 	// 零分配是设计与实现的边界，cache hit 一旦出现分配即为回归。
 	budgetActivateSessionCacheHit = 0
+
+	// budgetFetchCirclePageJSON500 是单页写实拉取（含 session 缓存命中预热后）
+	// 的分配次数。P1-2 把 dataList 校验从全量 json.Unmarshal 改为首字符判定后：
+	//   675 → 159（-76%），B/op 2232679 → 1623844
+	// 注：其余差异来自该路径含 session 预热 + 多次内部 httpDo，非纯解码。
+	budgetFetchCirclePageJSON500 = 160
 )
 
 // assertAllocsWithin 是门禁断言 helper，统一错误消息格式。
@@ -122,6 +128,27 @@ func TestPerfBudget_ActivateSessionCacheHit(t *testing.T) {
 	assertAllocsWithin(t, "ActivateSession(缓存命中)", budgetActivateSessionCacheHit, func() {
 		if _, err := c.ActivateSession(ctx, benchToken); err != nil {
 			t.Fatalf("ActivateSession 失败: %v", err)
+		}
+	})
+}
+
+// TestPerfBudget_FetchCirclePageJSON500 锁住单页写实拉取的分配次数。
+//
+// P1-2 哨兵：dataList 校验若被人改回全量 json.Unmarshal，这里立即 FAIL。
+func TestPerfBudget_FetchCirclePageJSON500(t *testing.T) {
+	list := benchDataListJSON(500)
+	body := benchUnifiedBody(list, 500, 1)
+	srv := benchWarmupBizServer(t, body)
+	c := benchClient(t, srv.URL)
+	ctx := context.Background()
+
+	if _, err := c.ActivateSession(ctx, benchToken); err != nil {
+		t.Fatalf("预热失败: %v", err)
+	}
+
+	assertAllocsWithin(t, "fetchCirclePageJSON(500 条)", budgetFetchCirclePageJSON500, func() {
+		if _, _, err := c.fetchCirclePageJSON(ctx, benchToken, 1, 500, 3, ""); err != nil {
+			t.Fatalf("fetchCirclePageJSON 失败: %v", err)
 		}
 	})
 }
