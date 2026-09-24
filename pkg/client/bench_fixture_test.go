@@ -49,10 +49,17 @@ func benchClient(tb testing.TB, bizURL string) *Client {
 
 // benchBizServer 启动只回固定响应体的 mock 服务。
 // body 在服务启动前构造一次，b.N 次请求复用同一份字节，服务端零分配干扰。
+//
+// 显式写 Content-Length 并跳过自动 chunked：对大响应体（1MB+），httptest
+// 的 chunked 写带 Flush 语义，在 Windows loopback 上偶发 TCP 分段阻塞
+// （实测 worst-case 200 次迭代拖到 66s）。固定 Content-Length 让 net/http
+// 走单次传输路径，且更贴近真实业务服务器行为。
 func benchBizServer(tb testing.TB, body []byte) *httptest.Server {
 	tb.Helper()
+	cl := strconv.Itoa(len(body))
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("Content-Length", cl)
 		_, _ = w.Write(body)
 	}))
 	tb.Cleanup(srv.Close)
@@ -67,18 +74,26 @@ func benchBizServer(tb testing.TB, body []byte) *httptest.Server {
 // getMyInfo 返回的 UserInfo 必须带 studentNumber 且 SchoolID/SchoolName 齐全：
 // 否则 ActivateSession 出口会走 postProcessSchoolFallback（user.go:115），
 // 对 mock 服务多发一次 GetSchoolID 请求，污染「缓存命中」路径的测量。
+//
+// 同样固定 Content-Length（见 benchBizServer），预热体虽小但也避免 chunked。
 func benchWarmupBizServer(tb testing.TB, circleBody []byte) *httptest.Server {
 	tb.Helper()
 	menuBody := []byte(`{"code":1,"msg":"成功"}`)
+	menuCL := strconv.Itoa(len(menuBody))
 	myInfoBody := []byte(`{"code":1,"msg":"成功","returnData":{"name":"bench","studentNumber":"BENCH001","className":"八班","seat":1,"schoolId":173,"schoolName":"bench学校"}}`)
+	myInfoCL := strconv.Itoa(len(myInfoBody))
+	circleCL := strconv.Itoa(len(circleBody))
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/", "/api/studentInfo/getMenu":
+			w.Header().Set("Content-Length", menuCL)
 			_, _ = w.Write(menuBody)
 		case "/api/studentInfo/getMyInfo":
+			w.Header().Set("Content-Length", myInfoCL)
 			_, _ = w.Write(myInfoBody)
 		default:
+			w.Header().Set("Content-Length", circleCL)
 			_, _ = w.Write(circleBody)
 		}
 	}))
