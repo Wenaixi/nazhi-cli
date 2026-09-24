@@ -223,7 +223,18 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 	}
 	// CC1 修复：预分配容量钳制到固定上界——len(raw1)×totalPage 可达 40GB，
 	// 攻陷服务端可借首页大响应+虚高 totalNum 驱动单请求 OOM。
-	buf := bytes.NewBuffer(make([]byte, 0, assembleBufferCapHint(totalPage, len(raw1))))
+	// P2-3：改为按已有页实际内容求和精确预分配。
+	// 此前估算 capHint = 页数×首页字节，偏小则触发 bytes.Buffer 倍增扩容的
+	// 多次整块拷贝。各页实际长度已知（results），求和即精确容量；上界仍由
+	// maxAssembleBuffer 钳制（防攻陷服务端借大响应×虚高页数放大分配）。
+	total := len(raw1) + 2
+	for pn := 2; pn <= totalPage; pn++ {
+		total += len(results[pn].raw) + 1
+	}
+	if total > maxAssembleBuffer {
+		total = maxAssembleBuffer
+	}
+	buf := bytes.NewBuffer(make([]byte, 0, total))
 	buf.WriteByte('[')
 	first := true
 	// page1 可能为空数组 "[]"，trim 后长度为 0，不得写逗号
@@ -257,6 +268,10 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 // assembleBufferCapHint 返回 assembleCirclesJSON 的预分配容量（CC1 修复）。
 // 页数×首頁字節數乘積被鉗制到固定上界 maxAssembleBuffer，防攻陷服務端
 // 借大響應×虛高頁數驅動單請求 OOM；正常組合不受影響。
+//
+// 注意：assembleCirclesJSON 已改用「按各页实际长度求和」的精确预分配，
+// 本函数仅被 getCirclesJSON 的 estimatePagesBudgeted 路径与既有测试引用，
+// 保留以维持预算估算语义。
 func assembleBufferCapHint(pageCount, firstPageLen int) int {
 	capHint := pageCount * firstPageLen
 	if capHint > maxAssembleBuffer {
