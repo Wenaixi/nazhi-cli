@@ -25,16 +25,19 @@ import (
 const perfBudgetRuns = 100
 
 // 预算常量。每个常量的值为实测基线精确值（Go 1.26.1，本机 i9-12900HX）。
+// 修复前基线见 git 历史（ba6339c）；以下为 P1-1 修复后的新基线：
+//   - HTTPDoSmallBody：95（修复前 119）
+//   - HTTPDoLargeBody：142（修复前 205）
+//   - 大响应体 B/op：4.7MB（修复前 15.4MB）——一次等大 string 分配的浪费已归零
 const (
 	// budgetHTTPDoSmallBody 是 httpDo 处理小响应体（<1KB）的分配次数。
-	// 实测基线：119（Go 1.26.1，commit 1445073）
-	budgetHTTPDoSmallBody = 119
+	// P1-1 修复后基线：95（Go 1.26.1，commit 待定）
+	budgetHTTPDoSmallBody = 95
 
 	// budgetHTTPDoLargeBody 是 httpDo 处理约 1.2MB 响应体的分配次数。
-	// 实测基线：196（Go 1.26.1，commit 1445073）
-	// 本值含 P1-1 的浪费（日志参数提前求值导致的等大字符串分配），
-	// 修复后应显著下调。
-	budgetHTTPDoLargeBody = 196
+	// P1-1 修复后基线：142（Go 1.26.1，commit 待定）
+	// 修复前为 205（含日志参数提前求值导致的一份等大字符串分配）。
+	budgetHTTPDoLargeBody = 142
 
 	// budgetAssembleCirclesJSON4Pages 是 4 页合并的分配次数。
 	// 实测基线：1（Go 1.26.1，commit 1445073）
@@ -121,4 +124,63 @@ func TestPerfBudget_ActivateSessionCacheHit(t *testing.T) {
 			t.Fatalf("ActivateSession 失败: %v", err)
 		}
 	})
+}
+
+// TestPerfBudget_HTTPDoLargeBody_NoRedactAlloc 是 P1-1 的专项哨兵。
+//
+// 契约：当日志级别未启用时，httpDo 不得为日志参数做任何与响应体等大的分配。
+//
+// 修复前：logx.RedactBodyThenTruncate(respBytes, 100) 作为函数实参在
+// logWithLevel 的 Enabled 检查之前求值，其内部第一步 string(body) 会对
+// 整个响应体分配等大字符串（1.2MB），随后跑两遍正则再截断成 100 字符——
+// 全部发生在 Info 日志被 LevelWarn 过滤、永不输出的情况下。
+//
+// 断言方式：对比「大响应体」与「小响应体」的 B/op 差值。
+// 修复后两者差值应约等于响应体大小差（io.ReadAll 的必要分配）；
+// 修复前差值会明显超出（多出一次等大字符串分配）。
+func TestPerfBudget_HTTPDoLargeBody_NoRedactAlloc(t *testing.T) {
+	const smallN, largeN = 2, 2000
+
+	smallBody := benchUnifiedBody(benchDataListJSON(smallN), smallN, 1)
+	largeBody := benchUnifiedBody(benchDataListJSON(largeN), largeN, 4)
+	// 响应体字节差，即 io.ReadAll 必要分配的增量下界
+	bodyDelta := len(largeBody) - len(smallBody)
+
+	srvSmall := benchBizServer(t, smallBody)
+	cSmall := benchClient(t, srvSmall.URL)
+	srvLarge := benchBizServer(t, largeBody)
+	cLarge := benchClient(t, srvLarge.URL)
+	ctx := context.Background()
+	hSmall := cSmall.bizHeaders(benchToken)
+	hLarge := cLarge.bizHeaders(benchToken)
+
+	bytesSmall := testing.Benchmark(func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, _ = cSmall.httpDo(ctx, http.MethodGet, cSmall.bizURL("/api/bench"), nil, hSmall, "")
+		}
+	}).AllocedBytesPerOp()
+
+	bytesLarge := testing.Benchmark(func(b *testing.B) {
+		for i := 0; i < b.N; i++ {
+			_, _ = cLarge.httpDo(ctx, http.MethodGet, cLarge.bizURL("/api/bench"), nil, hLarge, "")
+		}
+	}).AllocedBytesPerOp()
+
+	delta := int(bytesLarge - bytesSmall)
+	// io.ReadAll 用 bytes.Buffer 倍增扩容：最终数组 + 中间扩容垃圾 ≈ 2× 最终容量，
+	// 故正常路径的差值约 ≤2.2× bodyDelta。设上限 2.5× bodyDelta 排除日志垃圾：
+	//   - 无日志垃圾（修复后）：差值 ≈2.2×，通过
+	//   - 有日志垃圾（修复前加一份等大 string(body) 分配）：差值 ≈7×，FAIL
+	// 实测对照：修复前 15.3MB（≈7.3×），修复后 4.7MB（≈2.2×）。
+	const slackPercent = 250
+	limit := bodyDelta + bodyDelta*slackPercent/100
+
+	t.Logf("小响应体 B/op=%d，大响应体 B/op=%d，差值=%d，响应体字节差=%d，上限=%d",
+		bytesSmall, bytesLarge, delta, bodyDelta, limit)
+
+	if delta > limit {
+		t.Errorf("httpDo 大响应体分配超出必要量：差值 %d 字节 > 上限 %d 字节（响应体差 %d）。"+
+			"疑似日志参数在级别检查前被求值——检查 httpDo 中 logx.RedactBodyThenTruncate 的调用点是否已由 logEnabled 守卫",
+			delta, limit, bodyDelta)
+	}
 }

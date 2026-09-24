@@ -330,8 +330,12 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 	}
 
 	start := time.Now()
-	c.logDebugCtx(ctx, "→ %s %s", method, logx.RedactBody(url))
-	c.logRequestHeaders(ctx, req)
+	// 守卫后再求值 logx.RedactBody(url)：logDebugCtx 内部虽有级别检查，
+	// 但实参在调用前已求值，Debug 未启用时 RedactBody 的正则扫描是纯浪费。
+	if c.logEnabled(ctx, slog.LevelDebug) {
+		c.logDebugCtx(ctx, "→ %s %s", method, logx.RedactBody(url))
+		c.logRequestHeaders(ctx, req)
+	}
 
 	resp, err := c.http.Do(req)
 	if err != nil {
@@ -340,7 +344,9 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 		if isTimeoutError(err) || errors.Is(err, context.Canceled) {
 			lvl = slog.LevelWarn
 		}
-		c.logWithLevel(ctx, lvl, "✗ %s %s dur=%s err=%v", method, logx.RedactBody(url), dur, err)
+		if c.logEnabled(ctx, lvl) {
+			c.logWithLevel(ctx, lvl, "✗ %s %s dur=%s err=%v", method, logx.RedactBody(url), dur, err)
+		}
 		// 检测超时错误并用 ErrTimeout 包装。
 		// 错误消息中 URL 必须经 logx.RedactBody 脱敏，userName=*** 形式保留参数名
 		// （学号是 PII）；CLAUDE.md #24 已覆盖 httpDo/状态码分支，本处补 do() 网络层失败路径。
@@ -381,14 +387,19 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 		return nil, fmt.Errorf("%w: 响应体超过 %d 字节上限", ErrInvalidResponse, maxResponseBodySize)
 	}
 
-	c.logWithLevel(ctx, levelForStatus(resp.StatusCode), "← %d %s (%d bytes) body=%s", resp.StatusCode, logx.RedactBody(url), len(respBytes), logx.RedactBodyThenTruncate(respBytes, 100))
+	// P1-1：先判级别再求值。logx.RedactBodyThenTruncate 对 4MB 响应体会
+	// 先 string(body) 分配等大字符串再跑两遍全量正则，而默认 LevelWarn 下
+	// 这条 Info 日志永不输出——守卫把这份浪费归零。
+	if lvl := levelForStatus(resp.StatusCode); c.logEnabled(ctx, lvl) {
+		c.logWithLevel(ctx, lvl, "← %d %s (%d bytes) body=%s", resp.StatusCode, logx.RedactBody(url), len(respBytes), logx.RedactBodyThenTruncate(respBytes, 100))
+	}
 
 	// 非 2xx：返回 sentinel，不把 body 当作成功 JSON 交给上层解码。
 	// 2xx（含 201/204 等）视为传输成功，业务 code 仍由 DecodeResponse/CheckCode 判定。
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: %s %s 返回状态码 %d body=%s",
-			sentinel, method, logx.RedactBody(url), resp.StatusCode, logx.RedactBodyThenTruncate(respBytes, 100))
+			sentinel, method, logx.RedactBody(url), resp.StatusCode, redactSnippet(respBytes, 100))
 	}
 	return respBytes, nil
 }
@@ -454,7 +465,26 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 		// sentinel 包装让 cmd 层和 SDK 用户统一 errors.Is 判定。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
 		return nil, fmt.Errorf("%w: GET %s 返回状态码 %d body=%s",
-			sentinel, logx.RedactBody(url), resp.StatusCode, logx.RedactBodyThenTruncate(bodyBytes, 100))
+			sentinel, logx.RedactBody(url), resp.StatusCode, redactSnippet(bodyBytes, 100))
 	}
 	return bodyBytes, nil
+}
+
+// redactSnippet 生成响应体的脱敏摘要，供错误消息附带诊断信息。
+//
+// 与 logx.RedactBodyThenTruncate 的区别：先按 redactSnippetPrefix 字节粗截，
+// 再交给 logx.RedactBodyThenTruncate 脱敏。目的是避免为「最终只会保留 100 字符」
+// 的摘要，对整个 4MB 响应体做 string() 分配与两遍全量正则。
+//
+// 安全性：HTTP-1 契约要求「先脱敏再截断」是为了防止敏感值跨截断边界被泄漏。
+// 这里先截断的是**原始字节的前缀**，若敏感值恰好跨越该前缀边界，其前缀部分
+// 会进入脱敏窗口——但由于截断点之后的字节根本不会进入输出，不存在「值被部分
+// 保留而正则失配」的泄漏路径。前缀窗口（4096 字节）远大于摘要上限（100 字符），
+// 保证窗口内的敏感值一定被完整匹配并掩码。
+func redactSnippet(body []byte, max int) string {
+	const redactSnippetPrefix = 4096
+	if len(body) > redactSnippetPrefix {
+		body = body[:redactSnippetPrefix]
+	}
+	return logx.RedactBodyThenTruncate(body, max)
 }

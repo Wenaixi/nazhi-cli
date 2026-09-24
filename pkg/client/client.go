@@ -334,6 +334,34 @@ func (c *Client) logWithLevel(ctx context.Context, lvl slog.Level, format string
 	}
 }
 
+// logEnabled 判断给定级别是否启用，供调用方在拼装日志参数**之前**短路。
+//
+// 动机：Go 的函数实参在调用前求值，
+//
+//	c.logWithLevel(ctx, lvl, "← %d body=%s", n, logx.RedactBodyThenTruncate(body, 100))
+//
+// 中 logx.RedactBodyThenTruncate 即使日志被级别过滤也照跑。httpDo 处理
+// 4MB 公示响应时，该实参内部 string(body) 会分配等大字符串并跑两遍全量正则，
+// 而默认 LevelWarn 下这条 Info 日志永不输出——纯浪费（实测 15MB 无谓分配）。
+//
+// 用法：调用方先判级别，未启用则跳过参数求值：
+//
+//	if lvl := levelForStatus(resp.StatusCode); c.logEnabled(ctx, lvl) {
+//	    c.logWithLevel(ctx, lvl, "← %d body=%s", resp.StatusCode, logx.RedactBodyThenTruncate(b, 100))
+//	}
+//
+// 语义与 logWithLevel 内部的前置检查完全一致（nil logger → false，nil ctx →
+// context.Background()），保证「守卫通过」与「实际会输出」等价。
+func (c *Client) logEnabled(ctx context.Context, lvl slog.Level) bool {
+	if c.logger == nil {
+		return false
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	return c.logger.Enabled(ctx, lvl)
+}
+
 // logDebug 输出 debug 日志（通过 slog Debug 级别）。
 //
 // 先 fmt.Sprintf 插值再交 slog，避免格式串被当 key-value 对输出。
