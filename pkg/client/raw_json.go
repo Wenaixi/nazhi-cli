@@ -451,6 +451,22 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 			return c.assembleCirclesLimitJSON(results, pb, offset, limit, endPage, methodName,
 				fmt.Errorf("%s 部分页失败: %w", methodName, err))
 		}
+
+		// CLI-120-1：翻页完成后做合并前累积字节复核——estimatePagesBudgeted
+		// 只以「每页 ≤ 首页字节」为假设（CLI-120-2），服务端分页异常（后续页
+		// 实际字节超过首页）可绕过估算预算。与 getCirclesJSON 的 N-04 口径
+		// 对齐：实际累积越过 maxAssembleBuffer 时二分截断到合法前缀，再交给
+		// assembleCirclesLimitJSON 输出（保证 Bytes.Buffer 永不无上限增长）。
+		if capAssembledSlice(raw1, results, endPage) {
+			budgetPage := endPage
+			for budgetPage > 1 && cumulativeSliceBytes(raw1, results, budgetPage) > maxAssembleBuffer {
+				budgetPage--
+			}
+			slog.Warn("raw_json: limit 多页累积量超过合并预算，截断到已合并前缀",
+				"total_bytes", cumulativeSliceBytes(raw1, results, endPage),
+				"budget_page", budgetPage, "max", maxAssembleBuffer)
+			return c.assembleCirclesLimitJSON(results, pb, offset, limit, budgetPage, methodName, nil)
+		}
 	}
 
 	return c.assembleCirclesLimitJSON(results, pb, offset, limit, endPage, methodName, nil)
