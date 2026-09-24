@@ -56,8 +56,22 @@ const (
 )
 
 // assertAllocsWithin 是门禁断言 helper，统一错误消息格式。
+//
+// 参数：
+//   - name：指标名（如 "httpDo(小响应体)"）
+//   - budget：allocs 预算值（常量）
+//   - fn：被测闭包
+//
+// race 下不做断言并直接返回：race 检测桩会显著增加分配次数（本机非 race 119
+// 次 → race 下数百次），预算在 race 下失去意义，门禁只在「独立非 race 的性能
+// 步骤」（make test-perf / CI 性能门禁步骤）中执行。标准 `go test -race ./...`
+// 全仓步骤（CI check job）因此不会因门禁假阳性而挂。
 func assertAllocsWithin(t *testing.T, name string, budget int, fn func()) {
 	t.Helper()
+	if raceEnabled {
+		t.Logf("%s: race 下跳过 allocs 门禁", name)
+		return
+	}
 	got := testing.AllocsPerRun(perfBudgetRuns, fn)
 	if got > float64(budget) {
 		t.Errorf("%s 分配次数超预算: got %.0f, budget %d（性能退步，检查最近的改动；确认是退步则回退该 commit）",
@@ -192,6 +206,13 @@ func TestPerfBudget_HTTPDoLargeBody_NoRedactAlloc(t *testing.T) {
 			_, _ = cLarge.httpDo(ctx, http.MethodGet, cLarge.bizURL("/api/bench"), nil, hLarge, "")
 		}
 	}).AllocedBytesPerOp()
+
+	// race 下不比较 B/op：AllocedBytesPerOp 同样被 race 检测桩放大，
+	// 差值断言在 race 下失去意义。门禁只在非 race 步骤执行。
+	if raceEnabled {
+		t.Log("race 下跳过 B/op 差值哨兵")
+		return
+	}
 
 	delta := int(bytesLarge - bytesSmall)
 	// io.ReadAll 用 bytes.Buffer 倍增扩容：最终数组 + 中间扩容垃圾 ≈ 2× 最终容量，
