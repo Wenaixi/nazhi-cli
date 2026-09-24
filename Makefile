@@ -1,4 +1,4 @@
-.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration test-docrules test-verify lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check
+.PHONY: build build-linux build-darwin build-windows test test-verbose test-integration test-docrules test-verify lint lint-fix vet fmt clean release install help ci-local test-coverage tidy-check bench bench-baseline test-perf
 
 # ─── 版本 ───
 
@@ -47,6 +47,24 @@ test-docrules:
 test-verify:
 	go test -count=1 -tags=verify ./test/integration/verify_gitignore/...
 
+# ─── 性能 ───
+
+# 跑全部 benchmark 并输出 ns/op、B/op、allocs/op（软记录，不做断言）
+bench:
+	go test -run '^$$' -bench . -benchmem ./pkg/client/...
+	@echo "benchmark 完成（时间指标仅本地参考，CI 上会受 runner 负载影响）"
+
+# 生成基线快照到 .superpowers/（git 忽略），供优化前后对比
+bench-baseline:
+	@mkdir -p .superpowers/perf
+	go test -run '^$$' -bench . -benchmem -benchtime=200x ./pkg/client/... | tee .superpowers/perf/baseline.txt
+	@echo "基线已写入 .superpowers/perf/baseline.txt"
+
+# allocs/op 硬门禁（CI 门禁项，超标即 FAIL）
+test-perf:
+	go test -count=1 -run TestPerfBudget ./pkg/client/... -v
+	@echo "性能门禁通过（allocs/op 未退步）"
+
 # ─── 代码质量 ───
 
 lint:
@@ -78,7 +96,7 @@ test-coverage:
 	go tool cover -func=coverage.out | tail -1
 
 # 本地一键跑完 CI 的核心 gate（tidy → lint → vet → 单测 → 集成测试 → 文档/元数据检查）
-ci-local: tidy-check lint vet test test-integration test-docrules test-verify
+ci-local: tidy-check lint vet test test-perf test-integration test-docrules test-verify
 	@echo "ci-local 全绿"
 
 # ─── 安装 ───
@@ -118,6 +136,8 @@ help:
 	@echo "  make vet          go vet 静态分析"
 	@echo "  make lint         golangci-lint 检查"
 	@echo "  make fmt          gofmt 格式化"
+	@echo "  make bench        跑全部 benchmark（软记录）"
+	@echo "  make test-perf    allocs/op 硬门禁（CI 门禁项）"
 	@echo "  make install      安装到 GOBIN"
 	@echo "  make release      发布全平台构建"
 	@echo "  make clean        清理构建产物"

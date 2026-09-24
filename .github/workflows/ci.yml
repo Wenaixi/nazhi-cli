@@ -85,6 +85,11 @@ jobs:
       - name: 单元测试（race 检测）
         run: go test -count=1 -race -v -timeout=15m ./pkg/...
 
+      - name: 性能门禁（allocs/op 硬门禁）
+        # 不叠加 -race：race 模式会改变分配行为，门禁值以普通模式实测为准。
+        # 门禁只卡 allocs/op（同 Go 版本下完全确定），时间指标不在 CI 断言。
+        run: go test -count=1 -run TestPerfBudget ./pkg/client/... -v
+
       - name: 文档规则测试
         run: go test -count=1 -tags=docrules ./test/docrules/...
 
