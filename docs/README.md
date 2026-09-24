@@ -74,3 +74,15 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 ```powershell
 robocopy <前端源码目录> <本地镜像目录> /E /XD .omc artifacts .git node_modules /XF CLAUDE.md
 ```
+
+## 表 D：性能基准与门禁（v1.7.1 建立）
+
+| 项 | 内容 |
+|------|------|
+| 测量位置 | `pkg/client/bench_fixture_test.go`（程序化生成大响应体 fixture）、`bench_hot_path_test.go`（9 项热点 benchmark）、`perf_budget_test.go`（硬门禁） |
+| 门禁命令 | `make test-perf`（`go test -run TestPerfBudget ./pkg/client/`），已接入 `ci-local` 与 CI check job |
+| 门禁策略 | 只卡 `allocs/op`（同 Go 版本下完全确定）；`ns/op`、`B/op` 仅软记录（`make bench` / `make bench-baseline`）——CI 慢 runner 会使时间断言假阳性 |
+| 预算常量 | `perf_budget_test.go` 内具名常量，值=实测精确值不留余量；Go 版本升级导致数字变化时同步更新并注明 |
+| race 适配 | `//go:build race` / `!race` 注入 `raceEnabled`，门禁在 `-race` 下跳过（race 检测桩放大分配、预算失效）；独立非 race 性能步骤照常严格断言 |
+| 优化收益 | HTTPDo_LargeBody B/op 15.4MB→4.7MB（-69%）、allocs 205→140；fetchCirclePageJSON allocs 675→158（-76%）；assembleCirclesJSON 精确预分配减少扩容拷贝 |
+| 明确不做 | 跨进程 token/session 缓存（token 落盘安全决策）、连接池调参（`MaxIdleConnsPerHost=16` 已按事故调优） |
