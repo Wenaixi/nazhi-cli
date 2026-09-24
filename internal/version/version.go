@@ -101,4 +101,10 @@ package version
 //	        ErrOCRNotConfigured/ErrOCRPanic 哨兵；配套收敛输入上限（写实/荣誉/自评 rune 上限、
 //	        翻页与 JSON 累积内存钳制、下载 50MB 上限）、CLI 错误语义（429/5xx 哨兵、
 //	        --quiet panic 静默、printEnvelope 统一脱敏）与测试基建（t.Setenv、取消窗口放宽）
-var Version = "1.7.0"
+//	1.7.1 — 性能优化回合：建立性能测量基础设施（白盒 benchmark fixture + 9 项热点
+//	        benchmark + allocs/op 硬门禁），接入 Makefile bench/test-perf 与 CI check job；
+//	        三项核心优化——日志参数改由 logEnabled 守卫后再求值（HTTPDo_LargeBody
+//	        B/op 15.4MB→4.7MB）、fetchCirclePageJSON dataList 校验改首字符判定（allocs
+//	        675→158）、assembleCirclesJSON 按各页实际长度精确预分配；门禁在 -race 下
+//	        跳过 allocs 断言消除 CI race 步骤假阳性
+var Version = "1.7.1"

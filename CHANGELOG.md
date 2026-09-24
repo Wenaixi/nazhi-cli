@@ -1,5 +1,23 @@
 # CHANGELOG
 
+## [1.7.1] - 2026-09-25
+
+发布链接：[v1.7.1](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.7.1)
+
+### 特性
+
+- **性能测量基础设施**：白盒基准测试套件（`bench_fixture_test.go` / `bench_hot_path_test.go`）覆盖 HTTP 响应处理、大响应体翻页合并、结构化解码、session 缓存命中、日志脱敏等 9 条热点路径；新增 `make bench` / `make bench-baseline` / `make test-perf` target，`allocs/op` 硬门禁接入 `ci-local` 与 CI check job（门禁只卡分配次数——同 Go 版本下完全确定，不受 CI 慢 runner 时间波动影响；`ns/op` 与 `B/op` 仅软记录）。
+
+### 性能
+
+- **日志参数提前求值**：`httpDo`/`doBizGet` 处理大响应体时，`logx.RedactBodyThenTruncate` 作为函数实参在日志级别检查前被求值，内部 `string(body)` 对 4MB 响应体分配等大字符串并跑两遍全量正则，而默认 LevelWarn 下 Info 日志永不输出。新增未导出 `logEnabled` helper 在调用点先判级别再拼参，错误路径摘要改用 `redactSnippet`（先按 4096 字节粗截再脱敏，不破坏 HTTP-1 先脱敏后截断契约）——`HTTPDo_LargeBody` B/op 15.4MB→4.7MB（-69%），allocs/op 205→140（commit `29612b0`）。
+- **dataList 校验轻量化**：`fetchCirclePageJSON` 二次校验从全量 `json.Unmarshal` 改为首字符判定（`json.Valid` 已保证整体合法性）——allocs/op 675→158（-76%），B/op 2.2MB→1.6MB（commit `2c58a3a`）。
+- **合并路径精确预分配**：`assembleCirclesJSON` 按各页实际长度求和精确预分配，减少 bytes.Buffer 倍增扩容的多次整块拷贝（commit `5ff9ca1`）。
+
+### 修复
+
+- **门禁 `-race` 假阳性**：CI check 的 `go test -race ./pkg/...` 步骤下四个 `TestPerfBudget_*` 门禁 FAIL——race 检测桩本身显著增加每次操作的堆分配，预算（以非 race 实测为准）在 race 下失去意义。新增 `//go:build race` / `//go:build !race` 约束文件注入 `raceEnabled`，门禁在 race 下优雅跳过；非 race 的独立性能步骤（`make test-perf` / CI 性能门禁步骤）照常严格断言（commit `4482392`）。
+
 ## [1.7.0] - 2026-09-23
 
 发布链接：[v1.7.0](https://github.com/Wenaixi/nazhi-cli/releases/tag/v1.7.0)
