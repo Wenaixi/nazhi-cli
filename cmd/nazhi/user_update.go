@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -86,23 +85,12 @@ var userUpdateAllowedKeys = map[string]struct{}{
 }
 
 // unknownUserUpdateKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名（含重复/空串归一）。
+// 收敛后（C2 架构深化）：直接复用 unknownUpdatePayloadKeys（ToLower 折叠 +
+// 稳定排序）。此前本函数用原始键直查 camelCase 允许集（大小写敏感），
+// 注释声称与 task 族 EqualFold 语义对齐实际没对齐——{"Telephone":...} 会
+// 被误判为未知键。收敛后大小写变体折叠放行，与 task/honor/typical-case 一致。
 func unknownUserUpdateKeys(payloadBytes []byte) []string {
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal(payloadBytes, &top); err != nil {
-		return nil // 解析已在调用方完成并报错，此处不重复
-	}
-	var unknown []string
-	for k := range top {
-		if _, ok := userUpdateAllowedKeys[k]; !ok {
-			unknown = append(unknown, k)
-		}
-	}
-	if len(unknown) == 0 {
-		return nil
-	}
-	// 稳定排序保证错误消息确定性
-	sort.Strings(unknown)
-	return unknown
+	return unknownUpdatePayloadKeys(payloadBytes, userUpdateAllowedKeys)
 }
 
 func init() {
