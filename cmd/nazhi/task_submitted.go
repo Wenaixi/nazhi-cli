@@ -1,10 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -32,79 +28,7 @@ var taskSubmittedCmd = &cobra.Command{
   nazhi task submitted --key 劳动                           # 按关键字筛选`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
-		onlyCount, _ := cmd.Flags().GetBool("count")
-		offset, _ := cmd.Flags().GetInt("offset")
-		limit, _ := cmd.Flags().GetInt("limit")
-		key, _ := cmd.Flags().GetString("key")
-
-		// CLI-124-09/10：rejectLoneOffset 必须先于 onlyCount——否则 --count --offset 5
-		// 会绕过 offset/limit 校验静默返回 total（task_teacher 同款注释）。
-		if rejectLoneOffset(cmd) {
-			return
-		}
-
-		if onlyCount {
-			printVerbose("正在获取记录总数...")
-			total, err := c.PeekSubmittedTotal(cmd.Context(), token, key)
-			if err != nil {
-				printError(fmt.Errorf("获取记录总数失败: %w", err))
-				return
-			}
-			printEnvelope(envelope.Success(map[string]int{"total": total}))
-			return
-		}
-
-		if offset > 0 || limit > 0 {
-			printVerbose("正在获取我发布的写实记录（limit=%d, offset=%d）...", limit, offset)
-			raw, pb, err := c.GetSubmittedCirclesLimitJSON(cmd.Context(), token, offset, limit, key)
-			if err != nil {
-				if len(raw) > 0 {
-					total := 0
-					if pb != nil {
-						total = pb.TotalNum
-					}
-					printEnvelope(envelope.Partial(207, "获取我发布的写实记录失败: "+err.Error(), map[string]any{
-						"records": json.RawMessage(raw),
-						"total":   total,
-					}))
-					return
-				}
-				printError(fmt.Errorf("获取我发布的写实记录失败: %w", err))
-				return
-			}
-			total := 0
-			if pb != nil {
-				total = pb.TotalNum
-			}
-			printEnvelope(envelope.Success(map[string]any{
-				"records": json.RawMessage(raw),
-				"total":   total,
-			}))
-			return
-		}
-
-		printVerbose("正在获取我发布的写实记录...")
-		raw, err := c.GetSubmittedCirclesJSON(cmd.Context(), token, key)
-		if err != nil {
-			if len(raw) > 0 {
-				printEnvelope(envelope.Partial(207, "获取我发布的写实记录失败: "+err.Error(), json.RawMessage(raw)))
-				return
-			}
-			printError(fmt.Errorf("获取我发布的写实记录失败: %w", err))
-			return
-		}
-		if len(raw) == 0 {
-			printEnvelope(envelope.Success(json.RawMessage("[]")))
-			return
-		}
-
-		printEnvelope(envelope.Success(json.RawMessage(raw)))
+		submittedCircleListMode.run(cmd)
 	},
 }
 
