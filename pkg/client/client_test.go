@@ -57,12 +57,26 @@ func unifiedJSONWithDataMap(code int, msg string, returnData any, dataMap any, d
 }
 
 // newTestClient 为测试创建 Client（连接 mock server）。
+// 测试隔离不变量：绝不因漏传 ssoServer 而让 Client 沿用生产域默认值
+// （request.go defaultSSOBase = https://www.nazhisoft.com）。
+// 2026-09-26 全量并发实测捕获到真实越界请求
+//
+//	POST https://www.nazhisoft.com/teacher/auth/studentLogin/getSchoolIdByStudentNumber?userName=***
+//
+// 一旦测试走到学校信息 SSO 回退（user.go postProcessSchoolFallback），
+// 漏设就会真的出网，违反「真实平台默认只读」约定。
+// 故 ssoServer 为 nil 时回落到 bizServer——两者本就常是同一个 mock。
 func newTestClient(ssoServer *httptest.Server, bizServer *httptest.Server, uploadServer *httptest.Server) *client.Client {
 	opts := []client.Option{
 		client.WithTimeout(5 * time.Second),
 	}
-	if ssoServer != nil {
-		opts = append(opts, client.WithSSOBase(ssoServer.URL))
+	// SSO 基址兜底到 biz mock：漏传 ssoServer 时不得回落生产域默认值。
+	sso := ssoServer
+	if sso == nil {
+		sso = bizServer
+	}
+	if sso != nil {
+		opts = append(opts, client.WithSSOBase(sso.URL))
 	}
 	if bizServer != nil {
 		opts = append(opts, client.WithBaseURL(bizServer.URL))
@@ -106,6 +120,11 @@ func warmupBizHandler(t *testing.T, fn http.HandlerFunc) http.HandlerFunc {
 					"studentNumber": "TEST2025001",
 					"className":     "八班",
 					"seat":          45,
+					// 补齐学校信息：缺失会触发 ActivateSession 出口的 SSO 学校回退，
+					// 而回退会访问 ssoBaseURL。夹具已把该基址兜底到本地 mock，
+					// 但那会多出一次请求并让「请求序列」断言失真；此处从源头消除回退。
+					"schoolId":   173,
+					"schoolName": "本地测试学校",
 				}, nil)))
 				servedWarmup = true
 			})
