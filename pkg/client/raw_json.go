@@ -51,8 +51,9 @@ const maxFetchTasksDims = 128
 
 // capAssembledSlice 对已累积的 rawResult 切片做总量预算截断（N-04）。
 // getCirclesJSON/getCirclesLimitJSON 翻页时把每页原始字节累积进 results，
-// 预算只覆盖预分配容量（assembleBufferCapHint），累积量（页数×每页实际
-// 字节）无上界——服务端报 10000 页×4MB≈40GB 渐进填充。超出预算返回 true，
+// 已由 estimatePagesBudgeted（页数×首页字节）预翻页预算 + 本函数合并前
+// 复核截断双层覆盖——服务端报 10000 页×4MB≈40GB 渐进填充时在真实翻页
+// 前即被预预算截断，残余超预算由本函数兜底。超出预算返回 true，
 // 调用方截断到已合并合法前缀。
 func capAssembledSlice(raw1 []byte, results []rawResult, untilPage int) bool {
 	if untilPage < 1 {
@@ -263,21 +264,6 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 		return json.RawMessage(trimArrayToCurrent(buf.Bytes())), partialErr
 	}
 	return buf.Bytes(), nil
-}
-
-// assembleBufferCapHint 返回 assembleCirclesJSON 的预分配容量（CC1 修复）。
-// 页数×首頁字節數乘積被鉗制到固定上界 maxAssembleBuffer，防攻陷服務端
-// 借大響應×虛高頁數驅動單請求 OOM；正常組合不受影響。
-//
-// 注意：assembleCirclesJSON 已改用「按各页实际长度求和」的精确预分配，
-// 本函数仅被 getCirclesJSON 的 estimatePagesBudgeted 路径与既有测试引用，
-// 保留以维持预算估算语义。
-func assembleBufferCapHint(pageCount, firstPageLen int) int {
-	capHint := pageCount * firstPageLen
-	if capHint > maxAssembleBuffer {
-		capHint = maxAssembleBuffer
-	}
-	return capHint
 }
 
 // getCirclesJSON 是各类型写实记录全量拉取的通用实现。
