@@ -1,10 +1,10 @@
 package main
 
 import (
+	"github.com/Wenaixi/nazhi-cli/pkg/client"
+	"github.com/spf13/cobra"
 	"strings"
 	"testing"
-
-	"github.com/spf13/cobra"
 )
 
 // makeTestCmdWithFlags 构造一个临时 cobra 命令并附加指定 flag，模拟 buildClient
@@ -243,7 +243,7 @@ func TestBuildClient_UnknownURLTypeRejected(t *testing.T) {
 }
 
 // TestBuildClient_TrackedInPendingClients C3 回归测试：buildClient 构造的 Client
-// 必须自动注册到 pendingClients（main 退出前 defer closeAllClients 会释放）。
+// 必须自动注册到 defaultScope（main 退出前 defer closeAllClients 会释放）。
 // 这是核心目的——消除 inline client.New 让 trackClient 路径统一。
 func TestBuildClient_TrackedInPendingClients(t *testing.T) {
 	t.Setenv("NAZHI_SSO_BASE", "")
@@ -251,9 +251,7 @@ func TestBuildClient_TrackedInPendingClients(t *testing.T) {
 	t.Setenv("NAZHI_TIMEOUT", "")
 
 	// 记录测试前的 baseline
-	pendingClientsMu.Lock()
-	baseline := len(pendingClients)
-	pendingClientsMu.Unlock()
+	baseline := defaultScope.TrackedClientCount()
 
 	cmd := makeTestCmdWithFlags(t, map[string]any{
 		"sso-base": "",
@@ -267,15 +265,19 @@ func TestBuildClient_TrackedInPendingClients(t *testing.T) {
 	}
 	t.Cleanup(func() {
 		_ = c.Close()
-		// 清掉这次注册避免污染其他测试
-		pendingClientsMu.Lock()
-		pendingClients = pendingClients[:baseline]
-		pendingClientsMu.Unlock()
+		// 本测试只关心「buildClient 会登记 +1」这一增量。
+		// 关闭会清空登记列表，因此登记 baseline 个占位 Client 复原基线，
+		// 避免污染后续依赖 defaultScope 初始状态的测试。
+		for range baseline {
+			placeholder, nErr := client.New(client.WithTimeout(5 * 1e9))
+			if nErr != nil {
+				return
+			}
+			trackClient(placeholder)
+		}
 	})
 
-	pendingClientsMu.Lock()
-	after := len(pendingClients)
-	pendingClientsMu.Unlock()
+	after := defaultScope.TrackedClientCount()
 
 	if after != baseline+1 {
 		t.Errorf("buildClient 后 pendingClients 应 +1，实际 baseline=%d after=%d", baseline, after)

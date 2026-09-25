@@ -55,9 +55,29 @@ func (s *ProcessScope) CloseLogFiles() error {
 	files := s.files
 	s.files = nil
 	s.filesMu.Unlock()
+	return closeInLIFO(files, func(f io.Closer) error { return f.Close() })
+}
+
+// closeInLIFO 按后进先出关闭资源，同一资源只关闭一次。
+//
+// 去重的由来：ProcessScope 引入前，lifecycle.go 的 trackLogFile 同时写入
+// Scope 与 legacy 两张包级表，同一 writer 因此在两处各存一份指针，
+// 关闭时若不去重就会被 Close 两次。删除 legacy 双写层后该风险消失，
+// 但「重复登记不应重复关闭」本身是有价值的不变量——它让去重成为
+// Scope 自身的职责，而不是依赖调用方不去重复登记。
+//
+// 接口比较用的元素：*os.File、*bufio.Writer 等指针类型可直接比较；
+// 若将来登记不可比较的接口实现，此处需改为按身份而非按值去重。
+func closeInLIFO[T comparable](items []T, closeOne func(T) error) error {
+	seen := make(map[T]struct{}, len(items))
 	var firstErr error
-	for i := len(files) - 1; i >= 0; i-- {
-		if err := files[i].Close(); err != nil {
+	for i := len(items) - 1; i >= 0; i-- {
+		item := items[i]
+		if _, ok := seen[item]; ok {
+			continue
+		}
+		seen[item] = struct{}{}
+		if err := closeOne(item); err != nil {
 			firstErr = errors.Join(firstErr, err)
 		}
 	}
@@ -72,17 +92,32 @@ func (s *ProcessScope) CloseAllClients() error {
 	clients := s.clients
 	s.clients = nil
 	s.clientsMu.Unlock()
-	var firstErr error
-	for i := len(clients) - 1; i >= 0; i-- {
-		if err := clients[i].Close(); err != nil {
-			firstErr = errors.Join(firstErr, err)
-		}
-	}
-	return firstErr
+	return closeInLIFO(clients, func(c *client.Client) error { return c.Close() })
 }
 
-// defaultScope 是进程默认 Scope，供原有全局 helper 兼容。
-// 新代码应显式传递 Scope；旧全局函数保留为薄转发，避免一次性大范围改动。
+// TrackedClientCount 返回当前已登记的 Client 数量，仅供测试观测。
+// 生产代码不需要该信息，因此不作为业务能力暴露给调用方。
+func (s *ProcessScope) TrackedClientCount() int {
+	if s == nil {
+		return 0
+	}
+	s.clientsMu.Lock()
+	defer s.clientsMu.Unlock()
+	return len(s.clients)
+}
+
+// TrackedLogFileCount 返回当前已登记的日志文件数量，仅供测试观测。
+func (s *ProcessScope) TrackedLogFileCount() int {
+	if s == nil {
+		return 0
+	}
+	s.filesMu.Lock()
+	defer s.filesMu.Unlock()
+	return len(s.files)
+}
+
+// defaultScope 是进程默认 Scope，供包级 helper（lifecycle.go）使用。
+// 新代码应显式传递 Scope。
 var defaultScope = NewProcessScope()
 
 // urlOptDef 描述一种 URL 类型对应的 flag/env/Option 元组。

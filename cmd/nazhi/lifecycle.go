@@ -1,99 +1,37 @@
 package main
 
 import (
-	"errors"
 	"io"
-	"sync"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// 兼容层：旧测试直接读写 pendingClients/pendingLogFiles，需保留包级变量。
-// 实现上委托给 defaultScope（assembly.go 定义），保持单一真相来源。
-var (
-	pendingClientsMu  sync.Mutex
-	pendingClients    []*client.Client
-	pendingLogFilesMu sync.Mutex
-	pendingLogFiles   []io.Closer
-)
+// 本文件是进程级资源清理的包级入口，资源所有权由 ProcessScope 持有
+// （见 assembly.go）。
+//
+// 历史沿革：此处原有一套 legacy 层，同时维护 defaultScope 与两张包级
+// 表（pendingClients / pendingLogFiles），track 时双写、关闭时用 seen map
+// 去重。ProcessScope 的 Close 方法因此长期零调用，被直接读写私有字段旁路。
+// 2026-09-26 已删除双写层：去重改由 ProcessScope 自身承担
+// （closeInLIFO，回归测试见 process_scope_close_test.go）。
+//
+// 现在这四个函数是 defaultScope 的薄转发，保留它们是因为：
+//   - main 的退出链、30+ 处测试的 t.Cleanup 都按包级函数调用；
+//   - package main 无外部兼容压力，保留转发比全量改调用点更小风险。
+// 新代码应显式传递 ProcessScope。
 
 func trackClient(c *client.Client) {
 	defaultScope.TrackClient(c)
-	// 同步到旧全局以兼容直接读 pendingClients 的测试
-	pendingClientsMu.Lock()
-	pendingClients = append(pendingClients, c)
-	pendingClientsMu.Unlock()
 }
 
 func trackLogFile(f io.Closer) {
 	defaultScope.TrackLogFile(f)
-	pendingLogFilesMu.Lock()
-	pendingLogFiles = append(pendingLogFiles, f)
-	pendingLogFilesMu.Unlock()
 }
 
 func closeLogFiles() error {
-	defaultScope.filesMu.Lock()
-	scoped := defaultScope.files
-	defaultScope.files = nil
-	defaultScope.filesMu.Unlock()
-	pendingLogFilesMu.Lock()
-	legacys := pendingLogFiles
-	pendingLogFiles = nil
-	pendingLogFilesMu.Unlock()
-	seen := make(map[io.Closer]struct{}, len(scoped)+len(legacys))
-	ordered := make([]io.Closer, 0, len(scoped)+len(legacys))
-	for i := len(scoped) - 1; i >= 0; i-- {
-		if _, ok := seen[scoped[i]]; !ok {
-			seen[scoped[i]] = struct{}{}
-			ordered = append(ordered, scoped[i])
-		}
-	}
-	for i := len(legacys) - 1; i >= 0; i-- {
-		if _, ok := seen[legacys[i]]; !ok {
-			seen[legacys[i]] = struct{}{}
-			ordered = append(ordered, legacys[i])
-		}
-	}
-	var firstErr error
-	for _, f := range ordered {
-		if err := f.Close(); err != nil {
-			firstErr = errors.Join(firstErr, err)
-		}
-	}
-	return firstErr
+	return defaultScope.CloseLogFiles()
 }
 
 func closeAllClients() error {
-	// 收集去重：defaultScope 与旧全局可能持有同一指针（trackClient 双写），去重后只关一次
-	defaultScope.clientsMu.Lock()
-	scoped := defaultScope.clients
-	defaultScope.clients = nil
-	defaultScope.clientsMu.Unlock()
-	pendingClientsMu.Lock()
-	legacys := pendingClients
-	pendingClients = nil
-	pendingClientsMu.Unlock()
-	seen := make(map[*client.Client]struct{}, len(scoped)+len(legacys))
-	ordered := make([]*client.Client, 0, len(scoped)+len(legacys))
-	// 保持 LIFO：先 scoped 逆序，再 legacy 逆序，去重后仍 LIFO
-	for i := len(scoped) - 1; i >= 0; i-- {
-		if _, ok := seen[scoped[i]]; !ok {
-			seen[scoped[i]] = struct{}{}
-			ordered = append(ordered, scoped[i])
-		}
-	}
-	for i := len(legacys) - 1; i >= 0; i-- {
-		if _, ok := seen[legacys[i]]; !ok {
-			seen[legacys[i]] = struct{}{}
-			ordered = append(ordered, legacys[i])
-		}
-	}
-	var firstErr error
-	for _, c := range ordered {
-		if err := c.Close(); err != nil {
-			firstErr = errors.Join(firstErr, err)
-		}
-	}
-	return firstErr
+	return defaultScope.CloseAllClients()
 }

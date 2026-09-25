@@ -131,23 +131,15 @@ func TestPrintError_RedactsWrappedURLSecrets(t *testing.T) {
 // 模拟一次"有 pending client + 显式调 closeAllClients"的流程，验证客户端
 // 列表被清空（证明 Close 真的被调用，不被 os.Exit 跳过）。
 func TestMain_DeferCloseStillRuns(t *testing.T) {
+	// 兜底：测试结束前确保清空（不污染其它测试）
+	resetDefaultScope(t)
+
 	// 构造一个真实 client 并注册
 	c, _ := client.New()
 	trackClient(c)
-	t.Cleanup(func() { _ = c.Close() })
-	// 兜底：测试结束前确保清空（不污染其它测试）
-	defer func() {
-		pendingClientsMu.Lock()
-		pendingClients = nil
-		pendingClientsMu.Unlock()
-	}()
 
-	// 记录原始列表长度
-	pendingClientsMu.Lock()
-	before := len(pendingClients)
-	pendingClientsMu.Unlock()
-	if before == 0 {
-		t.Fatal("trackClient 之后 pendingClients 应非空")
+	if got := defaultScope.TrackedClientCount(); got == 0 {
+		t.Fatal("trackClient 之后 Scope 登记列表应非空")
 	}
 
 	// 模拟 main 退出时的 defer
@@ -157,11 +149,8 @@ func TestMain_DeferCloseStillRuns(t *testing.T) {
 	}
 
 	// 验证列表已清空 → 证明 defer 在 os.Exit 之前能跑完
-	pendingClientsMu.Lock()
-	after := len(pendingClients)
-	pendingClientsMu.Unlock()
-	if after != 0 {
-		t.Errorf("closeAllClients 之后 pendingClients 应清空，实际长度 %d", after)
+	if got := defaultScope.TrackedClientCount(); got != 0 {
+		t.Errorf("closeAllClients 之后登记列表应清空，实际长度 %d", got)
 	}
 }
 

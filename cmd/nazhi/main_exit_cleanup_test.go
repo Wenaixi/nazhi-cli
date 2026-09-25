@@ -138,17 +138,3 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 	t.Logf("✓ 修复锚定：closeAllClients 在 line %d 顶层显式调用，os.Exit 在 line %d",
 		closeLine, exitLine)
 }
-
-// TestMain_NoDeferOnlyClose 防退化：未来重构如果删掉显式调用、退化到仅 defer
-// AST 扫描会失败。
-func TestMain_NoDeferOnlyClose(t *testing.T) {
-	fset := token.NewFileSet()
-	_, err := parser.ParseFile(fset, "main.go", nil, parser.ParseComments)
-	if err != nil {
-		t.Fatalf("parse main.go: %v", err)
-	}
-	// 该测试由 TestMain_OsExitPrecededByCloseAllClients 覆盖核心契约。
-	// 留作冗余：未来若有人加 `defer func() { closeAllClients() }()` 在 os.Exit 后
-	// 此测试提醒「必须在 os.Exit 前显式调用」。
-	t.Log("防退化测试：见 TestMain_OsExitPrecededByCloseAllClients")
-}
