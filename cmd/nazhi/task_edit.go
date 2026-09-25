@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -30,52 +27,7 @@ var taskEditCmd = &cobra.Command{
   echo '{"id":5464109,"taskId":18151,"content":"修改后的内容"}' | nazhi task edit --token "xxx" --payload -`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
-			return
-		}
-
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
-		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
-		if err != nil {
-			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
-			return
-		}
-
-		// I-04：task edit payload 未知顶层键同款拒绝（对齐 task submit / user update）。
-		if unknown := unknownTaskInputKeys(payloadBytes); len(unknown) > 0 {
-			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi task edit --help）", unknown))
-			return
-		}
-
-		input, err := decodeTaskEditInput(payloadBytes)
-		if err != nil {
-			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
-			return
-		}
-
-		// 支持 --address / --level 独立 flag 覆盖 payload 中的值
-		if v, _ := cmd.Flags().GetString("address"); v != "" {
-			input.Address = v
-		}
-		if v, _ := cmd.Flags().GetString("level"); v != "" {
-			input.Level = v
-		}
-
-		printVerbose("正在修改写实记录（自动补全任务元数据/图片上传）...")
-		result, err := c.EditCircle(cmd.Context(), token, input)
-		if err != nil {
-			printError(fmt.Errorf("修改写实记录失败: %w", err))
-			return
-		}
-
-		printEnvelope(envelope.Success(result))
+		runWriteOp(cmd, taskEditWriteOp, nil)
 	},
 }
 

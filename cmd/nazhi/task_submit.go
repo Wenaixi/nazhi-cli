@@ -1,9 +1,6 @@
 package main
 
 import (
-	"fmt"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -21,56 +18,7 @@ var taskSubmitCmd = &cobra.Command{
   echo '{"taskId":18154,"content":"劳动让我体会到责任的重要性。"}' | nazhi task submit --token "xxx" --payload -`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-
-		// 与 task edit 一致：先做本地参数校验再建客户端——
-		// 缺 --payload 的参数错误不应依赖 token/base-url 配置是否正确。
-		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
-			return
-		}
-
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
-		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
-		if err != nil {
-			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
-			return
-		}
-
-		// I-04：task submit payload 未知顶层键静默忽略会让拼错键名（如 imagePath
-		// 单数）图片不上传仍照常发请求。解码前校验键集合，未知键以参数错误拒绝
-		// （400/exit3），对齐 user update 的 unknownUserUpdateKeys 模式。
-		if unknown := unknownTaskInputKeys(payloadBytes); len(unknown) > 0 {
-			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi task submit --help）", unknown))
-			return
-		}
-
-		input, err := decodeTaskSubmitInput(payloadBytes)
-		if err != nil {
-			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
-			return
-		}
-
-		if v, _ := cmd.Flags().GetString("address"); v != "" {
-			input.Address = v
-		}
-		if v, _ := cmd.Flags().GetString("level"); v != "" {
-			input.Level = v
-		}
-
-		printVerbose("正在提交任务（自动补全任务元数据/图片上传）...")
-		result, err := c.SubmitTask(cmd.Context(), token, input)
-		if err != nil {
-			printError(fmt.Errorf("提交任务失败: %w", err))
-			return
-		}
-
-		printEnvelope(envelope.Success(result))
+		runWriteOp(cmd, taskSubmitWriteOp, nil)
 	},
 }
 
