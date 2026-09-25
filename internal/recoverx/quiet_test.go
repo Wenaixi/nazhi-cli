@@ -36,9 +36,9 @@ func readCaptured(t *testing.T, path string) string {
 
 // TestRecoverPanic_QuietNoStack 锚定 SD-2 契约：
 // --quiet 模式（SetQuiet(true)）下 RecoverPanic 不得把 debug.Stack() 写到
-// stderr——此前 pkg/client 的 fetchTasksForDimensionSafe/safeOCRRecognize 两处
-// recover 路径无法感知 CLI quiet flag，--quiet 时维度/OCR panic 仍把完整
-// goroutine stack 打到 stderr，击穿「--quiet 关闭所有 stderr 输出」契约。
+// stderr——此前 pkg/client 的 fetchTasksForDimensionSafe 及 task 拉取 recover 路径
+// 无法感知 CLI quiet flag，--quiet 时维度 panic 仍把完整 goroutine stack 打到
+// stderr，击穿「--quiet 关闭所有 stderr 输出」契约。
 func TestRecoverPanic_QuietNoStack(t *testing.T) {
 	path := captureStderr(t)
 	SetQuiet(true)

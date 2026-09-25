@@ -14,8 +14,8 @@ import (
 
 // quiet 包级静默标志：--quiet 模式下由 main 在 cobra PersistentPreRun
 // 阶段（quiet flag 已解析）调用 SetQuiet(true)。pkg/client 的两条 recover
-// 路径（fetchTasksForDimensionSafe/safeOCRRecognize）无法感知命令行 flag，
-// 统一经此包级入口获得 quiet 语义。
+// 路径（fetchTasksForDimensionSafe 及其调用的 fetchTasksForDimension）无法
+// 感知命令行 flag，统一经此包级入口获得 quiet 语义。
 var quiet atomic.Bool
 
 // SetQuiet 设置包级静默标志。--quiet 模式下 RecoverPanic 不再把
