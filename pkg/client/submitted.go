@@ -111,12 +111,8 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 		return page1, nil
 	}
 
-	// 以 totalNum 推导页数作为下界，防止服务端 totalPage 虚低造成静默截断。
-	declaredPages := pb.TotalPage
-	derivedPages := (pb.TotalNum + pageSize - 1) / pageSize
-	if declaredPages < derivedPages {
-		declaredPages = derivedPages
-	}
+	// 页数下界与上界钳制统一由 derivePageBounds 负责（与 raw_json 同一实现）。
+	declaredPages := derivePageBounds(pb.TotalNum, pb.TotalPage, pageSize)
 
 	// 多页：预分配容量后并发翻页。
 	// ponytail: cap 以 max(len(page1), totalNum) 钳制——totalNum 取自服务端声明、

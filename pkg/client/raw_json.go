@@ -290,15 +290,10 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 	// C-F 修复：TotalPage 来自服务端单字段声明，恶意/异常值直接驱动 make 分配——
 	// 服务端被攻陷时单请求 OOM 崩进程。超钳制值时直接截断（只返回首页），
 	// 不翻页——钳制的意义是防放大而不是真翻 10000 页。
-	declaredPages := pb.TotalPage
-	derivedPages := (pb.TotalNum + pageSize - 1) / pageSize
-	if declaredPages < derivedPages {
-		declaredPages = derivedPages
-	}
-	if declaredPages > maxTotalPage {
-		slog.Warn("raw_json: totalPage 超过钳制上限，截断到首页", "total_page", declaredPages, "max", maxTotalPage)
-		return raw1, pb, nil
-	}
+	// 页数下界与上界钳制统一由 derivePageBounds 负责（v1.6.4 / 84982af）：
+	// 下界取 max(totalPage, ceil(totalNum/pageSize)) 防 totalPage 虚低漏页，
+	// 上界钳到 maxTotalPage 防服务端声明值驱动 make 分配 OOM。
+	declaredPages := derivePageBounds(pb.TotalNum, pb.TotalPage, pageSize)
 	// CLI-124-01：全量路径在 make 前补「页数 × 首页字节」预算守卫，与
 	// getCirclesLimitJSON 的 N-04 预估守卫同纪律。此前翻页后才由
 	// capAssembledSlice 复核截断——最坏 10000 页 × 4MB 逐页填充至 40GB，
@@ -386,29 +381,13 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 	}
 
 	// 只拉到覆盖 offset+limit 的最后一页，不全量翻页。
-	// totalPage 虚低或为 0 时，以 totalNum 推导页数作为安全下界。
-	need := offset + limit
-	endPage := (need + pageSize - 1) / pageSize
-	declaredPages := pb.TotalPage
-	derivedPages := (pb.TotalNum + pageSize - 1) / pageSize
-	if declaredPages < derivedPages {
-		declaredPages = derivedPages
-	}
-	if endPage > declaredPages {
-		endPage = declaredPages
-	}
-	// C86-CLI#2：endPage 仍可能驱动超大 make 分配——limit 来自调用方，
-	// 服务端 totalNum 单字段虚高（如 1e9）时 need=offset+limit 派生的
-	// endPage 可达百万，make([]rawResult, endPage+1) 一次预分配几十 MB。
-	// 与 getCirclesJSON 的 C-F 钳制同纪律：endPage 超 maxTotalPage 直接
-	// 截断到上界（返回首页快照 + 空增量，防放大优先于精确分页完整性）。
-	if endPage > maxTotalPage {
-		slog.Warn("raw_json: limit 派生页数超过钳制上限，截断到首页", "end_page", endPage, "max", maxTotalPage)
-		endPage = 1
-	}
-	if endPage < 1 {
-		endPage = 1
-	}
+	//
+	// 注意：limitEndPage 的收敛必须用**未钳制**的声明页数。若传
+	// derivePageBounds 的结果（已钳到 maxTotalPage），totalNum=1e9 场景会
+	// 算出 endPage=10000 并真的翻 10000 页，违反 C86-CLI#2 锁定的
+	// 「超限退回首页、不再翻页」。
+	declaredPages := derivePageBoundsUnclamped(pb.TotalNum, pb.TotalPage, pageSize)
+	endPage := limitEndPage(offset, limit, pageSize, declaredPages)
 
 	// N-04（Cycle 105 修正）：getCirclesLimitJSON 的预翻页估算必须以
 	// 「页数 × 首页字节」作上界——此前 capAssembledSlice 看 results 里
