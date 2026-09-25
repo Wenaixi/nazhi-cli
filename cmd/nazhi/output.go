@@ -93,8 +93,12 @@ func mapSentinelToHTTPCode(err error) int {
 		errors.Is(err, client.ErrTimeout),
 		errors.Is(err, client.ErrServiceUnavailable):
 		return 502
+	// CLI-124-06：ErrLoginRejected 优先于泛化业务拒绝 422——「登录取证失败」
+	// 是明确的认证拒绝，与 login.go 专属中文 401 分支语义对齐（exit 恒 1，
+	// 但 HTTP 码契约应收敛为 401：认证失败不是 422 未处理实体）。
+	case errors.Is(err, client.ErrLoginRejected):
+		return 401
 	case errors.Is(err, client.ErrBusinessRejected),
-		errors.Is(err, client.ErrLoginRejected),
 		errors.Is(err, client.ErrInvalidResponse),
 		errors.Is(err, client.ErrUploadRejected):
 		return 422
