@@ -6,8 +6,8 @@ import "errors"
 // ─── 哨兵错误 ───
 
 var (
-	// ErrLoginRejected 登录被拒绝（凭证无效或验证码错误）。
-	ErrLoginRejected = errors.New("login rejected: invalid credentials or captcha")
+	// ErrLoginRejected 登录被拒绝（凭证无效）。
+	ErrLoginRejected = errors.New("login rejected: invalid credentials")
 
 	// ErrCookieSyncFailed 登录成功但 token 同步到 cookie jar 失败（C86-CLI#7）。
 	//
@@ -32,7 +32,7 @@ var (
 	// ErrBusinessRejected 业务请求被服务端拒绝（非登录场景）。
 	//
 	// 与 ErrLoginRejected 的语义边界：
-	//   - ErrLoginRejected：登录请求被拒绝（凭证无效/验证码错误），
+	//   - ErrLoginRejected：登录请求被拒绝（凭证无效），
 	//     SDK 用户应触发重新登录流程
 	//   - ErrBusinessRejected：已通过鉴权的业务请求被服务端拒绝
 	//     （如任务已提交、参数错误），与登录状态无关，

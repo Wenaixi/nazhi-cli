@@ -242,7 +242,7 @@ func (c *Client) doBizAndDecode(ctx context.Context, token, opName, path, method
 
 // decodeOrInvalidResponse 是业务层五处 DecodeResponse 调用的统一哨兵包装 helper。
 // 主管线 doBizAndDecode (request.go:230-235) 已用双 %w 包装 ErrInvalidResponse；
-// 业务层 GetSchoolID / 验证码预校验 / GetMyInfo / fetchTasksDimensionJSON /
+// 业务层 GetSchoolID / GetMyInfo / fetchTasksDimensionJSON /
 // fetchTasksForDimension(getCircleStatistics) 自行调 types.DecodeResponse 后裸 fmt.Errorf，
 // 让 errors.Is(err, ErrInvalidResponse) 在服务端 200+HTML（WAF/维护页）场景下落空，
 // CLI 漏斗走 default 500/exit2。
@@ -447,7 +447,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 	// HTTP-2 契约（P1-1，19 轮审计）：doBizGet 读响应体同样封顶
 	// maxResponseBodySize（当前 4MB，2026-08-27 事故后放宽）——与 httpDo 同构，
 	// 防异常/被劫持服务端塞超大 body 造成内存放大。
-	// doBizGet 是激活步骤1（持 sm.mu 锁）/ InitSession / 验证码拉取三处共用 helper，
+	// doBizGet 是激活步骤1（持 sm.mu 锁）/ InitSession 三处共用 helper，
 	// 一处修复同时治愈三处无上限读体（session.go:108 / auth.go:27 / auth.go:353）。
 	// 超限分支直 Close 放弃 keep-alive（对齐 2356484 于 httpDo:377-381 的修复纪律，
 	// 不再经 defer drainAndClose 无上限续读剩余 body）。

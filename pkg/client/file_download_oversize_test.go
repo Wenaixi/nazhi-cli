@@ -3,7 +3,7 @@
 //
 // 背景：writeDownloadToFile 的 copyCtx 对上游流式写入无任何字节上限，攻击者
 // 借重定向到受信子域的无限流可把磁盘写满（0 字节已归 ErrInvalidResponse，
-// 但超大流未防；与同文件 FetchCaptcha 64KB / UploadFile 20MB 纪律不对称）。
+// 但超大流未防；与同文件附件 64KB / UploadFile 20MB 纪律不对称）。
 // 修复：copyCtx 内嵌 LimitReader 超限判定，超限删半成品归 ErrInvalidResponse。
 package client
 
