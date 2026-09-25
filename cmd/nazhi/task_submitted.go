@@ -43,6 +43,12 @@ var taskSubmittedCmd = &cobra.Command{
 		limit, _ := cmd.Flags().GetInt("limit")
 		key, _ := cmd.Flags().GetString("key")
 
+		// CLI-124-09/10：rejectLoneOffset 必须先于 onlyCount——否则 --count --offset 5
+		// 会绕过 offset/limit 校验静默返回 total（task_teacher 同款注释）。
+		if rejectLoneOffset(cmd) {
+			return
+		}
+
 		if onlyCount {
 			printVerbose("正在获取记录总数...")
 			total, err := c.PeekSubmittedTotal(cmd.Context(), token, key)
@@ -51,10 +57,6 @@ var taskSubmittedCmd = &cobra.Command{
 				return
 			}
 			printEnvelope(envelope.Success(map[string]int{"total": total}))
-			return
-		}
-
-		if rejectLoneOffset(cmd) {
 			return
 		}
 

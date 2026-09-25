@@ -138,6 +138,12 @@ func printParamError(err error) {
 func rejectLoneOffset(cmd *cobra.Command) bool {
 	offset, _ := cmd.Flags().GetInt("offset")
 	limit, _ := cmd.Flags().GetInt("limit")
+	// CLI-124-10：--count 与 --limit/--offset 语义互斥——count 模式只输总数，
+	// 静默忽略 limit/offset 会让脚本拿错形状不自知。四命令统一拒绝。
+	if onlyCount, _ := cmd.Flags().GetBool("count"); onlyCount && (limit > 0 || offset > 0) {
+		printEnvelope(envelope.Error(400, "--count 不能与 --limit/--offset 同用（count 只输出记录总数）"))
+		return true
+	}
 	if (offset > 0 && limit <= 0) || offset < 0 || limit < 0 {
 		// N-04：违规参数可能是 --limit 负值而非 --offset——文案必须同时点名两个
 		// 参数，避免用户只看到 "--offset" 却摸不着为什么 --limit -1 也被拒。
