@@ -90,7 +90,11 @@ tidy-check:
 	go mod tidy
 	git diff --exit-code go.mod go.sum
 
-# 单元测试 + 覆盖率汇总（只统计 pkg/，与 CI 单测范围一致）
+# 单元测试 + 覆盖率汇总（只统计 pkg/）
+#
+# 覆盖率刻意收窄到 pkg/：cmd/ 与 internal/ 的测试以契约与状态机为主，
+# 汇总覆盖率意义有限。CI 的单测范围已含 ./cmd/... 与 ./internal/...，
+# 两者不一致是刻意的，不是遗漏。
 test-coverage:
 	go test -count=1 -race -coverprofile=coverage.out ./pkg/...
 	go tool cover -func=coverage.out | tail -1
