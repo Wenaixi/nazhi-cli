@@ -313,6 +313,16 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 		slog.Warn("raw_json: totalPage 超过钳制上限，截断到首页", "total_page", declaredPages, "max", maxTotalPage)
 		return raw1, pb, nil
 	}
+	// CLI-124-01：全量路径在 make 前补「页数 × 首页字节」预算守卫，与
+	// getCirclesLimitJSON 的 N-04 预估守卫同纪律。此前翻页后才由
+	// capAssembledSlice 复核截断——最坏 10000 页 × 4MB 逐页填充至 40GB，
+	// errgroup 已真实发出所有请求才在 g.Wait 后截断（内存放大 + 无谓翻页）。
+	// 越界直接截断到首页快照，不翻页（防放大优先于全量完整性）。
+	if declaredPages > 1 && estimatePagesBudgeted(declaredPages, len(raw1)) > maxAssembleBuffer {
+		slog.Warn("raw_json: 全量翻页预估累积量超过合并预算，截断到首页",
+			"estimated_bytes", estimatePagesBudgeted(declaredPages, len(raw1)), "max", maxAssembleBuffer)
+		return raw1, pb, nil
+	}
 	results := make([]rawResult, declaredPages+1)
 	results[1] = rawResult{raw: raw1}
 
