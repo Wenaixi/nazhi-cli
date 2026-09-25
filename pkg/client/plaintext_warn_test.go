@@ -32,7 +32,7 @@ func TestNew_WarnsOnPlaintextBaseURL(t *testing.T) {
 
 	buf, lg := captureWarnLogger()
 
-	c, err := client.New(client.WithLogger(lg), client.WithBaseURL(srv.URL), client.WithUploadURL(srv.URL))
+	c, err := client.New(client.WithLogger(lg), client.WithBaseURL(srv.URL), client.WithSSOBase(srv.URL), client.WithUploadURL(srv.URL))
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

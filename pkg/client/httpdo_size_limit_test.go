@@ -51,7 +51,7 @@ func TestHTTPDo_AcceptsUpTo4MB(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := New(WithBaseURL(srv.URL))
+	c, err := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestHTTPDo_RejectsOversizedBody(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := New(WithBaseURL(srv.URL))
+	c, err := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}

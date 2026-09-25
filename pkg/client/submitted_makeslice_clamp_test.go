@@ -53,7 +53,7 @@ func TestGetSubmittedCircles_TotalNumLessThanFirstPageLen(t *testing.T) {
 	defer biz.Close()
 
 	c, err := client.New(
-		client.WithBaseURL(biz.URL),
+		client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL),
 		client.WithTimeout(5*time.Second),
 		client.WithSubmittedPageSize(submittedPageSize),
 	)
@@ -86,7 +86,7 @@ func TestGetSubmittedCircles_TotalPageClamped(t *testing.T) {
 	defer biz.Close()
 
 	c, err := client.New(
-		client.WithBaseURL(biz.URL),
+		client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL),
 		client.WithTimeout(5*time.Second),
 		client.WithSubmittedPageSize(submittedPageSize),
 	)

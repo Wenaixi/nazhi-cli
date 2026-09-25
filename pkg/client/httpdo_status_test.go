@@ -136,7 +136,7 @@ func TestDoBizAndDecode_429_RateLimited(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -159,7 +159,7 @@ func TestDoBizAndDecode_401_InvalidResponse(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -182,7 +182,7 @@ func TestDoBizAndDecode_503_ServiceUnavailable(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}

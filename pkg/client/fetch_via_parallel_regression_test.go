@@ -89,7 +89,10 @@ func mockFetchTasksServer(t *testing.T, dims []types.Dimension, failDimID int64)
 		case "/", "/api/studentInfo/getMenu":
 			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, Msg: ptr("ok")})
 		case "/api/studentInfo/getMyInfo":
-			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1"}`)
+			// 必须带 schoolId/schoolName：缺失会触发 ActivateSession 出口的
+			// 学校信息 SSO 回退，而本 mock 未实现该路由（会落入 default 404）。
+			// 该测试只关心维度并发与错误聚合，不应被回退分支污染。
+			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1","schoolId":173,"schoolName":"本地测试学校"}`)
 			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, ReturnData: &raw})
 		default:
 			t.Logf("mockFetchTasksServer 未命中 %s", r.URL.Path)
@@ -123,7 +126,7 @@ func TestFetchTasks_AllDimsServiceUnavailable_HitsErrServiceUnavailable(t *testi
 		case "/", "/api/studentInfo/getMenu":
 			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, Msg: ptr("ok")})
 		case "/api/studentInfo/getMyInfo":
-			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1"}`)
+			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1","schoolId":173,"schoolName":"本地测试学校"}`)
 			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, ReturnData: &raw})
 		default:
 			t.Logf("mockFetchTasksServer 未命中 %s", r.URL.Path)
@@ -172,7 +175,7 @@ func TestFetchTasksJSON_AllDimsServiceUnavailable_HitsErrServiceUnavailable(t *t
 		case "/", "/api/studentInfo/getMenu":
 			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, Msg: ptr("ok")})
 		case "/api/studentInfo/getMyInfo":
-			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1"}`)
+			raw := json.RawMessage(`{"id":1,"name":"t","studentNumber":"S1","schoolId":173,"schoolName":"本地测试学校"}`)
 			_ = json.NewEncoder(w).Encode(types.UnifiedResponse{Code: 1, ReturnData: &raw})
 		default:
 			t.Logf("mockFetchTasksServer 未命中 %s", r.URL.Path)

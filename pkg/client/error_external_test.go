@@ -45,7 +45,7 @@ func TestGetMyInfo_BizError_WrapsErrBusinessRejected(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithSSOBase(srv.URL), client.WithTimeout(5*time.Second))
 	_, err := c.GetMyInfo(context.Background(), "test-token")
 	if err == nil {
 		t.Fatal("期望业务错误，但得到 nil")
@@ -359,7 +359,7 @@ func TestFindingE_GetMyInfo_BizError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, _ := client.New(client.WithBaseURL(srv.URL), client.WithSSOBase(srv.URL), client.WithTimeout(5*time.Second))
 	_, err := c.GetMyInfo(context.Background(), "test-token")
 	if err == nil {
 		t.Fatal("GetMyInfo 应返回业务错误，但返回 nil")
@@ -520,7 +520,7 @@ func TestFindingF_FetchTasks_HTTPErrorStillLogDebug(t *testing.T) {
 	defer biz.Close()
 
 	c, _ := client.New(
-		client.WithBaseURL(biz.URL),
+		client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL),
 		client.WithTimeout(5*time.Second),
 		client.WithLogger(slog.New(slog.NewTextHandler(testLogWriter{onWrite: func() {
 			loggerCalls.Add(1)

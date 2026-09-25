@@ -24,7 +24,7 @@ func TestQuerySelfGradEvaluation_AllEmptyReturnsNilNil(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}

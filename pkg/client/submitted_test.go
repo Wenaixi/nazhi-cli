@@ -145,7 +145,7 @@ func TestGetSubmittedCircles_MultiPage(t *testing.T) {
 	defer biz.Close()
 
 	c, err := client.New(
-		client.WithBaseURL(biz.URL),
+		client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL),
 		client.WithTimeout(5*time.Second),
 		client.WithSubmittedPageSize(submittedPageSize),
 	)
@@ -182,7 +182,7 @@ func TestGetSubmittedCircles_TotalNumRequiresMorePages(t *testing.T) {
 		_ = json.NewEncoder(w).Encode(map[string]any{"code": 1, "dataList": records, "pageBean": map[string]any{"pageNo": pageNo, "pageSize": pageSize, "totalNum": 6, "totalPage": 1}})
 	})))
 	defer biz.Close()
-	c, err := client.New(client.WithBaseURL(biz.URL), client.WithTimeout(5*time.Second), client.WithSubmittedPageSize(pageSize))
+	c, err := client.New(client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL), client.WithTimeout(5*time.Second), client.WithSubmittedPageSize(pageSize))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -339,7 +339,7 @@ func TestGetSubmittedCircles_CustomPageSize(t *testing.T) {
 	defer biz.Close()
 
 	c, err := client.New(
-		client.WithBaseURL(biz.URL),
+		client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL),
 		client.WithTimeout(time.Second),
 		client.WithSubmittedPageSize(customSize),
 	)
@@ -488,7 +488,7 @@ func TestGetSubmittedCircles_CancelDuringPaging(t *testing.T) {
 	defer biz.Close()
 
 	c, err := client.New(
-		client.WithBaseURL(biz.URL),
+		client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL),
 		client.WithTimeout(5*time.Second),
 		client.WithSubmittedPageSize(submittedPageSize),
 	)

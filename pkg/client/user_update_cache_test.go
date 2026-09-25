@@ -31,10 +31,13 @@ func TestUpdateMyInfo_InvalidatesCachedUserInfo(t *testing.T) {
 		case "/api/studentInfo/getMyInfo":
 			n := atomic.AddInt32(&myInfoCount, 1)
 			w.WriteHeader(http.StatusOK)
+			// 补 schoolId/schoolName：缺失会触发 ActivateSession 出口的学校信息
+			// SSO 回退，本 mock 无该路由（default 分支 t.Errorf）。本测试只关心
+			// UpdateMyInfo 后的缓存失效，不应被回退分支干扰。
 			if n == 1 {
-				_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"旧名字","studentNumber":"TEST2025001","telephone":"10000000000"}}`))
+				_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"旧名字","studentNumber":"TEST2025001","telephone":"10000000000","schoolId":173,"schoolName":"本地测试学校"}}`))
 			} else {
-				_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"新名字","studentNumber":"TEST2025001","telephone":"13800138000"}}`))
+				_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"新名字","studentNumber":"TEST2025001","telephone":"13800138000","schoolId":173,"schoolName":"本地测试学校"}}`))
 			}
 		case "/api/studentInfo/updateMyInfo":
 			if r.Method != http.MethodPost {
@@ -50,7 +53,7 @@ func TestUpdateMyInfo_InvalidatesCachedUserInfo(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := New(WithBaseURL(srv.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}

@@ -36,7 +36,7 @@ func TestGetMyInfo_NoDuplicateRequest(t *testing.T) {
 	defer srv.Close()
 
 	c, _ := New(
-		WithBaseURL(srv.URL),
+		WithBaseURL(srv.URL), WithSSOBase(srv.URL),
 		WithTimeout(5*time.Second),
 	)
 

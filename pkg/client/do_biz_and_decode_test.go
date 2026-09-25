@@ -29,7 +29,7 @@ func testBizHandlerDoBiz(t *testing.T, testHandler func(w http.ResponseWriter, r
 		case "/api/studentInfo/getMyInfo":
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三","studentNumber":"TEST2025001"}}`))
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三","studentNumber":"TEST2025001","schoolId":173,"schoolName":"本地测试学校"}}`))
 		default:
 			testHandler(w, r)
 		}
@@ -50,7 +50,7 @@ func TestDoBizAndDecode_Success(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestDoBizAndDecode_BusinessError(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestDoBizAndDecode_BadJSON(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestDoBizAndDecode_POST(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -149,7 +149,7 @@ func TestDoBizAndDecode_CheckCodeResult(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -192,7 +192,7 @@ func TestDoBizGetDecode_Success(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestDoBizGetDecode_Success_DataList(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -259,7 +259,7 @@ func TestDoBizGetDecode_BusinessError(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -284,7 +284,7 @@ func TestDoBizGetDecode_BadJSON(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -306,7 +306,7 @@ func TestDoBizGetDecode_AllFallbacksFail(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
@@ -332,7 +332,7 @@ func TestDoBizGetDecode_SecondFallbackSucceeds(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}

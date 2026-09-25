@@ -20,7 +20,7 @@ func TestDoBizAndDecode_EmptyBody_InvalidResponse(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := New(WithBaseURL(srv.URL), WithToken("test-token"))
+	c, err := New(WithBaseURL(srv.URL), WithSSOBase(srv.URL), WithToken("test-token"))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}

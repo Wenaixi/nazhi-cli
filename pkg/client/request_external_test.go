@@ -58,7 +58,7 @@ func TestNewHTTPClient_TransportIdleConnPoolShared(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	c, err := client.New(client.WithBaseURL(srv.URL), client.WithTimeout(5*time.Second))
+	c, err := client.New(client.WithBaseURL(srv.URL), client.WithSSOBase(srv.URL), client.WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("client.New 失败: %v", err)
 	}

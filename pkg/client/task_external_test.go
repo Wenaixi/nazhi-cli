@@ -233,7 +233,7 @@ func TestFetchTasks_PartialFailure(t *testing.T) {
 	_ = c
 
 	cWithLogger, _ := client.New(
-		client.WithBaseURL(biz.URL),
+		client.WithBaseURL(biz.URL), client.WithSSOBase(biz.URL),
 		client.WithTimeout(5*time.Second),
 		client.WithLogger(slog.New(slog.NewTextHandler(testLogWriter{onWrite: func() {
 			loggerCalls.Add(1)

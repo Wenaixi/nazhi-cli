@@ -24,7 +24,10 @@ func TestGetMyInfoJSON_StripsStudentUuid(t *testing.T) {
 		case "/api/studentInfo/getMenu":
 			_, _ = w.Write([]byte(`{"code":1,"returnData":null}`))
 		case "/api/studentInfo/getMyInfo":
-			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三","studentNumber":"TEST2025001","studentUuid":"sensitive-uuid"}}`))
+			// 补 schoolId/schoolName：缺失会触发 ActivateSession 出口的学校信息
+			// SSO 回退，本 mock 无该路由（default 分支 t.Errorf）。本测试只关心
+			// studentUuid 剔除，不应被回退分支干扰。
+			_, _ = w.Write([]byte(`{"code":1,"returnData":{"name":"张三","studentNumber":"TEST2025001","schoolId":173,"schoolName":"本地测试学校","studentUuid":"sensitive-uuid"}}`))
 		default:
 			t.Errorf("未预期路径: %s", r.URL.Path)
 			w.WriteHeader(http.StatusNotFound)
@@ -32,7 +35,7 @@ func TestGetMyInfoJSON_StripsStudentUuid(t *testing.T) {
 	}))
 	defer biz.Close()
 
-	c, err := New(WithBaseURL(biz.URL), WithTimeout(5*time.Second))
+	c, err := New(WithBaseURL(biz.URL), WithSSOBase(biz.URL), WithTimeout(5*time.Second))
 	if err != nil {
 		t.Fatalf("New() 失败: %v", err)
 	}
