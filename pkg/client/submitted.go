@@ -104,9 +104,9 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	}
 
 	// 单页覆盖（≤500 条），直接返回。
-	// ponytail: 短路谓词看 TotalNum，翻页上界却只用 TotalPage——二者均信任服务端自洽。
-	// 若服务端同一响应内 totalPage 虚低于 ceil(totalNum/pageSize)（双重违约，真实抓包未现），
-	// 会静默截断尾部数据；需要防御时把循环上界改为 max(TotalPage, ceil(TotalNum/pageSize))。
+	// 翻页上界在下方统一取 max(TotalPage, ceil(TotalNum/pageSize)) 防
+	// totalPage 虚低静默截断——短路谓词（≤pageSize）与翻页上界同源信任
+	// 服务端自洽；双重违约时由下界推导兜底。
 	if pb == nil || pb.TotalNum <= pageSize {
 		return page1, nil
 	}

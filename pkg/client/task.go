@@ -496,7 +496,7 @@ func (c *Client) PreviewEditPayload(ctx context.Context, token string, input typ
 
 // GetDimensions 获取任务维度列表。
 //
-// SDK 高级用户使用，CLI 暂未暴露此命令。
+// SDK 高级用户使用；CLI 经 `nazhi task dimensions` 命令调用（task_metadata.go）。
 func (c *Client) GetDimensions(ctx context.Context, token string) ([]types.Dimension, error) {
 	return c.fetchDimensions(ctx, token, "GetDimensions")
 }
