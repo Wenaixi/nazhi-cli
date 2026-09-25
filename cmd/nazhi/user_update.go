@@ -77,11 +77,14 @@ var userInfoCmd = &cobra.Command{
 
 // userUpdateAllowedKeys 是 UserUpdateInput 的全部顶层 JSON 键（含只读忽略的
 // nationalStudentNumber——Structured 忽略它但允许显式传入以对齐前端整表 stringify）。
+// C2 收敛：键集统一小写存储（unknownUpdatePayloadKeys 对用户键 ToLower 后比较，
+// 与 task/honor/typical-case 的允许集契约一致）——此前 camelCase 存储 +
+// 大小写敏感查询导致 {"Telephone":...} 误判未知（drift），已修。
 var userUpdateAllowedKeys = map[string]struct{}{
-	"name": {}, "studentNumber": {}, "nationalStudentNumber": {},
-	"telephone": {}, "familyAddress": {}, "hobbies": {},
-	"genderName": {}, "youthLeague": {}, "nationName": {}, "idCardType": {},
-	"idCard": {}, "birthday": {}, "birthdayStr": {}, "studentUuid": {}, "seat": {},
+	"name": {}, "studentnumber": {}, "nationalstudentnumber": {},
+	"telephone": {}, "familyaddress": {}, "hobbies": {},
+	"gendername": {}, "youthleague": {}, "nationname": {}, "idcardtype": {},
+	"idcard": {}, "birthday": {}, "birthdaystr": {}, "studentuuid": {}, "seat": {},
 }
 
 // unknownUserUpdateKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名（含重复/空串归一）。
