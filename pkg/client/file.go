@@ -333,8 +333,8 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 //     （与 request.go httpDo/doBizGet、session.go doGetMenu 同口径；4xx 不是网络故障，
 //     归 ErrNetwork 会让脚本按可重试语义对永久失败无限重试）
 //   - 写入失败 → fmt.Errorf("写入文件失败: %w", err)
-//   - 重定向超过上限 → fmt.Errorf("重定向次数超过 %d 次", maxDownloadRedirects)
-//   - 跨域重定向 → fmt.Errorf("拒绝跨域重定向到 %s", host)
+//   - 重定向超过上限/跨域重定向 → fmt.Errorf("%w: ...", ErrInvalidResponse, ...)
+//     （重定向违规是永久性配置错误，重试不会自愈，归 ErrInvalidResponse 而非 ErrNetwork）
 func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst string) error {
 	// 1. 入口 URL 拼接：ssoBaseURL 域下 /common/attachment/getImg?id=X
 	//    用 strconv.FormatInt 而非 fmt.Sprintf("%d") 避免 % 字符注入风险
@@ -353,16 +353,19 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 	//    仅覆写 CheckRedirect 让 transport 自动跟随同域重定向。
 	client := newCleanClient(c)
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
-		// 上限校验：via 长度 = 已跟随次数，下次跟随时 via 增长 1
+		// 上限校验：via 长度 = 已跟随次数，下次跟随时 via 增长 1。
+		// CLI-124-03：重定向违规（超限/跨域）是永久性配置错误（Location 配错/循环），
+		// 重试不会自愈——归 ErrInvalidResponse 永久语义（与 0 字节/超大流同族），
+		// 而非 ErrNetwork 可重试语义（脚本对永久条件不会无限重放）。
 		if len(via) >= maxDownloadRedirects {
-			return fmt.Errorf("重定向次数超过 %d 次", maxDownloadRedirects)
+			return fmt.Errorf("%w: 重定向次数超过 %d 次", ErrInvalidResponse, maxDownloadRedirects)
 		}
 		// 同域校验：上一跳 host → 下一跳 host 都必须在 nazhisoft.com 域
 		if len(via) > 0 {
 			last := via[len(via)-1].URL
 			next := req.URL
 			if !isSameTrustedHost(hostOf(last), hostOf(next)) {
-				return fmt.Errorf("拒绝跨域重定向 %s → %s", hostOf(last), hostOf(next))
+				return fmt.Errorf("%w: 拒绝跨域重定向 %s → %s", ErrInvalidResponse, hostOf(last), hostOf(next))
 			}
 		}
 		return nil
@@ -370,6 +373,11 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 
 	resp, err := client.Do(req)
 	if err != nil {
+		// CLI-124-03：ErrInvalidResponse（重定向违规）直接透传永久语义，
+		// 其余网络类错误才包 ErrNetwork 可重试语义。
+		if errors.Is(err, ErrInvalidResponse) {
+			return fmt.Errorf("%w: 下载请求失败: %w", ErrInvalidResponse, err)
+		}
 		return fmt.Errorf("%w: 下载请求失败: %w", ErrNetwork, err)
 	}
 	defer drainAndClose(resp.Body)

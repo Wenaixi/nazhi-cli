@@ -90,6 +90,14 @@ func TestDownloadFile_RejectsCrossDomainRedirect(t *testing.T) {
 	if !strings.Contains(err.Error(), "拒绝跨域重定向") {
 		t.Errorf("错误信息应含 '拒绝跨域重定向'，实际: %v", err)
 	}
+	// CLI-124-03：跨域重定向是永久性配置错误（Location 配错/被攻击），重试不会自愈，
+	// 必须归 ErrInvalidResponse（422/exit1 不可重试）而非 ErrNetwork（502/exit2 无限重放）。
+	if !errors.Is(err, ErrInvalidResponse) {
+		t.Errorf("跨域重定向应归 ErrInvalidResponse（永久），实际: %v", err)
+	}
+	if errors.Is(err, ErrNetwork) {
+		t.Errorf("跨域重定向不应归 ErrNetwork（非网络故障），实际: %v", err)
+	}
 
 	// 关键防御：dst 文件不应被创建（无任何写入发生）
 	if _, statErr := os.Stat(dst); statErr == nil {
@@ -120,6 +128,13 @@ func TestDownloadFile_RejectsTooManyRedirects(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "重定向次数") {
 		t.Errorf("错误信息应含 '重定向次数'，实际: %v", err)
+	}
+	// CLI-124-03：重定向循环是永久性配置错误，归 ErrInvalidResponse 永久语义。
+	if !errors.Is(err, ErrInvalidResponse) {
+		t.Errorf("重定向超限应归 ErrInvalidResponse（永久），实际: %v", err)
+	}
+	if errors.Is(err, ErrNetwork) {
+		t.Errorf("重定向超限不应归 ErrNetwork（非网络故障），实际: %v", err)
 	}
 }
 
