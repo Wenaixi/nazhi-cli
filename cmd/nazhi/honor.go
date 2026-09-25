@@ -90,15 +90,12 @@ var honorListCmd = &cobra.Command{
   nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
+		// CLI-124-07：先校后建——分页参数校验必须在 buildBizClient 前，
+		// 否则缺 token + 坏分页参数时首报「--token 必填」而非分页错误，
+		// 脚本拿到错提示自查困难（typical_case.go 同款收敛，对齐 output.go
+		// 披露的「先校后建」派）。
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
-		key, _ := cmd.Flags().GetString("key")
 		// 分页参数非负守卫：负值透传会发出 pageNo=-1 等异常请求；
 		// 0 同样非法——circle_metadata.go:83-89 同形状参数要求 >0，
 		// I-03 对齐为 ≤0 拒绝（400/exit3），与正数契约统一。
@@ -114,6 +111,14 @@ var honorListCmd = &cobra.Command{
 			printEnvelope(envelope.Error(400, "--page-size 不能超过 500（服务端单页上限）"))
 			return
 		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
+			return
+		}
+
+		key, _ := cmd.Flags().GetString("key")
 
 		printVerbose("正在获取荣誉记录...")
 		raw, err := c.GetHonorListJSON(cmd.Context(), token, pageNo, pageSize, key)

@@ -92,12 +92,9 @@ var typicalCaseListCmd = &cobra.Command{
   nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
+		// CLI-124-07：先校后建——分页参数校验必须在 buildBizClient 前，
+		// 否则缺 token + 坏分页参数时首报「--token 必填」而非分页错误
+		// （honor list 同款收敛，对齐 output.go 披露的「先校后建」派）。
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		status, _ := cmd.Flags().GetInt("status")
@@ -116,6 +113,12 @@ var typicalCaseListCmd = &cobra.Command{
 		// 错误拒绝（400/exit3），与 honor list 同族钳制。
 		if pageSize > maxPageSize {
 			printEnvelope(envelope.Error(400, "--page-size 不能超过 500（服务端单页上限）"))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
 			return
 		}
 
