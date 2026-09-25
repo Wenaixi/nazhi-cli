@@ -5,9 +5,6 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
-	"time"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
 // syncCookieToken 将 JWT token 同步到 HTTP cookie jar 中（X-Auth-Token）。
@@ -57,24 +54,4 @@ func (c *Client) syncCookieToken(token string) error {
 	}})
 	c.logDebug("X-Auth-Token 已同步到 cookie jar（%s）", c.baseURL)
 	return nil
-}
-
-// warnSyncCookieToken 尝试同步 token 到 cookie，失败时仅 warn。
-func (c *Client) warnSyncCookieToken(token, label string) {
-	if err := c.syncCookieToken(token); err != nil {
-		if c.logger != nil {
-			c.logger.Warn("Login "+label+" 后同步 token 到 cookie 失败", "err", err.Error())
-		}
-	}
-}
-
-// buildLoginResponse 构建 LoginResponse，内部调用 warnSyncCookieToken。
-//
-// 调用方拿到 token + expiresAt 两件套足够。
-func (c *Client) buildLoginResponse(token string, expiresAt time.Time, bodyBytes []byte, label string) *types.LoginResponse {
-	c.warnSyncCookieToken(token, label)
-	return &types.LoginResponse{
-		Token:     token,
-		ExpiresAt: expiresAt,
-	}
 }

@@ -3,7 +3,6 @@ package client
 import (
 	"sync"
 	"testing"
-	"time"
 )
 
 // ─── syncCookieToken 测试 ───
@@ -89,59 +88,5 @@ func TestSyncCookieToken_InvalidBaseURL(t *testing.T) {
 	err := c.syncCookieToken("dummy-token")
 	if err == nil {
 		t.Fatal("畸形 baseURL 应返回 error，实际 nil")
-	}
-}
-
-// ─── warnSyncCookieToken 测试 ───
-
-// TestWarnSyncCookieToken_NoPanicOnBadJar 验证 warnSyncCookieToken 在 jar 异常时不 panic。
-func TestWarnSyncCookieToken_NoPanicOnBadJar(t *testing.T) {
-	c := &Client{
-		ssoBaseURL: "https://sso.example.com",
-		baseURL:    "https://biz.example.com",
-		uploadURL:  "https://up.example.com",
-		http:       nil,
-	}
-	// 不应该 panic
-	c.warnSyncCookieToken("dummy-token", "TEST_LABEL")
-}
-
-// ─── buildLoginResponse 测试 ───
-//
-// LoginResponse 不含 RawData 字段。
-// 下游不再需要 rawData，全部依赖 token + expiresAt 两件套。
-// 原 RawData 相关测试（InvalidJsonBody/EmptyBody/PartialDecode）已废弃。
-
-// TestBuildLoginResponse_NoPanicOnInvalidJson 验证 body 非法 JSON 时不 panic。
-func TestBuildLoginResponse_NoPanicOnInvalidJson(t *testing.T) {
-	c := &Client{
-		ssoBaseURL: "https://sso.example.com",
-		baseURL:    "https://biz.example.com",
-		uploadURL:  "https://up.example.com",
-		http:       newHTTPClient(),
-	}
-	resp := c.buildLoginResponse("test-token", time.Now(), []byte("{invalid}"), "200")
-	if resp == nil {
-		t.Fatal("buildLoginResponse 不应返回 nil")
-	}
-	if resp.Token != "test-token" {
-		t.Errorf("token 应为 'test-token'，实际 %q", resp.Token)
-	}
-}
-
-// TestBuildLoginResponse_NoPanicOnEmptyBody 验证 bodyBytes 为空时不 panic。
-func TestBuildLoginResponse_NoPanicOnEmptyBody(t *testing.T) {
-	c := &Client{
-		ssoBaseURL: "https://sso.example.com",
-		baseURL:    "https://biz.example.com",
-		uploadURL:  "https://up.example.com",
-		http:       newHTTPClient(),
-	}
-	resp := c.buildLoginResponse("test-token", time.Now(), nil, "200")
-	if resp == nil {
-		t.Fatal("buildLoginResponse 不应返回 nil")
-	}
-	if resp.Token != "test-token" {
-		t.Errorf("token 应为 'test-token'，实际 %q", resp.Token)
 	}
 }
