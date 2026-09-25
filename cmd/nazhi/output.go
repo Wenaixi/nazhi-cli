@@ -21,6 +21,11 @@ import (
 //   - defer closeAllClients() 仍能跑（os.Exit 只在 main 最后调一次）
 var pendingExitCode atomic.Int32
 
+// maxCLILimit 是四任务命令 --limit 参数的上界。对齐 SDK maxSubmittedRecords
+// （pkg/client/submitted.go:138，10 万条单次任务合理上限）：offset+limit 派生
+// endPage 不超过服务端 maxTotalPage，避免 SDK 静默返回首页快照（CLI-123-01）。
+const maxCLILimit = 100_000
+
 // printErrorDepth 防止递归兜底路径无限递归。
 // 当 stderr 本身也无法 JSON 编码时（如 fd 已关），递归兜底会无限递归。
 // depth>1 时降级为直写 fmt.Fprintf，避免 stack overflow。
@@ -119,10 +124,12 @@ func printParamError(err error) {
 	printErrorWithCode(err, 400)
 }
 
-// rejectLoneOffset 校验 --offset 合法性：单独 --offset（无 --limit）或负值时
-// 输出参数错误信封并返回 true。offset>0 而 limit<=0 会被 SDK 全量路径静默忽略；
-// offset<0 在 limit 模式下等效归零、全量模式下整体失效——分页脚本 page 计算
-// 出错时会无声拿到错误切片。四命令统一拒绝以防静默错误数据。
+// rejectLoneOffset 校验 --offset 合法性：单独 --offset（无 --limit）、负值或
+// --limit 超过上界 maxCLILimit 时输出参数错误信封并返回 true。offset>0 而
+// limit<=0 会被 SDK 全量路径静默忽略；offset<0 在 limit 模式下等效归零、全量
+// 模式下整体失效；limit 过大（>maxCLILimit）会让 SDK 分页派生 endPage 超服务端
+// maxTotalPage，SDK 静默返回首页快照（CLI-123-01）——分页脚本拿首页当 top-N
+// 而不知情。四命令统一拒绝以防静默错误数据。
 //
 // 调用次序（CLAUDE.md #31 披露）：本函数允许在 buildBizClient 之后调用（task_teacher/
 // task_public/task_submitted/task_withdrawn 四命令均如此），与 honor delete / typical-case
@@ -135,6 +142,14 @@ func rejectLoneOffset(cmd *cobra.Command) bool {
 		// N-04：违规参数可能是 --limit 负值而非 --offset——文案必须同时点名两个
 		// 参数，避免用户只看到 "--offset" 却摸不着为什么 --limit -1 也被拒。
 		printEnvelope(envelope.Error(400, "--offset/--limit 需为非负数且 offset 仅配合 --limit 使用（非法取值会被忽略或归零，拒绝静默返回错误数据）"))
+		return true
+	}
+	if limit > maxCLILimit {
+		// CLI-123-01：limit 超上界 → SDK endPage 超 maxTotalPage 静默只翻首页，
+		// 脚本拿截断数据不自知。参数错误拒绝（对齐 400/exit3 半套纪律：≤0 已拒、
+		// 超上界同族拒绝）。上界与 SDK maxSubmittedRecords 对齐（submitted.go:138，
+		// 10 万条单次任务合理上限，offset+limit 分页不会触发首页截断）。
+		printEnvelope(envelope.Error(400, fmt.Sprintf("--limit 不能超过 %d（避免分页派生 endPage 触发服务端首页截断）", maxCLILimit)))
 		return true
 	}
 	return false
