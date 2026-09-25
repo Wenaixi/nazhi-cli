@@ -144,49 +144,7 @@ getDate 示例用纯日期仅为可读性；前端实际提交 ISO 8601 时间�
   echo '{"typeId":1147,"level":5}' | nazhi honor add --token "xxx" --payload -`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-		// 与 task submit/edit 同规范：先做本地参数校验再建客户端——缺 --payload
-		// 的参数错误不应依赖 token/base-url 配置是否正确。
-		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
-			return
-		}
-
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
-		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
-		if err != nil {
-			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
-			return
-		}
-
-		// N-07：honor add 此前按 struct 反序列化静默丢弃未知顶层键——
-		// 拼错键名（如 typeid 而非 typeId）服务端忽略该键，204 报成功
-		// 但申报零字段。与 honor update / task submit 同款未知键拒绝。
-		if unknown := unknownUpdatePayloadKeys(payloadBytes, honorAddAllowedKeys); len(unknown) > 0 {
-			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi honor add --help）", unknown))
-			return
-		}
-
-		var payload types.AddHonorPayload
-		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
-			return
-		}
-
-		printVerbose("正在申报荣誉...")
-		if err := c.AddHonor(cmd.Context(), token, payload); err != nil {
-			printError(fmt.Errorf("申报荣誉失败: %w", err))
-			return
-		}
-
-		// AddHonor SDK 成功路径返回 nil —— 用 envelope.Empty (HTTP 204) 表达
-		// "成功无业务负载"，与 SDK 语义 1:1。
-		printEnvelope(envelope.Empty("荣誉申报成功"))
+		runWriteOp(cmd, honorAddWriteOp, nil)
 	},
 }
 

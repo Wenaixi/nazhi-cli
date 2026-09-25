@@ -14,6 +14,7 @@ package main
 // token/base-url 配置是否正确（P2-E 十三域审计确立的不变式）。
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
@@ -245,5 +246,77 @@ var taskPreviewEditWriteOp = writeOpMode{
 	},
 	success: func(result any) *envelope.Envelope {
 		return envelope.Success(result)
+	},
+}
+
+// ─── honor add / typical-case submit / user update ───
+
+// honorAddWriteOp 是 honor add 的写操作配置。
+// 解码走 json.Unmarshal 到 AddHonorPayload（无 CLI 归一化），
+// 成功返回 nil → envelope.Empty("荣誉申报成功")。
+var honorAddWriteOp = writeOpMode{
+	verboseMsg:  "正在申报荣誉...",
+	errorPrefix: "申报荣誉失败",
+	rejectUnknown: func(payloadBytes []byte) []string {
+		return unknownUpdatePayloadKeys(payloadBytes, honorAddAllowedKeys)
+	},
+	decode: func(payloadBytes []byte) (any, error) {
+		var payload types.AddHonorPayload
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			return nil, err
+		}
+		return &payload, nil
+	},
+	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
+		return nil, c.AddHonor(ctx, token, *decoded.(*types.AddHonorPayload))
+	},
+	success: func(result any) *envelope.Envelope {
+		return envelope.Empty("荣誉申报成功")
+	},
+}
+
+// typicalCaseSubmitWriteOp 是 typical-case submit 的写操作配置。
+// 与 honor add 同构：json.Unmarshal 到 AddTypicalCasePayload，成功 Empty。
+var typicalCaseSubmitWriteOp = writeOpMode{
+	verboseMsg:  "正在提交典型案例...",
+	errorPrefix: "提交典型案例失败",
+	rejectUnknown: func(payloadBytes []byte) []string {
+		return unknownUpdatePayloadKeys(payloadBytes, typicalCaseAddAllowedKeys)
+	},
+	decode: func(payloadBytes []byte) (any, error) {
+		var payload types.AddTypicalCasePayload
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			return nil, err
+		}
+		return &payload, nil
+	},
+	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
+		return nil, c.AddTypicalCase(ctx, token, *decoded.(*types.AddTypicalCasePayload))
+	},
+	success: func(result any) *envelope.Envelope {
+		return envelope.Empty("典型案例提交成功")
+	},
+}
+
+// userUpdateWriteOp 是 user update 的写操作配置。
+// 解码走 json.Unmarshal 到 UserUpdateInput，成功 Empty。
+var userUpdateWriteOp = writeOpMode{
+	verboseMsg:  "正在更新个人信息...",
+	errorPrefix: "更新个人信息失败",
+	rejectUnknown: func(payloadBytes []byte) []string {
+		return unknownUpdatePayloadKeys(payloadBytes, userUpdateAllowedKeys)
+	},
+	decode: func(payloadBytes []byte) (any, error) {
+		var input types.UserUpdateInput
+		if err := json.Unmarshal(payloadBytes, &input); err != nil {
+			return nil, err
+		}
+		return &input, nil
+	},
+	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
+		return nil, c.UpdateMyInfoStructured(ctx, token, *decoded.(*types.UserUpdateInput))
+	},
+	success: func(result any) *envelope.Envelope {
+		return envelope.Empty("个人信息更新成功")
 	},
 }

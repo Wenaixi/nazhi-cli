@@ -1,11 +1,6 @@
 package main
 
 import (
-	"encoding/json"
-	"fmt"
-
-	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -28,42 +23,7 @@ var userUpdateCmd = &cobra.Command{
 	Example: `  nazhi user update --token xxx --payload '{"telephone":"13800138000","familyAddress":"福建省福州市","genderName":"男"}'`,
 	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
-			return
-		}
-
-		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
-		if err != nil {
-			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
-			return
-		}
-		var input types.UserUpdateInput
-		if err := json.Unmarshal(payloadBytes, &input); err != nil {
-			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
-			return
-		}
-		// P2-3（19 轮审计 user-info）：未知顶层键静默丢弃会让拼错键名（如 telephoneX）
-		// 走全零 no-op 分支输出 204 成功但服务端零修改。解码后校验键集合，
-		// 未知键以参数错误拒绝（400/exit3），与 --payload 顶层对象校验互补。
-		if unknown := unknownUserUpdateKeys(payloadBytes); len(unknown) > 0 {
-			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi user update --help）", unknown))
-			return
-		}
-
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
-		printVerbose("正在更新个人信息...")
-		if err := c.UpdateMyInfoStructured(cmd.Context(), token, input); err != nil {
-			printError(fmt.Errorf("更新个人信息失败: %w", err))
-			return
-		}
-		printEnvelope(envelope.Empty("个人信息更新成功"))
+		runWriteOp(cmd, userUpdateWriteOp, nil)
 	},
 }
 
@@ -86,15 +46,9 @@ var userUpdateAllowedKeys = map[string]struct{}{
 	"gendername": {}, "youthleague": {}, "nationname": {}, "idcardtype": {},
 	"idcard": {}, "birthday": {}, "birthdaystr": {}, "studentuuid": {}, "seat": {},
 }
-
-// unknownUserUpdateKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名（含重复/空串归一）。
-// 收敛后（C2 架构深化）：直接复用 unknownUpdatePayloadKeys（ToLower 折叠 +
-// 稳定排序）。此前本函数用原始键直查 camelCase 允许集（大小写敏感），
-// 注释声称与 task 族 EqualFold 语义对齐实际没对齐——{"Telephone":...} 会
-// 被误判为未知键。收敛后大小写变体折叠放行，与 task/honor/typical-case 一致。
-func unknownUserUpdateKeys(payloadBytes []byte) []string {
-	return unknownUpdatePayloadKeys(payloadBytes, userUpdateAllowedKeys)
-}
+// userUpdateAllowedKeys 的未知键拒绝已收敛到 write_op_runner.go 的
+// userUpdateWriteOp.rejectUnknown（unknownUpdatePayloadKeys + ToLower 折叠）。
+// 原 unknownUserUpdateKeys 函数已删除（未导出、无生产引用，属死代码）。
 
 func init() {
 	rootCmd.AddCommand(userCmd)

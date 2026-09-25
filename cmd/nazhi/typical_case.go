@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
-	"github.com/Wenaixi/nazhi-cli/pkg/types"
 	"github.com/spf13/cobra"
 )
 
@@ -35,45 +34,7 @@ var typicalCaseSubmitCmd = &cobra.Command{
   echo '{"title":"..."}' | nazhi typical-case submit --token "xxx" --payload -`,
 	Args: cobra.NoArgs, // 输入全走 flag，位置参数无语义；与 delete-batch 及全仓多数派对齐
 	Run: func(cmd *cobra.Command, args []string) {
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
-			return
-		}
-
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
-		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
-		if err != nil {
-			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
-			return
-		}
-
-		var payload types.AddTypicalCasePayload
-		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
-			return
-		}
-
-		// N-07：typical-case submit 与 honor add 同款未知键拒绝——struct
-		// 反序列化静默丢弃未知顶层键，拼错键名（如 titlee）服务端忽略，
-		// 204 报成功但提交零字段。
-		if unknown := unknownUpdatePayloadKeys(payloadBytes, typicalCaseAddAllowedKeys); len(unknown) > 0 {
-			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi typical-case submit --help）", unknown))
-			return
-		}
-
-		printVerbose("正在提交典型案例...")
-		if err := c.AddTypicalCase(cmd.Context(), token, payload); err != nil {
-			printError(fmt.Errorf("提交典型案例失败: %w", err))
-			return
-		}
-
-		printEnvelope(envelope.Empty("典型案例提交成功"))
+		runWriteOp(cmd, typicalCaseSubmitWriteOp, nil)
 	},
 }
 
