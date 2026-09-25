@@ -16,7 +16,9 @@ Go SDK 三包：`pkg/client`（Client + 业务方法 + Option）、`pkg/types`�
 | 我的任务列表 | `FetchTasks` | client/task.go | managementLeftBottom.vue, managementRightTop.vue | getDimensions, getCircleStatistics |
 | 类别/任务元数据 | `GetCircleTypes`, `GetCircleTasks` | client/circle.go | managementRightTop.vue | getCircleType, getCircleTask |
 | 任务提交元数据 | 内部 `getCircleTypeByTaskId` | client/task.go | managementRightBottom.vue `getCircleTypeByTaskId()` | getCircleTypeByTaskId |
-| 写实列表（公示/教师/我发布/撤回） | `GetPublicCircles` `GetTeacherCircles` `GetSubmittedCircles` `GetWithdrawnCircles` | client/submitted.go | managementRightBottom.vue（tab 切换 `change(num)`）, main/mainMidSearch.vue | getStudentCircle?type=1/2/3/4 |
+| 写实列表（公示/教师/我发布/撤回） | `GetPublicCircles` `GetTeacherCircles` `GetSubmittedCircles` `GetWithdrawnCircles` 及对应 `*JSON`/`Peek*Total` | client/submitted.go、client/raw_json.go、client/pagination_bounds.go（页数推导纯函数） | managementRightBottom.vue（tab 切换 `change(num)`）, main/mainMidSearch.vue | getStudentCircle?type=1/2/3/4 |
+| 写实列表 CLI（public/teacher/submitted/withdrawn） | — | cmd/nazhi/circle_list_mode.go（四命令共享模式）、cmd/nazhi/task_{public,teacher,submitted,withdrawn}.go（仅领域差异） | 同上 | 同上 |
+| 进程级资源清理 | — | cmd/nazhi/assembly.go（`ProcessScope` 持有所有权）、cmd/nazhi/lifecycle.go（包级薄转发） | — | — |
 | 写实提交 | `SubmitTask`, `PreviewSubmitPayload` | client/task.go | managementRightBottom.vue `submit()` `checkData()` | addCircle |
 | 写实编辑 | `EditCircle`, `PreviewEditPayload` | client/task.go | managementRightBottom.vue `openEdit()` | editCircle |
 | 写实删除 | `DeleteCircle` | client/circle.go | managementRightBottom.vue `open2()` | deleteCircle |
