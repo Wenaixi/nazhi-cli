@@ -191,46 +191,7 @@ var honorUpdateCmd = &cobra.Command{
 	Example: "  nazhi honor update --token eyJhbGciOiJIUzI1NiJ9.xxx --payload @honor-update.json",
 	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		payloadRaw, _ := cmd.Flags().GetString("payload")
-		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
-			return
-		}
-
-		payloadBytes, err := parseJSONObjectPayload(cmd.Context(), payloadRaw)
-		if err != nil {
-			printParamError(fmt.Errorf("读取 payload 失败: %w", err))
-			return
-		}
-		var payload map[string]any
-		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
-			printParamError(fmt.Errorf("解析 payload JSON 失败: %w", err))
-			return
-		}
-		// I-06：honor update map payload 未知键静默透传服务端：拼错键名→服务端
-		// 忽略→204 成功但零修改。与 user update 一致增加未知键拒绝（400/exit3）。
-		if unknown := unknownUpdatePayloadKeys(payloadBytes, honorUpdateAllowedKeys); len(unknown) > 0 {
-			printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi honor update --help）", unknown))
-			return
-		}
-		// 前端编辑提交必然注入记录 id（performanceM.vue:489），此处对齐契约：
-		// 缺 id 或非正数时拒绝，不发业务请求（与同文件 delete/levels + typical-case update 口径一致）。
-		if !PayloadPositiveIDValid(payload) {
-			printEnvelope(envelope.Error(400, "payload 必须包含正数 id 字段"))
-			return
-		}
-
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-		printVerbose("正在更新荣誉记录...")
-		if err := c.UpdateHonor(cmd.Context(), token, payload); err != nil {
-			printError(fmt.Errorf("更新荣誉记录失败: %w", err))
-			return
-		}
-		printEnvelope(envelope.Empty("荣誉记录更新成功"))
+		runWriteOp(cmd, honorUpdateWriteOp, nil)
 	},
 }
 

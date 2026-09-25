@@ -35,7 +35,10 @@ type writeOpMode struct {
 	// decode 将 payload 解码为命令的输入类型。
 	// 返回 (输入对象, 错误)；解码失败以参数错误拒绝。
 	decode func(payloadBytes []byte) (any, error)
-	// applyFlags 用非空 flag 覆盖已解码输入（task 族的 --address/--level）。
+	// validateID 校验解码后输入的 id（update 命令必填正数 id）。
+	// 返回错误消息；nil 表示通过。错误以参数错误（400/exit3）拒绝。
+	// 无 id 校验需求的命令（submit/add/delete）传 nil。
+	validateID func(decoded any) error
 	// 无覆盖需求的命令传 nil。
 	applyFlags func(cmd *cobra.Command, decoded any)
 	// call 调用 SDK 并返回业务结果。返回 (result, error)，result 传给 success。
@@ -97,6 +100,14 @@ func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 		return
 	}
 
+	// update 命令的 id 校验：缺 id 或非正数以参数错误拒绝，不发业务请求。
+	// 位置在未知键之后、applyFlags 之前（与 honor/typical update 原次序一致）。
+	if m.validateID != nil {
+		if idErr := m.validateID(decoded); idErr != nil {
+			printEnvelope(envelope.Error(400, idErr.Error()))
+			return
+		}
+	}
 	if m.applyFlags != nil {
 		m.applyFlags(cmd, decoded)
 	}
@@ -318,5 +329,64 @@ var userUpdateWriteOp = writeOpMode{
 	},
 	success: func(result any) *envelope.Envelope {
 		return envelope.Empty("个人信息更新成功")
+	},
+}
+
+// honorUpdateWriteOp 是 honor update 的写操作配置。
+// 与 typical-case update 孪生：map payload + 未知键拒绝 + 正数 id 校验 +
+// Empty 成功，仅允许集/方法/文案不同。
+var honorUpdateWriteOp = writeOpMode{
+	verboseMsg:  "正在更新荣誉记录...",
+	errorPrefix: "更新荣誉记录失败",
+	rejectUnknown: func(payloadBytes []byte) []string {
+		return unknownUpdatePayloadKeys(payloadBytes, honorUpdateAllowedKeys)
+	},
+	decode: func(payloadBytes []byte) (any, error) {
+		var payload map[string]any
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			return nil, err
+		}
+		return &payload, nil
+	},
+	validateID: func(decoded any) error {
+		if !PayloadPositiveIDValid(*decoded.(*map[string]any)) {
+			return fmt.Errorf("payload 必须包含正数 id 字段")
+		}
+		return nil
+	},
+	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
+		return nil, c.UpdateHonor(ctx, token, *decoded.(*map[string]any))
+	},
+	success: func(result any) *envelope.Envelope {
+		return envelope.Empty("荣誉记录更新成功")
+	},
+}
+
+// typicalCaseUpdateWriteOp 是 typical-case update 的写操作配置。
+// 与 honor update 孪生，仅允许集/方法/文案不同。
+var typicalCaseUpdateWriteOp = writeOpMode{
+	verboseMsg:  "正在更新典型案例...",
+	errorPrefix: "更新典型案例失败",
+	rejectUnknown: func(payloadBytes []byte) []string {
+		return unknownUpdatePayloadKeys(payloadBytes, typicalCaseUpdateAllowedKeys)
+	},
+	decode: func(payloadBytes []byte) (any, error) {
+		var payload map[string]any
+		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
+			return nil, err
+		}
+		return &payload, nil
+	},
+	validateID: func(decoded any) error {
+		if !PayloadPositiveIDValid(*decoded.(*map[string]any)) {
+			return fmt.Errorf("payload 必须包含正数 id 字段")
+		}
+		return nil
+	},
+	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
+		return nil, c.UpdateTypicalCase(ctx, token, *decoded.(*map[string]any))
+	},
+	success: func(result any) *envelope.Envelope {
+		return envelope.Empty("典型案例更新成功")
 	},
 }
