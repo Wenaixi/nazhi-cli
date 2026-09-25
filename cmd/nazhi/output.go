@@ -136,9 +136,11 @@ func printParamError(err error) {
 // 而不知情。四命令统一拒绝以防静默错误数据。
 //
 // 调用次序（CLAUDE.md #31 披露）：本函数允许在 buildBizClient 之后调用（task_teacher/
-// task_public/task_submitted/task_withdrawn 四命令均如此），与 honor delete / typical-case
-// delete 等先校后建派的双参数缺失时首报消息与 stdout/stderr 通道漂移（退出码恒 3 无损）。
-// 重构如欲收敛到先校后建，需同步四调用点的位置；当前两派并存是历史累积的有意保留。
+// task_public/task_submitted/task_withdrawn 四命令均如此），四命令已把 rejectLoneOffset
+// 前移到 onlyCount 分支前（CLI-124-09/10）——--count --limit 5 不再绕过校验；honor
+// delete / typical-case delete 等先校后建派的双参数缺失时首报消息与 stdout/stderr
+// 通道漂移（退出码恒 3 无损）。四任务命令的校验块已在 onlyCount 前（task_teacher
+// 等文件同步位置），此处仅保留函数本体供四命令/未来调用方复用。
 func rejectLoneOffset(cmd *cobra.Command) bool {
 	offset, _ := cmd.Flags().GetInt("offset")
 	limit, _ := cmd.Flags().GetInt("limit")
