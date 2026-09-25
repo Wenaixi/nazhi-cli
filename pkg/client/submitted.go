@@ -194,9 +194,20 @@ func (c *Client) GetPublicCircles(ctx context.Context, token string, key string)
 
 // PeekPublicTotal 快速获取公示写实记录总数。
 func (c *Client) PeekPublicTotal(ctx context.Context, token string, key string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 1, key)
+	return c.peekCircleTotal(ctx, token, 1, key, "PeekPublicTotal")
+}
+
+// peekCircleTotal 拉取首页单条并返回服务端声明的 totalNum。
+//
+// 四个 Peek*Total 仅差 circleType 与方法名，塌缩为单一实现以保证
+// 「只取首页、只读 totalNum」这一意图只有一处定义。
+//
+// pageSize=1 + pageNo=1 是「看总数不看内容」的最小请求；空数据返回 (0, nil)
+// 而非错误，与 CLI --count 的契约一致。
+func (c *Client) peekCircleTotal(ctx context.Context, token string, circleType int, key string, methodName string) (int, error) {
+	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, circleType, key)
 	if err != nil {
-		return 0, fmt.Errorf("PeekPublicTotal 失败: %w", err)
+		return 0, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
 	if pb == nil {
 		return 0, nil
@@ -213,14 +224,7 @@ func (c *Client) GetTeacherCircles(ctx context.Context, token string, key string
 
 // PeekTeacherTotal 快速获取教师写实记录总数。
 func (c *Client) PeekTeacherTotal(ctx context.Context, token string, key string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 2, key)
-	if err != nil {
-		return 0, fmt.Errorf("PeekTeacherTotal 失败: %w", err)
-	}
-	if pb == nil {
-		return 0, nil
-	}
-	return pb.TotalNum, nil
+	return c.peekCircleTotal(ctx, token, 2, key, "PeekTeacherTotal")
 }
 
 // ─── type=3: 我发布的写实（仅当前用户自己的记录）───
@@ -232,14 +236,7 @@ func (c *Client) GetSubmittedCircles(ctx context.Context, token string, key stri
 
 // PeekSubmittedTotal 快速获取已提交写实记录总数（type=3，我发布的）。
 func (c *Client) PeekSubmittedTotal(ctx context.Context, token string, key string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 3, key)
-	if err != nil {
-		return 0, fmt.Errorf("PeekSubmittedTotal 失败: %w", err)
-	}
-	if pb == nil {
-		return 0, nil
-	}
-	return pb.TotalNum, nil
+	return c.peekCircleTotal(ctx, token, 3, key, "PeekSubmittedTotal")
 }
 
 // ─── type=4: 被撤回的写实 ───
@@ -251,12 +248,5 @@ func (c *Client) GetWithdrawnCircles(ctx context.Context, token string, key stri
 
 // PeekWithdrawnTotal 快速获取被撤回写实记录总数。
 func (c *Client) PeekWithdrawnTotal(ctx context.Context, token string, key string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, 4, key)
-	if err != nil {
-		return 0, fmt.Errorf("PeekWithdrawnTotal 失败: %w", err)
-	}
-	if pb == nil {
-		return 0, nil
-	}
-	return pb.TotalNum, nil
+	return c.peekCircleTotal(ctx, token, 4, key, "PeekWithdrawnTotal")
 }
