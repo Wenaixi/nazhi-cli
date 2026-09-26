@@ -103,13 +103,14 @@ func mapSentinelToHTTPCode(err error) int {
 		errors.Is(err, client.ErrInvalidResponse),
 		errors.Is(err, client.ErrUploadRejected):
 		return 422
-	// 空成功链路：服务端返回了成功响应但无数据（ErrEmptyUserInfo 是
-	// getMyInfo 成功却无用户数据，ErrAllDecodersFailed 是所有解码器都未命中）。
-	// 两者都属服务端侧异常，此前落 default 500。
+	// 空成功链路与配置侧异常：ErrEmptyUserInfo 是 getMyInfo 成功却无用户数据，
+	// ErrAllDecodersFailed 是所有解码器都未命中，ErrCookieSyncFailed 是登录成功
+	// 但 token 同步到 cookie jar 失败（客户端配置问题，如 WithHTTPClient 传了
+	// 非 *cookiejar.Jar）。三者都属服务端/配置侧异常，此前落 default 500。
 	case errors.Is(err, client.ErrEmptyUserInfo),
-		errors.Is(err, client.ErrAllDecodersFailed):
+		errors.Is(err, client.ErrAllDecodersFailed),
+		errors.Is(err, client.ErrCookieSyncFailed):
 		return 502
-	// context 中止与超时归可重试：用户按 Ctrl+C 中止长命令属正常交互，
 	// 不应报为服务端内部错误。与 ErrRetryable 同档——SDK 侧该哨兵的
 	// 注释即定义为「ctx cancel 引发的可重试语义标记」。脚本据此决定重试。
 	case errors.Is(err, context.Canceled),

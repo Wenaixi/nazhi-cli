@@ -96,3 +96,30 @@ func TestLoginCmd_ServiceUnavailable_ShowsDedicatedMessage(t *testing.T) {
 		t.Errorf("服务端故障 envelope 应为 502，实际: %q", stdout)
 	}
 }
+
+// TestLoginCmd_LoginRejected_ShowsDedicatedMessage 锁定登录拒绝分支。
+//
+// 凭据错误（studentLogin 返回 403）时错误链含 ErrLoginRejected，login 命令
+// 必须渲染「请检查学号/密码」专属中文文案 + envelope 401 + exit 1。
+// 此前该分支零覆盖：限流/服务端故障各有专属测试，唯独认证拒绝分支长期
+// 没有守卫——若专属文案或 401 映射被改动，没有任何测试会红。
+func TestLoginCmd_LoginRejected_ShowsDedicatedMessage(t *testing.T) {
+	srv := mockLoginSSO(t, http.StatusForbidden, `{"code":-1,"msg":"invalid credentials"}`)
+
+	quiet = false
+	pendingExitCode.Store(0)
+	stdoutBuf, _, restore := captureStdio(t)
+	loginCmd.Run(newLoginTestCmd(srv.URL), nil)
+	restore()
+	stdout := stdoutBuf.String()
+
+	if got := pendingExitCode.Load(); got != 1 {
+		t.Errorf("登录拒绝应落业务错误档 exit 1，实际 %d; stdout=%q", got, stdout)
+	}
+	if !strings.Contains(stdout, "请检查学号/密码") {
+		t.Errorf("登录拒绝应显示专属中文文案「请检查学号/密码」，实际: %q", stdout)
+	}
+	if !strings.Contains(stdout, `"code": 401`) {
+		t.Errorf("登录拒绝 envelope 应为 401，实际: %q", stdout)
+	}
+}

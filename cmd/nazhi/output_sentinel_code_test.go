@@ -175,3 +175,15 @@ func TestMapSentinelToHTTPCode_EmptyDecodersFailedIsServiceSide(t *testing.T) {
 		t.Errorf("ErrAllDecodersFailed 应映射为 502(服务端侧), 实际 %d", got)
 	}
 }
+
+// TestMapSentinelToHTTPCode_CookieSyncFailedIsServiceSide 锁定 cookie 同步失败的映射。
+//
+// ErrCookieSyncFailed 表示登录成功但 token 同步到 cookie jar 失败
+// （errors.go:18，触发场景是调用方 WithHTTPClient 传了非 *cookiejar.Jar）。
+// 这是「登录成功但客户端配置导致后续业务请求无法携带 token」的配置侧异常，
+// 属服务端/配置档（exit 2），与 ErrEmptyUserInfo 同类——此前落 default 500。
+func TestMapSentinelToHTTPCode_CookieSyncFailedIsServiceSide(t *testing.T) {
+	if got := mapSentinelToHTTPCode(client.ErrCookieSyncFailed); got != 502 {
+		t.Errorf("ErrCookieSyncFailed 应映射为 502(服务端/配置侧), 实际 %d", got)
+	}
+}
