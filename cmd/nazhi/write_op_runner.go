@@ -165,9 +165,7 @@ var taskSubmitWriteOp = writeOpMode{
 	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
 		return c.SubmitTask(ctx, token, *decoded.(*types.TaskSubmitInput))
 	},
-	success: func(result any) *envelope.Envelope {
-		return envelope.Success(result)
-	},
+	success: envelope.Success,
 }
 
 // taskEditWriteOp 是 task edit 的写操作配置。
@@ -196,9 +194,7 @@ var taskEditWriteOp = writeOpMode{
 	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
 		return c.EditCircle(ctx, token, *decoded.(*types.TaskEditInput))
 	},
-	success: func(result any) *envelope.Envelope {
-		return envelope.Success(result)
-	},
+	success: envelope.Success,
 }
 
 // taskPreviewSubmitBranch / taskPreviewEditBranch 是 task preview 的两个分支：
@@ -239,9 +235,7 @@ var taskPreviewSubmitWriteOp = writeOpMode{
 	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
 		return c.PreviewSubmitPayload(ctx, token, *decoded.(*types.TaskSubmitInput))
 	},
-	success: func(result any) *envelope.Envelope {
-		return envelope.Success(result)
-	},
+	success: envelope.Success,
 }
 
 // taskPreviewEditWriteOp 是 task preview 编辑分支。
@@ -270,9 +264,7 @@ var taskPreviewEditWriteOp = writeOpMode{
 	call: func(ctx context.Context, c *client.Client, token string, decoded any) (any, error) {
 		return c.PreviewEditPayload(ctx, token, *decoded.(*types.TaskEditInput))
 	},
-	success: func(result any) *envelope.Envelope {
-		return envelope.Success(result)
-	},
+	success: envelope.Success,
 }
 
 // ─── honor add / typical-case submit / user update ───

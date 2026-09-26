@@ -20,7 +20,7 @@ package main
 // 命令对用户可见的契约，不是 helper 内部实现。
 
 import (
-	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -118,7 +118,7 @@ func TestUserUpdate_UnknownKeys_FoldCase(t *testing.T) {
 func allowedKeysLower(keys ...string) map[string]struct{} {
 	allowed := make(map[string]struct{}, len(keys))
 	for _, k := range keys {
-		allowed[fmt.Sprintf("%s", k)] = struct{}{}
+		allowed[strings.ToLower(k)] = struct{}{}
 	}
 	return allowed
 }

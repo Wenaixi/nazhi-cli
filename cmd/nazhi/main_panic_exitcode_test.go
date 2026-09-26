@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -72,8 +73,9 @@ func TestMain_PanicExitCode_IsTwo(t *testing.T) {
 	out, err := cmd.CombinedOutput()
 
 	code := 0
-	if ee, ok := err.(*exec.ExitError); ok {
-		code = ee.ExitCode()
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
+		code = exitErr.ExitCode()
 	} else if err != nil {
 		t.Fatalf("运行 panic 探针失败: %v\n输出: %s", err, out)
 	}
