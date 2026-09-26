@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -41,7 +42,11 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 		return nil, errors.Join(ErrBusinessRejected, fmt.Errorf("GetSchoolID 业务错误: %w", err))
 	}
 
-	schools, err := types.DecodeDataList[map[string]any](resp)
+	// dataList 用 UseNumber 解码：school_id 是标识符而非测量值，必须原样
+	// 保留服务端字面量。标准 json.Unmarshal 把数字解为 float64，超过 2^53
+	// 的整数会在解码阶段就丢精度（实测 9007199254740993 → 9007199254740992），
+	// 任何后续格式化都无法还原。与 tokenparse、file.go 的解码纪律一致。
+	schools, err := decodeSchoolListUseNumber(resp.DataList)
 	if err != nil {
 		return nil, fmt.Errorf("GetSchoolID dataList 解析失败: %w", err)
 	}
@@ -52,12 +57,18 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 
 	school := schools[0]
 
-	// 校验 school_id 为有效数字，防止非数字值被静默传给登录请求
+	// 校验 school_id 为有效数字，防止非数字值被静默传给登录请求。
+	//
+	// 数值格式化不能直接用 %v：school 来自 map[string]any，JSON 数字解码为
+	// float64，而 %v 对 float64 走 %g 语义——7 位及以上整数即被输出为科学
+	// 计数法（实测 1234567 → "1.234567e+06"），随后的 ParseInt 必然失败，
+	// 合法学校 ID 被误判为「非有效数字」。'f' 格式 + 精度 -1 表示「用最短
+	// 表示法精确还原该浮点值」，整数路径输出纯十进制。
 	schoolIDRaw, ok := school["school_id"]
 	if !ok || schoolIDRaw == nil {
 		return nil, fmt.Errorf("%w: GetSchoolID school_id 字段缺失或为 nil", ErrInvalidPayload)
 	}
-	schoolIDStr := fmt.Sprintf("%v", schoolIDRaw)
+	schoolIDStr := formatSchoolID(schoolIDRaw)
 	if _, err := strconv.ParseInt(schoolIDStr, 10, 64); err != nil {
 		return nil, fmt.Errorf("%w: GetSchoolID school_id=%q 不是有效数字: %w", ErrInvalidPayload, schoolIDStr, err)
 	}
@@ -74,6 +85,55 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 		SchoolID:   schoolIDStr,
 		SchoolName: schoolName,
 	}, nil
+}
+
+// formatSchoolID 把 school_id 规范化为纯十进制字符串。
+//
+// 服务端返回 JSON 数字时解码为 float64，直接 %v 会走 %g 语义输出科学
+// 计数法（实测 7 位整数 1234567 → "1.234567e+06"），导致随后的 ParseInt
+// 失败。这里对数值型走 strconv.FormatFloat(f, 'f', -1, 64)——'f' 表示不用
+// 指数，精度 -1 表示用能精确还原该浮点值的最短表示，整数即输出纯十进制。
+//
+// json.Number（UseNumber 解码路径）直接取其字符串，保留服务端原始字面量，
+// 避免大整数经 float64 往返丢失精度。string 与其他类型保持原样，交由
+// 调用方的 ParseInt 裁决。
+func formatSchoolID(v any) string {
+	switch n := v.(type) {
+	case float64:
+		// 'f' 不用指数，精度 -1 用最短精确表示——整数即输出纯十进制。
+		// %v 会走 %g 语义，把 7 位以上整数输出成科学计数法。
+		return strconv.FormatFloat(n, 'f', -1, 64)
+	case float32:
+		return strconv.FormatFloat(float64(n), 'f', -1, 32)
+	case json.Number:
+		return n.String()
+	case int:
+		return strconv.Itoa(n)
+	case int64:
+		return strconv.FormatInt(n, 10)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// decodeSchoolListUseNumber 解码 getSchoolIdByStudentNumber 的 dataList，
+// 数字保留为 json.Number 而非 float64。
+//
+// school_id 是标识符：标准解码会把它变成 float64，超过 2^53 的整数在解码
+// 阶段即丢精度（实测 9007199254740993 → 9007199254740992），任何后续格式化
+// 都无法还原。UseNumber 让字面量原样到达 formatSchoolID。
+// 纪律与 tokenparse.ExtractFromReturnData、file.go 的 returnData 解码一致。
+func decodeSchoolListUseNumber(raw *json.RawMessage) ([]map[string]any, error) {
+	if raw == nil {
+		return nil, nil
+	}
+	dec := json.NewDecoder(bytes.NewReader(*raw))
+	dec.UseNumber()
+	var rows []map[string]any
+	if err := dec.Decode(&rows); err != nil {
+		return nil, err
+	}
+	return rows, nil
 }
 
 // ─── Login ───
