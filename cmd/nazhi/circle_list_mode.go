@@ -31,9 +31,28 @@ type circleListMode struct {
 	// countErrorLabel 用于 --count 分支的错误文案；为空时复用 label
 	countErrorLabel string
 
-	peekTotal func(ctx context.Context, c *client.Client, token, key string) (int, error)
-	listLimit func(ctx context.Context, c *client.Client, token, key string, offset, limit int) (json.RawMessage, *types.PageBean, error)
-	listAll   func(ctx context.Context, c *client.Client, token, key string) (json.RawMessage, error)
+	// listType 是写实列表类型（公示 / 教师写实 / 我发布的 / 被撤回的）。
+	//
+	// 此前本结构持三个函数指针（peekTotal / listLimit / listAll），每个 mode
+	// 各配一份、每个都是一行转发——四个 mode 共 12 个转发闭包，占 52 行。
+	// SDK 侧改为按写实列表类型的统一入口后，命令只需声明「我是哪个列表」，
+	// 三条路径由下面三个方法按 listType 分发。
+	listType client.CircleListType
+}
+
+// peekTotal 取该列表的总条数。
+func (m circleListMode) peekTotal(ctx context.Context, c *client.Client, token, key string) (int, error) {
+	return c.PeekCircleTotal(ctx, token, m.listType, key)
+}
+
+// listLimit 分页取该列表的记录。
+func (m circleListMode) listLimit(ctx context.Context, c *client.Client, token, key string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
+	return c.ListCirclesLimitJSON(ctx, token, m.listType, offset, limit, key)
+}
+
+// listAll 取该列表的全部记录（自动翻页合并）。
+func (m circleListMode) listAll(ctx context.Context, c *client.Client, token, key string) (json.RawMessage, error) {
+	return c.ListCirclesJSON(ctx, token, m.listType, key)
 }
 
 // run 执行写实列表命令的完整控制流。
@@ -135,56 +154,28 @@ func totalOf(pb *types.PageBean) int {
 }
 
 // ─── 四个命令的模式配置 ───
+//
+// 四个 mode 的全部差异就是「我是哪个写实列表类型」与两处文案。SDK 侧提供
+// 按类型分发的统一入口后，这里从 52 行转发闭包塌缩为 4 行声明——新增一个
+// 列表类型只需在此加一行，不必再写三份转发。
 
 var publicCircleListMode = circleListMode{
-	label: "公示",
-	peekTotal: func(ctx context.Context, c *client.Client, token, key string) (int, error) {
-		return c.PeekPublicTotal(ctx, token, key)
-	},
-	listLimit: func(ctx context.Context, c *client.Client, token, key string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-		return c.GetPublicCirclesLimitJSON(ctx, token, offset, limit, key)
-	},
-	listAll: func(ctx context.Context, c *client.Client, token, key string) (json.RawMessage, error) {
-		return c.GetPublicCirclesJSON(ctx, token, key)
-	},
+	label:    "公示",
+	listType: client.CircleListPublic,
 }
 
 var teacherCircleListMode = circleListMode{
-	label: "教师",
-	peekTotal: func(ctx context.Context, c *client.Client, token, key string) (int, error) {
-		return c.PeekTeacherTotal(ctx, token, key)
-	},
-	listLimit: func(ctx context.Context, c *client.Client, token, key string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-		return c.GetTeacherCirclesLimitJSON(ctx, token, offset, limit, key)
-	},
-	listAll: func(ctx context.Context, c *client.Client, token, key string) (json.RawMessage, error) {
-		return c.GetTeacherCirclesJSON(ctx, token, key)
-	},
+	label:    "教师",
+	listType: client.CircleListTeacher,
 }
 
 var submittedCircleListMode = circleListMode{
 	label:           "我发布的",
 	countErrorLabel: "记录",
-	peekTotal: func(ctx context.Context, c *client.Client, token, key string) (int, error) {
-		return c.PeekSubmittedTotal(ctx, token, key)
-	},
-	listLimit: func(ctx context.Context, c *client.Client, token, key string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-		return c.GetSubmittedCirclesLimitJSON(ctx, token, offset, limit, key)
-	},
-	listAll: func(ctx context.Context, c *client.Client, token, key string) (json.RawMessage, error) {
-		return c.GetSubmittedCirclesJSON(ctx, token, key)
-	},
+	listType:        client.CircleListSubmitted,
 }
 
 var withdrawnCircleListMode = circleListMode{
-	label: "被撤回",
-	peekTotal: func(ctx context.Context, c *client.Client, token, key string) (int, error) {
-		return c.PeekWithdrawnTotal(ctx, token, key)
-	},
-	listLimit: func(ctx context.Context, c *client.Client, token, key string, offset, limit int) (json.RawMessage, *types.PageBean, error) {
-		return c.GetWithdrawnCirclesLimitJSON(ctx, token, offset, limit, key)
-	},
-	listAll: func(ctx context.Context, c *client.Client, token, key string) (json.RawMessage, error) {
-		return c.GetWithdrawnCirclesJSON(ctx, token, key)
-	},
+	label:    "被撤回",
+	listType: client.CircleListWithdrawn,
 }

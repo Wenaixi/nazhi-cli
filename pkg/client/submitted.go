@@ -195,16 +195,33 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	return all, nil
 }
 
-// ─── type=1: 公示/全部（全班所有记录）───
+// ─── 结构化路径：按写实列表类型取回 []types.CircleRecord ───
+
+// ListCircleRecords 按写实列表类型获取写实记录（结构化路径，自动翻页合并）。
+//
+// 这是 GetPublicCircles / GetTeacherCircles / GetSubmittedCircles /
+// GetWithdrawnCircles 四个入口的统一形式——它们除方法名与那个数字外逐字
+// 相同。保留旧入口为薄壳，理由与 ListCirclesJSON 相同。
+//
+// 与 ListCirclesJSON 的分工：CLI 走透传路径（byte-for-byte 保持平台 JSON），
+// 需要强类型结构的 Go 调用方走本方法。
+func (c *Client) ListCircleRecords(ctx context.Context, token string, listType CircleListType, key string) ([]types.CircleRecord, error) {
+	if !listType.Valid() {
+		return nil, errInvalidCircleListType(listType)
+	}
+	return c.fetchAllCirclePages(ctx, token, int(listType), key)
+}
 
 // GetPublicCircles 获取公示的全部写实记录（全班）。
+// 等价于 ListCircleRecords(ctx, token, CircleListPublic, key)。
 func (c *Client) GetPublicCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 1, key)
+	return c.ListCircleRecords(ctx, token, CircleListPublic, key)
 }
 
 // PeekPublicTotal 快速获取公示写实记录总数。
+// 等价于 PeekCircleTotal(ctx, token, CircleListPublic, key)。
 func (c *Client) PeekPublicTotal(ctx context.Context, token string, key string) (int, error) {
-	return c.peekCircleTotal(ctx, token, 1, key, "PeekPublicTotal")
+	return c.PeekCircleTotal(ctx, token, CircleListPublic, key)
 }
 
 // peekCircleTotal 拉取首页单条并返回服务端声明的 totalNum。
@@ -228,38 +245,38 @@ func (c *Client) peekCircleTotal(ctx context.Context, token string, circleType i
 	return pb.TotalNum, nil
 }
 
-// ─── type=2: 教师写实 ───
-
 // GetTeacherCircles 获取教师代写的全部写实记录。
+// 等价于 ListCircleRecords(ctx, token, CircleListTeacher, key)。
 func (c *Client) GetTeacherCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 2, key)
+	return c.ListCircleRecords(ctx, token, CircleListTeacher, key)
 }
 
 // PeekTeacherTotal 快速获取教师写实记录总数。
+// 等价于 PeekCircleTotal(ctx, token, CircleListTeacher, key)。
 func (c *Client) PeekTeacherTotal(ctx context.Context, token string, key string) (int, error) {
-	return c.peekCircleTotal(ctx, token, 2, key, "PeekTeacherTotal")
+	return c.PeekCircleTotal(ctx, token, CircleListTeacher, key)
 }
-
-// ─── type=3: 我发布的写实（仅当前用户自己的记录）───
 
 // GetSubmittedCircles 获取当前用户自己发布的写实记录。
+// 等价于 ListCircleRecords(ctx, token, CircleListSubmitted, key)。
 func (c *Client) GetSubmittedCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 3, key)
+	return c.ListCircleRecords(ctx, token, CircleListSubmitted, key)
 }
 
-// PeekSubmittedTotal 快速获取已提交写实记录总数（type=3，我发布的）。
+// PeekSubmittedTotal 快速获取我发布的写实记录总数。
+// 等价于 PeekCircleTotal(ctx, token, CircleListSubmitted, key)。
 func (c *Client) PeekSubmittedTotal(ctx context.Context, token string, key string) (int, error) {
-	return c.peekCircleTotal(ctx, token, 3, key, "PeekSubmittedTotal")
+	return c.PeekCircleTotal(ctx, token, CircleListSubmitted, key)
 }
-
-// ─── type=4: 被撤回的写实 ───
 
 // GetWithdrawnCircles 获取被撤回的全部写实记录。
+// 等价于 ListCircleRecords(ctx, token, CircleListWithdrawn, key)。
 func (c *Client) GetWithdrawnCircles(ctx context.Context, token string, key string) ([]types.CircleRecord, error) {
-	return c.fetchAllCirclePages(ctx, token, 4, key)
+	return c.ListCircleRecords(ctx, token, CircleListWithdrawn, key)
 }
 
 // PeekWithdrawnTotal 快速获取被撤回写实记录总数。
+// 等价于 PeekCircleTotal(ctx, token, CircleListWithdrawn, key)。
 func (c *Client) PeekWithdrawnTotal(ctx context.Context, token string, key string) (int, error) {
-	return c.peekCircleTotal(ctx, token, 4, key, "PeekWithdrawnTotal")
+	return c.PeekCircleTotal(ctx, token, CircleListWithdrawn, key)
 }

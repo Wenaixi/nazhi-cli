@@ -156,73 +156,59 @@ func rawSingleObjectBytes(resp types.UnifiedResponse) []byte {
 //   3 = 我发布的     → GetSubmittedCircles
 //   4 = 被撤回       → GetWithdrawnCircles
 
+// 以下 8 个入口是按写实列表类型各设一份的旧形式，除方法名与那个数字外
+// 逐字相同。现已全部转发到 circle_list_type.go 的统一入口：
+// ListCirclesJSON / ListCirclesLimitJSON。保留是为兼容下游调用方，行为
+// 逐字不变（由 TestListCirclesJSON_EquivOldEntrypoints 与
+// TestListCirclesLimitJSON_EquivOldEntrypoints 锁定），新增代码请直接用
+// 统一入口——它少一层要记的名字，且类型系统保证不会传错写实列表类型。
+
 // GetSubmittedCirclesJSON 获取当前用户自己发布的写实记录，返回平台原始 JSON 数组。
-//
-// type=3 只返回当前用户自己发布的内容，自动翻页合并多页 dataList。
-// key 为搜索关键字（可空，对应 getStudentCircle 的 key 查询参数）。
-//
-// 返回值：
-//   - json.RawMessage：dataList 风格的 JSON 数组——恒为合法数组（服务端无记录或 dataList:null 时归一为 []），
-//     不存在成功路径返回 null 的情形；错误场景返回 (nil, err)
-//   - error：网络/解析/业务错误
-//
-// 取消语义：ctx 取消时返回 (已有合并数据, ctx.Err())，调用方按 partial envelope 处理。
+// 等价于 ListCirclesJSON(ctx, token, CircleListSubmitted, key)。
 func (c *Client) GetSubmittedCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	raw, _, err := c.getCirclesJSON(ctx, token, 3, key, "GetSubmittedCirclesJSON")
-	return raw, err
+	return c.ListCirclesJSON(ctx, token, CircleListSubmitted, key)
 }
 
-// GetSubmittedCirclesLimitJSON 按偏移和条数限制拉取当前用户自己发布的写实记录（原始 JSON）。
-//
-// offset=0, limit=0 时全量（等于 GetSubmittedCirclesJSON）。
-// offset/limit 超出实际数据量时返回空数组，不报错。
-// key 为搜索关键字（可空）。
-//
-// 返回值：
-//   - dataList 原始 JSON 数组（可能为 []）
-//   - 分页信息（含 TotalNum）
-//   - error
+// GetSubmittedCirclesLimitJSON 按偏移和条数限制拉取当前用户自己发布的写实记录。
+// 等价于 ListCirclesLimitJSON(ctx, token, CircleListSubmitted, offset, limit, key)。
 func (c *Client) GetSubmittedCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 3, key, "GetSubmittedCirclesLimitJSON")
+	return c.ListCirclesLimitJSON(ctx, token, CircleListSubmitted, offset, limit, key)
 }
 
 // GetTeacherCirclesJSON 获取教师代写的全部写实记录，返回平台原始 JSON 数组。
-// key 为搜索关键字（可空）。
+// 等价于 ListCirclesJSON(ctx, token, CircleListTeacher, key)。
 func (c *Client) GetTeacherCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	raw, _, err := c.getCirclesJSON(ctx, token, 2, key, "GetTeacherCirclesJSON")
-	return raw, err
+	return c.ListCirclesJSON(ctx, token, CircleListTeacher, key)
 }
 
-// GetTeacherCirclesLimitJSON 按偏移和条数限制拉取教师写实记录（原始 JSON）。
-// key 为搜索关键字（可空）。
+// GetTeacherCirclesLimitJSON 按偏移和条数限制拉取教师写实记录。
+// 等价于 ListCirclesLimitJSON(ctx, token, CircleListTeacher, offset, limit, key)。
 func (c *Client) GetTeacherCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 2, key, "GetTeacherCirclesLimitJSON")
+	return c.ListCirclesLimitJSON(ctx, token, CircleListTeacher, offset, limit, key)
 }
 
 // GetWithdrawnCirclesJSON 获取被撤回的全部写实记录，返回平台原始 JSON 数组。
-// key 为搜索关键字（可空）。
+// 等价于 ListCirclesJSON(ctx, token, CircleListWithdrawn, key)。
 func (c *Client) GetWithdrawnCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	raw, _, err := c.getCirclesJSON(ctx, token, 4, key, "GetWithdrawnCirclesJSON")
-	return raw, err
+	return c.ListCirclesJSON(ctx, token, CircleListWithdrawn, key)
 }
 
-// GetWithdrawnCirclesLimitJSON 按偏移和条数限制拉取被撤回写实记录（原始 JSON）。
-// key 为搜索关键字（可空）。
+// GetWithdrawnCirclesLimitJSON 按偏移和条数限制拉取被撤回写实记录。
+// 等价于 ListCirclesLimitJSON(ctx, token, CircleListWithdrawn, offset, limit, key)。
 func (c *Client) GetWithdrawnCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 4, key, "GetWithdrawnCirclesLimitJSON")
+	return c.ListCirclesLimitJSON(ctx, token, CircleListWithdrawn, offset, limit, key)
 }
 
 // GetPublicCirclesJSON 获取公示的全部写实记录（全班），返回平台原始 JSON 数组。
-// key 为搜索关键字（可空）。
+// 等价于 ListCirclesJSON(ctx, token, CircleListPublic, key)。
 func (c *Client) GetPublicCirclesJSON(ctx context.Context, token string, key string) (json.RawMessage, error) {
-	raw, _, err := c.getCirclesJSON(ctx, token, 1, key, "GetPublicCirclesJSON")
-	return raw, err
+	return c.ListCirclesJSON(ctx, token, CircleListPublic, key)
 }
 
-// GetPublicCirclesLimitJSON 按偏移和条数限制拉取公示写实记录（原始 JSON）。
-// key 为搜索关键字（可空）。
+// GetPublicCirclesLimitJSON 按偏移和条数限制拉取公示写实记录。
+// 等价于 ListCirclesLimitJSON(ctx, token, CircleListPublic, offset, limit, key)。
 func (c *Client) GetPublicCirclesLimitJSON(ctx context.Context, token string, offset, limit int, key string) (json.RawMessage, *types.PageBean, error) {
-	return c.getCirclesLimitJSON(ctx, token, offset, limit, 1, key, "GetPublicCirclesLimitJSON")
+	return c.ListCirclesLimitJSON(ctx, token, CircleListPublic, offset, limit, key)
 }
 
 // rawResult 存储单页原始 JSON 数据。
