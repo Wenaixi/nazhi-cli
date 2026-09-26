@@ -32,6 +32,7 @@ _Avoid_：草稿、未提交、待审核（平台没有这些状态）
 
 **写实列表类型**：查询写实列表时的入口分类，四类分别是公示、教师写实、我发布的、被撤回的。它描述"从哪个列表看"，与单条写实自身的状态无关。
 _Avoid_：把它当作写实状态的另一种说法
+_代码_：`pkg/client` 的 `CircleListType` 与 `CircleListPublic` / `CircleListTeacher` / `CircleListSubmitted` / `CircleListWithdrawn` 四个常量；`Valid()` 会在发请求前拒绝非法值。
 
 **我发布的写实**：写实状态为零、且由当前学生发布的记录集合。
 _Avoid_：已提交写实
