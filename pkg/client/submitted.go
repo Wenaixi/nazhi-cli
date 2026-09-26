@@ -139,13 +139,8 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	all := make([]types.CircleRecord, len(page1), capacity)
 	copy(all, page1)
 
-	// results 按页号索引，预分配避免竞态
-	// TotalPage 来自服务端单字段声明，超钳制值时直接截断（只返回
-	// 首页），不翻页——防服务端异常值驱动 make 分配 OOM。
-	if declaredPages > maxTotalPage {
-		slog.Warn("submitted: totalPage 超过钳制上限，截断到首页", "total_page", declaredPages, "max", maxTotalPage)
-		return all, nil
-	}
+	// results 按页号索引，预分配避免竞态。上界钳制已由 derivePageBounds
+	// 内部的 clampPage 完成（恒不超过 maxTotalPage），此处无需重复判断。
 	results := make([]pageResult, declaredPages+1)
 	results[1] = pageResult{records: page1}
 
