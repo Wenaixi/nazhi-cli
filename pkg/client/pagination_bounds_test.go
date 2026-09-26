@@ -99,3 +99,61 @@ func TestLimitEndPage_ConvergesToNeededPages(t *testing.T) {
 		})
 	}
 }
+
+// TestLimitEndPage_UnclampedDeclaredPages 锁定生产真实组合：limit 路径用
+// **未钳制**的声明页数喂给 limitEndPage。
+//
+// 既有 TestLimitEndPage_ConvergesToNeededPages 用的是已钳制的
+// derivePageBounds，与生产调用（raw_json.go 用 derivePageBoundsUnclamped）
+// 不是同一条路径。顺序约束此前只由集成测试
+// TestGetCirclesLimitJSON_HugeLimitClamped 间接锁定，纯函数层无守卫。
+func TestLimitEndPage_UnclampedDeclaredPages(t *testing.T) {
+	// 病态总条数：已钳制版会把它压到 maxTotalPage，未钳制版保留真实量级。
+	const pathologicalTotalNum = 1_000_000_000
+	declared := derivePageBoundsUnclamped(pathologicalTotalNum, 5, 2)
+	if declared <= maxTotalPage {
+		t.Fatalf("未钳制版不应把病态总条数压到 %d 以内，实际 %d", maxTotalPage, declared)
+	}
+
+	got := limitEndPage(0, pathologicalTotalNum, 2, declared)
+	if got != 1 {
+		t.Errorf("未钳制声明页数下应退回首页(1)，实际 %d", got)
+	}
+}
+
+// TestDerivePageBoundsUnclamped_LowerBound 锁定下界：页数至少为 1
+// （索引槽以页号下标存放，首页固定在 results[1]）。
+func TestDerivePageBoundsUnclamped_LowerBound(t *testing.T) {
+	if got := derivePageBoundsUnclamped(0, 0, 500); got != 1 {
+		t.Errorf("总条数与总页数均为零时下界应为 1，实际 %d", got)
+	}
+}
+
+// TestDerivePageBoundsUnclamped_NonPositivePageSize 锁定 pageSize 非法时的
+// 退化路径：只信任服务端声明的 totalPage。该分支此前无直接单元测试，
+// 而集成测试的 pageSize 均大于 0 不会走到它。
+func TestDerivePageBoundsUnclamped_NonPositivePageSize(t *testing.T) {
+	if got := derivePageBoundsUnclamped(0, 0, 0); got != 1 {
+		t.Errorf("pageSize=0 且总页数为零时应为 1，实际 %d", got)
+	}
+	if got := derivePageBoundsUnclamped(0, 0, -1); got != 1 {
+		t.Errorf("pageSize=-1 且总页数为零时应为 1，实际 %d", got)
+	}
+	// pageSize 非法但服务端声明了页数时，只信任声明值（不做 totalNum 推导）。
+	if got := derivePageBoundsUnclamped(1_000_000_000, 7, 0); got != 7 {
+		t.Errorf("pageSize=0 时应只信任服务端声明的 7 页，实际 %d", got)
+	}
+}
+
+// TestDerivePageBoundsUnclamped_DoesNotClampUpperBound 锁定与已钳制版的差异：
+// 上界钳制是 clampPage 的职责，未钳制版必须原样返回超界值，
+// 否则 limit 路径的「先收敛后判超限」顺序契约失效。
+func TestDerivePageBoundsUnclamped_DoesNotClampUpperBound(t *testing.T) {
+	got := derivePageBoundsUnclamped(1_000_000_000, 1_000_000, 100)
+	if got <= maxTotalPage {
+		t.Errorf("未钳制版不应做上界钳制，实际返回 %d", got)
+	}
+	if clamped := derivePageBounds(1_000_000_000, 1_000_000, 100); clamped != maxTotalPage {
+		t.Errorf("对照：已钳制版应返回 maxTotalPage(%d)，实际 %d", maxTotalPage, clamped)
+	}
+}
