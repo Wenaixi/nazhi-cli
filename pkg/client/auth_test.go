@@ -990,7 +990,6 @@ func TestDerefOr_StringNilAndValue(t *testing.T) {
 	}
 }
 
-
 // ─── auth_wrap_test.go: 200 路径 tokenparse 错误改用 %w 包装 ───
 
 // TestLogin_200Path_ExtractTokenError_WrappedWithPercentW 验证

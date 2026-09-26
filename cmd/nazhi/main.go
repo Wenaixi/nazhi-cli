@@ -61,15 +61,36 @@ func main() {
 	// 退出码 2（printError 默认 HTTP 500 → ExitCode=2 服务端错误档）退出，
 	// 同时 debug.Stack() 写 stderr 辅助定位。
 	// recover 必须在 main 顶层 defer：cobra 内部不主动 recover Run 回调 panic。
+	//
+	// 退出码必须在此显式 os.Exit：panic 会中断 main 的顺序执行并直接进入
+	// defer 链，函数尾部的 pendingExitCode 判断与 os.Exit 均不可达——若不在
+	// 此退出，recover 之后 main 正常返回，进程以 exit 0 结束，脚本把 panic
+	// 误判为成功（AST 静态测试只校验 recover/printError 字样存在，查不出
+	// 控制流不可达；TestMain_PanicExitCode_IsTwo 以子进程实测锁定）。
+	//
+	// LIFO 顺序：本 defer 先于下方资源清理 defer 注册，故 panic 时它先执行；
+	// 资源清理在 os.Exit 之前被跳过，因此这里显式调用 closeAllClients，
+	// 与正常退出路径的清理保持一致。
 	defer func() {
 		if r := recover(); r != nil {
 			printError(fmt.Errorf("内部错误: %v", r))
-			// --quiet 契约：quiet 时不写 debug.Stack()（printError 自带 quiet 守卫，
-			// 退出码照常设置）。非 quiet 时借用 recoverx.RecoverPanic 输出 stack
-			// 辅助定位，不关心返回的 error（printError 已覆盖）。
+			// --quiet 契约：quiet 时不写 debug.Stack()（printError 自带 quiet 守卫）。
+			// 非 quiet 时借用 recoverx.RecoverPanic 输出 stack 辅助定位。
 			if !quiet {
 				_ = recoverx.RecoverPanic(r, nil, "main")
 			}
+			if err := closeAllClients(); err != nil {
+				printError(fmt.Errorf("关闭 Client 资源失败: %w", err))
+			}
+			if err := closeLogFiles(); err != nil {
+				fmt.Fprintf(os.Stderr, "warn: 关闭日志文件失败: %v\n", err)
+			}
+			code := int(pendingExitCode.Load())
+			if code == 0 {
+				// printError 未设置退出码时的兜底：panic 绝不可被当作成功。
+				code = 2
+			}
+			os.Exit(code)
 		}
 	}()
 

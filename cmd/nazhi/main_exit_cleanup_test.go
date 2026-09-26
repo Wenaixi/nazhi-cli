@@ -39,21 +39,35 @@ func TestMain_OsExitPrecededByCloseAllClients(t *testing.T) {
 		t.Fatal("找不到 main 函数")
 	}
 
-	// 2. 找 os.Exit(1) 调用位置（os.Exit 在 AST 是 *ast.SelectorExpr
-	// Fun = os, Sel = Exit）
+	// 2. 找 main 顶层的 os.Exit 调用位置（os.Exit 在 AST 是 *ast.SelectorExpr
+	//    Fun = os, Sel = Exit）。
+	//
+	//    只认「main 顺序执行路径上的 os.Exit」，即第 3 步 visitStmts 同样会
+	//    访问的那些语句。panic recover 的 defer 闭包内也有 os.Exit，但它属于
+	//    独立的异常退出路径（自带 closeAllClients 前置调用），不参与本契约
+	//    的判定——若用 ast.Inspect 无差别取最早 os.Exit，会取到 defer 内的
+	//    那一个，而 closeAllClients 查找又跳过 defer，两套口径错配导致误报。
 	var exitPos token.Pos
 	var exitLine int
-	ast.Inspect(mainFn.Body, func(n ast.Node) bool {
-		if call, ok := n.(*ast.CallExpr); ok {
-			if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Exit" {
-				if exitPos == 0 || call.Pos() < exitPos {
-					exitPos = call.Pos()
-					exitLine = fset.Position(call.Pos()).Line
-				}
+	findExitInStmts := func(stmts []ast.Stmt) {
+		for _, stmt := range stmts {
+			if _, isDefer := stmt.(*ast.DeferStmt); isDefer {
+				continue // 与 visitStmts 同口径：跳过 defer 闭包
 			}
+			ast.Inspect(stmt, func(n ast.Node) bool {
+				if call, ok := n.(*ast.CallExpr); ok {
+					if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Exit" {
+						if exitPos == 0 || call.Pos() < exitPos {
+							exitPos = call.Pos()
+							exitLine = fset.Position(call.Pos()).Line
+						}
+					}
+				}
+				return true
+			})
 		}
-		return true
-	})
+	}
+	findExitInStmts(mainFn.Body.List)
 	if exitPos == 0 {
 		t.Fatal("main 函数未发现 os.Exit 调用（修复契约：必须在 exit 前 closeAllClients）")
 	}
