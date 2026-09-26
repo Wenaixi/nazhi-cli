@@ -47,6 +47,22 @@ func (c *Client) syncCookieToken(token string) error {
 		}
 	}
 
+	// cookiejar.SetCookies 对非 http/https 的 scheme 直接静默 return（标准库
+	// 行为，无返回值），此时 cookie 不会写入 jar，但调用方若收到 nil 会误以为
+	// 同步成功——后果是所有业务接口返回空 dataList，且排查方向被误导到「服务端
+	// 返回空」而非「配置侧 cookie 未落地」。这正是 ErrCookieSyncFailed 存在的
+	// 同类症状，故在写入前显式拦截。
+	switch u.Scheme {
+	case "http", "https":
+		// 可写入，继续。
+	case "":
+		return fmt.Errorf("%w: base URL %q 缺少 scheme（应为 http:// 或 https:// 开头），cookie 无法写入",
+			ErrCookieSyncFailed, c.baseURL)
+	default:
+		return fmt.Errorf("%w: base URL %q 的 scheme %q 不受支持（cookiejar 仅支持 http/https）",
+			ErrCookieSyncFailed, c.baseURL, u.Scheme)
+	}
+
 	jar.SetCookies(u, []*http.Cookie{{
 		Name:  "X-Auth-Token",
 		Value: token,
