@@ -12,8 +12,9 @@ package main
 // 行为变化（由本文件锁定）：
 //   - 重构前 user update 的 unknownUserUpdateKeys 大小写敏感（注释称
 //     对齐实际没对齐），{"Telephone":...} 会被拒；重构后折叠放行。
-//   - 重构前 unknownTaskInputKeys 是独立实现（同语义不同代码）；重构后
-//     共用 unknownUpdatePayloadKeys，行为不变。
+//   - 重构前 task 族有独立实现 unknownTaskInputKeys（同语义不同代码，已删除）；
+//     重构后 task 族与 honor/typical-case/user 共用 unknownUpdatePayloadKeys，
+//     行为不变。
 //
 // 这些测试在重构前必须失败（红），重构后通过（绿）——它们验证的是
 // 命令对用户可见的契约，不是 helper 内部实现。
@@ -52,8 +53,8 @@ func TestUserUpdate_UnknownKeys_Drift(t *testing.T) {
 }
 
 // TestTaskUpdate_UnknownKeys_FoldCase 锁定 task 族（submit/edit/preview）
-// 未知键拒绝共用 unknownUpdatePayloadKeys：行为与重构前 unknownTaskInputKeys
-// 完全一致（ToLower 折叠、稳定排序、历史兼容字段放行）。
+// 未知键拒绝共用 unknownUpdatePayloadKeys（历史独立实现已删除）：
+// ToLower 折叠、稳定排序、历史兼容字段放行。
 func TestTaskUpdate_UnknownKeys_FoldCase(t *testing.T) {
 	allowed := taskInputAllowedKeys
 

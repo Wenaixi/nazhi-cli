@@ -35,7 +35,7 @@ func parsePayloadFromArg(ctx context.Context, raw string) ([]byte, error) {
 	if raw == "-" {
 		// 与 self-eval submit 的 stdin 保护对齐：交互终端下先给提示符，
 		// 再走带超时的读取——避免手滑写 - 时无提示无超时地永久阻塞。
-		// I-05：继承调用方 cmd.Context() 而非 context.Background()，Ctrl+C 可中断。
+		// 继承调用方 cmd.Context 而非 context.Background，Ctrl+C 可中断。
 		printPrompt("请输入 payload JSON（Ctrl+D 结束）: ")
 		content, readErr := readStdinWithTimeout(ctx, 60)
 		if readErr != nil {
@@ -71,7 +71,7 @@ func parseJSONObjectPayload(ctx context.Context, raw string) ([]byte, error) {
 // 兼容 float64（encoding/json 默认）与 json.Number 两种解码产物。
 // 跨命令通用：honor update + typical-case update 共享同一契约。
 //
-// float64 分支用 math.Trunc 判整数并拒绝 ≥2^63（与 FlexInt 同口径，C86-CLI#19）：
+// float64 分支用 math.Trunc 判整数并拒绝 ≥2^63（与 FlexInt 同口径，）：
 // 旧实现 `v == float64(int64(v))` 对 2^53..2^63 区间的整数字面量（float64 精度
 // 不足以区分相邻整数）会在 int64 转换回绕后恰好相等而静默误判。
 func PayloadPositiveIDValid(payload map[string]any) bool {
@@ -90,10 +90,10 @@ func PayloadPositiveIDValid(payload map[string]any) bool {
 }
 
 // unknownUpdatePayloadKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名（稳定排序）。
-// 与 unknownUserUpdateKeys 同构；I-04/I-06 让 honor/typical-case update 与 user update
+// 与 unknownUserUpdateKeys 同构；该收敛让 honor/typical-case update 与 user update
 // 共享同一未知键拒绝语义。
-// N-08：允许集统一小写存储，用户键 ToLower 后比较——与 task 族
-// unknownTaskInputKeys（task_payload_json.go）的 EqualFold 语义对齐，
+// 允许集统一小写存储，用户键 ToLower 后比较——与 task 族的
+// findTaskInputField EqualFold 解码语义对齐，
 // 避免用户传 CERTIMGATTACHMENTID/Telephone 等大小写变体被误拒。
 func unknownUpdatePayloadKeys(payloadBytes []byte, allowed map[string]struct{}) []string {
 	var top map[string]json.RawMessage

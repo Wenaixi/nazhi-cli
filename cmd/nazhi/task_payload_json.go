@@ -33,8 +33,8 @@ var taskInputDeprecatedFields = map[string]struct{}{
 
 // taskInputAllowedKeys 是 task submit/edit payload 顶层 JSON 的全部允许键：
 // TaskInput 消费的 json 键 + 别名对（circleTaskId/pictureList）+ 历史兼容字段。
-// I-04：清晰列出允许集，未知键以参数错误拒绝（对齐 user update）。
-// 注意：键集统一存小写（unknownTaskInputKeys 对用户键 ToLower 后比较），
+// 清晰列出允许集，未知键以参数错误拒绝（对齐 user update）。
+// 注意：键集统一存小写（unknownUpdatePayloadKeys 对用户键 ToLower 后比较），
 // 大小写变体按 findTaskInputField 的 EqualFold 语义天然允许。
 var taskInputAllowedKeys = func() map[string]struct{} {
 	allowed := map[string]struct{}{
@@ -55,27 +55,6 @@ var taskInputAllowedKeys = func() map[string]struct{} {
 	}
 	return allowed
 }()
-
-// unknownTaskInputKeys 返回 payload 顶层 JSON 中不在允许键集合内的键名。
-// 允许集统一小写存储，用户键 ToLower 后比较（大小写变体不视为未知键，
-// 与 findTaskInputField 的 EqualFold 解码语义一致）。
-func unknownTaskInputKeys(payloadBytes []byte) []string {
-	var top map[string]json.RawMessage
-	if err := json.Unmarshal(payloadBytes, &top); err != nil {
-		return nil // 解析已在调用方完成并报错，此处不重复
-	}
-	var unknown []string
-	for k := range top {
-		if _, ok := taskInputAllowedKeys[strings.ToLower(k)]; !ok {
-			unknown = append(unknown, k)
-		}
-	}
-	if len(unknown) == 0 {
-		return nil
-	}
-	sort.Strings(unknown)
-	return unknown
-}
 
 var taskInputFieldAliases = [...]struct {
 	canonical string
