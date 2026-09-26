@@ -16,12 +16,6 @@ var circleCommentCmd = &cobra.Command{
 	Example: "  nazhi circle comment --id 123456 --content '写得好' --token xxx",
 	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
 		idStr, _ := cmd.Flags().GetString("id")
 		if idStr == "" {
 			printEnvelope(envelope.Error(400, "--id 为必填"))
@@ -36,6 +30,12 @@ var circleCommentCmd = &cobra.Command{
 		content, _ := cmd.Flags().GetString("content")
 		if content == "" {
 			printEnvelope(envelope.Error(400, "--content 为必填"))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
 			return
 		}
 

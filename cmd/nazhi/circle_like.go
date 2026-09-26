@@ -16,12 +16,6 @@ var circleLikeCmd = &cobra.Command{
 	Example: "  nazhi circle like --id 123456 --token xxx",
 	Args:    cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		c, token, err := buildBizClient(cmd)
-		if err != nil {
-			printParamError(err)
-			return
-		}
-
 		idStr, _ := cmd.Flags().GetString("id")
 		if idStr == "" {
 			printEnvelope(envelope.Error(400, "--id 为必填"))
@@ -30,6 +24,12 @@ var circleLikeCmd = &cobra.Command{
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil || id <= 0 {
 			printEnvelope(envelope.Error(400, "--id 必须为正整数"))
+			return
+		}
+
+		c, token, err := buildBizClient(cmd)
+		if err != nil {
+			printParamError(err)
 			return
 		}
 
