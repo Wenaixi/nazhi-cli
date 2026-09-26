@@ -232,10 +232,16 @@ var WithToken = withURLGuard("WithToken", func(c *Client, v string) { c.pendingT
 //
 // 行为约定：
 //   - n <= 0：拒绝设置并 warn，保持当前值（防止清零或负数）
-//   - n > 0: 设置每页条数
+//   - n > maxSubmittedPageSize：拒绝设置并 warn，保持当前值
+//   - 其余：设置每页请求条数
 //
-// 服务端 pageSize 上限 500（实测 pageSize=10000 被截断为 500）。
-// 默认值 defaultSubmittedPageSize（500）在绝大多数学期能单页覆盖所有记录，超出时由 fetchAllCirclePages 自动翻页合并。
+// 上界的必要性：翻页路径用 `maxTotalPage * pageSize` 作为容量钳制上界
+// （submitted.go）。pageSize 无界时该乘法会在 int 上回绕为负，使钳制失效
+// 并让后续 make 拿到负容量而 panic——32 位平台 pageSize>21474 即触发，
+// 64 位平台需更大的 n。本选项是公开 API，调用方可能传入任意值。
+//
+// 上界取值远高于服务端实际上限 500（实测 pageSize=10000 被服务端截断为
+// 500），此处只作为溢出防线，不改变正常取值范围。
 func WithSubmittedPageSize(n int) Option {
 	return func(c *Client) {
 		if n <= 0 {
@@ -243,9 +249,19 @@ func WithSubmittedPageSize(n int) Option {
 				"current", c.submittedPageSize, "rejected", n)
 			return
 		}
+		if n > maxSubmittedPageSize {
+			c.logger.Warn("WithSubmittedPageSize: 超过上界被拒绝，保持当前值",
+				"current", c.submittedPageSize, "rejected", n, "max", maxSubmittedPageSize)
+			return
+		}
 		c.submittedPageSize = n
 	}
 }
+
+// maxSubmittedPageSize 是 WithSubmittedPageSize 允许的上界。
+// 取 1<<20：远高于服务端实际上限（500），同时保证 maxTotalPage(10000)
+// 与它相乘不溢出任何平台 int。
+const maxSubmittedPageSize = 1 << 20
 
 // ─── 构造 ───
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -23,6 +24,19 @@ func (c *Client) effectivePageSize() int {
 		return c.submittedPageSize
 	}
 	return defaultSubmittedPageSize
+}
+
+// maxSubmittedCapacityCeiling 返回「钳制页数 × pageSize」这一容量上界，
+// 在乘法会溢出 int 时退回到 math.MaxInt。
+//
+// 调用方以除法形态比较（capacity/maxTotalPage > pageSize）判定越界，
+// 因此本函数只需在乘法安全时给出精确值、溢出时给出一个必然大于任何
+// capacity 的饱和值——后者随即会被下游 maxSubmittedRecords 条数闸拦下。
+func maxSubmittedCapacityCeiling(pageSize int) int {
+	if pageSize > 0 && maxTotalPage > math.MaxInt/pageSize {
+		return math.MaxInt
+	}
+	return maxTotalPage * pageSize
 }
 
 // fetchCirclePage 拉取一页写实记录，同时返回分页信息。
@@ -124,8 +138,13 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	}
 	// capacity 也钳制——totalNum 同样来自服务端单字段声明，
 	// 恶意值（如 1e9）会让 make 预分配巨大容量直接 OOM。上限 = 钳制页数 × pageSize。
-	if capacity > maxTotalPage*pageSize {
-		capacity = maxTotalPage * pageSize
+	//
+	// 用除法比较而非先算乘积：`maxTotalPage * pageSize` 在 pageSize 极大时会
+	// 整数回绕为负，负值与 capacity 比较恒为假，钳制形同虚设，后续 make 会
+	// 拿到负容量而 panic。改成 `capacity / maxTotalPage > pageSize` 后，
+	// 任一侧都不产生乘法溢出（除数 maxTotalPage 恒为正常数）。
+	if capacity/maxTotalPage > pageSize {
+		capacity = maxSubmittedCapacityCeiling(pageSize)
 	}
 	// capacity 双重钳制——先按服务端 totalNum，再按"条数上界"（约 10 万条，
 	// 与 raw_json estimatePagesBudgeted 的字节预算同纪律，防恶意 totalNum 驱动 make 分配 GB 级内存）。
