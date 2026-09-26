@@ -990,14 +990,6 @@ func TestDerefOr_StringNilAndValue(t *testing.T) {
 	}
 }
 
-// TestDerefOr_NotConfusedWithCmpOr 回归测试：确保 derefOr 不被错误替换为
-// cmp.Or（cmp.Or 在 nil 指针场景会 panic，破坏 Login 错误信息兜底契约）。
-// 通过 grep "cmp\.Or.*Msg" 应 0 命中来强制（人工/CI 检查）。
-// 运行时本测试仅记录重命名完成后的语义契约。
-func TestDerefOr_NotConfusedWithCmpOr(t *testing.T) {
-	t.Log("重命名已完成：stringPtrOr 重命名为 derefOr（nil-safe，3 行实现）")
-	t.Log("注意：不能用 cmp.Or(*Msg, def) 替代，cmp.Or 在 Msg==nil 时 panic")
-}
 
 // ─── auth_wrap_test.go: 200 路径 tokenparse 错误改用 %w 包装 ───
 

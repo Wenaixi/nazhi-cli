@@ -44,17 +44,25 @@ func TestRegression_QuerySelfGradEvaluation_PropagatesError(t *testing.T) {
 	}
 }
 
-// ─── HIGH #6: UploadFile 独立 client 应禁用自动重定向 ───
+// ─── UploadFile 独立 client 应禁用自动重定向 ───
 
 // TestRegression_UploadFile_NoRedirectFollow 验证上传文件时遇到 302
-// 不会自动跟随（防止请求发到错误主机）。
+// 不会自动跟随——请求不得投递到 Location 指定的重定向目标。
+//
+// 攻击者侧用真实可达的 httptest 服务器充当探针（而非保留域名
+// attacker.invalid：那类域名无法解析，跟随与否都连不上，断言恒真）。
 func TestRegression_UploadFile_NoRedirectFollow(t *testing.T) {
+	// 攻击者探针：Location 指向它。若 SDK 跟随 302，此处必定收到请求。
 	attackerHit := atomic.Bool{}
-	uploadSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 故意返回 302
-		w.Header().Set("Location", "http://attacker.invalid/steal")
-		w.WriteHeader(http.StatusFound)
+	attackerSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attackerHit.Store(true)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer attackerSrv.Close()
+
+	uploadSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Location", attackerSrv.URL+"/steal")
+		w.WriteHeader(http.StatusFound)
 	}))
 	defer uploadSrv.Close()
 
@@ -71,15 +79,17 @@ func TestRegression_UploadFile_NoRedirectFollow(t *testing.T) {
 	}
 
 	_, uploadErr := c.UploadFile(context.Background(), tmpFile)
-	// 应该返回错误（302 非 200），而不是成功
+	// 302 非 200，应返回错误而非静默成功
 	if uploadErr == nil {
 		t.Fatal("UploadFile 在 302 时应返回错误，但 err 为 nil")
 	}
 	if !strings.Contains(uploadErr.Error(), "302") && !strings.Contains(uploadErr.Error(), "status=") {
 		t.Errorf("错误信息应指出 302 状态: %v", uploadErr)
 	}
-	// 读取 atomic.Bool 避免 vet 报的 noCopy 警告
-	_ = attackerHit.Load()
+	// 核心断言：重定向目标零命中——证明请求未离开上传域。
+	if attackerHit.Load() {
+		t.Error("SDK 跟随了 302 并把请求投递到重定向目标，上传凭据存在外投风险")
+	}
 }
 
 // writeSimplePNG 写一个最小 PNG 文件
