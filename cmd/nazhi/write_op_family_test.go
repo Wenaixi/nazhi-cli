@@ -8,7 +8,7 @@ package main
 // 用独立 unknownUserUpdateKeys）。收敛到 runWriteOp + writeOpMode 后，
 // 以下行为必须保持不变（用户可见契约）：
 //
-//  1. 错误优先次序：缺 --payload → 坏 payload → 未知键 → 建客户端失败
+//  1. 错误优先次序：缺 --payload → 建客户端失败 → 坏 payload → 未知键
 //  2. 未知键 / 坏 payload / 缺 payload 不发任何业务请求
 //  3. 未知键走参数错误（400/exit3），错误文案含「未知键」与允许键提示
 //  4. 成功走 envelope.Empty（无负载，HTTP 204）

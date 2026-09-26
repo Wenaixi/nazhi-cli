@@ -7,7 +7,7 @@ package main
 // envelope），submit 与 edit 33 行逐字重复、preview 内部分叉两份。收敛为
 // 共享 runner 后，以下命令级行为必须保持不变（这些是用户可见契约）：
 //
-//  1. 错误优先次序：缺 --payload → 坏 payload（非对象）→ 未知键 → 建客户端失败
+//  1. 错误优先次序：缺 --payload → 建客户端失败 → 坏 payload（非对象）→ 未知键
 //  2. 未知键 / 坏 payload / 缺 payload 均不发任何业务请求（含元数据预热）
 //  3. 未知键走参数错误（400/exit3），错误文案含「未知键」与允许键提示
 //  4. --address/--level flag 覆盖 payload 中的同名值
@@ -174,4 +174,59 @@ func TestWriteOp_AddressLevelFlagOverrideLogic(t *testing.T) {
 			t.Fatalf("空 flag 应保留 payload 值: got address=%q level=%q", input.Address, input.Level)
 		}
 	})
+}
+
+// TestWriteOp_ClientBuildFailurePrecedesBadPayload 锁定 runWriteOp 中
+// 「建客户端失败」与「坏 payload」的相对次序：先建客户端（write_op_runner.go
+// 的第 2 步），再解析 payload。
+//
+// 该次序此前只有注释描述、无任何测试锁定，注释一度写成「坏 payload 在前」
+// 而实现是反的，长期无人发现。此处用「base-url 不可解析 + payload 非法」
+// 的双缺陷输入固定次序：无论先判哪个，只会报其中一个，据此断言是哪一个。
+func TestWriteOp_ClientBuildFailurePrecedesBadPayload(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{"task submit", taskSubmitCmd},
+		{"task edit", taskEditCmd},
+		{"task preview", taskPreviewCmd},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmd := &cobra.Command{Use: "write-op"}
+			cmd.SetContext(context.Background())
+			cmd.Flags().String("token", "", "")
+			_ = cmd.Flags().Set("token", "test-token")
+			cmd.Flags().String("base-url", "", "")
+			// 含控制字符的 URL 会让 url.Parse 失败，建客户端必然报错。
+			_ = cmd.Flags().Set("base-url", "http://example.com\x7f with space")
+			cmd.Flags().Int("timeout", 5, "")
+			cmd.Flags().String("payload", "", "")
+			// 同时给出非法 payload：非 JSON 文本。两条路径都会失败。
+			_ = cmd.Flags().Set("payload", "not-json-at-all")
+			cmd.Flags().String("address", "", "")
+			cmd.Flags().String("level", "", "")
+			cmd.Flags().Bool("edit", false, "")
+
+			originalQuiet, originalVerbose := quiet, verbose
+			quiet, verbose = false, false
+			pendingExitCode.Store(0)
+			t.Cleanup(func() {
+				quiet, verbose = originalQuiet, originalVerbose
+				pendingExitCode.Store(0)
+				_ = closeAllClients()
+			})
+
+			_, stderr, restore := captureStdio(t)
+			tc.cmd.Run(cmd, nil)
+			restore()
+
+			if strings.Contains(stderr.String(), "读取 payload 失败") {
+				t.Errorf("%s: 实现先建客户端后解析 payload，坏 payload 不应先报；实际 stderr=%q", tc.name, stderr.String())
+			}
+			if !strings.Contains(stderr.String(), "error") {
+				t.Errorf("%s: 双缺陷输入下应输出错误信封，实际 stderr=%q", tc.name, stderr.String())
+			}
+		})
+	}
 }
