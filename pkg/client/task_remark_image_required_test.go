@@ -8,7 +8,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// TestBuildTaskPayload_RemarkImageRequiredExhaustive 锁定 task.go:320-325 的
+// TestBuildTaskPayload_RemarkImageRequiredExhaustive 锁定 buildTaskPayload 内的
 // 「任务备注含图片关键词 + pictureList 为空 → ErrInvalidPayload」校验分支。
 // 该分支为 SDK 单方面发明的校验（前端 managementRightBottom.vue remark 仅展示，
 // 无此校验），必须有测试守住以防重构误删。
