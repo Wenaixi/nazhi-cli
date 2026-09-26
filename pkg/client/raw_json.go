@@ -44,9 +44,10 @@ const maxTotalPage = 10000
 // + 虚高 totalNum 驱动单请求 OOM。64MB 足够覆盖任何真实拼接输出。
 const maxAssembleBuffer = 64 << 20
 
-// maxFetchTasksDims FetchTasksJSON 维度数上界（CLI-1 修复）——维度数直接来自
+// maxFetchTasksDims 任务维度数上界（CLI-1 修复）——维度数直接来自
 // getDimensions 服务端声明，恶意值驱动全维度并发拉取 × 单页 4MB（maxResponseBodySize）
-// 累积无预算。128 维远超任何真实学校维度集（通常 <10）。
+// 累积无预算。128 维远超任何真实学校维度集（通常 <10）。FetchTasksJSON 与
+// FetchTasks 两条取数路径共用同一道钳制（后者在 task.go 截断）。
 const maxFetchTasksDims = 128
 
 // capAssembledSlice 对已累积的 rawResult 切片做总量预算截断（N-04）。
