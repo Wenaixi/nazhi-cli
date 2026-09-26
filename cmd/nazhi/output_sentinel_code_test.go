@@ -142,6 +142,7 @@ func TestPrintError_Retryable_ExitCode2(t *testing.T) {
 		t.Errorf("ErrRetryable 应走 503 档(退出码 2), 实际 %d", got)
 	}
 }
+
 // TestMapSentinelToHTTPCode_ContextCancelledIsRetryable 锁定 context 哨兵的映射。
 //
 // 用户按 Ctrl+C 中止一条长命令是正常交互，不是服务端内部故障。此前

@@ -41,6 +41,7 @@ func pagingTestServer(tb testing.TB, failPages map[string]bool) *httptest.Server
 	tb.Cleanup(srv.Close)
 	return srv
 }
+
 // 每页字节必须落在自己页号对应的槽位上——这是分页保序的基础，
 // 槽位错位会让拼接结果页序混乱。
 func TestFetchRawCirclePages_LandsByPageNumber(t *testing.T) {
