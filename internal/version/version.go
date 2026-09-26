@@ -107,4 +107,9 @@ package version
 //	        B/op 15.4MB→4.7MB）、fetchCirclePageJSON dataList 校验改首字符判定（allocs
 //	        675→158）、assembleCirclesJSON 按各页实际长度精确预分配；门禁在 -race 下
 //	        跳过 allocs 断言消除 CI race 步骤假阳性
-var Version = "1.7.1"
+//	1.7.2 — 深度审计修复回合（八路并行审计 + 主代理 wire 级实证）：修 P0 panic
+//	        后 exit 0（脚本把崩溃当成功）、P1 写实容量钳制整数回绕致 make 负容量、
+//	        P1 图片超限被网络错误掩盖（400/exit3 漂移成 502/exit2）、P1 无协议头
+//	        baseURL 下 cookie 静默未写入却报成功、P2 学校 ID 七位以上被 %v 科学
+//	        计数法误拒且超 2^53 丢精度；每项均补变异验证过的回归测试
+var Version = "1.7.2"
