@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
@@ -25,7 +26,10 @@ func TestFetchTasks_DimsClamped(t *testing.T) {
 		dims = append(dims, types.Dimension{ID: int64(i), Name: "dim"})
 	}
 
-	statCalls := 0
+	// atomic 而非普通 int：httptest 的 handler 由 net/http 为每个请求起
+	// goroutine，FetchTasks 又是多路并发拉取，普通 int 的 ++ 是数据竞争
+	// （CI 的 -race 步骤会报 WARNING: DATA RACE 并使 job 失败）。
+	var statCalls atomic.Int64
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
@@ -36,7 +40,7 @@ func TestFetchTasks_DimsClamped(t *testing.T) {
 			resp.DataList = &rawMsg
 			_ = json.NewEncoder(w).Encode(resp)
 		case "/api/studentCircleNew/getCircleStatistics":
-			statCalls++
+			statCalls.Add(1)
 			qid := r.URL.Query().Get("dimensionId")
 			if qid == "129" {
 				t.Errorf("被截断的第 129 维不应发出 getCircleStatistics 请求")
@@ -71,8 +75,8 @@ func TestFetchTasks_DimsClamped(t *testing.T) {
 	if len(tasks) != maxFetchTasksDims {
 		t.Errorf("维度数超过钳制上限时应截断到 %d，实际返回 %d 个 task", maxFetchTasksDims, len(tasks))
 	}
-	if statCalls > maxFetchTasksDims {
-		t.Errorf("getCircleStatistics 请求数应 ≤ %d，实际 %d", maxFetchTasksDims, statCalls)
+	if n := statCalls.Load(); n > maxFetchTasksDims {
+		t.Errorf("getCircleStatistics 请求数应 ≤ %d，实际 %d", maxFetchTasksDims, n)
 	}
 }
 
