@@ -183,7 +183,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 	defer drainAndClose(httpResp.Body)
 
-	// 契约：Login validate 端点响应体同样封顶 1MB。
+	// 契约：Login validate 端点响应体同样封顶 maxResponseBodySize（4MiB）。
 	// 与 request.go doBizGet/httpDo 同构——防异常/被劫持 SSO 塞超大 body 造成内存放大。
 	// 302 分支不读 body（只取 Location 头），仅 200 与其它状态码分支受影响。
 	bodyBytes, err := io.ReadAll(io.LimitReader(httpResp.Body, maxResponseBodySize+1))

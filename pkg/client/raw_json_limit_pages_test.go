@@ -297,10 +297,10 @@ func TestGetCirclesLimitJSON_FullModeKeepsPageBean(t *testing.T) {
 	}
 }
 
-// TestGetCirclesLimitJSON_HugeLimitClamped 锁死 ：limit 派生 endPage
+// TestGetCirclesLimitJSON_HugeLimitClamped 锁定：limit 派生 endPage
 // 超 maxTotalPage 时必须钳制截断到首页，不得 make 百万槽位预分配。
 // 服务端 totalNum 单字段虚高（1e9）时 need=offset+limit 派生 endPage 达百万，
-// 旧实现无钳制（getCirclesJSON 已有 C-F clamp，limit 路径漏网点）。
+// 旧实现无钳制——getCirclesJSON 已有页数闸，limit 路径当时是漏网点。
 func TestGetCirclesLimitJSON_HugeLimitClamped(t *testing.T) {
 	var pageHits [3]int32
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {

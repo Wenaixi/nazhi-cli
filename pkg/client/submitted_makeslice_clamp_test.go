@@ -66,7 +66,7 @@ func TestGetSubmittedCircles_TotalNumLessThanFirstPageLen(t *testing.T) {
 	_, _ = c.GetSubmittedCircles(context.Background(), "test-token", "")
 }
 
-// TestGetSubmittedCircles_TotalPageClamped 验证 C-F 修复：
+// TestGetSubmittedCircles_TotalPageClamped 验证页数闸：
 // 服务端声明 totalPage 巨大（如 1e9）时，预分配切片必须钳制到 maxTotalPage——
 // 否则 make([]pageResult, 1e9+1) 直接 OOM 崩进程。
 func TestGetSubmittedCircles_TotalPageClamped(t *testing.T) {

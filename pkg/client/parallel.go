@@ -17,6 +17,20 @@ type ParallelDimsResult[T any] struct {
 	FailedCount    int     // 因业务错误而失败的维度数
 }
 
+// 与 raw 透传路径的关系：FetchTasksJSON（raw_json.go）自建了一套并发
+// fan-out 与错误聚合，没有复用本函数。这是刻意的，不是遗漏。
+//
+// 复用不了：本函数的 fn 签名为 func(ctx, dim) ([]T, error)，返回值是
+// 「一个维度的若干条记录」；而 raw 路径每个维度产出的是单页 dataList 的
+// 原始字节（[][]byte），语义是「一份待拼接的 JSON 片段」。硬套只能让 raw
+// 路径为每个维度造一个单元素切片再拆出来，或把 T 放宽成 any——两者都把
+// 简单事复杂化，违反「不为一次性代码创建抽象」。
+//
+// 代价是并发收集与错误分类的知识散在两处，因此两条路径各自必须独立保证：
+//   - 保序：按维度声明顺序落槽位，不依赖 goroutine 调度顺序
+//   - 分类：业务错误与 context 取消的区分口径一致
+// 若要改动其中一条路径的错误语义，必须同步核对另一条。
+
 // ParallelDims 对维度列表并发执行 fn，聚合结果并自动分类错误。
 //
 // 行为：
@@ -82,9 +96,9 @@ func ParallelDims[T any](ctx context.Context, dims []types.Dimension, limit int,
 
 	egErr = g.Wait()
 
-	// 容量钳制（）：len(active)*10 预分配由服务端 getDimensions
-	// 响应驱动——恶意/异常服务端返回 1e5 维度 → 预分配 1e6 槽位 × Task
-	// (30+ 字符串字段) 可达数百 MB OOM。与已修 C-F 系列同纪律：容量上界
+	// 容量钳制：len(active)*10 预分配由服务端 getDimensions 响应驱动——
+	// 恶意/异常服务端返回 1e5 维度 → 预分配 1e6 槽位 × Task
+	// (30+ 字符串字段) 可达数百 MB OOM。与分页四道闸同纪律：容量上界
 	// 钳到 1000（超出后 append 自动扩容，只是少一次预分配收益，语义不变）。
 	const preallocCap = 1000
 	capHint := len(active) * 10

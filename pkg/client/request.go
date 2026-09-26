@@ -373,7 +373,9 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	}
 	defer drainAndClose(resp.Body)
 
-	// 响应体读取封顶 1MB，防异常/被劫持服务端塞超大 body 造成内存放大。
+	// 响应体读取封顶 maxResponseBodySize（4MiB），防异常/被劫持服务端塞超大
+	// body 造成内存放大。注释须与本文件常量同源，不要写死数值——此处曾长期
+	// 写「1MB」而常量已是 4<<20，与下方记录的上调原因自相矛盾。
 	// 与 file.go 错误体限读 64KB 的既有纪律对齐；正常平台响应 <1KB（见本文件头部注释）。
 	// io.LimitReader 读满上限即返回 EOF 错误——此时 body 已超限，归 ErrInvalidResponse（非网络故障）。
 	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
@@ -410,6 +412,19 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 // httpDo 阶段直接拒绝 → 公示 Tab「加载中…」永不结束）。4MB 覆盖该场景仍保留防
 // 异常/恶意服务端内存放大的安全上限。
 const maxResponseBodySize = 4 << 20
+
+// 各调用点的限读纪律刻意不收敛为公共 helper：形状并不一致，强行统一只会
+// 造出带多个布尔开关的参数。
+//   - httpDo / doBizGet / Login validate / 上传成功体：4MiB，超限归
+//     ErrInvalidResponse
+//   - file.go 错误体：64KB，归上传/下载各自的哨兵
+//   - session.go doGetMenu：100 字节，且不归 ErrInvalidResponse——它按状态码
+//     走 classifyHTTPStatus 取哨兵，错误摘要只是附加信息
+// 三者只有「LimitReader+1 探测 → 超限直 Close」这一段形状相同，其余全是
+// 领域差异。若抽 helper，签名会变成 readBody(r, cap int, onOverflow func)
+// 之类——比三处各自三行更难读。分散的代价是注释可能与常量漂移（历史上确实
+// 发生过：本文件下方的事故记录写着「1MB 上调到 4MiB」，而 httpDo 处的注释
+// 长期仍写「封顶 1MB」），故各处注释一律引用常量名而非写死数值。
 
 // rawDoWithResp 执行请求并返回 *http.Response（调用者负责关闭 Body）。
 func (c *Client) rawDoWithResp(ctx context.Context, method, url string, body any, headers map[string]string, contentType string) (*http.Response, error) {
@@ -449,8 +464,8 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 	// 防异常/被劫持服务端塞超大 body 造成内存放大。
 	// doBizGet 是激活步骤1（持 sm.mu 锁）/ InitSession 三处共用 helper，
 	// 一处修复同时治愈三处无上限读体（session.go:108 / auth.go:27 / auth.go:353）。
-	// 超限分支直 Close 放弃 keep-alive（对齐 2356484 于 httpDo:377-381 的修复纪律，
-	// 不再经 defer drainAndClose 无上限续读剩余 body）。
+	// 超限分支直 Close 放弃 keep-alive（与 httpDo 同纪律，不再经 defer
+	// drainAndClose 无上限续读剩余 body）。
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
 		return nil, fmt.Errorf("%w: 读取 GET %s 响应体失败: %w", ErrNetwork, logx.RedactBody(url), err)

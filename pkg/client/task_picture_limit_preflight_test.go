@@ -99,7 +99,7 @@ func TestSubmitTask_TooManyPicturesSkipsUpload(t *testing.T) {
 	}
 }
 
-// TestSubmitTask_DuplicateImagePathUploadedOnce 锁死 ：同 path 出现
+// TestSubmitTask_DuplicateImagePathUploadedOnce 锁定：同 path 出现
 // 在 ImagePaths 两个槽位时只上传一次——旧实现上传两次产生两个服务端孤儿
 // 附件（前端 el-upload :limit=2「最多 2 个文件」语义，重复 path 可绕过检查）。
 func TestSubmitTask_DuplicateImagePathUploadedOnce(t *testing.T) {

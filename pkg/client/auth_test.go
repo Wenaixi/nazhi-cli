@@ -1513,7 +1513,7 @@ func TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername(t *testing.T) {
 	// 需要在 cmd 层 printError 出口再做整体 redact 才能消除——属更上层防御纵深挂账）。
 }
 
-// TestLogin_CookieSyncFailure_ReturnsError 锁死 ：Login 成功但
+// TestLogin_CookieSyncFailure_ReturnsError 锁定：Login 成功但
 // token 同步到 cookie jar 失败（Jar 非 *cookiejar.Jar，如自定义 http.Client
 // 无 Jar）时必须返回错误，不再只 warn——调用方拿 token+nil 完全感知不到
 // cookie 未同步，后续业务 dataList 接口全部静默空数据。

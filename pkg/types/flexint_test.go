@@ -53,7 +53,7 @@ func TestUserInfo_IntegerFieldsTolerateFloatLiterals(t *testing.T) {
 	}
 }
 
-// TestFlexInt_RejectsHugeIntegerLiteral 锁死 ：>2^63 整数字面量
+// TestFlexInt_RejectsHugeIntegerLiteral 锁定：>2^63 整数字面量
 // 不得静默回绕。旧实现 `value != float64(int64(value))` 对 2^63..2^64 范围
 // 的 int64 往返溢出回绕、可能恰好相等造成静默错误解码（污染后续业务判断）。
 func TestFlexInt_RejectsHugeIntegerLiteral(t *testing.T) {

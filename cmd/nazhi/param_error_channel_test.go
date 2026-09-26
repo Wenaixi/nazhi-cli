@@ -201,10 +201,14 @@ func TestQuietModeStillSetsExitCodeWithoutWriting(t *testing.T) {
 // TestParamErrorIsRedacted 参数错误的信封消息必须经脱敏：
 // 底层错误链里的形似学号标识符不得进入用户可见输出。
 func TestParamErrorIsRedacted(t *testing.T) {
-	// 使用与 PII 守卫同形的占位值：形似即拦，不写任何真实标识符
-	leaky := "参数错误 token=abcdef123456 userName=G350181200912110035"
+	// 脱敏按键名（token / userName）匹配，与值的长相无关，因此用短的合成
+	// 占位值即可验证。切勿写入任何形似真实学号或身份证号的字面量——
+	// test/integration 的 PII 守卫按形状匹配，形似即拦。
+	leaky := "参数错误 token=REDACTME userName=PLACEHOLDER-NOT-REAL-ID"
 	_, stderr, _ := callPrintParamError(t, errors.New(leaky), false)
-	if strings.Contains(stderr, "G350181200912110035") {
-		t.Errorf("参数错误信封泄漏了形似学号的标识符：%s", stderr)
+	for _, secret := range []string{"REDACTME", "PLACEHOLDER-NOT-REAL-ID"} {
+		if strings.Contains(stderr, secret) {
+			t.Errorf("参数错误信封泄漏了脱敏字段 %q：%s", secret, stderr)
+		}
 	}
 }

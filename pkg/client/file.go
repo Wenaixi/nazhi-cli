@@ -220,7 +220,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, redactSnippet(errBody, 100))
 	}
 
-	// 上传成功路径响应体同样封顶 1MB（对齐 request.go httpDo 的 双守卫）。
+	// 上传成功路径响应体同样封顶 maxResponseBodySize（4MiB，对齐 request.go 的双守卫）。
 	// 正常上传响应为几百字节 JSON（HAR 实证），超限仅防异常/被劫持服务端内存放大。
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
@@ -230,7 +230,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 	}
 	if len(bodyBytes) > maxResponseBodySize {
 		// 超限分支直 Close 放弃 keep-alive，不再经 defer drainAndClose
-		// 无上限续读剩余 body——对齐 httpDo:377-381 的 2356484 修复纪律。
+		// 无上限续读剩余 body——与 httpDo 的超限分支同纪律。
 		// 恶意无限流下旧实现会 drain 到 newCleanClient 超时（主 Client 无超时兜底 5 分钟）。
 		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%w: 上传响应体超过 %d 字节上限", ErrInvalidResponse, maxResponseBodySize)
