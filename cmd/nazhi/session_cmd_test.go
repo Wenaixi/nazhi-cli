@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
-	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/spf13/cobra"
 )
 
@@ -218,17 +217,12 @@ func TestSessionActivate_ErrSessionBackoff_CooldownMessage(t *testing.T) {
 
 	stdoutBuf, stderrBuf, restore := captureStdio(t)
 
-	// 模拟 cmd 层对 ErrSessionBackoff 的处理逻辑（与 sessionActivateCmd.Run
-	// 中的 if 分支相同逻辑）。这里**手动模拟** cmd 处理路径：
-	// sessionActivateCmd.Run 因 buildBizClient 每次新建 Client，无法保留 backoff
-	// 状态，无法通过 cobra 命令路径触发 backoff 分支；本测试改为单元级合约测试：
-	// 当 cmd 层处理 ErrSessionBackoff 时，必须同时设 pendingExitCode=1（partial envelope）。
-	if errors.Is(backoffErr, client.ErrSessionBackoff) {
-		printEnvelope(envelope.Partial(429, "session 激活冷却中，上次激活失败请稍后重试", nil))
-	} else {
-		printError(backoffErr)
-	}
-
+	// 走生产代码的错误分类分支，不复制一份。
+	// buildBizClient 每次新建 Client，而 backoff 状态存在 Client 私有的
+	// sessionManager 里，因此经 cobra 命令路径无法让本分支真实触发；
+	// 上面的两次 ActivateSession 调用已验证 backoff 哨兵确实会产生，
+	// 这里验证的是**生产分支对该哨兵的处理**。
+	printSessionActivateError(backoffErr)
 	restore()
 	stdout := stdoutBuf.String()
 	stderr := stderrBuf.String()
