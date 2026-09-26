@@ -162,19 +162,15 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 		})
 	}
 
-	// 等待全部完成
-	if err := g.Wait(); err != nil {
-		// 有部分失败，但已成功拉取的页仍然有效
-		// 收集已有数据
-		for pn := 2; pn <= declaredPages; pn++ {
-			all = append(all, results[pn].records...)
-		}
-		return all, err
-	}
-
-	// 全部成功，按页号顺序合并
+	// 等待全部完成，然后按页号顺序一次性合并。
+	// 部分失败时已成功拉取的页仍然有效，合并后连同 err 一并返回，
+	// 语义与此前「失败分支合并一次、成功分支合并一次」完全一致。
+	waitErr := g.Wait()
 	for pn := 2; pn <= declaredPages; pn++ {
 		all = append(all, results[pn].records...)
+	}
+	if waitErr != nil {
+		return all, waitErr
 	}
 
 	return all, nil
