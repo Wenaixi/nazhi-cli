@@ -196,7 +196,10 @@ func (c *Client) PeekPublicTotal(ctx context.Context, token string, key string) 
 // pageSize=1 + pageNo=1 是「看总数不看内容」的最小请求；空数据返回 (0, nil)
 // 而非错误，与 CLI --count 的契约一致。
 func (c *Client) peekCircleTotal(ctx context.Context, token string, circleType int, key string, methodName string) (int, error) {
-	_, pb, err := c.fetchCirclePage(ctx, token, 1, 1, circleType, key)
+	// 走 raw 单页路径：它同样解码 PageBean，但不做字段级解码。本方法只读
+	// TotalNum，结构化路径的 DecodeDataList 结果必然被丢弃——白做一遍最贵的
+	// 那一步，还多出「任一字段类型错即整页失败」的失败面。
+	pb, _, err := c.fetchCirclePageJSON(ctx, token, 1, 1, circleType, key)
 	if err != nil {
 		return 0, fmt.Errorf("%s 失败: %w", methodName, err)
 	}
