@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"testing"
@@ -139,5 +140,38 @@ func TestPrintError_Retryable_ExitCode2(t *testing.T) {
 
 	if got := pendingExitCode.Load(); got != 2 {
 		t.Errorf("ErrRetryable 应走 503 档(退出码 2), 实际 %d", got)
+	}
+}
+// TestMapSentinelToHTTPCode_ContextCancelledIsRetryable 锁定 context 哨兵的映射。
+//
+// 用户按 Ctrl+C 中止一条长命令是正常交互，不是服务端内部故障。此前
+// context.Canceled/DeadlineExceeded 不在漏斗内，落 default 500；SDK 侧
+// ErrRetryable 的注释也明确说它就是「ctx cancel 引发的可重试语义标记」，
+// 已映射 503。裸 context 哨兵应与之同档。
+func TestMapSentinelToHTTPCode_ContextCancelledIsRetryable(t *testing.T) {
+	for _, err := range []error{context.Canceled, context.DeadlineExceeded} {
+		if got := mapSentinelToHTTPCode(err); got != 503 {
+			t.Errorf("%v 应映射为 503(可重试), 实际 %d", err, got)
+		}
+	}
+}
+
+// TestMapSentinelToHTTPCode_EmptyUserInfoIsServiceSide 锁定空用户信息的映射。
+//
+// ErrEmptyUserInfo 表示服务端成功响应但没有用户数据（errors.go:57），
+// 属服务端侧异常，此前落 default 500。
+func TestMapSentinelToHTTPCode_EmptyUserInfoIsServiceSide(t *testing.T) {
+	if got := mapSentinelToHTTPCode(client.ErrEmptyUserInfo); got != 502 {
+		t.Errorf("ErrEmptyUserInfo 应映射为 502(服务端侧), 实际 %d", got)
+	}
+}
+
+// TestMapSentinelToHTTPCode_EmptyDecodersFailedIsServiceSide 锁定空成功链路的映射。
+//
+// ErrAllDecodersFailed 表示业务成功但所有解码器都未命中（errors.go:123），
+// 与空用户信息同类：服务端返回了无数据响应。
+func TestMapSentinelToHTTPCode_EmptyDecodersFailedIsServiceSide(t *testing.T) {
+	if got := mapSentinelToHTTPCode(client.ErrAllDecodersFailed); got != 502 {
+		t.Errorf("ErrAllDecodersFailed 应映射为 502(服务端侧), 实际 %d", got)
 	}
 }
