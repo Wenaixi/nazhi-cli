@@ -285,21 +285,26 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		return nil, fmt.Errorf("%w: content 超过 %d 字上限（收到 %d 字）",
 			ErrInvalidPayload, maxTaskContentRunes, len([]rune(content)))
 	}
+	// 图片数量上限 2 张的预检必须先于任何网络请求与上传
+	//（对齐前端 el-upload :limit=2 在选择阶段拦截，避免 SDK 把超量图片全部
+	//上传成功后才拒绝、留下无法回收的服务端孤儿附件）。纯本地判定，不依赖
+	//任务元数据——放在 GetCircleTypeByTaskID 之前，避免元数据接口失败时把
+	//「图片超限」这一调用方输入错误掩盖成网络/服务端错误（退出码随之从
+	//400/exit3 漂移到 502/exit2）。
+	if total := countValidImages(input); total > 2 {
+		return nil, fmt.Errorf("%w: 图片最多 2 张，收到 %d 张", ErrInvalidPayload, total)
+	}
 
 	meta, err := c.GetCircleTypeByTaskID(ctx, token, input.GetTaskID())
 	if err != nil {
 		return nil, fmt.Errorf("%s 获取任务元数据失败: %w", callerName, err)
 	}
 
+	// hours 依赖任务元数据（meta.Hours 决定是否只读自动填、meta.Type 决定
+	// 是否必填），只能在元数据取回后判定——无法提前到网络请求之前。
 	hours, err := parseHours(input.GetHours(), meta.Hours, meta.Type)
 	if err != nil {
 		return nil, err
-	}
-
-	// 图片数量上限 2 张的预检必须先于任何上传（对齐前端 el-upload :limit=2 在选择阶段拦截，
-	// 避免 SDK 把超量图片全部上传成功后才拒绝、留下无法回收的服务端孤儿附件）。
-	if total := countValidImages(input); total > 2 {
-		return nil, fmt.Errorf("%w: 图片最多 2 张，收到 %d 张", ErrInvalidPayload, total)
 	}
 
 	// 处理图片：合并 ImageIDs（+提交链路时上传 ImagePaths）
