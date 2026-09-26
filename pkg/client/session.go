@@ -85,7 +85,7 @@ func (c *Client) ActivateSession(ctx context.Context, token string) (*types.User
 		// 是否替换缓存（跨 token 迟到写入被忽略）。Store(true) 只在
 		// 缓存实际被本 token 补全后执行——否则 A 的 fallback 被 B 的
 		// RecordSuccess 重置标志后，A 的无条件 Store(true) 会让 B 跳过
-		// 学校回退（缓存中 B 的 SchoolID/SchoolName 静默为空），C87-CLI#8。
+		// 学校回退（缓存中 B 的 SchoolID/SchoolName 静默为空），。
 		c.sm.UpdateCachedUserInfo(&infoCopy, token)
 		if c.sm.fallbackDone.CompareAndSwap(false, true) {
 			return &infoCopy, nil
@@ -169,12 +169,12 @@ func (c *Client) doGetMenu(ctx context.Context, menuURL string, baseHeaders map[
 		// 按 StatusCode 切换 sentinel 包装，让 SDK 用户能通过
 		// errors.Is 精确识别原因（限流 / 服务端异常 / HTTP 层错误）。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
-		// P2-1：错误消息附脱敏 body 摘要（限 100 字节），与全 SDK 其余出口
+		// 错误消息附脱敏 body 摘要（限 100 字节），与全 SDK 其余出口
 		// （httpDo/doBizGet/file.go/auth.go）诊断口径拉平——维护页/WAF 拦截
 		// 场景下用户能定位根因。读 body 必须在 drainAndClose 之前（defer 已注册）。
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 100))
 		return fmt.Errorf("%w: ActivateSession %s getMenu 返回状态码 %d body=%s",
-			sentinel, stepLabel, resp.StatusCode, logx.RedactBodyThenTruncate(errBody, 100))
+			sentinel, stepLabel, resp.StatusCode, redactSnippet(errBody, 100))
 	}
 	return nil
 }

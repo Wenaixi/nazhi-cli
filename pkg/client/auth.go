@@ -62,7 +62,7 @@ func (c *Client) GetSchoolID(ctx context.Context, username string) (*types.Schoo
 		return nil, fmt.Errorf("%w: GetSchoolID school_id=%q 不是有效数字: %w", ErrInvalidPayload, schoolIDStr, err)
 	}
 	schoolName := ""
-	// P2-3：学校名键双兼容——服务端 school_id 用小写键、NAME 用大写键，风格不一致；
+	// 学校名键双兼容——服务端 school_id 用小写键、NAME 用大写键，风格不一致；
 	// 部分部署可能返回小写 name。NAME 优先，name 兜底。
 	if v, ok := school["NAME"]; ok {
 		schoolName = fmt.Sprintf("%v", v)
@@ -123,7 +123,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	}
 	defer drainAndClose(httpResp.Body)
 
-	// HTTP-2 契约（19 轮审计 http-infra P2-1）：Login validate 端点响应体同样封顶 1MB。
+	// 契约：Login validate 端点响应体同样封顶 1MB。
 	// 与 request.go doBizGet/httpDo 同构——防异常/被劫持 SSO 塞超大 body 造成内存放大。
 	// 302 分支不读 body（只取 Location 头），仅 200 与其它状态码分支受影响。
 	bodyBytes, err := io.ReadAll(io.LimitReader(httpResp.Body, maxResponseBodySize+1))
@@ -134,7 +134,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	if len(bodyBytes) > maxResponseBodySize {
 		return nil, fmt.Errorf("%w: Login 响应体超过 %d 字节上限", ErrLoginRejected, maxResponseBodySize)
 	}
-	bodySnippet := logx.RedactBodyThenTruncate(bodyBytes, 100)
+	bodySnippet := redactSnippet(bodyBytes, 100)
 
 	if httpResp.StatusCode == http.StatusOK {
 		loginResp, err := types.DecodeResponse(bodyBytes)
@@ -181,7 +181,7 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 		return &types.LoginResponse{Token: token, ExpiresAt: expiresAt}, nil
 	}
 
-	// G1（Cycle 101）：非 200/302 状态码先按 classifyHTTPStatus 分类，
+	// 非 200/302 状态码先按 classifyHTTPStatus 分类，
 	// 429→ErrRateLimited、5xx→ErrServiceUnavailable、其余→ErrLoginRejected。
 	// 修复前一律包 ErrLoginRejected，CLI 把登录被限流/服务端故障误报为
 	// 「凭证错误」exit 1、不退避；errors.Is(err, ErrRateLimited) 现在可精确识别限流。
@@ -193,11 +193,11 @@ func (c *Client) Login(ctx context.Context, req types.LoginRequest) (*types.Logi
 	} else if err := types.CheckCode(errResp); err != nil {
 		return nil, fmt.Errorf("%w: code=%d msg=%s", sentinel, errResp.Code, types.DerefOr(errResp.Msg, "登录失败"))
 	}
-	// 错误消息附带 RedactBodyThenTruncate 截断脱敏摘要：非预期状态码的典型场景是 nginx 503、
+	// 错误消息附带 redactSnippet 截断脱敏摘要：非预期状态码的典型场景是 nginx 503、
 	// CDN challenge 等 HTML 响应；不带 body 片段时用户难以定位根因。
-	// 摘要再过 RedactBody 与 request.go 同类分支脱敏口径拉平（90ccd64 先例）。
+	// 摘要经 redactSnippet 先粗截再脱敏，与 request.go 同类分支脱敏口径拉平。
 	return nil, fmt.Errorf("%w: 非预期状态码 %d body=%s",
-		sentinel, httpResp.StatusCode, logx.RedactBodyThenTruncate(bodyBytes, 100))
+		sentinel, httpResp.StatusCode, redactSnippet(bodyBytes, 100))
 }
 
 // warnIfExpiresAtFallback 在 expiresAt 异常时输出 WARN 日志。两条 Login 路径

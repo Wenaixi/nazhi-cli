@@ -18,12 +18,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
 // MaxAttachmentSize 是非图片附件直传的上限（20MB，SDK 有意放宽：前端镜像文案 20MB，
-// 服务端实测无 2MB 硬限、真实上限约 46.86MiB，见 CLAUDE.md 规范 #26）。
+// 服务端实测无 2MB 硬限、真实上限约 46.86MiB，见 CLAUDE.md「G. 文件上传/下载」节）。
 // 图片走压缩路径，上限为 MaxImageSize（5MB，SDK 放宽）；两者分开校验。
 const MaxAttachmentSize = 20 * 1024 * 1024
 
@@ -92,7 +91,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		}
 		fileData, err = os.ReadFile(filePath)
 		if err != nil {
-			// FILE-1：本地 IO 错误（文件不存在/无权限）是调用方可控输入问题，
+			// 本地 IO 错误（文件不存在/无权限）是调用方可控输入问题，
 			// 包 ErrInvalidPayload 让 CLI 漏斗归 400/exit3，而非 500/exit2 被脚本无限重试。
 			return nil, fmt.Errorf("读取附件失败: %w", errors.Join(ErrInvalidPayload, err))
 		}
@@ -218,10 +217,10 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		// 复用 request.go 的 classifyHTTPStatus 统一 sentinel 分类。
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrUploadRejected)
-		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBodyThenTruncate(errBody, 100))
+		return nil, fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, redactSnippet(errBody, 100))
 	}
 
-	// P2-1：上传成功路径响应体同样封顶 1MB（对齐 request.go httpDo 的 HTTP-2 双守卫）。
+	// 上传成功路径响应体同样封顶 1MB（对齐 request.go httpDo 的 双守卫）。
 	// 正常上传响应为几百字节 JSON（HAR 实证），超限仅防异常/被劫持服务端内存放大。
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
 	if err != nil {
@@ -230,7 +229,7 @@ func (c *Client) UploadFile(ctx context.Context, filePath string) (*types.Upload
 		return nil, fmt.Errorf("%w: 读取上传响应体失败: %w", ErrNetwork, err)
 	}
 	if len(bodyBytes) > maxResponseBodySize {
-		// P2-3（19 轮审计）：超限分支直 Close 放弃 keep-alive，不再经 defer drainAndClose
+		// 超限分支直 Close 放弃 keep-alive，不再经 defer drainAndClose
 		// 无上限续读剩余 body——对齐 httpDo:377-381 的 2356484 修复纪律。
 		// 恶意无限流下旧实现会 drain 到 newCleanClient 超时（主 Client 无超时兜底 5 分钟）。
 		_ = resp.Body.Close()
@@ -354,7 +353,7 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 	client := newCleanClient(c)
 	client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		// 上限校验：via 长度 = 已跟随次数，下次跟随时 via 增长 1。
-		// CLI-124-03：重定向违规（超限/跨域）是永久性配置错误（Location 配错/循环），
+		// 重定向违规（超限/跨域）是永久性配置错误（Location 配错/循环），
 		// 重试不会自愈——归 ErrInvalidResponse 永久语义（与 0 字节/超大流同族），
 		// 而非 ErrNetwork 可重试语义（脚本对永久条件不会无限重放）。
 		if len(via) >= maxDownloadRedirects {
@@ -373,7 +372,7 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 
 	resp, err := client.Do(req)
 	if err != nil {
-		// CLI-124-03：ErrInvalidResponse（重定向违规）直接透传永久语义，
+		// ErrInvalidResponse（重定向违规）直接透传永久语义，
 		// 其余网络类错误才包 ErrNetwork 可重试语义。
 		if errors.Is(err, ErrInvalidResponse) {
 			return fmt.Errorf("%w: 下载请求失败: %w", ErrInvalidResponse, err)
@@ -386,7 +385,7 @@ func (c *Client) DownloadFile(ctx context.Context, attachmentID int64, dst strin
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		errBody, _ := io.ReadAll(io.LimitReader(resp.Body, 64*1024))
 		sentinel := classifyHTTPStatus(resp.StatusCode, ErrInvalidResponse)
-		return fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, logx.RedactBodyThenTruncate(errBody, 100))
+		return fmt.Errorf("%w: status=%d body=%s", sentinel, resp.StatusCode, redactSnippet(errBody, 100))
 	}
 
 	// 5. 流式写入（ctx 感知：ctx 取消时立即中断，删除半成品）
@@ -453,13 +452,13 @@ func hasHostSuffix(host, suffix string) bool {
 // Windows 注意：必须先 f.Close() 再 os.Remove()——持有 open handle 时 Remove
 // 在 Windows 上静默失败，测试会看到半成品残留。
 //
-// CLI-109-1：流式写无字节上限——受信子域无限流可把磁盘写满。limitReaderOversize
+// 流式写无字节上限——受信子域无限流可把磁盘写满。limitReaderOversize
 // 在写入超过 maxDownloadBytes 后返回 errDownloadTooLarge，超限删半成品归
 // ErrInvalidResponse（永久性条件，不可重试，与 0 字节同族）。
 func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 	f, err := osCreate(dst)
 	if err != nil {
-		// FILE-1：目标路径不可写/不存在是调用方输入问题，包 ErrInvalidPayload → 400/exit3。
+		// 目标路径不可写/不存在是调用方输入问题，包 ErrInvalidPayload → 400/exit3。
 		return fmt.Errorf("创建目标文件失败: %w", errors.Join(ErrInvalidPayload, err))
 	}
 
@@ -487,7 +486,7 @@ func writeDownloadToFile(ctx context.Context, src io.Reader, dst string) error {
 	}
 	if written == 0 {
 		_ = osRemove(dst)
-		// N-03：200+0 字节是永久性条件（空附件/服务端没给内容），不是瞬时网络
+		// 200+0 字节是永久性条件（空附件/服务端没给内容），不是瞬时网络
 		// 故障——归 ErrInvalidResponse（exit1/422 不可重试语义）而非 ErrNetwork
 		// （exit2/可重试）。此前脚本对同一空附件按 ErrNetwork 无限重试。
 		return fmt.Errorf("%w: 服务端返回 0 字节", ErrInvalidResponse)
@@ -608,7 +607,7 @@ func newCleanClient(c *Client) *http.Client {
 		// Clone 后显式 Proxy:nil——主 client Transport 若经
 		// http.DefaultTransport（ProxyFromEnvironment）克隆而来会读系统
 		// 代理，上传/下载通道必须直连（与 request.go newHTTPClient
-		// 同契约；历史事故：代理断流导致 OCR 卡 120s，C86-CLI#1）。
+		// 同契约；历史事故：代理断流导致 OCR 卡 120s，）。
 		clone := t.Clone()
 		clone.Proxy = nil
 		transport = clone
@@ -617,7 +616,7 @@ func newCleanClient(c *Client) *http.Client {
 		// 传输器。文件上传不能继承调用方的认证拦截器或状态，否则可能把
 		// 业务凭据带到公共上传域。
 		// 注意：http.DefaultTransport 的 Proxy=ProxyFromEnvironment——上传
-		// 通道显式 Proxy:nil 防环境变量代理劫持（同 C86-CLI#1）。
+		// 通道显式 Proxy:nil 防环境变量代理劫持（同 ）。
 		dtr := http.DefaultTransport.(*http.Transport).Clone()
 		dtr.Proxy = nil
 		transport = dtr
