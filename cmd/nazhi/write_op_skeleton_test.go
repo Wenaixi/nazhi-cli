@@ -134,33 +134,44 @@ func TestWriteOp_MissingPayloadPrecedence(t *testing.T) {
 }
 
 // TestWriteOp_AddressLevelFlagOverrideLogic 锁定 --address/--level 覆盖 payload 值
-// 的纯逻辑：收敛后的 runner 用 applyFlags 把 flag 值写进已解码输入，
-// 非空 flag 覆盖、空 flag 保留 payload 原值。不依赖网络（flag 覆盖发生在
-// 建客户端之后、调用 SDK 之前，是纯内存操作）。
+// 的语义（经 applyAddressLevelFlags 真实现）：非空 flag 覆盖、空 flag 保留
+// payload 原值。不依赖网络（flag 覆盖发生在建客户端之后、调用 SDK 之前，
+// 是纯内存操作）。
 func TestWriteOp_AddressLevelFlagOverrideLogic(t *testing.T) {
 	t.Run("非空 flag 覆盖 payload 值", func(t *testing.T) {
 		input := types.TaskSubmitInput{Address: "payload地址", Level: ""}
-		applyTaskWriteFlags(map[string]string{"address": "flag地址", "level": "5"}, &input)
+		cmd := &cobra.Command{}
+		cmd.Flags().String("address", "", "")
+		cmd.Flags().String("level", "", "")
+		_ = cmd.Flags().Set("address", "flag地址")
+		_ = cmd.Flags().Set("level", "5")
+		applyAddressLevelFlags(cmd, func(address, level string) {
+			if address != "" {
+				input.Address = address
+			}
+			if level != "" {
+				input.Level = level
+			}
+		})
 		if input.Address != "flag地址" || input.Level != "5" {
 			t.Fatalf("非空 flag 应覆盖: got address=%q level=%q", input.Address, input.Level)
 		}
 	})
 	t.Run("空 flag 保留 payload 原值", func(t *testing.T) {
 		input := types.TaskSubmitInput{Address: "payload地址", Level: "3"}
-		applyTaskWriteFlags(map[string]string{"address": "", "level": ""}, &input)
+		cmd := &cobra.Command{}
+		cmd.Flags().String("address", "", "")
+		cmd.Flags().String("level", "", "")
+		applyAddressLevelFlags(cmd, func(address, level string) {
+			if address != "" {
+				input.Address = address
+			}
+			if level != "" {
+				input.Level = level
+			}
+		})
 		if input.Address != "payload地址" || input.Level != "3" {
 			t.Fatalf("空 flag 应保留 payload 值: got address=%q level=%q", input.Address, input.Level)
 		}
 	})
-}
-
-// applyTaskWriteFlags 是收敛后 runner 的 flag 覆盖逻辑（纯函数，供测试直调）。
-// 重构后由 runner 内部调用；本测试锁定其行为，收敛后不依赖网络。
-func applyTaskWriteFlags(flags map[string]string, input *types.TaskSubmitInput) {
-	if v := flags["address"]; v != "" {
-		input.Address = v
-	}
-	if v := flags["level"]; v != "" {
-		input.Level = v
-	}
 }
