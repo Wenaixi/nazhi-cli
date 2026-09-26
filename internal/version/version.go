@@ -112,4 +112,12 @@ package version
 //	        P1 图片超限被网络错误掩盖（400/exit3 漂移成 502/exit2）、P1 无协议头
 //	        baseURL 下 cookie 静默未写入却报成功、P2 学校 ID 七位以上被 %v 科学
 //	        计数法误拒且超 2^53 丢精度；每项均补变异验证过的回归测试
-var Version = "1.7.2"
+//	1.8.0 — 架构深化回合（improve-codebase-architecture 扫描 + 深度核实）：
+//	        写实列表类型由裸 int 升为具名类型 CircleListType（值即 type 线协议
+//	        参数），非法值发请求前即拒；12 个按类型各设一份的浅入口收敛为 4 个
+//	        统一入口（ListCirclesJSON / ListCirclesLimitJSON / PeekCircleTotal /
+//	        ListCircleRecords），旧入口保留为薄壳转发以兼容下游；
+//	        参数错误统一走 stderr（stdout 只承载成功数据，行为变更，旧脚本需改）；
+//	        写操作命令 --help 兑现「允许键」承诺并按驼峰原样展示；
+//	        limit 裁剪的 JSON 扫描器补齐分支级回归防护；限读注释与常量漂移修正
+var Version = "1.8.0"
