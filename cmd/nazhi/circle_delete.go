@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -25,12 +26,12 @@ var circleDeleteCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		idStr, _ := cmd.Flags().GetString("id")
 		if idStr == "" {
-			printEnvelope(envelope.Error(400, "--id 为必填"))
+			printParamError(errors.New("--id 为必填"))
 			return
 		}
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil || id <= 0 {
-			printEnvelope(envelope.Error(400, "--id 必须为正整数"))
+			printParamError(errors.New("--id 必须为正整数"))
 			return
 		}
 

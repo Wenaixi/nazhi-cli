@@ -15,6 +15,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
@@ -112,7 +113,7 @@ func attachAllowedKeysHelp(cmd *cobra.Command, keys []string, allowNoneNote bool
 func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 	payloadRaw, _ := cmd.Flags().GetString("payload")
 	if payloadRaw == "" {
-		printEnvelope(envelope.Error(400, "--payload 为必填"))
+		printParamError(errors.New("--payload 为必填"))
 		return
 	}
 
@@ -149,7 +150,7 @@ func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 	// 位置在未知键之后、applyFlags 之前（与 honor/typical update 原次序一致）。
 	if m.validateID != nil {
 		if idErr := m.validateID(decoded); idErr != nil {
-			printEnvelope(envelope.Error(400, idErr.Error()))
+			printParamError(errors.New(idErr.Error()))
 			return
 		}
 	}

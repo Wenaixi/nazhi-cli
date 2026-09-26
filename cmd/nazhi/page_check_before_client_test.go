@@ -41,10 +41,11 @@ func runRealListCmd(t *testing.T, run func(*cobra.Command, []string), extraFlags
 		pendingExitCode.Store(0)
 	}()
 
-	stdout, _, restore := captureStdio(t)
+	// 分页参数错误统一走 stderr（stdout 只承载成功数据）
+	_, stderr, restore := captureStdio(t)
 	run(cmd, nil)
 	restore()
-	return stdout.String(), pendingExitCode.Load()
+	return stderr.String(), pendingExitCode.Load()
 }
 
 // TestHonorList_ValidateBeforeBuildClient 锁定：honor list 缺

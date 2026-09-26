@@ -37,7 +37,7 @@ var loginCmd = &cobra.Command{
 		// 空白串用户名/密码校验——纯空格字符串在 trim 后为空，
 		// 直接拒绝避免原样上送 SSO（与 task submit/edit 的 trim 校验同族）。
 		if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
-			printEnvelope(envelope.Error(400, "--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
+			printParamError(errors.New("--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
 			return
 		}
 
@@ -54,18 +54,19 @@ var loginCmd = &cobra.Command{
 			Password: password,
 		})
 		if err != nil {
-			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
-			// 外层 ErrLoginRejected 判断无法命中限流/服务端故障分支——
+			// 全部登录失败分支写 stderr：stdout 只承载成功数据。保留各自
+			// HTTP code（429/502/401）以维持退出码语义，仅统一输出通道。
+			// 用 errors.Is 精确匹配哨兵错误，按类别选择文案。
 			// SDK 层 auth.go:188 对非 200/302 用 classifyHTTPStatus 分类，429/5xx 错误链
 			// 只含 ErrRateLimited/ErrServiceUnavailable 不含 ErrLoginRejected（外层 switch
 			// 的内层分支是死代码）。改为直接按哨兵匹配，专属中文文案真正可达。
 			switch {
 			case errors.Is(err, client.ErrRateLimited):
-				printEnvelope(envelope.Error(429, fmt.Sprintf("登录失败：请求被限流，请稍后退避重试（%s）", err.Error())))
+				printErrorWithCode(fmt.Errorf("登录失败：请求被限流，请稍后退避重试（%s）", err.Error()), 429)
 			case errors.Is(err, client.ErrServiceUnavailable):
-				printEnvelope(envelope.Error(502, fmt.Sprintf("登录失败：SSO 服务端暂时不可用，请稍后重试（%s）", err.Error())))
+				printErrorWithCode(fmt.Errorf("登录失败：SSO 服务端暂时不可用，请稍后重试（%s）", err.Error()), 502)
 			case errors.Is(err, client.ErrLoginRejected):
-				printEnvelope(envelope.Error(401, fmt.Sprintf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error())))
+				printErrorWithCode(fmt.Errorf("登录失败: %s（请检查学号/密码，或确认 SSO 服务端正常）", err.Error()), 401)
 			default:
 				printError(fmt.Errorf("登录失败: %w", err))
 			}

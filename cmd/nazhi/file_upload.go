@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
@@ -26,7 +27,7 @@ SDK 内部不产生任何鉴权头（独立 clean http.Client，无 cookie jar�
 	Run: func(cmd *cobra.Command, args []string) {
 		filePath, _ := cmd.Flags().GetString("file")
 		if filePath == "" {
-			printEnvelope(envelope.Error(400, "--file 为必填"))
+			printParamError(errors.New("--file 为必填"))
 			return
 		}
 

@@ -111,12 +111,12 @@ func TestWriteOpFamily_MissingPayloadPrecedence(t *testing.T) {
 
 			quiet, verbose = false, false
 			pendingExitCode.Store(0)
-			stdout, _, restore := captureStdio(t)
+			_, stderr, restore := captureStdio(t)
 			tc.cmd.Run(cmd, nil)
 			restore()
 
-			if !strings.Contains(stdout.String(), "--payload 为必填") {
-				t.Errorf("%s: 缺 payload 应优先于缺 token，实际: %q", tc.name, stdout.String())
+			if !strings.Contains(stderr.String(), "--payload 为必填") {
+				t.Errorf("%s: 缺 payload 应优先于缺 token，实际: %q", tc.name, stderr.String())
 			}
 		})
 	}

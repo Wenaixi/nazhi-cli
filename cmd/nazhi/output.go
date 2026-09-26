@@ -161,13 +161,13 @@ func rejectLoneOffset(cmd *cobra.Command) bool {
 	// --count 与 --limit/--offset 语义互斥——count 模式只输总数，
 	// 静默忽略 limit/offset 会让脚本拿错形状不自知。四命令统一拒绝。
 	if onlyCount, _ := cmd.Flags().GetBool("count"); onlyCount && (limit > 0 || offset > 0) {
-		printEnvelope(envelope.Error(400, "--count 不能与 --limit/--offset 同用（count 只输出记录总数）"))
+		printParamError(errors.New("--count 不能与 --limit/--offset 同用（count 只输出记录总数）"))
 		return true
 	}
 	if (offset > 0 && limit <= 0) || offset < 0 || limit < 0 {
 		// 违规参数可能是 --limit 负值而非 --offset——文案必须同时点名两个
 		// 参数，避免用户只看到 "--offset" 却摸不着为什么 --limit -1 也被拒。
-		printEnvelope(envelope.Error(400, "--offset/--limit 需为非负数且 offset 仅配合 --limit 使用（非法取值会被忽略或归零，拒绝静默返回错误数据）"))
+		printParamError(errors.New("--offset/--limit 需为非负数且 offset 仅配合 --limit 使用（非法取值会被忽略或归零，拒绝静默返回错误数据）"))
 		return true
 	}
 	if limit > maxCLILimit {
@@ -175,7 +175,7 @@ func rejectLoneOffset(cmd *cobra.Command) bool {
 		// 脚本拿截断数据不自知。参数错误拒绝（对齐 400/exit3 半套纪律：≤0 已拒、
 		// 超上界同族拒绝）。上界与 SDK maxSubmittedRecords 对齐（submitted.go:138，
 		// 10 万条单次任务合理上限，offset+limit 分页不会触发首页截断）。
-		printEnvelope(envelope.Error(400, fmt.Sprintf("--limit 不能超过 %d（避免分页派生 endPage 触发服务端首页截断）", maxCLILimit)))
+		printParamError(errors.New(fmt.Sprintf("--limit 不能超过 %d（避免分页派生 endPage 触发服务端首页截断）", maxCLILimit)))
 		return true
 	}
 	return false

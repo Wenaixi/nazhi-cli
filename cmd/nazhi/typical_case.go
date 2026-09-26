@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 
@@ -65,7 +66,7 @@ var typicalCaseListCmd = &cobra.Command{
 		// status=-1 虽非法，但为避免破坏现有用户脚本（可能用 -1 表达「全部」），
 		// 此处仅拒绝 pageNo/pageSize 非正数；status 校验留待服务端。
 		if pageNo <= 0 || pageSize <= 0 {
-			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为正整数"))
+			printParamError(errors.New("--page 与 --page-size 必须为正整数"))
 			return
 		}
 		// --page-size 上钳 500（对齐 SDK defaultSubmittedPageSize，
@@ -73,7 +74,7 @@ var typicalCaseListCmd = &cobra.Command{
 		// 分页脚本以错误的 pageSize 计算页数拿到截断数据却不自知——以参数
 		// 错误拒绝（400/exit3），与 honor list 同族钳制。
 		if pageSize > maxPageSize {
-			printEnvelope(envelope.Error(400, "--page-size 不能超过 500（服务端单页上限）"))
+			printParamError(errors.New("--page-size 不能超过 500（服务端单页上限）"))
 			return
 		}
 
@@ -135,7 +136,7 @@ var typicalCaseDeleteBatchCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		payloadRaw, _ := cmd.Flags().GetString("payload")
 		if payloadRaw == "" {
-			printEnvelope(envelope.Error(400, "--payload 为必填"))
+			printParamError(errors.New("--payload 为必填"))
 			return
 		}
 		ids, err := parseTypicalCaseBatchIDs(cmd.Context(), payloadRaw)
@@ -225,12 +226,12 @@ var typicalCaseDeleteCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		idStr, _ := cmd.Flags().GetString("id")
 		if idStr == "" {
-			printEnvelope(envelope.Error(400, "--id 为必填"))
+			printParamError(errors.New("--id 为必填"))
 			return
 		}
 		id, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil || id <= 0 {
-			printEnvelope(envelope.Error(400, "--id 必须为正整数"))
+			printParamError(errors.New("--id 必须为正整数"))
 			return
 		}
 

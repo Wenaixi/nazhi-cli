@@ -33,7 +33,7 @@ func TestHonorUpdate_MissingID_RejectsWithoutRequest(t *testing.T) {
 		_ = closeAllClients()
 	})
 
-	stdout, _, restore := captureStdio(t)
+	_, stderr, restore := captureStdio(t)
 	honorUpdateCmd.Run(cmd, nil)
 	restore()
 
@@ -43,7 +43,7 @@ func TestHonorUpdate_MissingID_RejectsWithoutRequest(t *testing.T) {
 	if pendingExitCode.Load() != 3 {
 		t.Errorf("缺 id 应走参数错误退出码 3，实际 %d", pendingExitCode.Load())
 	}
-	if !strings.Contains(stdout.String(), `"code": 400`) {
-		t.Errorf("应输出 400 参数错误 envelope，实际: %s", stdout.String())
+	if !strings.Contains(stderr.String(), `"code": 400`) {
+		t.Errorf("应输出 400 参数错误 envelope，实际: %s", stderr.String())
 	}
 }

@@ -38,16 +38,16 @@ func TestLoginCmd_BlankCredentials_Rejected(t *testing.T) {
 
 			quiet = false
 			pendingExitCode.Store(0)
-			stdoutBuf, _, restore := captureStdio(t)
+			_, stderrstdoutBuf, restore := captureStdio(t)
 			loginCmd.Run(cmd, nil)
 			restore()
-			stdout := stdoutBuf.String()
+			stderrstdout := stderrstdoutBuf.String()
 
 			if got := pendingExitCode.Load(); got != 3 {
-				t.Errorf("空白凭据应走参数错误退出码 3，实际 %d; stdout=%q", got, stdout)
+				t.Errorf("空白凭据应走参数错误退出码 3，实际 %d; stderrstdout=%q", got, stderrstdout)
 			}
-			if !strings.Contains(stdout, "为必填") {
-				t.Errorf("stdout 应含必填提示，实际: %q", stdout)
+			if !strings.Contains(stderrstdout, "为必填") {
+				t.Errorf("stderrstdout 应含必填提示，实际: %q", stderrstdout)
 			}
 		})
 	}
@@ -172,10 +172,10 @@ func TestRejectLoneOffset_NegativeLimit_MessageCoversLimit(t *testing.T) {
 
 	quiet = false
 	pendingExitCode.Store(0)
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	rejected := rejectLoneOffset(cmd)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
 	if !rejected {
 		t.Fatal("--limit -1 应被 rejectLoneOffset 拒绝")
@@ -183,8 +183,8 @@ func TestRejectLoneOffset_NegativeLimit_MessageCoversLimit(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("--limit -1 应走参数错误退出码 3，实际 %d", got)
 	}
-	if !strings.Contains(stdout, "--limit") {
-		t.Errorf("文案应点名违规参数 --limit，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "--limit") {
+		t.Errorf("文案应点名违规参数 --limit，实际: %q", stderrstdout)
 	}
 }
 
@@ -230,7 +230,7 @@ func TestHonorAdd_UnknownTopLevelKey_Rejects(t *testing.T) {
 		_ = closeAllClients()
 	})
 
-	stdout, stderr, restore := captureStdio(t)
+	stderrstdout, stderr, restore := captureStdio(t)
 	honorAddCmd.Run(cmd, nil)
 	restore()
 
@@ -240,8 +240,8 @@ func TestHonorAdd_UnknownTopLevelKey_Rejects(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("未知键应走参数错误退出码 3，实际 %d", got)
 	}
-	if !strings.Contains(stdout.String(), "未知键") && !strings.Contains(stderr.String(), "未知键") {
-		t.Errorf("应含未知键提示，实际 stdout=%s stderr=%s", stdout.String(), stderr.String())
+	if !strings.Contains(stderrstdout.String(), "未知键") && !strings.Contains(stderr.String(), "未知键") {
+		t.Errorf("应含未知键提示，实际 stderrstdout=%s stderr=%s", stderrstdout.String(), stderr.String())
 	}
 }
 
@@ -267,7 +267,7 @@ func TestTypicalCaseSubmit_UnknownTopLevelKey_Rejects(t *testing.T) {
 		_ = closeAllClients()
 	})
 
-	stdout, stderr, restore := captureStdio(t)
+	stderrstdout, stderr, restore := captureStdio(t)
 	typicalCaseSubmitCmd.Run(cmd, nil)
 	restore()
 
@@ -277,8 +277,8 @@ func TestTypicalCaseSubmit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("未知键应走参数错误退出码 3，实际 %d", got)
 	}
-	if !strings.Contains(stdout.String(), "未知键") && !strings.Contains(stderr.String(), "未知键") {
-		t.Errorf("应含未知键提示，实际 stdout=%s stderr=%s", stdout.String(), stderr.String())
+	if !strings.Contains(stderrstdout.String(), "未知键") && !strings.Contains(stderr.String(), "未知键") {
+		t.Errorf("应含未知键提示，实际 stderrstdout=%s stderr=%s", stderrstdout.String(), stderr.String())
 	}
 }
 

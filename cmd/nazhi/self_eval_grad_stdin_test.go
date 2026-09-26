@@ -58,20 +58,20 @@ func TestSelfEvalGradSubmitCmd_EmptyStdin_PrintsError(t *testing.T) {
 	quiet = false
 	pendingExitCode.Store(0)
 
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	selfEvalGradSubmitCmd.Run(cmd, nil)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
 	// 空 stdin → envelope.Error(400, ...) → pendingExitCode=3（参数错误）
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("空 stdin 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
-	if !strings.Contains(stdout, `"status": "error"`) {
-		t.Errorf("stdout 应包含 envelope.Error，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, `"status": "error"`) {
+		t.Errorf("stderrstdout 应包含 envelope.Error，实际: %q", stderrstdout)
 	}
-	if !strings.Contains(stdout, "评价内容不能为空") {
-		t.Errorf("stdout 应包含空评价提示，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "评价内容不能为空") {
+		t.Errorf("stderrstdout 应包含空评价提示，实际: %q", stderrstdout)
 	}
 }
 
@@ -96,7 +96,7 @@ func TestSelfEvalGradSubmitCmd_StdinReadError_Propagates(t *testing.T) {
 	quiet = false
 	pendingExitCode.Store(0)
 
-	stdoutBuf, stderrBuf, restore := captureStdio(t)
+	stderrstdoutBuf, stderrBuf, restore := captureStdio(t)
 	selfEvalGradSubmitCmd.Run(cmd, nil)
 	restore()
 	stderr := stderrBuf.String()
@@ -115,5 +115,5 @@ func TestSelfEvalGradSubmitCmd_StdinReadError_Propagates(t *testing.T) {
 	if !strings.Contains(stderr, "读取 stdin 评价内容失败") {
 		t.Errorf("stderr 应包含 stdin 读取失败的真实错误，实际: %q", stderr)
 	}
-	_ = stdoutBuf
+	_ = stderrstdoutBuf
 }

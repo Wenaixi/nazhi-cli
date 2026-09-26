@@ -63,15 +63,15 @@ func TestCircleWrite_ValidateBeforeBuildClient(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			stdout, _, code := runCircleWriteCmd(t, tc.run, map[string]string{"id": tc.id})
+			_, stderr, code := runCircleWriteCmd(t, tc.run, map[string]string{"id": tc.id})
 			if code != 3 {
 				t.Errorf("缺 token + %q id 应走参数错误退出码 3，实际 %d", tc.id, code)
 			}
-			if !strings.Contains(stdout, tc.want) {
-				t.Errorf("应先报 %q（先校后建），实际 stdout: %q", tc.want, stdout)
+			if !strings.Contains(stderr, tc.want) {
+				t.Errorf("应先报 %q（先校后建），实际 stderr: %q", tc.want, stderr)
 			}
-			if strings.Contains(stdout, "--token 必填") {
-				t.Errorf("不应走到 buildBizClient 的 --token 必填（校验后移会先报鉴权错误）: %q", stdout)
+			if strings.Contains(stderr, "--token 必填") {
+				t.Errorf("不应走到 buildBizClient 的 --token 必填（校验后移会先报鉴权错误）: %q", stderr)
 			}
 		})
 	}

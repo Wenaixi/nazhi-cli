@@ -70,15 +70,15 @@ func TestFileUploadCmd_MissingFile_PrintsError(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("缺 file 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
-	// envelope.Error 走 printEnvelope（stdout），不再是 stderr JSON
-	if strings.Contains(stderr, `"status": "error"`) {
-		t.Errorf("envelope.Error 走 stdout，不应在 stderr，实际: %q", stderr)
+	// 参数错误统一走 stderr（stdout 只承载成功数据）
+	if strings.Contains(stdout, `"status": "error"`) {
+		t.Errorf("参数错误不应出现在 stdout，实际: %q", stdout)
 	}
-	if !strings.Contains(stdout, `"status": "error"`) {
-		t.Errorf("stdout 应包含 envelope.Error，实际: %q", stdout)
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应包含 envelope.Error，实际: %q", stderr)
 	}
-	if !strings.Contains(stdout, "file") {
-		t.Errorf("stdout 应包含 file 提示，实际: %q", stdout)
+	if !strings.Contains(stderr, "file") {
+		t.Errorf("stderr 应包含 file 提示，实际: %q", stderr)
 	}
 }
 

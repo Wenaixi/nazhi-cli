@@ -57,19 +57,19 @@ func TestLoginCmd_RateLimited_ShowsDedicatedMessage(t *testing.T) {
 
 	quiet = false
 	pendingExitCode.Store(0)
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	loginCmd.Run(newLoginTestCmd(srv.URL), nil)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
 	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("限流应落业务错误档 exit 1，实际 %d; stdout=%q", got, stdout)
+		t.Errorf("限流应落业务错误档 exit 1，实际 %d; stderrstdout=%q", got, stderrstdout)
 	}
-	if !strings.Contains(stdout, "请求被限流") {
-		t.Errorf("限流应显示专属中文文案「请求被限流」，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "请求被限流") {
+		t.Errorf("限流应显示专属中文文案「请求被限流」，实际: %q", stderrstdout)
 	}
-	if !strings.Contains(stdout, `"code": 429`) {
-		t.Errorf("限流 envelope 应为 429，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, `"code": 429`) {
+		t.Errorf("限流 envelope 应为 429，实际: %q", stderrstdout)
 	}
 }
 
@@ -81,19 +81,19 @@ func TestLoginCmd_ServiceUnavailable_ShowsDedicatedMessage(t *testing.T) {
 
 	quiet = false
 	pendingExitCode.Store(0)
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	loginCmd.Run(newLoginTestCmd(srv.URL), nil)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
 	if got := pendingExitCode.Load(); got != 2 {
-		t.Errorf("服务端故障应落服务端错误档 exit 2，实际 %d; stdout=%q", got, stdout)
+		t.Errorf("服务端故障应落服务端错误档 exit 2，实际 %d; stderrstdout=%q", got, stderrstdout)
 	}
-	if !strings.Contains(stdout, "暂时不可用") {
-		t.Errorf("服务端故障应显示专属中文文案「暂时不可用」，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "暂时不可用") {
+		t.Errorf("服务端故障应显示专属中文文案「暂时不可用」，实际: %q", stderrstdout)
 	}
-	if !strings.Contains(stdout, `"code": 502`) {
-		t.Errorf("服务端故障 envelope 应为 502，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, `"code": 502`) {
+		t.Errorf("服务端故障 envelope 应为 502，实际: %q", stderrstdout)
 	}
 }
 
@@ -108,18 +108,18 @@ func TestLoginCmd_LoginRejected_ShowsDedicatedMessage(t *testing.T) {
 
 	quiet = false
 	pendingExitCode.Store(0)
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	loginCmd.Run(newLoginTestCmd(srv.URL), nil)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
 	if got := pendingExitCode.Load(); got != 1 {
-		t.Errorf("登录拒绝应落业务错误档 exit 1，实际 %d; stdout=%q", got, stdout)
+		t.Errorf("登录拒绝应落业务错误档 exit 1，实际 %d; stderrstdout=%q", got, stderrstdout)
 	}
-	if !strings.Contains(stdout, "请检查学号/密码") {
-		t.Errorf("登录拒绝应显示专属中文文案「请检查学号/密码」，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "请检查学号/密码") {
+		t.Errorf("登录拒绝应显示专属中文文案「请检查学号/密码」，实际: %q", stderrstdout)
 	}
-	if !strings.Contains(stdout, `"code": 401`) {
-		t.Errorf("登录拒绝 envelope 应为 401，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, `"code": 401`) {
+		t.Errorf("登录拒绝 envelope 应为 401，实际: %q", stderrstdout)
 	}
 }

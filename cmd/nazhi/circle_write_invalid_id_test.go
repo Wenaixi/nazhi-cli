@@ -63,7 +63,7 @@ func TestCircleWrite_InvalidID_RejectsWithoutRequest(t *testing.T) {
 
 			_ = cmd.Flags().Set("id", tc.id)
 
-			stdout, _, restore := captureStdio(t)
+			_, stderrstdout, restore := captureStdio(t)
 			tc.run(cmd, nil)
 			restore()
 
@@ -73,8 +73,8 @@ func TestCircleWrite_InvalidID_RejectsWithoutRequest(t *testing.T) {
 			if pendingExitCode.Load() != 3 {
 				t.Errorf("非法 --id 应走参数错误退出码 3，实际 %d", pendingExitCode.Load())
 			}
-			if !strings.Contains(stdout.String(), tc.want) {
-				t.Errorf("应输出 %q 参数错误 envelope，实际: %q", tc.want, stdout.String())
+			if !strings.Contains(stderrstdout.String(), tc.want) {
+				t.Errorf("应输出 %q 参数错误 envelope，实际: %q", tc.want, stderrstdout.String())
 			}
 		})
 	}

@@ -13,7 +13,7 @@ import (
 //
 // 背景（十三域审计 P2-E）：submit 原实现先 buildBizClient 后校验 payload，
 // 双参数缺失时报 token 错误（printParamError→stderr）；edit 相反报 payload
-// （printEnvelope→stdout）。同因不同果且通道分裂。统一为先校验 payload。
+// （printEnvelope→stderrstdout）。同因不同果且通道分裂。统一为先校验 payload。
 func TestTaskSubmitCmd_MissingPayloadTakesPrecedenceOverMissingToken(t *testing.T) {
 	cmd := &cobra.Command{Use: "task-submit"}
 	cmd.SetContext(context.Background())
@@ -33,13 +33,13 @@ func TestTaskSubmitCmd_MissingPayloadTakesPrecedenceOverMissingToken(t *testing.
 		_ = closeAllClients()
 	})
 
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	taskSubmitCmd.Run(cmd, nil)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
-	if !strings.Contains(stdout, "--payload 为必填") {
-		t.Errorf("payload 缺失应优先于 token 缺失在 stdout 报告，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "--payload 为必填") {
+		t.Errorf("payload 缺失应优先于 token 缺失在 stderrstdout 报告，实际: %q", stderrstdout)
 	}
 }
 
@@ -65,13 +65,13 @@ func TestHonorAddCmd_MissingPayloadTakesPrecedenceOverMissingToken(t *testing.T)
 		_ = closeAllClients()
 	})
 
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	honorAddCmd.Run(cmd, nil)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
-	if !strings.Contains(stdout, "--payload 为必填") {
-		t.Errorf("payload 缺失应优先于 token 缺失在 stdout 报告，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "--payload 为必填") {
+		t.Errorf("payload 缺失应优先于 token 缺失在 stderrstdout 报告，实际: %q", stderrstdout)
 	}
 }
 
@@ -98,12 +98,12 @@ func TestTaskPreviewCmd_MissingPayloadTakesPrecedenceOverMissingToken(t *testing
 		_ = closeAllClients()
 	})
 
-	stdoutBuf, _, restore := captureStdio(t)
+	_, stderrstdoutBuf, restore := captureStdio(t)
 	taskPreviewCmd.Run(cmd, nil)
 	restore()
-	stdout := stdoutBuf.String()
+	stderrstdout := stderrstdoutBuf.String()
 
-	if !strings.Contains(stdout, "--payload 为必填") {
-		t.Errorf("payload 缺失应优先于 token 缺失在 stdout 报告，实际: %q", stdout)
+	if !strings.Contains(stderrstdout, "--payload 为必填") {
+		t.Errorf("payload 缺失应优先于 token 缺失在 stderrstdout 报告，实际: %q", stderrstdout)
 	}
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
@@ -68,7 +69,7 @@ var selfEvalGradSubmitCmd = &cobra.Command{
 				return
 			}
 			if comment == "" {
-				printEnvelope(envelope.Error(400, "评价内容不能为空"))
+				printParamError(errors.New("评价内容不能为空"))
 				return
 			}
 		}

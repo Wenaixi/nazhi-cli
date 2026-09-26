@@ -214,13 +214,13 @@ func TestSelfEvalSubmitCmd_EmptyStdin_PrintsError(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("空 stdin 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
-	if !strings.Contains(stdout, `"status": "error"`) {
-		t.Errorf("stdout 应包含 envelope.Error，实际: %q", stdout)
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应包含 envelope.Error，实际: %q", stderr)
 	}
-	if !strings.Contains(stdout, "评价内容不能为空") {
-		t.Errorf("stdout 应包含空评价提示，实际: %q", stdout)
+	if !strings.Contains(stderr, "评价内容不能为空") {
+		t.Errorf("stderr 应包含空评价提示，实际: %q", stderr)
 	}
-	_ = stderr
+	_ = stdout
 }
 
 // TestReadStdinWithTimeout_CancelStopsBlockedRead 验证取消会终止底层阻塞读取，避免后台 goroutine 悬挂。

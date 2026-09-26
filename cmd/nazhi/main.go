@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/Wenaixi/nazhi-cli/internal/recoverx"
 	"github.com/Wenaixi/nazhi-cli/internal/version"
-	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
 	"github.com/Wenaixi/nazhi-cli/pkg/logx"
 	"github.com/spf13/cobra"
 )
@@ -113,7 +113,7 @@ func main() {
 	if execErr != nil {
 		// cobra 返回的 execErr 来自参数解析（如 --unknownflag），本质是用户参数错误。
 		// 用 code=400 获得 exit code 3，而非走 printError 的默认 500（exit code 2）。
-		printEnvelope(envelope.Error(400, execErr.Error()))
+		printParamError(errors.New(execErr.Error()))
 	}
 	if pendingExitCode.Load() != 0 {
 		// os.Exit 之前显式调 closeAllClients。

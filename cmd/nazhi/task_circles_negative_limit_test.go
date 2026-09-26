@@ -62,16 +62,16 @@ func TestTaskCirclesCommands_RejectNegativeLimit(t *testing.T) {
 
 			quiet = false
 			pendingExitCode.Store(0)
-			stdoutBuf, _, restore := captureStdio(t)
+			_, stderrstdoutBuf, restore := captureStdio(t)
 			tc.run(cmd, nil)
 			restore()
-			stdout := stdoutBuf.String()
+			stderrstdout := stderrstdoutBuf.String()
 
 			if got := pendingExitCode.Load(); got != 3 {
-				t.Errorf("负数 --limit 应拒绝为参数错误(退出码 3), 实际 %d; stdout=%q", got, stdout)
+				t.Errorf("负数 --limit 应拒绝为参数错误(退出码 3), 实际 %d; stderrstdout=%q", got, stderrstdout)
 			}
-			if !strings.Contains(stdout, "--limit") {
-				t.Errorf("stdout 应含参数错误提示, 实际: %q", stdout)
+			if !strings.Contains(stderrstdout, "--limit") {
+				t.Errorf("stderrstdout 应含参数错误提示, 实际: %q", stderrstdout)
 			}
 		})
 	}

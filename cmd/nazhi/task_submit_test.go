@@ -139,13 +139,13 @@ func TestTaskSubmitCmd_MissingPayload_PrintsError(t *testing.T) {
 	if got := pendingExitCode.Load(); got != 3 {
 		t.Errorf("缺 payload 应触发 pendingExitCode=3（envelope.Error(400)），实际 %d", got)
 	}
-	if !strings.Contains(stdout, `"status": "error"`) {
-		t.Errorf("stdout 应包含 envelope.Error，实际: %q", stdout)
+	if !strings.Contains(stderr, `"status": "error"`) {
+		t.Errorf("stderr 应包含 envelope.Error，实际: %q", stderr)
 	}
-	if !strings.Contains(stdout, "payload") {
-		t.Errorf("stdout 应包含 payload 提示，实际: %q", stdout)
+	if !strings.Contains(stderr, "payload") {
+		t.Errorf("stderr 应包含 payload 提示，实际: %q", stderr)
 	}
-	_ = stderr
+	_ = stdout
 }
 
 // TestTaskSubmitCmd_FilePayload 验证 @file.json 语法从文件读取最小输入模型。

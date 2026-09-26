@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
@@ -41,11 +42,11 @@ URL 流程：
 		output, _ := cmd.Flags().GetString("output")
 
 		if id <= 0 {
-			printEnvelope(envelope.Error(400, "--id 为必填且必须 > 0"))
+			printParamError(errors.New("--id 为必填且必须 > 0"))
 			return
 		}
 		if output == "" {
-			printEnvelope(envelope.Error(400, "--output 为必填"))
+			printParamError(errors.New("--output 为必填"))
 			return
 		}
 

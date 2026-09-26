@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/Wenaixi/nazhi-cli/pkg/envelope"
@@ -98,7 +99,7 @@ var honorListCmd = &cobra.Command{
 		// 0 同样非法——circle_metadata.go:83-89 同形状参数要求 >0，
 		// 对齐为 ≤0 拒绝（400/exit3），与正数契约统一。
 		if pageNo <= 0 || pageSize <= 0 {
-			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为正整数"))
+			printParamError(errors.New("--page 与 --page-size 必须为正整数"))
 			return
 		}
 		// --page-size 上钳 500（对齐 SDK defaultSubmittedPageSize，
@@ -106,7 +107,7 @@ var honorListCmd = &cobra.Command{
 		// 分页脚本以错误的 pageSize 计算页数拿到截断数据却不自知——以参数
 		// 错误拒绝（400/exit3），与 ≤0 守卫同族。
 		if pageSize > maxPageSize {
-			printEnvelope(envelope.Error(400, "--page-size 不能超过 500（服务端单页上限）"))
+			printParamError(errors.New("--page-size 不能超过 500（服务端单页上限）"))
 			return
 		}
 
@@ -159,7 +160,7 @@ var honorDeleteCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		honorID, _ := cmd.Flags().GetInt64("id")
 		if honorID <= 0 {
-			printEnvelope(envelope.Error(400, "--id 必须为正整数"))
+			printParamError(errors.New("--id 必须为正整数"))
 			return
 		}
 
@@ -205,7 +206,7 @@ var honorLevelsCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		typeID, _ := cmd.Flags().GetInt64("type-id")
 		if typeID <= 0 {
-			printEnvelope(envelope.Error(400, "--type-id 必须为正整数"))
+			printParamError(errors.New("--type-id 必须为正整数"))
 			return
 		}
 

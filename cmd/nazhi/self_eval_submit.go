@@ -85,7 +85,7 @@ var selfEvalSubmitCmd = &cobra.Command{
 				return
 			}
 			if comment == "" {
-				printEnvelope(envelope.Error(400, "评价内容不能为空"))
+				printParamError(errors.New("评价内容不能为空"))
 				return
 			}
 		}
