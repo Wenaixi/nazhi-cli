@@ -134,6 +134,13 @@ var urlOptMap = map[string]urlOptDef{
 	"upload": {"upload-url", "NAZHI_UPLOAD_URL", client.WithUploadURL},
 }
 
+// maxPageSize 是 CLI 分页命令 --page-size 参数的上界（服务端单页上限）。
+// 对齐 pkg/client 的 defaultSubmittedPageSize=500（实测服务端 pageSize 上限 500），
+// 超限以参数错误拒绝而非透传让服务端静默截断。honor list / typical-case list /
+// circle images 三处跨域引用共用此常量（定义在组装层公共设施区，避免
+// 荣誉域命令文件承载全 CLI 分页知识）。
+const maxPageSize = 500
+
 // warnToStderr 配置类告警统一出口：--quiet 承诺「关闭所有 stderr 输出」，
 // 此前三处 fmt.Fprintf(os.Stderr) 直写绕过了该承诺（timeout/log-level/log-format），
 // CI 以 stderr 非空为异常信号会误判。
@@ -226,7 +233,7 @@ func buildClientOpts(cmd *cobra.Command, urlType string, timeoutEnv string, requ
 			trackLogFile(fw)
 		} else {
 			// 走 warnToStderr（--quiet 关闭所有 stderr 的契约：log-file 打开
-			// 失败是配置类告警，与 timeout/log-level 同族，C87-CLI-N1）。
+			// 失败是配置类告警，与 timeout/log-level 同族）。
 			warnToStderr(fmt.Sprintf("warn: 无法打开 log-file %q: %v\n", filePath, ferr))
 		}
 	}

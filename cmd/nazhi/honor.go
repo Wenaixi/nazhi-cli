@@ -9,12 +9,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// maxPageSize 是 honor list / typical-case list 的 page-size 上界。
-// 对齐 pkg/client/request.go:73 defaultSubmittedPageSize=500（实测服务端
-// pageSize 上限 500），超限以参数错误拒绝而非透传让服务端静默截断
-// （C-04 修复；常量在 page_size_cap_test.go 也引用，同源测试锁定）。
-const maxPageSize = 500
-
 // honorCmd 表示 nazhi honor 父命令，下辖 8 个子命令：
 //
 //	types / list / add / delete / update / levels / type-options / level-options
@@ -57,17 +51,17 @@ var honorTypesCmd = &cobra.Command{
 
 // honorUpdateAllowedKeys 是 honor update payload 顶层 JSON 的全部允许键：
 // AddHonorPayload 出站 json 键 + SDK UpdateHonor 消费键 + 编辑记录 id。
-// I-06：未知键（如 evaluationAgencyX 拼错）此前静默透传服务端被忽略，
+// 未知键（如 evaluationAgencyX 拼错）此前静默透传服务端被忽略，
 // 对齐 user update 用 unknownUpdatePayloadKeys 拒绝。
 var honorUpdateAllowedKeys = map[string]struct{}{
 	// 键统一小写存储，unknownUpdatePayloadKeys 对用户键 ToLower 后比较
-	// （N-08 与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
+	// （与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
 	"id": {}, "name": {}, "typeid": {}, "typename": {}, "level": {},
 	"evaluationagency": {}, "getdate": {}, "certimgattachmentid": {}, "score": {},
 }
 
 // honorAddAllowedKeys 是 honor add payload 顶层 JSON 的全部允许键
-// （AddHonorPayload 出站 json 键全集）。N-07：honor add 此前按 struct
+// （AddHonorPayload 出站 json 键全集）。：honor add 此前按 struct
 // 反序列化静默丢弃未知顶层键，拼错键名（如 typeid → 服务端忽略）会
 // 204 报成功但零申报——与 update 同款拒绝（400/exit3）。
 var honorAddAllowedKeys = map[string]struct{}{
@@ -90,7 +84,7 @@ var honorListCmd = &cobra.Command{
   nazhi honor list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		// CLI-124-07：先校后建——分页参数校验必须在 buildBizClient 前，
+		// 先校后建——分页参数校验必须在 buildBizClient 前，
 		// 否则缺 token + 坏分页参数时首报「--token 必填」而非分页错误，
 		// 脚本拿到错提示自查困难（typical_case.go 同款收敛，对齐 output.go
 		// 披露的「先校后建」派）。
@@ -98,12 +92,12 @@ var honorListCmd = &cobra.Command{
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		// 分页参数非负守卫：负值透传会发出 pageNo=-1 等异常请求；
 		// 0 同样非法——circle_metadata.go:83-89 同形状参数要求 >0，
-		// I-03 对齐为 ≤0 拒绝（400/exit3），与正数契约统一。
+		// 对齐为 ≤0 拒绝（400/exit3），与正数契约统一。
 		if pageNo <= 0 || pageSize <= 0 {
 			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为正整数"))
 			return
 		}
-		// C-04：--page-size 上钳 500（对齐 SDK defaultSubmittedPageSize，
+		// --page-size 上钳 500（对齐 SDK defaultSubmittedPageSize，
 		// 实测服务端 pageSize 上限 500）。超限透传会被服务端静默截断为 500，
 		// 分页脚本以错误的 pageSize 计算页数拿到截断数据却不自知——以参数
 		// 错误拒绝（400/exit3），与 ≤0 守卫同族。
