@@ -26,35 +26,33 @@ var taskInputNumericStringFields = [...]string{
 // 为"未知键"，否则会误伤历史 payload。
 // 前端 form 对照实证：practice 表单 JSON.stringify 恒含 id/""、name/""、hostName/""、
 // circleDate/""、rank/""、level/""、termName/""；art 表单含 name；edit 恒注入 id。
-var taskInputDeprecatedFields = map[string]struct{}{
-	"id": {}, "name": {}, "hostName": {}, "circleDate": {}, "rank": {},
-	"level": {}, "termName": {},
-}
+var taskInputDeprecatedKeys = newPayloadKeySet(
+	"id", "name", "hostName", "circleDate", "rank", "level", "termName",
+)
 
 // taskInputAllowedKeys 是 task submit/edit payload 顶层 JSON 的全部允许键：
 // TaskInput 消费的 json 键 + 别名对（circleTaskId/pictureList）+ 历史兼容字段。
 // 清晰列出允许集，未知键以参数错误拒绝（对齐 user update）。
-// 注意：键集统一存小写（unknownUpdatePayloadKeys 对用户键 ToLower 后比较），
-// 大小写变体按 findTaskInputField 的 EqualFold 语义天然允许。
-var taskInputAllowedKeys = func() map[string]struct{} {
-	allowed := map[string]struct{}{
-		// TaskInput 消费的普通字段（TaskAddCirclePayload 出站 json 键全集，统一小写）
-		"id": {}, "name": {}, "hostname": {}, "circledate": {}, "rank": {},
-		"level": {}, "content": {}, "picturelist": {}, "circletaskid": {},
-		"circletypeid": {}, "dimensionid": {}, "hours": {}, "circlebegindate": {},
-		"circleenddate": {}, "checkresult": {}, "patenttype": {}, "patentnum": {},
-		"address": {}, "termname": {}, "activityname": {}, "sportsname": {},
-		"teamname": {}, "orgname": {}, "resultsname": {}, "obtaintime": {},
-		"specialtytechnology": {}, "playrole": {}, "likespecialty1": {},
-		"likespecialty2": {}, "likespecialty3": {},
-		// TaskInput 接口消费但非出站 json 键的输入字段（小写）
-		"taskid": {}, "imagepaths": {}, "imageids": {},
-	}
-	for k := range taskInputDeprecatedFields {
-		allowed[strings.ToLower(k)] = struct{}{}
-	}
-	return allowed
-}()
+// 键名按用户书写形态声明（与 taskPayloadInput 的 json 键逐字一致），
+// 小写索引由 newPayloadKeySet 派生——不手工维护第二份，避免两处脱节。
+var taskInputKeys = newPayloadKeySet(
+	// TaskInput 消费的普通字段（TaskAddCirclePayload 出站 json 键全集）
+	"id", "name", "hostName", "circleDate", "rank", "level", "content",
+	"pictureList", "circleTaskId", "circleTypeId", "dimensionId", "hours",
+	"circleBeginDate", "circleEndDate", "checkResult", "patentType", "patentNum",
+	"address", "termName", "activityName", "sportsName", "teamName", "orgName",
+	"resultsName", "obtainTime", "specialtyTechnology", "playRole",
+	"likeSpecialty1", "likeSpecialty2", "likeSpecialty3",
+	// TaskInput 接口消费但非出站 json 键的输入字段
+	"taskId", "imagePaths", "imageIds",
+)
+
+// taskInputKeysAll 叠加历史兼容字段：这两类键用户都可能传入，合并在一处
+// 派生，避免维护两份需要手工同步的列表。
+var taskInputKeysAll = merged(taskInputKeys, taskInputDeprecatedKeys)
+
+// taskInputAllowedKeys 是 task 族的比较用小写允许集。
+var taskInputAllowedKeys = taskInputKeysAll.allowed()
 
 var taskInputFieldAliases = [...]struct {
 	canonical string

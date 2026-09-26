@@ -49,25 +49,29 @@ var honorTypesCmd = &cobra.Command{
 	},
 }
 
-// honorUpdateAllowedKeys 是 honor update payload 顶层 JSON 的全部允许键：
-// AddHonorPayload 出站 json 键 + SDK UpdateHonor 消费键 + 编辑记录 id。
+// honorUpdateKeys 是 honor update payload 顶层 JSON 的允许键，按用户书写形态
+// 声明：AddHonorPayload 出站 json 键 + SDK UpdateHonor 消费键 + 编辑记录 id。
 // 未知键（如 evaluationAgencyX 拼错）此前静默透传服务端被忽略，
 // 对齐 user update 用 unknownUpdatePayloadKeys 拒绝。
-var honorUpdateAllowedKeys = map[string]struct{}{
-	// 键统一小写存储，unknownUpdatePayloadKeys 对用户键 ToLower 后比较
-	// （与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
-	"id": {}, "name": {}, "typeid": {}, "typename": {}, "level": {},
-	"evaluationagency": {}, "getdate": {}, "certimgattachmentid": {}, "score": {},
-}
+var honorUpdateKeys = newPayloadKeySet(
+	"id", "name", "typeId", "typeName", "level", "evaluationAgency",
+	"getDate", "certImgAttachmentId", "score",
+)
 
-// honorAddAllowedKeys 是 honor add payload 顶层 JSON 的全部允许键
-// （AddHonorPayload 出站 json 键全集）。：honor add 此前按 struct
+// honorAddKeys 是 honor add payload 顶层 JSON 的允许键
+// （AddHonorPayload 出站 json 键全集）。honor add 此前按 struct
 // 反序列化静默丢弃未知顶层键，拼错键名（如 typeid → 服务端忽略）会
 // 204 报成功但零申报——与 update 同款拒绝（400/exit3）。
-var honorAddAllowedKeys = map[string]struct{}{
-	"name": {}, "typeid": {}, "typename": {}, "level": {},
-	"evaluationagency": {}, "getdate": {}, "certimgattachmentid": {}, "score": {},
-}
+var honorAddKeys = newPayloadKeySet(
+	"name", "typeId", "typeName", "level", "evaluationAgency",
+	"getDate", "certImgAttachmentId", "score",
+)
+
+// 比较用小写允许集由 keySet 派生，不手工维护第二份。
+var (
+	honorUpdateAllowedKeys = honorUpdateKeys.allowed()
+	honorAddAllowedKeys    = honorAddKeys.allowed()
+)
 
 // honorListCmd 表示 nazhi honor list 命令
 //
@@ -242,6 +246,7 @@ func init() {
 	honorCmd.AddCommand(honorAddCmd)
 	honorAddCmd.Flags().String("payload", "", "荣誉 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 	registerBizFlags(honorAddCmd)
+	attachAllowedKeysHelp(honorAddCmd, honorAddKeys.display(), true)
 
 	// honor delete
 	honorCmd.AddCommand(honorDeleteCmd)
@@ -252,6 +257,7 @@ func init() {
 	honorCmd.AddCommand(honorUpdateCmd)
 	honorUpdateCmd.Flags().String("payload", "", "荣誉更新 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 	registerBizFlags(honorUpdateCmd)
+	attachAllowedKeysHelp(honorUpdateCmd, honorUpdateKeys.display(), false)
 
 	// honor levels
 	honorCmd.AddCommand(honorLevelsCmd)

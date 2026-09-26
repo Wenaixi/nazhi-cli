@@ -36,4 +36,5 @@ func init() {
 	taskEditCmd.Flags().String("payload", "", "修改写实记录的 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 	taskEditCmd.Flags().String("address", "", "地点（可选，覆盖 payload.address；空则原样，不默认学校名）")
 	taskEditCmd.Flags().String("level", "", "等级代码（可选，写实：1=国家 2=省 3=地区/市 4=区县 5=校 6=年段；空则原样不默认 5）")
+	attachAllowedKeysHelp(taskEditCmd, taskInputKeysAll.display(), false)
 }

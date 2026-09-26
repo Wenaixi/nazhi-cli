@@ -35,17 +35,20 @@ var userInfoCmd = &cobra.Command{
 	Run:   whoamiCmd.Run,
 }
 
-// userUpdateAllowedKeys 是 UserUpdateInput 的全部顶层 JSON 键（含只读忽略的
-// nationalStudentNumber——Structured 忽略它但允许显式传入以对齐前端整表 stringify）。
-// C2 收敛：键集统一小写存储（unknownUpdatePayloadKeys 对用户键 ToLower 后比较，
-// 与 task/honor/typical-case 的允许集契约一致）——此前 camelCase 存储 +
+// userUpdateKeys 是 UserUpdateInput 的全部顶层 JSON 键，按用户书写形态声明
+// （含只读忽略的 nationalStudentNumber——Structured 忽略它但允许显式传入，
+// 以对齐前端整表 stringify）。
+// 小写索引由 newPayloadKeySet 派生：unknownUpdatePayloadKeys 对用户键 ToLower
+// 后比较，与 task/honor/typical-case 的允许集契约一致——此前 camelCase 存储 +
 // 大小写敏感查询导致 {"Telephone":...} 误判未知（drift），已修。
-var userUpdateAllowedKeys = map[string]struct{}{
-	"name": {}, "studentnumber": {}, "nationalstudentnumber": {},
-	"telephone": {}, "familyaddress": {}, "hobbies": {},
-	"gendername": {}, "youthleague": {}, "nationname": {}, "idcardtype": {},
-	"idcard": {}, "birthday": {}, "birthdaystr": {}, "studentuuid": {}, "seat": {},
-}
+var userUpdateKeys = newPayloadKeySet(
+	"name", "studentNumber", "nationalStudentNumber", "telephone",
+	"familyAddress", "hobbies", "genderName", "youthLeague", "nationName",
+	"idCardType", "idCard", "birthday", "birthdayStr", "studentUuid", "seat",
+)
+
+// userUpdateAllowedKeys 是比较用小写允许集。
+var userUpdateAllowedKeys = userUpdateKeys.allowed()
 
 // userUpdateAllowedKeys 的未知键拒绝已收敛到 write_op_runner.go 的
 // userUpdateWriteOp.allowedKeys（unknownUpdatePayloadKeys + ToLower 折叠）。
@@ -58,5 +61,6 @@ func init() {
 
 	userUpdateCmd.Flags().String("payload", "", "用户信息 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取；支持 genderName/youthLeague 等友好字段）")
 	registerBizFlags(userUpdateCmd)
+	attachAllowedKeysHelp(userUpdateCmd, userUpdateKeys.display(), true)
 	registerBizFlags(userInfoCmd)
 }

@@ -35,6 +35,16 @@ type writeOpMode struct {
 	// 各实例不再各自包一层同形闭包——9 个实例原本都是同一个 helper 的
 	// 同形包装，只差一个允许集。
 	allowedKeys map[string]struct{}
+	// helpKeys 是本命令 payload 允许键的用户书写形态（驼峰原样），用于
+	// 生成 --help 的允许键清单。
+	//
+	// 为什么与 allowedKeys 分开存两份：allowedKeys 小写存储只为大小写不敏感
+	// 比较（unknownUpdatePayloadKeys 对用户键 ToLower 后比对，避免
+	// {"Telephone":...} 被误判未知）。若直接把它的键印进 --help，用户会照抄
+	// 全小写形态写出 typeid 这类与出站 JSON 不符的键。helpKeys 是给人看的、
+	// 与 payload 出站 json 键逐字一致；两者折叠小写后必须完全相等，
+	// 由 TestWriteOpMode_HelpKeysCoverAllModes 锁死。
+	helpKeys []string
 	// decode 将 payload 解码为命令的输入类型。
 	// 返回 (输入对象, 错误)；解码失败以参数错误拒绝。
 	decode func(payloadBytes []byte) (any, error)
@@ -69,15 +79,35 @@ func applyAddressLevelFlags(cmd *cobra.Command, apply func(address, level string
 	apply(address, level)
 }
 
-// run 执行写操作命令的完整控制流。
+// attachAllowedKeysHelp 把命令的 payload 允许键清单写进 Long 帮助文本。
+//
+// 必须在命令构造期（init 或 var 初始化）调用，而不是在 Run 里：cobra 只在
+// 触发 --help 时渲染 Long，Run 根本不会执行。此前的未知键拒绝文案写着
+// 「允许键见 nazhi <cmd> --help」，而所有写操作命令的 Long 里都没有键名——
+// 用户被指向一条死路，只能去翻 Go 源码或反编译二进制。
+//
+// allowNoneNote 为真时额外说明键均可省略（honor add 等无必填键的命令）。
+func attachAllowedKeysHelp(cmd *cobra.Command, keys []string, allowNoneNote bool) {
+	section := helpSection(keys, allowNoneNote)
+	if section == "" {
+		return
+	}
+	if cmd.Long == "" {
+		cmd.Long = section
+		return
+	}
+	cmd.Long = cmd.Long + "\n\n" + section
+}
+
+// runWriteOp 执行写操作命令的完整控制流。
 // 错误优先次序（用户可见契约，由 write_op_skeleton_test.go 锁定）：
-//  1. 缺 --payload → envelope.Error(400, "--payload 为必填")，stdout
-//  2. buildBizClient 失败 → printParamError（stderr，参数错误）
+//  1. 缺 --payload → envelope.Error(400, "--payload 为必填")
+//  2. buildBizClient 失败 → printParamError（参数错误）
 //  3. payload 非对象 / 解析失败 → printParamError("读取 payload 失败")
 //  4. 未知键 → printParamError("payload 含未知键: %v")
 //  5. 解码失败 → printParamError("解析 payload JSON 失败")
 //  6. SDK 调用失败 → printError（按哨兵映射退出码）
-//
+
 // 未知键/坏 payload/缺 payload 路径不发任何业务请求（含元数据预热）。
 func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 	payloadRaw, _ := cmd.Flags().GetString("payload")
@@ -105,7 +135,7 @@ func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 	}
 
 	if unknown := unknownUpdatePayloadKeys(payloadBytes, m.allowedKeys); len(unknown) > 0 {
-		printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi %s --help）", unknown, cmd.Name()))
+		printParamError(unknownKeyErrorFor(cmd, unknown))
 		return
 	}
 
@@ -137,6 +167,17 @@ func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 	printEnvelope(m.success(result))
 }
 
+// unknownKeyErrorFor 构造未知键拒绝的错误，保证文案里的命令名始终非空。
+// 抽出成函数是为了让「承诺指向 --help」这条关系可被测试直接断言，
+// 并与 attachAllowedKeysHelp 写进帮助的键清单指向同一份真相源。
+func unknownKeyErrorFor(cmd *cobra.Command, unknown []string) error {
+	name := cmd.Name()
+	if name == "" {
+		name = "对应命令"
+	}
+	return fmt.Errorf("payload 含未知键: %v（允许键见 nazhi %s --help）", unknown, name)
+}
+
 // ─── task 写操作族（submit/edit）───
 
 // taskSubmitWriteOp 是 task submit 的写操作配置。
@@ -144,6 +185,7 @@ var taskSubmitWriteOp = writeOpMode{
 	verboseMsg:  "正在提交任务（自动补全任务元数据/图片上传）...",
 	errorPrefix: "提交任务失败",
 	allowedKeys: taskInputAllowedKeys,
+	helpKeys:    taskInputKeysAll.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskSubmitInput(payloadBytes)
 		if err != nil {
@@ -173,6 +215,7 @@ var taskEditWriteOp = writeOpMode{
 	verboseMsg:  "正在修改写实记录（自动补全任务元数据/图片上传）...",
 	errorPrefix: "修改写实记录失败",
 	allowedKeys: taskInputAllowedKeys,
+	helpKeys:    taskInputKeysAll.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskEditInput(payloadBytes)
 		if err != nil {
@@ -214,6 +257,7 @@ var taskPreviewSubmitWriteOp = writeOpMode{
 	verboseMsg:  "正在预览提交 payload（自动补齐任务元数据，不提交）...",
 	errorPrefix: "预览提交 payload 失败",
 	allowedKeys: taskInputAllowedKeys,
+	helpKeys:    taskInputKeysAll.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskSubmitInput(payloadBytes)
 		if err != nil {
@@ -243,6 +287,7 @@ var taskPreviewEditWriteOp = writeOpMode{
 	verboseMsg:  "正在预览编辑 payload（自动补齐任务元数据，不提交）...",
 	errorPrefix: "预览编辑 payload 失败",
 	allowedKeys: taskInputAllowedKeys,
+	helpKeys:    taskInputKeysAll.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskEditInput(payloadBytes)
 		if err != nil {
@@ -276,6 +321,7 @@ var honorAddWriteOp = writeOpMode{
 	verboseMsg:  "正在申报荣誉...",
 	errorPrefix: "申报荣誉失败",
 	allowedKeys: honorAddAllowedKeys,
+	helpKeys:    honorAddKeys.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload types.AddHonorPayload
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -297,6 +343,7 @@ var typicalCaseSubmitWriteOp = writeOpMode{
 	verboseMsg:  "正在提交典型案例...",
 	errorPrefix: "提交典型案例失败",
 	allowedKeys: typicalCaseAddAllowedKeys,
+	helpKeys:    typicalCaseSubmitKeys.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload types.AddTypicalCasePayload
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -318,6 +365,7 @@ var userUpdateWriteOp = writeOpMode{
 	verboseMsg:  "正在更新个人信息...",
 	errorPrefix: "更新个人信息失败",
 	allowedKeys: userUpdateAllowedKeys,
+	helpKeys:    userUpdateKeys.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		var input types.UserUpdateInput
 		if err := json.Unmarshal(payloadBytes, &input); err != nil {
@@ -340,6 +388,7 @@ var honorUpdateWriteOp = writeOpMode{
 	verboseMsg:  "正在更新荣誉记录...",
 	errorPrefix: "更新荣誉记录失败",
 	allowedKeys: honorUpdateAllowedKeys,
+	helpKeys:    honorUpdateKeys.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -367,6 +416,7 @@ var typicalCaseUpdateWriteOp = writeOpMode{
 	verboseMsg:  "正在更新典型案例...",
 	errorPrefix: "更新典型案例失败",
 	allowedKeys: typicalCaseUpdateAllowedKeys,
+	helpKeys:    typicalCaseUpdateKeys.display(),
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {

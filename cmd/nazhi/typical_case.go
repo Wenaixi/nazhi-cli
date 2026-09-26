@@ -99,6 +99,7 @@ func init() {
 	typicalCaseCmd.AddCommand(typicalCaseSubmitCmd)
 	typicalCaseSubmitCmd.Flags().String("payload", "", "典型案例 JSON（必填，可用 @file.json 从文件读取，或 - 从 stdin 读取）")
 	registerBizFlags(typicalCaseSubmitCmd)
+	attachAllowedKeysHelp(typicalCaseSubmitCmd, typicalCaseSubmitKeys.display(), false)
 
 	// typical-case list
 	typicalCaseCmd.AddCommand(typicalCaseListCmd)
@@ -111,6 +112,7 @@ func init() {
 	typicalCaseCmd.AddCommand(typicalCaseUpdateCmd)
 	typicalCaseUpdateCmd.Flags().String("payload", "", "典型案例 JSON（必填，可用 @file.json）")
 	registerBizFlags(typicalCaseUpdateCmd)
+	attachAllowedKeysHelp(typicalCaseUpdateCmd, typicalCaseUpdateKeys.display(), false)
 
 	// typical-case delete
 	typicalCaseCmd.AddCommand(typicalCaseDeleteCmd)
@@ -177,26 +179,31 @@ func parseTypicalCaseBatchIDs(ctx context.Context, raw string) ([]int64, error) 
 	return ids, nil
 }
 
-// typicalCaseUpdateAllowedKeys 是 typical-case update payload 顶层 JSON 的全部允许键：
-// AddTypicalCasePayload 出站 json 键 + SDK UpdateTypicalCase 消费键 + 编辑记录 id。
+// typicalCaseUpdateKeys 是 typical-case update payload 顶层 JSON 的允许键，
+// 按用户书写形态声明：AddTypicalCasePayload 出站 json 键 +
+// SDK UpdateTypicalCase 消费键 + 编辑记录 id。
 // 未知键（如 titel 拼错）此前静默透传服务端被忽略，对齐 user update 拒绝。
-var typicalCaseUpdateAllowedKeys = map[string]struct{}{
-	// 键统一小写存储，unknownUpdatePayloadKeys 对用户键 ToLower 后比较
-	// （与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
-	"id": {}, "title": {}, "type": {}, "typename": {}, "teachername": {},
-	"partnername": {}, "role": {}, "rolename": {}, "remark": {}, "content": {},
-	"level": {}, "levelname": {}, "attachmentid": {}, "attachmentname": {},
-}
+var typicalCaseUpdateKeys = newPayloadKeySet(
+	"id", "title", "type", "typeName", "teacherName", "partnerName",
+	"role", "roleName", "remark", "content", "level", "levelName",
+	"attachmentId", "attachmentName",
+)
 
-// typicalCaseAddAllowedKeys 是 typical-case submit payload 顶层 JSON 的全部
-// 允许键（AddTypicalCasePayload 出站 json 键全集）。：submit 此前按 struct
+// typicalCaseSubmitKeys 是 typical-case submit payload 顶层 JSON 的允许键
+// （AddTypicalCasePayload 出站 json 键全集）。submit 此前按 struct
 // 反序列化静默丢弃未知顶层键，拼错键名（如 titlee）服务端忽略零字段——
 // 与 update 同款拒绝（400/exit3）。
-var typicalCaseAddAllowedKeys = map[string]struct{}{
-	"title": {}, "type": {}, "typename": {}, "teachername": {},
-	"partnername": {}, "role": {}, "rolename": {}, "remark": {}, "content": {},
-	"level": {}, "levelname": {}, "attachmentid": {}, "attachmentname": {},
-}
+var typicalCaseSubmitKeys = newPayloadKeySet(
+	"title", "type", "typeName", "teacherName", "partnerName",
+	"role", "roleName", "remark", "content", "level", "levelName",
+	"attachmentId", "attachmentName",
+)
+
+// 比较用小写允许集由 keySet 派生，不手工维护第二份。
+var (
+	typicalCaseUpdateAllowedKeys = typicalCaseUpdateKeys.allowed()
+	typicalCaseAddAllowedKeys    = typicalCaseSubmitKeys.allowed()
+)
 
 // typicalCaseUpdateCmd 表示 nazhi typical-case update 命令。
 var typicalCaseUpdateCmd = &cobra.Command{
