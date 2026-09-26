@@ -14,7 +14,7 @@ import (
 // 现状：preview 仅 parse+decode 直接 json.Unmarshal——拼错键（如 imagePath 单数）
 // 在 preview 静默丢弃、task submit/edit 却 400 拒绝，两套契约。
 // 修复：preview 解码前复用 unknownUpdatePayloadKeys（与 submit/edit 同一
-// 未知键拒绝路径，经 writeOpRunner 的 rejectUnknown 钩子），未知键以参数错误
+// 未知键拒绝路径，经 writeOpRunner 的 allowedKeys 校验），未知键以参数错误
 // 拒绝（400/exit3），且不发任何业务请求（含预览必拉的 getCircleTypeByTaskId 元数据）。
 
 // makeTaskPreviewTestCmd 创建带通用业务参数和 payload 的 task preview 测试命令实例。

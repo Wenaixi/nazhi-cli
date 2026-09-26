@@ -48,7 +48,7 @@ var userUpdateAllowedKeys = map[string]struct{}{
 }
 
 // userUpdateAllowedKeys 的未知键拒绝已收敛到 write_op_runner.go 的
-// userUpdateWriteOp.rejectUnknown（unknownUpdatePayloadKeys + ToLower 折叠）。
+// userUpdateWriteOp.allowedKeys（unknownUpdatePayloadKeys + ToLower 折叠）。
 // 原 unknownUserUpdateKeys 函数已删除（未导出、无生产引用，属死代码）。
 
 func init() {

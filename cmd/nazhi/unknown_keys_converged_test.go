@@ -24,7 +24,7 @@ import (
 	"testing"
 )
 
-// convergeRun 表达收敛后的命令级拒绝流：parse → rejectUnknown (ToLower fold)。
+// convergeRun 表达收敛后的命令级拒绝流：parse → allowedKeys 未知键校验 (ToLower fold)。
 func convergeRun(payload string, allowed map[string]struct{}) (unknown []string, rejected bool) {
 	unknown = unknownUpdatePayloadKeys([]byte(payload), allowed)
 	return unknown, len(unknown) > 0
@@ -32,22 +32,22 @@ func convergeRun(payload string, allowed map[string]struct{}) (unknown []string,
 
 // TestUserUpdate_UnknownKeys_Drift 锁定 user update 未知键拒绝的**收敛语义**：
 // 重构前 unknownUserUpdateKeys 直接以原始键查 camelCase 允许集（大小写敏感），
-// {"Telephone":...} 误判未知；重构后收敛到 runner 配置的 rejectUnknown
+// {"Telephone":...} 误判未知；重构后收敛到 runner 配置的 allowedKeys
 // （unknownUpdatePayloadKeys + ToLower 折叠），大小写变体放行。
 // 本测试断言**收敛后的期望**——若未来回归大小写敏感，此测试失败。
 func TestUserUpdate_UnknownKeys_Drift(t *testing.T) {
-	reject := userUpdateWriteOp.rejectUnknown
+	allowed := userUpdateWriteOp.allowedKeys
 
 	// 大小写变体 Telephone：收敛后折叠放行
-	if unknown := reject([]byte(`{"Telephone":"13800138000"}`)); len(unknown) != 0 {
+	if unknown := unknownUpdatePayloadKeys([]byte(`{"Telephone":"13800138000"}`), allowed); len(unknown) != 0 {
 		t.Fatalf("user update 大小写变体应折叠放行（收敛后），当前判未知: %v", unknown)
 	}
 	// 精确小写命中
-	if unknown := reject([]byte(`{"telephone":"13800138000"}`)); len(unknown) != 0 {
+	if unknown := unknownUpdatePayloadKeys([]byte(`{"telephone":"13800138000"}`), allowed); len(unknown) != 0 {
 		t.Fatalf("精确小写键不应判未知: %v", unknown)
 	}
 	// 真正未知键仍拒绝
-	if unknown := reject([]byte(`{"telephoneX":"13800138000"}`)); len(unknown) != 1 || unknown[0] != "telephoneX" {
+	if unknown := unknownUpdatePayloadKeys([]byte(`{"telephoneX":"13800138000"}`), allowed); len(unknown) != 1 || unknown[0] != "telephoneX" {
 		t.Fatalf("未知键应报出: %v", unknown)
 	}
 }

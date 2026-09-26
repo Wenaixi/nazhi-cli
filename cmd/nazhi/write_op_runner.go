@@ -30,8 +30,11 @@ type writeOpMode struct {
 	// errorPrefix 是 SDK 调用失败时的错误文案前缀。
 	errorPrefix string
 
-	// rejectUnknown 校验 payload 顶层未知键，返回未知键列表（nil=全部合法）。
-	rejectUnknown func(payloadBytes []byte) []string
+	// allowedKeys 是本命令 payload 允许的顶层键集合（小写存储）。
+	// 未知键拒绝由 runWriteOp 单点调用 unknownUpdatePayloadKeys 完成，
+	// 各实例不再各自包一层同形闭包——9 个实例原本都是同一个 helper 的
+	// 同形包装，只差一个允许集。
+	allowedKeys map[string]struct{}
 	// decode 将 payload 解码为命令的输入类型。
 	// 返回 (输入对象, 错误)；解码失败以参数错误拒绝。
 	decode func(payloadBytes []byte) (any, error)
@@ -101,7 +104,7 @@ func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 		m = branch(cmd)
 	}
 
-	if unknown := m.rejectUnknown(payloadBytes); len(unknown) > 0 {
+	if unknown := unknownUpdatePayloadKeys(payloadBytes, m.allowedKeys); len(unknown) > 0 {
 		printParamError(fmt.Errorf("payload 含未知键: %v（允许键见 nazhi %s --help）", unknown, cmd.Name()))
 		return
 	}
@@ -140,9 +143,7 @@ func runWriteOp(cmd *cobra.Command, mode writeOpMode, branch writeOpBranch) {
 var taskSubmitWriteOp = writeOpMode{
 	verboseMsg:  "正在提交任务（自动补全任务元数据/图片上传）...",
 	errorPrefix: "提交任务失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, taskInputAllowedKeys)
-	},
+	allowedKeys: taskInputAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskSubmitInput(payloadBytes)
 		if err != nil {
@@ -173,9 +174,7 @@ var taskSubmitWriteOp = writeOpMode{
 var taskEditWriteOp = writeOpMode{
 	verboseMsg:  "正在修改写实记录（自动补全任务元数据/图片上传）...",
 	errorPrefix: "修改写实记录失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, taskInputAllowedKeys)
-	},
+	allowedKeys: taskInputAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskEditInput(payloadBytes)
 		if err != nil {
@@ -218,9 +217,7 @@ func taskPreviewBranch(cmd *cobra.Command) writeOpMode {
 var taskPreviewSubmitWriteOp = writeOpMode{
 	verboseMsg:  "正在预览提交 payload（自动补齐任务元数据，不提交）...",
 	errorPrefix: "预览提交 payload 失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, taskInputAllowedKeys)
-	},
+	allowedKeys: taskInputAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskSubmitInput(payloadBytes)
 		if err != nil {
@@ -251,9 +248,7 @@ var taskPreviewSubmitWriteOp = writeOpMode{
 var taskPreviewEditWriteOp = writeOpMode{
 	verboseMsg:  "正在预览编辑 payload（自动补齐任务元数据，不提交）...",
 	errorPrefix: "预览编辑 payload 失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, taskInputAllowedKeys)
-	},
+	allowedKeys: taskInputAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		input, err := decodeTaskEditInput(payloadBytes)
 		if err != nil {
@@ -288,9 +283,7 @@ var taskPreviewEditWriteOp = writeOpMode{
 var honorAddWriteOp = writeOpMode{
 	verboseMsg:  "正在申报荣誉...",
 	errorPrefix: "申报荣誉失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, honorAddAllowedKeys)
-	},
+	allowedKeys: honorAddAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload types.AddHonorPayload
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -311,9 +304,7 @@ var honorAddWriteOp = writeOpMode{
 var typicalCaseSubmitWriteOp = writeOpMode{
 	verboseMsg:  "正在提交典型案例...",
 	errorPrefix: "提交典型案例失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, typicalCaseAddAllowedKeys)
-	},
+	allowedKeys: typicalCaseAddAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload types.AddTypicalCasePayload
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -334,9 +325,7 @@ var typicalCaseSubmitWriteOp = writeOpMode{
 var userUpdateWriteOp = writeOpMode{
 	verboseMsg:  "正在更新个人信息...",
 	errorPrefix: "更新个人信息失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, userUpdateAllowedKeys)
-	},
+	allowedKeys: userUpdateAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		var input types.UserUpdateInput
 		if err := json.Unmarshal(payloadBytes, &input); err != nil {
@@ -358,9 +347,7 @@ var userUpdateWriteOp = writeOpMode{
 var honorUpdateWriteOp = writeOpMode{
 	verboseMsg:  "正在更新荣誉记录...",
 	errorPrefix: "更新荣誉记录失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, honorUpdateAllowedKeys)
-	},
+	allowedKeys: honorUpdateAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
@@ -387,9 +374,7 @@ var honorUpdateWriteOp = writeOpMode{
 var typicalCaseUpdateWriteOp = writeOpMode{
 	verboseMsg:  "正在更新典型案例...",
 	errorPrefix: "更新典型案例失败",
-	rejectUnknown: func(payloadBytes []byte) []string {
-		return unknownUpdatePayloadKeys(payloadBytes, typicalCaseUpdateAllowedKeys)
-	},
+	allowedKeys: typicalCaseUpdateAllowedKeys,
 	decode: func(payloadBytes []byte) (any, error) {
 		var payload map[string]any
 		if err := json.Unmarshal(payloadBytes, &payload); err != nil {
