@@ -327,25 +327,7 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 	results := make([]rawResult, declaredPages+1)
 	results[1] = rawResult{raw: raw1}
 
-	g, gctx := errgroup.WithContext(ctx)
-	g.SetLimit(concurrentPageLimit)
-
-	for pageNo := 2; pageNo <= declaredPages; pageNo++ {
-		pn := pageNo
-		g.Go(func() error {
-			if err := gctx.Err(); err != nil {
-				return err
-			}
-			_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, key)
-			if err != nil {
-				return fmt.Errorf("第 %d 页失败: %w", pn, err)
-			}
-			results[pn] = rawResult{raw: raw}
-			return nil
-		})
-	}
-
-	if err := g.Wait(); err != nil {
+	if err := c.fetchRawCirclePages(ctx, token, declaredPages, pageSize, circleType, key, results); err != nil {
 		// 部分失败时，已成功的页仍有效；按已有页顺序拼接
 		raw, assembleErr := assembleCirclesJSON(raw1, results, declaredPages,
 			fmt.Errorf("%s 部分页失败: %w", methodName, err))
@@ -417,25 +399,7 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 	}
 
 	if endPage > 1 {
-		g, gctx := errgroup.WithContext(ctx)
-		g.SetLimit(concurrentPageLimit)
-
-		for pageNo := 2; pageNo <= endPage; pageNo++ {
-			pn := pageNo
-			g.Go(func() error {
-				if err := gctx.Err(); err != nil {
-					return err
-				}
-				_, raw, err := c.fetchCirclePageJSON(gctx, token, pn, pageSize, circleType, key)
-				if err != nil {
-					return fmt.Errorf("第 %d 页失败: %w", pn, err)
-				}
-				results[pn] = rawResult{raw: raw}
-				return nil
-			})
-		}
-
-		if err := g.Wait(); err != nil {
+		if err := c.fetchRawCirclePages(ctx, token, endPage, pageSize, circleType, key, results); err != nil {
 			// 部分失败时，已成功的页仍有效；按已有页顺序拼接
 			return c.assembleCirclesLimitJSON(results, pb, offset, limit, endPage, methodName,
 				fmt.Errorf("%s 部分页失败: %w", methodName, err))
