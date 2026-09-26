@@ -129,7 +129,7 @@ func TestWriteOpHelp_ListsEveryAllowedKey(t *testing.T) {
 func TestWriteOpHelp_KeysSortedAndStable(t *testing.T) {
 	help := helpTextFor(t, []string{"honor", "add"})
 	section := helpSection(honorAddWriteOp.helpKeys, true)
-	var listed []string
+	listed := make([]string, 0, len(honorAddWriteOp.helpKeys))
 	for _, line := range strings.Split(section, "\n") {
 		if !strings.HasPrefix(line, "  ") {
 			continue // 标题行与尾注不是键

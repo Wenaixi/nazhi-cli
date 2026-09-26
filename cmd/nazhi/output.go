@@ -175,7 +175,7 @@ func rejectLoneOffset(cmd *cobra.Command) bool {
 		// 脚本拿截断数据不自知。参数错误拒绝（对齐 400/exit3 半套纪律：≤0 已拒、
 		// 超上界同族拒绝）。上界与 SDK maxSubmittedRecords 对齐（submitted.go:138，
 		// 10 万条单次任务合理上限，offset+limit 分页不会触发首页截断）。
-		printParamError(errors.New(fmt.Sprintf("--limit 不能超过 %d（避免分页派生 endPage 触发服务端首页截断）", maxCLILimit)))
+		printParamError(fmt.Errorf("--limit 不能超过 %d（避免分页派生 endPage 触发服务端首页截断）", maxCLILimit))
 		return true
 	}
 	return false
