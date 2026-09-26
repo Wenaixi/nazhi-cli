@@ -44,13 +44,13 @@ const maxTotalPage = 10000
 // + 虚高 totalNum 驱动单请求 OOM。64MB 足够覆盖任何真实拼接输出。
 const maxAssembleBuffer = 64 << 20
 
-// maxFetchTasksDims 任务维度数上界（CLI-1 修复）——维度数直接来自
+// maxFetchTasksDims 任务维度数上界——维度数直接来自
 // getDimensions 服务端声明，恶意值驱动全维度并发拉取 × 单页 4MB（maxResponseBodySize）
 // 累积无预算。128 维远超任何真实学校维度集（通常 <10）。FetchTasksJSON 与
 // FetchTasks 两条取数路径共用同一道钳制（后者在 task.go 截断）。
 const maxFetchTasksDims = 128
 
-// capAssembledSlice 对已累积的 rawResult 切片做总量预算截断（N-04）。
+// capAssembledSlice 对已累积的 rawResult 切片做总量预算截断。
 // getCirclesJSON/getCirclesLimitJSON 翻页时把每页原始字节累积进 results，
 // 已由 estimatePagesBudgeted（页数×首页字节）预翻页预算 + 本函数合并前
 // 复核截断双层覆盖——服务端报 10000 页×4MB≈40GB 渐进填充时在真实翻页
@@ -72,7 +72,7 @@ func cumulativeSliceBytes(raw1 []byte, results []rawResult, untilPage int) int {
 	return total
 }
 
-// estimatePagesBudgeted 以「页数 × 首页字节」估算多页累积量上界（N-04）。
+// estimatePagesBudgeted 以「页数 × 首页字节」估算多页累积量上界。
 // 翻页前 results 里 pn≥2 尚未拉取，无法按实际字节统计；真实每页 ≤ 首页
 // 字节（分页语义），故 endPage×len(raw1) 是安全上界。
 func estimatePagesBudgeted(pageCount, firstPageLen int) int {
@@ -80,6 +80,25 @@ func estimatePagesBudgeted(pageCount, firstPageLen int) int {
 		return 0
 	}
 	return pageCount * firstPageLen
+}
+
+// budgetTruncatePage 页面累积字节越过 maxAssembleBuffer 预算时，线性回退
+// 找到「累积不超过预算」的最大页号。命中预算返回 (回退后页号, true)；
+// 未命中返回 (declaredPages, false)。getCirclesJSON 与 getCirclesLimitJSON
+// 两处共用（此前逐字重复的 9 行回退循环收敛到本函数单点）。
+//
+// 线性回退而非二分：页量已由 maxTotalPage 钳制到 ≤10000，且预算命中是
+// 服务端异常分页的罕见路径，线性递减在真实场景至多几十次迭代，无性能压力。
+// 注：旧注释称「二分找」与实现不符（实为线性递减），此处据实描述。
+func budgetTruncatePage(raw1 []byte, results []rawResult, declaredPages int) (int, bool) {
+	if !capAssembledSlice(raw1, results, declaredPages) {
+		return declaredPages, false
+	}
+	budgetPage := declaredPages
+	for budgetPage > 1 && cumulativeSliceBytes(raw1, results, budgetPage) > maxAssembleBuffer {
+		budgetPage--
+	}
+	return budgetPage, true
 }
 
 // isNullJSON 判断一段原始 JSON 是否为 null 形态：字面 null 或字符串 "null"。
@@ -225,7 +244,7 @@ func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partia
 	}
 	// CC1 修复：预分配容量钳制到固定上界——len(raw1)×totalPage 可达 40GB，
 	// 攻陷服务端可借首页大响应+虚高 totalNum 驱动单请求 OOM。
-	// P2-3：改为按已有页实际内容求和精确预分配。
+	// 改为按已有页实际内容求和精确预分配。
 	// 此前估算 capHint = 页数×首页字节，偏小则触发 bytes.Buffer 倍增扩容的
 	// 多次整块拷贝。各页实际长度已知（results），求和即精确容量；上界仍由
 	// maxAssembleBuffer 钳制（防攻陷服务端借大响应×虚高页数放大分配）。
@@ -295,8 +314,8 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 	// 下界取 max(totalPage, ceil(totalNum/pageSize)) 防 totalPage 虚低漏页，
 	// 上界钳到 maxTotalPage 防服务端声明值驱动 make 分配 OOM。
 	declaredPages := derivePageBounds(pb.TotalNum, pb.TotalPage, pageSize)
-	// CLI-124-01：全量路径在 make 前补「页数 × 首页字节」预算守卫，与
-	// getCirclesLimitJSON 的 N-04 预估守卫同纪律。此前翻页后才由
+	// 全量路径在 make 前补「页数 × 首页字节」预算守卫，与
+	// getCirclesLimitJSON 的预估守卫同纪律。此前翻页后才由
 	// capAssembledSlice 复核截断——最坏 10000 页 × 4MB 逐页填充至 40GB，
 	// errgroup 已真实发出所有请求才在 g.Wait 后截断（内存放大 + 无谓翻页）。
 	// 越界直接截断到首页快照，不翻页（防放大优先于全量完整性）。
@@ -333,18 +352,12 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 		return raw, pb, assembleErr
 	}
 
-	// N-04：页面累积原始字节越过 maxAssembleBuffer 预算时截断到已合并
+	// 页面累积原始字节越过 maxAssembleBuffer 预算时截断到已合并
 	// 前缀（对齐 submitted 条数闸的语义；这里按字节而非条数判）。
-	// Cycle 105 修正：命中预算后必须传已钳制页数（而非声明页数）给
+	// 修正：命中预算后必须传已钳制页数（而非声明页数）给
 	// assembleCirclesJSON——此前传 declaredPages 让 Bytes.Buffer 仍无上限
 	// 增长再做第二次全量拷贝，与「截断防放大」目标矛盾。
-	if capAssembledSlice(raw1, results, declaredPages) {
-		// 二分找「累积不超过预算」的最大页号：页量单调不降，从头线性也可
-		// 接受但 O(n) 在 10000 页时无谓；线性页数已由 maxTotalPage 钳制。
-		budgetPage := declaredPages
-		for budgetPage > 1 && cumulativeSliceBytes(raw1, results, budgetPage) > maxAssembleBuffer {
-			budgetPage--
-		}
+	if budgetPage, hit := budgetTruncatePage(raw1, results, declaredPages); hit {
 		slog.Warn("raw_json: 多页累积量超过合并预算，截断到已合并前缀",
 			"total_bytes", cumulativeSliceBytes(raw1, results, declaredPages),
 			"budget_page", budgetPage, "max", maxAssembleBuffer)
@@ -385,12 +398,12 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 	//
 	// 注意：limitEndPage 的收敛必须用**未钳制**的声明页数。若传
 	// derivePageBounds 的结果（已钳到 maxTotalPage），totalNum=1e9 场景会
-	// 算出 endPage=10000 并真的翻 10000 页，违反 C86-CLI#2 锁定的
+	// 算出 endPage=10000 并真的翻 10000 页，违反 锁定的
 	// 「超限退回首页、不再翻页」。
 	declaredPages := derivePageBoundsUnclamped(pb.TotalNum, pb.TotalPage, pageSize)
 	endPage := limitEndPage(offset, limit, pageSize, declaredPages)
 
-	// N-04（Cycle 105 修正）：getCirclesLimitJSON 的预翻页估算必须以
+	// （修正）：getCirclesLimitJSON 的预翻页估算必须以
 	// 「页数 × 首页字节」作上界——此前 capAssembledSlice 看 results 里
 	// 已拉取字节（pn≥2 尚未拉全为 nil），concat 只有 len(raw1)≤4MB，
 	// >64MB 预算永不命中，估算守卫形同虚设。用 endPage×len(raw1) 作为
@@ -428,16 +441,12 @@ func (c *Client) getCirclesLimitJSON(ctx context.Context, token string, offset, 
 				fmt.Errorf("%s 部分页失败: %w", methodName, err))
 		}
 
-		// CLI-120-1：翻页完成后做合并前累积字节复核——estimatePagesBudgeted
-		// 只以「每页 ≤ 首页字节」为假设（CLI-120-2），服务端分页异常（后续页
-		// 实际字节超过首页）可绕过估算预算。与 getCirclesJSON 的 N-04 口径
-		// 对齐：实际累积越过 maxAssembleBuffer 时二分截断到合法前缀，再交给
+		// 翻页完成后做合并前累积字节复核——estimatePagesBudgeted
+		// 只以「每页 ≤ 首页字节」为假设，服务端分页异常（后续页
+		// 实际字节超过首页）可绕过估算预算。与 getCirclesJSON 的同纪律口径
+		// 对齐：实际累积越过 maxAssembleBuffer 时线性回退到合法前缀，再交给
 		// assembleCirclesLimitJSON 输出（保证 Bytes.Buffer 永不无上限增长）。
-		if capAssembledSlice(raw1, results, endPage) {
-			budgetPage := endPage
-			for budgetPage > 1 && cumulativeSliceBytes(raw1, results, budgetPage) > maxAssembleBuffer {
-				budgetPage--
-			}
+		if budgetPage, hit := budgetTruncatePage(raw1, results, endPage); hit {
 			slog.Warn("raw_json: limit 多页累积量超过合并预算，截断到已合并前缀",
 				"total_bytes", cumulativeSliceBytes(raw1, results, endPage),
 				"budget_page", budgetPage, "max", maxAssembleBuffer)
@@ -591,7 +600,7 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 	if len(activeDims) == 0 {
 		return []byte("[]"), nil
 	}
-	// CLI-1：维度数上界钳制（对齐 maxTotalPage 纪律）——getDimensions 的
+	// 维度数上界钳制（对齐 maxTotalPage 纪律）——getDimensions 的
 	// 维度数来自服务端声明，恶意值驱动全维度并发拉取×单页 4MB 累积无预算。
 	// 128 远超任何真实学校维度集（通常 <10），截断保留前 128 维并 Warn。
 	if len(activeDims) > maxFetchTasksDims {
@@ -644,7 +653,7 @@ func (c *Client) FetchTasksJSON(ctx context.Context, token string) (json.RawMess
 		buf.WriteByte('[')
 		first := true
 		totalPages := 0
-		// CLI-1：累积字节预算（对齐 getCirclesJSON 的 maxAssembleBuffer 纪律）。
+		// 累积字节预算（对齐 getCirclesJSON 的 maxAssembleBuffer 纪律）。
 		// 各维度单页最大 maxResponseBodySize（4MB）×维度数可单请求累积上 GB；
 		// 超出预算后停止追加，返回已合并的合法 JSON 前缀。
 		assembledLen := 0
@@ -766,7 +775,7 @@ func (c *Client) fetchTasksDimensionJSON(ctx context.Context, dim types.Dimensio
 
 // marshalUserInfoJSON 将 UserInfo 序列化为 JSON，输出前剔除 StudentUuid 敏感值。
 //
-// P2-1（user-info 域 18 轮审计）：StudentUuid 是密码/学生 UUID 载体（写侧），
+// （user-info 域）：StudentUuid 是密码/学生 UUID 载体（写侧），
 // 前端 modifyBox.vue:185 读取 getMyInfo 响应后显式清零佐证其只写不读的敏感属性。
 // 结构化 GetMyInfo 返回的 info 保留该字段（Go 调用方自行裁决）；
 // 但 JSON 透传路径（CLI whoami / GetMyInfoJSON / ActivateSessionJSON 消费）必须剔除，
@@ -905,8 +914,8 @@ func assembleRecordsPageJSON(resp *types.UnifiedResponse) json.RawMessage {
 	var recordsRaw json.RawMessage
 	if resp.DataList != nil {
 		recordsRaw = *resp.DataList
-		// G2（Cycle 101）：dataList 的 null 形态（字面 null / 字符串 "null"）先归一，
-		// 防脏数组元素 ["null"]。rawListBytes 同款归一（Cycle 94 F1 覆盖 getStudentCircle/
+		// dataList 的 null 形态（字面 null / 字符串 "null"）先归一，
+		// 防脏数组元素 ["null"]。rawListBytes 同款归一（F1 覆盖 getStudentCircle/
 		// getHonorType，本函数是 GetHonorListJSON/GetTypicalCaseListJSON 共用拼装点）。
 		if isNullJSON(recordsRaw) {
 			recordsRaw = nil
