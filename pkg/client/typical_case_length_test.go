@@ -11,7 +11,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// TestUpdateTypicalCase_TooLongTextRejected 锁定（CLI-111-2）：UpdateTypicalCase
+// TestUpdateTypicalCase_TooLongTextRejected 锁定：UpdateTypicalCase
 // 的 map 路径此前无 remark/content rune 长度校验（AddTypicalCase 有 198/1500）。
 // 长度纪律不对称：Add 严、Update 松，超长原文原样上 wire。
 //

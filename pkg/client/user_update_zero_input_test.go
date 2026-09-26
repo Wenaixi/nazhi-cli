@@ -11,7 +11,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// TestUpdateMyInfoStructured_ZeroInputNoOp 锁定 USER-1 契约：
+// TestUpdateMyInfoStructured_ZeroInputNoOp 锁定 契约
 // 全零输入（如 CLI --payload '{}'）应视为 no-op——不发仅含 studentUuid 的空 POST，
 // 不失效本地缓存。此前实现无条件发 {"studentUuid":""} 且 InvalidateCachedUserInfo。
 func TestUpdateMyInfoStructured_ZeroInputNoOp(t *testing.T) {

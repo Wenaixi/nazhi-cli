@@ -75,7 +75,7 @@ func clampPage(pages int) int {
 // declaredPages 必须是**未钳制**的声明值（见 derivePageBoundsUnclamped）。
 //
 // 收敛后若 endPage 超 maxTotalPage，直接退回 1（首页快照）而不是钳到上界——
-// C86-CLI#2：endPage 来自调用方 limit 与服务端 totalNum 声明的组合，虚高时
+// ：endPage 来自调用方 limit 与服务端 totalNum 声明的组合，虚高时
 // 可达百万，make([]rawResult, endPage+1) 一次预分配几十 MB。防放大优先于
 // 分页完整性。
 //

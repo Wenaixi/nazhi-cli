@@ -79,7 +79,7 @@ func (c *Client) FetchTasks(ctx context.Context, token string) ([]types.Task, er
 	}
 
 	headers := c.bizHeaders(token)
-	// CLI-1：维度数上界钳制（与 FetchTasksJSON raw_json.go:595-601 同纪律）——
+	// 维度数上界钳制（与 FetchTasksJSON raw_json.go:595-601 同纪律）——
 	// getDimensions 的维度数来自服务端声明，恶意值驱动全维度并发拉取×单页
 	// 4MB 累积无预算。128 远超任何真实学校维度集（通常 <10），截断保留前
 	// 128 维并 Warn。
@@ -236,7 +236,7 @@ func parseHours(userInput string, metaHours float64, targetType int) (float64, e
 	}
 	parsed, err := strconv.ParseFloat(h, 64)
 	if err != nil || math.IsNaN(parsed) || math.IsInf(parsed, 0) || parsed < 0 {
-		// I-02：负数 hours 直接上 wire payload.Hours=-5，与非法/非有限同族拒绝。
+		// 负数 hours 直接上 wire payload.Hours=-5，与非法/非有限同族拒绝。
 		// 学时不可能为负，负数属于调用方输入错误，统一 ErrInvalidPayload。
 		return 0, fmt.Errorf("%w: hours 非法: %q", ErrInvalidPayload, h)
 	}
@@ -311,7 +311,7 @@ func (c *Client) buildTaskPayload(ctx context.Context, token string, input types
 		pictureList = append(pictureList, id)
 	}
 	if uploader != nil {
-		// 同 path 重复出现会重复上传产生服务端孤儿附件（C86-CLI#13）：
+		// 同 path 重复出现会重复上传产生服务端孤儿附件：
 		// 去重后再上传，与前端 el-upload :limit=2「最多 2 个文件」语义对齐。
 		seen := make(map[string]struct{}, len(input.GetImagePaths()))
 		for _, path := range input.GetImagePaths() {
@@ -427,7 +427,7 @@ func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResu
 // 用户字段（address/level/playRole 等活动字段）空串原样发送，不发明学校名或等级 5；
 // 任务元数据与图片由 SDK 自动补齐。
 //
-// 编辑模式特别提示（CLAUDE.md #31 披露）：前端 openEdit→getCircleTypeByTaskId
+// 编辑模式特别提示（见 CLAUDE.md「C. 写实提交/编辑/预览」编辑回填节）：前端 openEdit→getCircleTypeByTaskId
 // 把列表记录的 26 个活动字段（name/hostName/circleDate/rank/level/circleBeginDate/
 // circleEndDate/checkResult/patentType/patentNum/address/termName/各类型专属字段/
 // playRole/likeSpecialty1-3 等）整体回填，JSON.stringify 后整包提交。SDK 编辑路径
@@ -438,10 +438,10 @@ func decodeSubmitResult(resp *types.UnifiedResponse, err error) (*types.TaskResu
 // hours 例外——编辑留空时回填任务元数据预设（getCircleTypeByTaskId.hours），
 // 而前端编辑是用列表记录值覆盖任务预设。要保留原记录值，请从列表记录
 // （CircleRecord 的 hours）显式赋值给 input.Hours，否则与预设不同的记录会被静默改写。
-// 注意（19 轮审计 P2-1）：任务预设 hours<=0 且 targetType∈{1,6,10} 时，Hours 留空不会
+// 注意：任务预设 hours<=0 且 targetType∈{1,6,10} 时，Hours 留空不会
 // 回填而是直接拒绝（ErrInvalidPayload，parseHours）——此时必须从列表记录显式回填 Hours。
 // playRole/level 恒以字符串发送；前端编辑回填列表记录时为 number（HAR 实证 editCircle
-// body playRole:3/level:5），服务端对两形态均已接受（19 轮审计 P2-2 披露）。
+// body playRole:3/level:5），服务端对两形态均已接受。
 //
 // 图片同理——不传 ImageIDs 时 wire 上发送 pictureList:[]，而前端编辑恒把原记录
 // 图片回填进 pictureList（openEdit→imgList）。若服务端以空数组覆盖原附件则编辑会

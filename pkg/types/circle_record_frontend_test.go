@@ -9,7 +9,7 @@ import (
 //
 // 平台字段命名混用：大量 snake_case（host_name/type_name）与若干 camelCase
 // （imgList/commentList/likeStatus/ifMySelf/creationTimeStr/showName/imgPath/studentId）
-// 并存。本测试用前端模板 + docs/sdk 样例中的真实键名，禁止测试夹具自创命名。
+// 并存。本测试用前端模板 + docs/README.md 源码地图中的真实键名，禁止测试夹具自创命名。
 func TestCircleRecord_FrontendRealJSON(t *testing.T) {
 	raw := `{
 		"id": 5400001,

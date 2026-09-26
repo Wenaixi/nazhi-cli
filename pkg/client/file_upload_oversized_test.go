@@ -14,8 +14,8 @@ import (
 	"testing"
 )
 
-// TestUploadFile_OversizedSuccessBody_Rejects 锁定 19 轮审计 file-upload P2-1/P2-3：
-// 上传成功路径响应体必须封顶 1MB（HTTP-2 契约对齐 request.go），超限归 ErrInvalidResponse
+// TestUploadFile_OversizedSuccessBody_Rejects 锁定 file-upload /
+// 上传成功路径响应体必须封顶 1MB（对齐 request.go），超限归 ErrInvalidResponse
 // 而非继续全量读入；且超限分支必须直 Close 放弃 keep-alive（对齐 httpDo:377-381 的
 // 2356484 修复纪律），不再经 defer drainAndClose 无上限续读剩余 body。
 func TestUploadFile_OversizedSuccessBody_Rejects(t *testing.T) {

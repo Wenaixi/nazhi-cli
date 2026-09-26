@@ -23,7 +23,7 @@ var pendingExitCode atomic.Int32
 
 // maxCLILimit 是四任务命令 --limit 参数的上界。对齐 SDK maxSubmittedRecords
 // （pkg/client/submitted.go:138，10 万条单次任务合理上限）：offset+limit 派生
-// endPage 不超过服务端 maxTotalPage，避免 SDK 静默返回首页快照（CLI-123-01）。
+// endPage 不超过服务端 maxTotalPage，避免 SDK 静默返回首页快照。
 const maxCLILimit = 100_000
 
 // printErrorDepth 防止递归兜底路径无限递归。
@@ -68,17 +68,17 @@ func printEnvelope(e *envelope.Envelope) {
 // 参数类（含本地文件超限 ErrFileTooLarge）→ 400（exit 3）；业务拒绝/服务端明确 4xx → 422（exit 1）；
 // 限流/会话冷却 → 429（exit 1，客户端已知应等待的确定性状态）；可重试取消 → 503；
 // 网络/超时/5xx → 502（exit 2）；未识别保持 500。
-// 免验证码端点不再使用 OCR 哨兵；遗留注释已清理（CLI-111-1）。
+// 免验证码端点不再使用 OCR 哨兵；遗留注释已清理。
 func mapSentinelToHTTPCode(err error) int {
 	switch {
 	case errors.Is(err, client.ErrInvalidPayload),
 		errors.Is(err, client.ErrFileTooLarge):
 		return 400
-	// FILE-1 修订：本地文件系统错误（上传附件不存在/下载路径不可写）由 SDK 侧包
+	// 修订：本地文件系统错误（上传附件不存在/下载路径不可写）由 SDK 侧包
 	// ErrInvalidPayload 哨兵归 400/exit3（见 file.go/image_prep.go）。
 	// 不再在漏斗层匹配 *fs.PathError——stdin 读错误（关闭句柄）也是 PathError 链，
 	// 且既有契约锁定其为 exit 2（管道场景可瞬时恢复，不应与永久性参数错误混淆）。
-	// L1（Cycle 97）：网络/限流/超时/5xx 类哨兵必须先于 ErrBusinessRejected 判定。
+	// 网络/限流/超时/5xx 类哨兵必须先于 ErrBusinessRejected 判定。
 	// FetchTasks/FetchTasksJSON 全维度失败汇总时外层包 ErrBusinessRejected、内层
 	// errors.Join 的子错误已带网络类哨兵（%w 链）；若先命中 422 分支，服务端整体
 	// 宕机会被误报为「业务拒绝」——脚本按 exit1 无退避重放，违反「网络/限流/超时
@@ -93,7 +93,7 @@ func mapSentinelToHTTPCode(err error) int {
 		errors.Is(err, client.ErrTimeout),
 		errors.Is(err, client.ErrServiceUnavailable):
 		return 502
-	// CLI-124-06：ErrLoginRejected 优先于泛化业务拒绝 422——「登录取证失败」
+	// ErrLoginRejected 优先于泛化业务拒绝 422——「登录取证失败」
 	// 是明确的认证拒绝，与 login.go 专属中文 401 分支语义对齐（exit 恒 1，
 	// 但 HTTP 码契约应收敛为 401：认证失败不是 422 未处理实体）。
 	case errors.Is(err, client.ErrLoginRejected):
@@ -132,32 +132,32 @@ func printParamError(err error) {
 // --limit 超过上界 maxCLILimit 时输出参数错误信封并返回 true。offset>0 而
 // limit<=0 会被 SDK 全量路径静默忽略；offset<0 在 limit 模式下等效归零、全量
 // 模式下整体失效；limit 过大（>maxCLILimit）会让 SDK 分页派生 endPage 超服务端
-// maxTotalPage，SDK 静默返回首页快照（CLI-123-01）——分页脚本拿首页当 top-N
+// maxTotalPage，SDK 静默返回首页快照——分页脚本拿首页当 top-N
 // 而不知情。四命令统一拒绝以防静默错误数据。
 //
-// 调用次序（CLAUDE.md #31 披露）：本函数允许在 buildBizClient 之后调用（task_teacher/
+// 调用次序（见 CLAUDE.md「D. CLI 契约」rejectLoneOffset 披露）：本函数允许在 buildBizClient 之后调用（task_teacher/
 // task_public/task_submitted/task_withdrawn 四命令均如此），四命令已把 rejectLoneOffset
-// 前移到 onlyCount 分支前（CLI-124-09/10）——--count --limit 5 不再绕过校验；honor
+// 前移到 onlyCount 分支前——--count --limit 5 不再绕过校验；honor
 // delete / typical-case delete 等先校后建派的双参数缺失时首报消息与 stdout/stderr
 // 通道漂移（退出码恒 3 无损）。四任务命令的校验块已在 onlyCount 前（task_teacher
 // 等文件同步位置），此处仅保留函数本体供四命令/未来调用方复用。
 func rejectLoneOffset(cmd *cobra.Command) bool {
 	offset, _ := cmd.Flags().GetInt("offset")
 	limit, _ := cmd.Flags().GetInt("limit")
-	// CLI-124-10：--count 与 --limit/--offset 语义互斥——count 模式只输总数，
+	// --count 与 --limit/--offset 语义互斥——count 模式只输总数，
 	// 静默忽略 limit/offset 会让脚本拿错形状不自知。四命令统一拒绝。
 	if onlyCount, _ := cmd.Flags().GetBool("count"); onlyCount && (limit > 0 || offset > 0) {
 		printEnvelope(envelope.Error(400, "--count 不能与 --limit/--offset 同用（count 只输出记录总数）"))
 		return true
 	}
 	if (offset > 0 && limit <= 0) || offset < 0 || limit < 0 {
-		// N-04：违规参数可能是 --limit 负值而非 --offset——文案必须同时点名两个
+		// 违规参数可能是 --limit 负值而非 --offset——文案必须同时点名两个
 		// 参数，避免用户只看到 "--offset" 却摸不着为什么 --limit -1 也被拒。
 		printEnvelope(envelope.Error(400, "--offset/--limit 需为非负数且 offset 仅配合 --limit 使用（非法取值会被忽略或归零，拒绝静默返回错误数据）"))
 		return true
 	}
 	if limit > maxCLILimit {
-		// CLI-123-01：limit 超上界 → SDK endPage 超 maxTotalPage 静默只翻首页，
+		// limit 超上界 → SDK endPage 超 maxTotalPage 静默只翻首页，
 		// 脚本拿截断数据不自知。参数错误拒绝（对齐 400/exit3 半套纪律：≤0 已拒、
 		// 超上界同族拒绝）。上界与 SDK maxSubmittedRecords 对齐（submitted.go:138，
 		// 10 万条单次任务合理上限，offset+limit 分页不会触发首页截断）。

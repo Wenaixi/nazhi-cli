@@ -7,11 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CLI-123-01：task_teacher/task_public/task_submitted/task_withdrawn 四命令
+// task_teacher/task_public/task_submitted/task_withdrawn 四命令
 // --limit 无上钳——SDK raw_json.go:409-411 遇 endPage>maxTotalPage 静默 endPage=1
 // 只返首页快照，脚本拿截断数据不自知。rejectLoneOffset 已加 limit>maxCLILimit
 // 参数错误拒绝（400/exit3），本测试锁定边界 100000 放行 / 100001 拒绝。
-// 对齐 C-04 page_size_cap_test 范式（pageSizeListTestCmd 同款）。
+// 对齐 page_size_cap_test 范式（pageSizeListTestCmd 同款）。
 
 // limitTaskCmd 构造带业务参数与指定 --limit 的任务命令（teacher 变体，四命令
 // 共用 rejectLoneOffset 逻辑，仅验证单命令即覆盖全族）。
@@ -32,7 +32,7 @@ func limitTaskCmd(t *testing.T, baseURL, limit string) *cobra.Command {
 	return cmd
 }
 
-// TestTaskCircles_RejectHugeLimit 锁定 CLI-123-01：--limit 超 maxCLILimit(100000)
+// TestTaskCircles_RejectHugeLimit 锁定：--limit 超 maxCLILimit(100000)
 // 参数错误拒绝（exit3），边界 100000 放行（不设退出码）。
 func TestTaskCircles_RejectHugeLimit(t *testing.T) {
 	t.Run("limit 100001 拒绝", func(t *testing.T) {

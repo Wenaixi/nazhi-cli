@@ -12,7 +12,7 @@ import (
 // TestHonorDelete_NegativeID_RejectsWithoutRequest 锁定 cmd/nazhi/honor.go:149-155
 // 当前 Run 函数对 --id 只判 == 0，负值 -5 会放行发出 deleteHonorById?id=-5 请求。
 // 同域纪律：honor levels 用 typeID <= 0、typical-case delete 用 id <= 0，
-// honor delete 是 honor/typical-case 两域唯一漏负数的 id 入口（19 轮审计 P2-1）。
+// honor delete 是 honor/typical-case 两域唯一漏负数的 id 入口。
 // 修复后：--id 非正数时以参数错误拒绝（400/exit3）且不发业务请求。
 func TestHonorDelete_NegativeID_RejectsWithoutRequest(t *testing.T) {
 	requestHit := false

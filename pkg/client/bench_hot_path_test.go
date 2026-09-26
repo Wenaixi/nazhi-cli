@@ -42,7 +42,7 @@ func BenchmarkHTTPDo_SmallBody(b *testing.B) {
 }
 
 // BenchmarkHTTPDo_LargeBody 测大响应体（约 1.2MB，对齐真实公示页量级）。
-// P1-1 的核心观测点：日志参数提前求值会让每次请求多分配一个与响应体等大的字符串。
+// 的核心观测点：日志参数提前求值会让每次请求多分配一个与响应体等大的字符串。
 func BenchmarkHTTPDo_LargeBody(b *testing.B) {
 	body := benchUnifiedBody(benchDataListJSON(2000), 2000, 4)
 	srv := benchBizServer(b, body)
@@ -115,7 +115,7 @@ func BenchmarkAppendPageRange_500(b *testing.B) {
 
 // BenchmarkRedactBodyThenTruncate_1MB 测脱敏对大输入的开销。
 //
-// 注意 HTTP-1 契约：必须先脱敏再截断（先截断会让跨边界的敏感值泄漏）。
+// 注意 契约：必须先脱敏再截断（先截断会让跨边界的敏感值泄漏）。
 // 本 benchmark 用于判断该路径是否值得优化，不预设结论。
 func BenchmarkRedactBodyThenTruncate_1MB(b *testing.B) {
 	raw := benchUnifiedBody(benchDataListJSON(2000), 2000, 4)

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// CLI-124-09/10：四任务命令 --count 分支此前在 rejectLoneOffset 之前 return——
+// 四任务命令 --count 分支此前在 rejectLoneOffset 之前 return——
 // --count --offset 5 / --count --limit -1 绕过校验静默返回 total，分页脚本拿错
 // 形状不自知；--count --limit 5 语义互斥但静默忽略。本测试锁定 count 与
 // offset/limit 冲突组合必须以参数错误（400/exit3）拒绝，且不发任何网络请求。
@@ -33,7 +33,7 @@ func countConflictCmd(t *testing.T, baseURL, offset, limit string) *cobra.Comman
 	return cmd
 }
 
-// TestTaskCircles_CountConflictsRejected 锁定 CLI-124-09/10：
+// TestTaskCircles_CountConflictsRejected 锁定 count/offset/limit 冲突组合
 // --count --offset 5（单独 offset）→ 400/exit3；--count --offset -1 → 400/exit3；
 // --count --limit 5 → 400/exit3（语义互斥）。修复前 count 分支在 rejectLoneOffset
 // 前 return 全部静默通过。
@@ -62,7 +62,7 @@ func TestTaskCircles_CountConflictsRejected(t *testing.T) {
 	}
 }
 
-// TestTaskCircles_CountWithoutConflict_IssuesRequest 锁定 CLI-124-09 反面：
+// TestTaskCircles_CountWithoutConflict_IssuesRequest 锁定 反面
 // 纯 --count（无 offset/limit）应正常放行并发出总数请求（不被误拒）。
 func TestTaskCircles_CountWithoutConflict_IssuesRequest(t *testing.T) {
 	srv, bizHit := pageSizeMockServer(t, "/api/studentCircleNew/getStudentCircle")

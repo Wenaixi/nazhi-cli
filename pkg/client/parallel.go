@@ -82,7 +82,7 @@ func ParallelDims[T any](ctx context.Context, dims []types.Dimension, limit int,
 
 	egErr = g.Wait()
 
-	// 容量钳制（C87-CLI#16）：len(active)*10 预分配由服务端 getDimensions
+	// 容量钳制（）：len(active)*10 预分配由服务端 getDimensions
 	// 响应驱动——恶意/异常服务端返回 1e5 维度 → 预分配 1e6 槽位 × Task
 	// (30+ 字符串字段) 可达数百 MB OOM。与已修 C-F 系列同纪律：容量上界
 	// 钳到 1000（超出后 append 自动扩容，只是少一次预分配收益，语义不变）。

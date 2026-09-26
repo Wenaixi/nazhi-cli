@@ -10,7 +10,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// TestFetchTasks_DimsClamped 锁定 CLI-1 维度钳制对结构化 FetchTasks 路径的
+// TestFetchTasks_DimsClamped 锁定维度钳制对结构化 FetchTasks 路径的
 // 覆盖：FetchTasksJSON 有 maxFetchTasksDims=128 上界（raw_json.go:50），
 // 但 FetchTasks（task.go:74-136）全程无钳制——服务端 getDimensions 声明
 // 恶意维度数（>128）时，结构化路径会全量并发拉取，与 raw 路径的防护不对称。

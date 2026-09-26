@@ -18,7 +18,7 @@ func TestTypicalCaseList_DefaultPageSizeMatchesFrontend(t *testing.T) {
 	}
 }
 
-// I-03：typical-case list 只拒 <0，--page 0 / --page-size 0 放行发出 pageNo=0。
+// typical-case list 只拒 <0，--page 0 / --page-size 0 放行发出 pageNo=0。
 // circle_metadata.go:83-89 同形状参数要求 >0，此处对齐为 ≤0 拒绝（400/exit3）。
 func TestTypicalCaseList_PageZeroRejected(t *testing.T) {
 	cases := []struct {

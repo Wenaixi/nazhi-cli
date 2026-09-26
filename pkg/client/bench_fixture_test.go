@@ -20,7 +20,7 @@ import (
 //
 // 构造 Client 用结构体字面量而非 New()：
 //   - New() 会走 Option 处理并对明文 HTTP 打 Warn，污染测量
-//   - 需要精确控制 logger 级别（P1-1 的触发条件就是「日志未启用」）
+// - 需要精确控制 logger 级别（该项的触发条件就是「日志未启用」）
 
 // benchClient 构造最小可用 Client，指向 mock 服务。
 //
@@ -28,7 +28,7 @@ import (
 // → sm.Activate，sm 为 nil 会 panic。
 //
 // logger 用 DiscardHandler（Enabled 恒返回 false），精确模拟默认 LevelWarn 下
-// Info 日志被过滤的真实场景——P1-1 的分配浪费正是在这个条件下发生。
+// Info 日志被过滤的真实场景——该分配浪费正是在这个条件下发生。
 func benchClient(tb testing.TB, bizURL string) *Client {
 	tb.Helper()
 	c := &Client{

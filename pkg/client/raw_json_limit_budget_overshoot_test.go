@@ -1,4 +1,4 @@
-// getCirclesLimitJSON 合并后累积字节复核截断（CLI-120-1）。
+// getCirclesLimitJSON 合并后累积字节复核截断。
 package client_test
 
 import (
@@ -14,7 +14,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// TestGetCirclesLimitJSON_PostConcatBudgetOvershoot 锁定 CLI-120-1：翻页完成后
+// TestGetCirclesLimitJSON_PostConcatBudgetOvershoot 锁定：翻页完成后
 // 若累积原始字节越过 maxAssembleBuffer 预算（估算假设「每页 ≤ 首页字节」
 // 被服务端分页异常打破——首页极小、后续页灌满大记录），必须截断到已合并合法
 // 前缀，不得把超预算累积全量交给 assembleCirclesLimitJSON 无限增长。

@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestGetSchoolID_NameLowercaseKey 锁定 P2-3：GetSchoolID 学校名键兼容小写 name。
+// TestGetSchoolID_NameLowercaseKey 锁定：GetSchoolID 学校名键兼容小写 name。
 // 服务端 school_id 用小写键、NAME 用大写键，命名风格不一致；部分部署可能返回小写 name。
 // SDK 双键读取（NAME 优先，name 兜底），保证两种形态都能拿到学校名。
 func TestGetSchoolID_NameLowercaseKey(t *testing.T) {

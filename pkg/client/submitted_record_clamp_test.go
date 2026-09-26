@@ -11,7 +11,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// TestGetSubmittedCircles_TotalNumClampedByRecordUpperBound 锁定 I-01：
+// TestGetSubmittedCircles_TotalNumClampedByRecordUpperBound 锁定
 // 服务端声明 totalNum 超过条数上界 maxSubmittedRecords（10 万）时，
 // 翻页合并必须直接截断返回首页，不得按 totalNum 预分配 GB 级切片。
 //

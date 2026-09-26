@@ -217,7 +217,7 @@ func (f *FlexInt) UnmarshalJSON(data []byte) error {
 	}
 	// 整数判定改用 math.Trunc：`value != float64(int64(value))` 对 ≥2^63 的
 	// 整数字面量做 int64 往返会溢出回绕（float→int64 溢出是实现相关甚至
-	// UB，跨架构不可靠），回绕值可能恰好相等造成静默错误解码（C86-CLI#19）。
+	// UB，跨架构不可靠），回绕值可能恰好相等造成静默错误解码（）。
 	// Trunc 精确判断是否整数，不受溢出影响。
 	if value != math.Trunc(value) {
 		return fmt.Errorf("FlexInt: 非整数数值 %q", text)

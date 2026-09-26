@@ -26,7 +26,7 @@ func honorRecordJSON(id int64, name, statusName string) map[string]any {
 		"statusName":        statusName,
 		"get_date":          "2026-06-30T00:00:00+08:00",
 		"evaluation_agency": "示例中学",
-		// 19 轮审计 P2-2：补齐入站展示字段夹具——cert_img_attachment_id 用真实平台
+		// 补齐入站展示字段夹具——cert_img_attachment_id 用真实平台
 		// 形态（完整图片 URL 字符串，performanceM.vue:25 直接 <img :src> 消费），
 		// 锁定 string 建模不被误改 int64（URL 字符串会让 DecodeDataList 整页失败）。
 		"cert_img_attachment_id": "http://www.nazhisoft.com/common/attachment/getImg?id=5140894",
@@ -234,7 +234,7 @@ func TestGetHonorList(t *testing.T) {
 	if result.Records[0].TypeName != "阅读之星" || result.Records[0].ApprovedName != "审核通过" {
 		t.Errorf("字段解析错误: %+v", result.Records[0])
 	}
-	// 19 轮审计 P2-2：入站展示字段解析断言——cert_img_attachment_id 是完整图片 URL
+	// 入站展示字段解析断言——cert_img_attachment_id 是完整图片 URL
 	// 字符串（非附件 ID），ifshow/student_name/class_name 同平台 wire 形态。
 	if got := result.Records[0].CertImgAttachmentID; got != "http://www.nazhisoft.com/common/attachment/getImg?id=5140894" {
 		t.Errorf("CertImgAttachmentID 应解析为完整图片 URL 字符串，实际 %q", got)

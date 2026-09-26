@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ─── CLI-124-07：honor list / typical-case list 先校后建 ───
+// ─── honor list / typical-case list 先校后建 ───
 
 // runRealListCmd 用真实 honorListCmd / typicalCaseListCmd 的 Run 回调执行，
 // 传入最小 flags 副本（honor_defaults_test.go:57 同款模式）。缺 token +
@@ -47,7 +47,7 @@ func runRealListCmd(t *testing.T, run func(*cobra.Command, []string), extraFlags
 	return stdout.String(), pendingExitCode.Load()
 }
 
-// TestHonorList_ValidateBeforeBuildClient 锁定 CLI-124-07：honor list 缺
+// TestHonorList_ValidateBeforeBuildClient 锁定：honor list 缺
 // token + page=0 时首报分页错误，不落「--token 必填」——脚本自查不再
 // 把分页错误误判为鉴权问题。
 func TestHonorList_ValidateBeforeBuildClient(t *testing.T) {

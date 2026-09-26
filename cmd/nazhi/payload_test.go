@@ -65,7 +65,7 @@ func TestParsePayloadFromArg_StdinPipelineStillWorks(t *testing.T) {
 }
 
 // TestPayloadPositiveIDValid_MathTrunc（C3 修正版）锁定：float64 整数判定改用
-// math.Trunc 对齐 FlexInt（C86-CLI#19）。旧实现 `v == float64(int64(v))` 对
+// math.Trunc 对齐 FlexInt（）。旧实现 `v == float64(int64(v))` 对
 // 2^53..2^63 区间的整数字面量（float64 无法精确表示相邻整数，int64 转换回绕）
 // 会静默误判——如 float64(9007199254740993) 舍入为 9007199254740992 与
 // int64 转换相同值，v 恒等于回绕值；改用 math.Trunc 判整数 + 上界拒绝。

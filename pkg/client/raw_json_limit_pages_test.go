@@ -297,7 +297,7 @@ func TestGetCirclesLimitJSON_FullModeKeepsPageBean(t *testing.T) {
 	}
 }
 
-// TestGetCirclesLimitJSON_HugeLimitClamped 锁死 C86-CLI#2：limit 派生 endPage
+// TestGetCirclesLimitJSON_HugeLimitClamped 锁死 ：limit 派生 endPage
 // 超 maxTotalPage 时必须钳制截断到首页，不得 make 百万槽位预分配。
 // 服务端 totalNum 单字段虚高（1e9）时 need=offset+limit 派生 endPage 达百万，
 // 旧实现无钳制（getCirclesJSON 已有 C-F clamp，limit 路径漏网点）。

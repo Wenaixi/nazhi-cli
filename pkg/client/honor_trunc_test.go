@@ -8,10 +8,10 @@ import (
 	"testing"
 )
 
-// TestUpdateHonor_NonIntegralTypeIDDoesNotTriggerLookup 锁定（CLI-111-3）：
+// TestUpdateHonor_NonIntegralTypeIDDoesNotTriggerLookup 锁定
 // UpdateHonor 的 typeId 若为非整 float64（2.5），此前 honorMapInt64 直接
 // int64(2.5)=2 截断 → 触发 getHonorTypeForSelect 反查并补出错误的荣誉类型名。
-// 对齐全仓 math.Trunc 纪律（self_eval.go firstInt64 I-08 / types FlexInt）：
+// 对齐全仓 math.Trunc 纪律（self_eval.go firstInt64 / types FlexInt）
 // 非整值应拒绝触发反查，整 float64（2.0）仍合法放行。
 func TestUpdateHonor_NonIntegralTypeIDDoesNotTriggerLookup(t *testing.T) {
 	lookupHit := false

@@ -7,9 +7,9 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// ─── CLI-124-06：ErrLoginRejected 归 401（认证拒绝不是 422 未处理实体）───
+// ─── ErrLoginRejected 归 401（认证拒绝不是 422 未处理实体）───
 
-// TestMapSentinelToHTTPCode_LoginRejected_401 锁定 CLI-124-06：登录拒绝
+// TestMapSentinelToHTTPCode_LoginRejected_401 锁定：登录拒绝
 // 是明确的认证失败（学号/密码错误），与 login.go 专属中文 401 分支语义
 // 对齐——此前 mapSentinelToHTTPCode 与 ErrBusinessRejected 同列归 422，
 // 同一「登录拒绝」语义在 login 命令走 401、其余命令走 422 双套映射。

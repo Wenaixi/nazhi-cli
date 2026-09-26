@@ -71,7 +71,7 @@ func TestNewCleanClient_EachCallGetsFreshClone(t *testing.T) {
 
 // TestNewCleanClient_DefaultTransportNotCached 验证 Transport=nil 时
 // 回退 Proxy:nil 的独立 Transport（不再是 http.DefaultTransport 本身，
-// 防环境变量代理劫持 C86-CLI#1）。
+// 防环境变量代理劫持 ）。
 func TestNewCleanClient_DefaultTransportNotCached(t *testing.T) {
 	c := &Client{
 		http: &http.Client{Timeout: 10 * time.Second}, // Transport = nil

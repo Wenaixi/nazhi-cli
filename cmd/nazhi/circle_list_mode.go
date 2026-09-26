@@ -53,7 +53,7 @@ func (m circleListMode) run(cmd *cobra.Command) {
 	limit, _ := cmd.Flags().GetInt("limit")
 	key, _ := cmd.Flags().GetString("key")
 
-	// CLI-124-09/10：rejectLoneOffset 必须先于 onlyCount——否则 --count --offset 5
+	// rejectLoneOffset 必须先于 onlyCount——否则 --count --offset 5
 	// 会绕过 offset/limit 校验静默返回 total。
 	if rejectLoneOffset(cmd) {
 		return

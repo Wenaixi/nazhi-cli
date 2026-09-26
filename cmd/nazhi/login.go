@@ -34,7 +34,7 @@ var loginCmd = &cobra.Command{
 		username := applyURLFlag(cmd, "username", "NAZHI_USERNAME")
 		password := applyURLFlag(cmd, "password", "NAZHI_PASSWORD")
 
-		// N-10：空白串用户名/密码校验——纯空格字符串在 trim 后为空，
+		// 空白串用户名/密码校验——纯空格字符串在 trim 后为空，
 		// 直接拒绝避免原样上送 SSO（与 task submit/edit 的 trim 校验同族）。
 		if strings.TrimSpace(username) == "" || strings.TrimSpace(password) == "" {
 			printEnvelope(envelope.Error(400, "--username 和 --password 为必填（也可通过 NAZHI_USERNAME/NAZHI_PASSWORD 环境变量设置）"))
@@ -55,7 +55,7 @@ var loginCmd = &cobra.Command{
 		})
 		if err != nil {
 			// 用 errors.Is 精确匹配哨兵错误，按类别选择输出通道。
-			// CLI-122-01：外层 ErrLoginRejected 判断无法命中限流/服务端故障分支——
+			// 外层 ErrLoginRejected 判断无法命中限流/服务端故障分支——
 			// SDK 层 auth.go:188 对非 200/302 用 classifyHTTPStatus 分类，429/5xx 错误链
 			// 只含 ErrRateLimited/ErrServiceUnavailable 不含 ErrLoginRejected（外层 switch
 			// 的内层分支是死代码）。改为直接按哨兵匹配，专属中文文案真正可达。

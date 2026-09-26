@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestGetMyInfo_ClassNameStripGrade 锁定 19 轮审计 user-info P2-2：
+// TestGetMyInfo_ClassNameStripGrade 锁定 user-info
 // postProcessUserInfo 对 className 只移除首个「级」字（user.go:102-104，
 // 对齐前端 userBox.vue:70 / modifyBox.vue:175 / header.vue:260 的 replace("级","")），
 // 此前全仓夹具均不含「级」字（client_test.go:430 "八班" / :467 "高一(8)班"），

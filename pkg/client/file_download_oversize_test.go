@@ -1,4 +1,4 @@
-// file_download_oversize_test.go — Cycle 109 CLI-109-1：DownloadFile 流式写
+// file_download_oversize_test.go — ：DownloadFile 流式写
 // 无字节上限的防线补丁。
 //
 // 背景：writeDownloadToFile 的 copyCtx 对上游流式写入无任何字节上限，攻击者

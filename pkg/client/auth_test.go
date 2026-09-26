@@ -1313,7 +1313,7 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 		Password: "p",
 		SchoolID: "173",
 	})
-	// G1（Cycle 101）语义修订：非 200/302 状态码按 classifyHTTPStatus 分类，
+	// 语义修订：非 200/302 状态码按 classifyHTTPStatus 分类，
 	// 503 现包装 ErrServiceUnavailable（errors.Is 可识别服务端故障），不再笼统包
 	// ErrLoginRejected。本测试改为锁定「服务端故障可识别」的新哨兵语义。
 	if err == nil {
@@ -1334,11 +1334,11 @@ func TestLogin_UnexpectedStatus_BodyInError(t *testing.T) {
 	}
 }
 
-// ─── Cycle 101 G1：Login 非 200/302 状态码按 classifyHTTPStatus 分类 ───
+// ─── Login 非 200/302 状态码按 classifyHTTPStatus 分类 ───
 
 // TestLogin_429_RateLimitedSentinel 验证 Login 收到 429 时返回 ErrRateLimited 哨兵，
 // 而不是笼统的 ErrLoginRejected。
-// 背景（Cycle 101 G1）：非 200/302 一律包 ErrLoginRejected，CLI 把限流误报为
+// 背景（G1）：非 200/302 一律包 ErrLoginRejected，CLI 把限流误报为
 // 「登录失败」exit 1、不退避；修复后 errors.Is(err, ErrRateLimited) 可精确识别限流。
 func TestLogin_429_RateLimitedSentinel(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1459,7 +1459,7 @@ func TestLogin_GetSchoolIDError_DoesNotLeakUsername(t *testing.T) {
 //
 // 场景：GetSchoolID URL 含 userName=<学号>；当服务端不可达（连接拒绝/超时），
 // c.http.Do 返回错误，触发 do() 的 ErrTimeout/ErrNetwork 分支。
-// CLAUDE.md #24 修复仅覆盖了 httpDo:361 的 HTTP 状态码错误，未覆盖 do() 的网络层失败，
+// 历史修复仅覆盖了 httpDo 的 HTTP 状态码错误，未覆盖 do() 的网络层失败，
 // 该路径在 SSO 宕机/客户端断网/请求超时场景下可达，造成学号经错误信封输出。
 func TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername(t *testing.T) {
 	// 假学号：不能用真实学号或 G+18 位同形假号（PII 守卫测试拦截）。
@@ -1522,7 +1522,7 @@ func TestLogin_GetSchoolID_NetworkError_DoesNotLeakUsername(t *testing.T) {
 	// 需要在 cmd 层 printError 出口再做整体 redact 才能消除——属更上层防御纵深挂账）。
 }
 
-// TestLogin_CookieSyncFailure_ReturnsError 锁死 C86-CLI#7：Login 成功但
+// TestLogin_CookieSyncFailure_ReturnsError 锁死 ：Login 成功但
 // token 同步到 cookie jar 失败（Jar 非 *cookiejar.Jar，如自定义 http.Client
 // 无 Jar）时必须返回错误，不再只 warn——调用方拿 token+nil 完全感知不到
 // cookie 未同步，后续业务 dataList 接口全部静默空数据。

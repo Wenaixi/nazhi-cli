@@ -10,7 +10,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ─── I-04：task submit / task edit payload 未知顶层键必须拒绝 ───
+// ─── task submit / task edit payload 未知顶层键必须拒绝 ───
 
 // makeTaskPayloadTestCmd 创建带通用业务参数和 payload 的 task submit/edit 测试命令实例。
 func makeTaskPayloadTestCmd(t *testing.T, baseURL, payload string) *cobra.Command {
@@ -29,7 +29,7 @@ func makeTaskPayloadTestCmd(t *testing.T, baseURL, payload string) *cobra.Comman
 	return cmd
 }
 
-// TestTaskSubmit_UnknownTopLevelKey_Rejects 锁定 I-04：
+// TestTaskSubmit_UnknownTopLevelKey_Rejects 锁定
 // task submit payload 未知顶层键（如 imagePath 单数拼错）此前被静默忽略，
 // 图片不上传仍照常发请求。对齐 user update：未知键以参数错误拒绝（400/exit3）。
 func TestTaskSubmit_UnknownTopLevelKey_Rejects(t *testing.T) {
@@ -71,7 +71,7 @@ func TestTaskSubmit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	}
 }
 
-// TestTaskEdit_UnknownTopLevelKey_Rejects 锁定 I-04：task edit 同款拒绝。
+// TestTaskEdit_UnknownTopLevelKey_Rejects 锁定：task edit 同款拒绝。
 func TestTaskEdit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	requestHit := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -111,9 +111,9 @@ func TestTaskEdit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	}
 }
 
-// ─── I-06：honor update / typical-case update payload 未知顶层键必须拒绝 ───
+// ─── honor update / typical-case update payload 未知顶层键必须拒绝 ───
 
-// TestHonorUpdate_UnknownTopLevelKey_Rejects 锁定 I-06：
+// TestHonorUpdate_UnknownTopLevelKey_Rejects 锁定
 // honor update map payload 未知键静默透传服务端：拼错键名→服务端忽略→204 成功但零修改。
 // 对齐 user update：未知键以参数错误拒绝（400/exit3），不发业务请求。
 func TestHonorUpdate_UnknownTopLevelKey_Rejects(t *testing.T) {
@@ -155,7 +155,7 @@ func TestHonorUpdate_UnknownTopLevelKey_Rejects(t *testing.T) {
 	}
 }
 
-// TestTypicalCaseUpdate_UnknownTopLevelKey_Rejects 锁定 I-06：typical-case update 同款拒绝。
+// TestTypicalCaseUpdate_UnknownTopLevelKey_Rejects 锁定：typical-case update 同款拒绝。
 func TestTypicalCaseUpdate_UnknownTopLevelKey_Rejects(t *testing.T) {
 	requestHit := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

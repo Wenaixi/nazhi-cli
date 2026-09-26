@@ -10,12 +10,12 @@ import (
 	"testing"
 )
 
-// TestHTTPDo_RejectsOversizedBody 锁定 HTTP-2 契约：
+// TestHTTPDo_RejectsOversizedBody 锁定 契约
 // httpDo 读响应体必须封顶（防异常/被劫持服务端塞超大 body 的内存放大），
 // 超限归 ErrInvalidResponse 而非继续全量读入。
-// TestDoBizGet_RejectsOversizedBody 锁定 HTTP-2 契约在 doBizGet 的遗漏路径：
+// TestDoBizGet_RejectsOversizedBody 锁定 契约在 doBizGet 的遗漏路径
 // doBizGet（激活步骤1/InitSession/验证码拉取的共用 helper）读响应体同样必须封顶，
-// 超限归 ErrInvalidResponse 而非继续全量读入（P1-1，auth-session 域 19 轮审计）。
+// 超限归 ErrInvalidResponse 而非继续全量读入（auth-session 域）。
 func TestDoBizGet_RejectsOversizedBody(t *testing.T) {
 	// 构造 >4MB 响应体（与 TestHTTPDo_RejectsOversizedBody 同尺寸）
 	huge := strings.Repeat("a", 5<<20) // 5MB

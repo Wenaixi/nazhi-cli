@@ -143,7 +143,7 @@ func validateTypicalCaseLengths(payload *types.AddTypicalCasePayload) error {
 
 // validateTypicalCaseLengthsMap 校验典型案例更新路径（map）的 remark/content
 // rune 上限。与 validateTypicalCaseLengths（Add 路径）同族：超长即
-// ErrInvalidPayload，不发业务请求。CLI-111-2：此前 Update 无校验、Add 有，
+// ErrInvalidPayload，不发业务请求。：此前 Update 无校验、Add 有，
 // 长度纪律不对称。
 func validateTypicalCaseLengthsMap(payload map[string]any) error {
 	if len([]rune(firstStringFromMap(payload, "remark"))) > maxTypicalCaseRemarkRunes {
@@ -179,7 +179,7 @@ func firstStringFromMap(m map[string]any, key string) string {
 // TypeName/RoleName/LevelName 为空时按前端下拉自动补全。
 // 遵循 AddHonor 模式：doBizVoid POST → 成功返回 nil。
 func (c *Client) AddTypicalCase(ctx context.Context, token string, payload types.AddTypicalCasePayload) error {
-	// I3-05：remark/content 长度校验必须先于任何请求——前端 maxlength 截断保证
+	// ：remark/content 长度校验必须先于任何请求——前端 maxlength 截断保证
 	// 线上恒发 ≤上限（198/1500 字），SDK 对超长原文显式拒绝（ErrInvalidPayload）。
 	if err := validateTypicalCaseLengths(&payload); err != nil {
 		return err

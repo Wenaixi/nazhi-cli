@@ -107,7 +107,7 @@ func TestParseStudentComment(t *testing.T) {
 	}
 }
 
-// TestNormalizeSelfEvalStatus_PlatformIDAliasNarrowed 锁定 P2-1 收窄：
+// TestNormalizeSelfEvalStatus_PlatformIDAliasNarrowed 锁定收窄
 // normalizeSelfEvalStatus 的 ID 兜底别名 platformId/selfEvalId 无任何前端读取点
 // 或抓包依据（mainLeft.vue/selfgaintloss.vue 全镜像零命中，HAR dataMap 主键为 id，
 // 见 .claude/查看自我评价和教师评价.har:1724），与 content/teacherRemark/
@@ -128,7 +128,7 @@ func TestNormalizeSelfEvalStatus_PlatformIDAliasNarrowed(t *testing.T) {
 	}
 }
 
-// I-08：firstInt64 对非整 float64/float32 直接 int64() 截断（4.7→4）静默丢精度。
+// firstInt64 对非整 float64/float32 直接 int64 截断（4.7→4）静默丢精度。
 // 对齐 FlexInt 的 math.Trunc 语义：非整值忽略（视为无有效 ID），不产生截断值。
 func TestFirstInt64_RejectsFractionalFloat(t *testing.T) {
 	// 非整 float64 应忽略返回 0（对齐 FlexInt 显式拒绝非整数值的语义）

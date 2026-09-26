@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestUploadFile_MissingAttachment_IsInvalidPayload 锁定 FILE-1 修订契约：
+// TestUploadFile_MissingAttachment_IsInvalidPayload 锁定修订契约
 // 上传不存在的附件文件 → SDK 返回 ErrInvalidPayload（调用方输入问题），
 // CLI 漏斗据此归 400/exit3，而非裸 IO 错误走 500/exit2 被脚本无限重试。
 func TestUploadFile_MissingAttachment_IsInvalidPayload(t *testing.T) {

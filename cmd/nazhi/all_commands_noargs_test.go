@@ -6,7 +6,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// TestAllLeafCommands_NoArgs 锁定 CLI 一致性契约（P2-3 修复回归）：
+// TestAllLeafCommands_NoArgs 锁定 CLI 一致性契约（修复回归）
 // 全部叶子命令（无子命令者）必须声明 Args 校验，位置参数不得被 cobra 默认
 // ArbitraryArgs 静默吞掉。completion 是唯一有意接受位置参数的叶子（ExactArgs(1)）。
 func TestAllLeafCommands_NoArgs(t *testing.T) {

@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ─── circle comment / like / delete：先校后建（对齐 CLI-124-07 范式）───
+// ─── circle comment / like / delete：先校后建（同款范式）───
 
 // runCircleWriteCmd 用真实 circle 写命令的 Run 回调执行，传入最小 flags 副本。
 // 缺 token + 非法参数时，「先校后建」应首报参数错误（400/exit 3），不落到
@@ -43,7 +43,7 @@ func runCircleWriteCmd(t *testing.T, run func(*cobra.Command, []string), extraFl
 	return stdout.String(), stderr.String(), pendingExitCode.Load()
 }
 
-// TestCircleWrite_ValidateBeforeBuildClient 锁定 CLI-124-07 同款契约：缺 token +
+// TestCircleWrite_ValidateBeforeBuildClient 锁定同款契约：缺 token +
 // 非法 --id 时首报参数错误，不落 buildBizClient 的 --token 必填。三个 circle
 // 写命令此前均先 buildBizClient 再校验（先建后校），坏参数会被 --token 必填
 func TestCircleWrite_ValidateBeforeBuildClient(t *testing.T) {

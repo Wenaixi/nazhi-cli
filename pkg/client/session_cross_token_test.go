@@ -6,7 +6,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// TestUpdateCachedUserInfo_CrossTokenIgnored 锁定 AUTH-2 契约：
+// TestUpdateCachedUserInfo_CrossTokenIgnored 锁定 契约
 // UpdateCachedUserInfo 注释承诺"token 不匹配时静默忽略"，但实现只按
 // info != nil && LoadToken() != "" 判断——多 goroutine 场景下，用旧 token 的
 // 迟到 info 会把新 token 的缓存顶掉（污染短暂可见，靠下一次失败自愈）。
@@ -21,7 +21,7 @@ func TestUpdateCachedUserInfo_CrossTokenIgnored(t *testing.T) {
 	sm.cachedUserInfo = infoB
 	sm.mu.Unlock()
 
-	// 旧 token-A 的迟到 info 调 UpdateCachedUserInfo——AUTH-2 契约：必须被忽略
+	// 旧 token-A 的迟到 info 调 UpdateCachedUserInfo—— 契约：必须被忽略
 	infoA := &types.UserInfo{Name: "张三", StudentNumber: "TEST2025001"}
 	sm.UpdateCachedUserInfo(infoA, "token-A")
 

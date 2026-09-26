@@ -192,12 +192,12 @@ func TestGetTypicalCaseList_Empty(t *testing.T) {
 	}
 }
 
-// ─── Cycle 101 G2：assembleRecordsPageJSON 对 dataList null 形态归一 ───
+// ─── assembleRecordsPageJSON 对 dataList null 形态归一 ───
 
 // TestGetTypicalCaseListJSON_StringNullRecordsNormalized（RED）
 // 服务端返回 dataList:"null"（字符串形态）时，GetTypicalCaseListJSON 拼装的
 // records 必须归一为 [] 空数组，而不是脏数组 ["null"]。
-// 背景（Cycle 101 G2）：assembleRecordsPageJSON 直接取原始字节仅 len==0 归 []，
+// 背景（G2）：assembleRecordsPageJSON 直接取原始字节仅 len==0 归 []，
 // 未调 isNullJSON 归一（rawListBytes 同款）；对齐契约：成功路径恒为合法数组。
 func TestGetTypicalCaseListJSON_StringNullRecordsNormalized(t *testing.T) {
 	biz := httptest.NewServer(http.HandlerFunc(warmupBizHandler(t, func(w http.ResponseWriter, r *http.Request) {

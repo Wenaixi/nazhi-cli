@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-// TestMain_PanicRecover_QuietGuardsRecoverPanic 锚定 L11 契约：
+// TestMain_PanicRecover_QuietGuardsRecoverPanic 锚定 --quiet 静默契约：
 // --quiet 承诺「关闭所有 stderr 输出」，但 main.go 顶层 panic recover 闭包
 // 此前无条件调 recoverx.RecoverPanic，而 RecoverPanic 内部无条件
 // os.Stderr.Write(debug.Stack())，导致 --quiet 时整段 goroutine stack 泄漏。

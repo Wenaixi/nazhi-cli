@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// TestGetMyInfoJSON_StripsStudentUuid 锁定 P2-1（user-info 域）：
+// TestGetMyInfoJSON_StripsStudentUuid 锁定 （user-info 域）
 // GetMyInfoJSON 与 ActivateSessionJSON 是 CLI whoami/GetMyInfoJSON 的输出通道，
 // 序列化前必须剔除 StudentUuid（学生 UUID/密码）敏感值——前端 modifyBox.vue:185 读取后
 // 显式清零即佐证该字段属只写不读的敏感载体。剔除用浅拷贝（禁止原地置空——info 与

@@ -9,7 +9,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// ─── L1：全维度 5xx 汇总错误不得误报业务拒绝 422/exit1 ───
+// ─── 全维度 5xx 汇总错误不得误报业务拒绝 422/exit1 ───
 
 // buildFetchTasksAllFailErr 按 FetchTasks「全部维度失败 → 汇总」的真实错误形状构造：
 //

@@ -1,4 +1,4 @@
-// getCirclesJSON 全量路径 make 前预算守卫（CLI-124-01）。
+// getCirclesJSON 全量路径 make 前预算守卫。
 package client_test
 
 import (
@@ -15,9 +15,9 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// TestGetCirclesJSON_FetchGuardBeforeMake 锁定 CLI-124-01：全量路径
+// TestGetCirclesJSON_FetchGuardBeforeMake 锁定：全量路径
 // 在 make([]rawResult, declaredPages+1) 前补「页数 × 首页字节」预算守卫，
-// 与 limit 路径的 N-04 预估守卫同纪律。
+// 与 limit 路径的预估守卫同纪律。
 //
 // 构造：pageSize=1、首页单条 ~2MB 记录 + 服务端声明 totalNum=64、totalPage=64，
 // 64×2MB=128MB 远超 64MB 合并预算。此前该路径真实发出 page2..64 的全量

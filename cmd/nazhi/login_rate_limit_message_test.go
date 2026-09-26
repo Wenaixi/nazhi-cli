@@ -10,13 +10,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ─── CLI-122-01：login 限流/服务端故障专属文案可达性 ───
+// ─── login 限流/服务端故障专属文案可达性 ───
 
 // mockLoginSSO 构造覆盖 GetSchoolID → studentLogin 全链的 mock SSO：
 // getSchoolIdByStudentNumber 恒 200 成功，studentLogin 按参数返回指定状态码。
 // 只有走完 GetSchoolID 后 studentLogin 才可能拿到 429/5xx，错误链才会只含
 // ErrRateLimited/ErrServiceUnavailable（不含 ErrLoginRejected）——真实复现
-// CLI-122-01 死代码根因。
+// 死代码根因。
 func mockLoginSSO(t *testing.T, loginCode int, loginBody string) *httptest.Server {
 	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +47,7 @@ func newLoginTestCmd(srvURL string) *cobra.Command {
 	return cmd
 }
 
-// TestLoginCmd_RateLimited_ShowsDedicatedMessage 锁定 CLI-122-01：
+// TestLoginCmd_RateLimited_ShowsDedicatedMessage 锁定
 // 登录被限流（SDK 返回 ErrRateLimited，不含 ErrLoginRejected）时，login 命令
 // 必须渲染「请求被限流」专属中文文案 + envelope 429。修复前外层 errors.Is
 // ErrLoginRejected 永假（内层限流分支是死代码），专属文案永不渲染，错误走
@@ -73,7 +73,7 @@ func TestLoginCmd_RateLimited_ShowsDedicatedMessage(t *testing.T) {
 	}
 }
 
-// TestLoginCmd_ServiceUnavailable_ShowsDedicatedMessage 是 CLI-122-01 的另一半：
+// TestLoginCmd_ServiceUnavailable_ShowsDedicatedMessage 是限流分支的另一半
 // 5xx 服务端故障（ErrServiceUnavailable）时命中「SSO 服务端暂时不可用」专属分支，
 // 而不是 default 兜底。与限流分支同属修复前死代码族。
 func TestLoginCmd_ServiceUnavailable_ShowsDedicatedMessage(t *testing.T) {

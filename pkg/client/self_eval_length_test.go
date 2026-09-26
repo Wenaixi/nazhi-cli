@@ -11,7 +11,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/client"
 )
 
-// CLI-110-1：self-eval submit / grad-submit 的 --comment 此前无 rune 长度校验，
+// self-eval submit / grad-submit 的 --comment 此前无 rune 长度校验，
 // 超长原文原样上 wire。官方前端 mainLeft.vue:26/39 两处 textarea 均为
 // maxlength="700"（浏览器硬截断保证线上恒发 ≤700 字）。SDK 侧补
 // validateSelfEvalComment 700 rune 上限显式拒绝（ErrInvalidPayload → 400/exit3），

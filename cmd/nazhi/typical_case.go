@@ -53,14 +53,14 @@ var typicalCaseListCmd = &cobra.Command{
   nazhi typical-case list --token eyJhbGciOiJIUzI1NiJ9.xxx --page 1 --page-size 10`,
 	Args: cobra.NoArgs,
 	Run: func(cmd *cobra.Command, args []string) {
-		// CLI-124-07：先校后建——分页参数校验必须在 buildBizClient 前，
+		// 先校后建——分页参数校验必须在 buildBizClient 前，
 		// 否则缺 token + 坏分页参数时首报「--token 必填」而非分页错误
 		// （honor list 同款收敛，对齐 output.go 披露的「先校后建」派）。
 		pageNo, _ := cmd.Flags().GetInt("page")
 		pageSize, _ := cmd.Flags().GetInt("page-size")
 		status, _ := cmd.Flags().GetInt("status")
 		// 分页参数非负守卫：与 honor list / circle_metadata.go:83-89 纪律对齐。
-		// 0 同样非法（I-03 对齐 ≤0 拒绝），避免发出 pageNo=0 请求。
+		// 0 同样非法（对齐 ≤0 拒绝），避免发出 pageNo=0 请求。
 		// status 合法值为 0/1/2/3（0 未审核 / 1 通过 / 2 驳回 / 3 全部·默认，前端 classiccanter.vue el-option 相同）。
 		// status=-1 虽非法，但为避免破坏现有用户脚本（可能用 -1 表达「全部」），
 		// 此处仅拒绝 pageNo/pageSize 非正数；status 校验留待服务端。
@@ -68,7 +68,7 @@ var typicalCaseListCmd = &cobra.Command{
 			printEnvelope(envelope.Error(400, "--page 与 --page-size 必须为正整数"))
 			return
 		}
-		// C-04：--page-size 上钳 500（对齐 SDK defaultSubmittedPageSize，
+		// --page-size 上钳 500（对齐 SDK defaultSubmittedPageSize，
 		// 实测服务端 pageSize 上限 500）。超限透传会被服务端静默截断为 500，
 		// 分页脚本以错误的 pageSize 计算页数拿到截断数据却不自知——以参数
 		// 错误拒绝（400/exit3），与 honor list 同族钳制。
@@ -179,17 +179,17 @@ func parseTypicalCaseBatchIDs(ctx context.Context, raw string) ([]int64, error) 
 
 // typicalCaseUpdateAllowedKeys 是 typical-case update payload 顶层 JSON 的全部允许键：
 // AddTypicalCasePayload 出站 json 键 + SDK UpdateTypicalCase 消费键 + 编辑记录 id。
-// I-06：未知键（如 titel 拼错）此前静默透传服务端被忽略，对齐 user update 拒绝。
+// 未知键（如 titel 拼错）此前静默透传服务端被忽略，对齐 user update 拒绝。
 var typicalCaseUpdateAllowedKeys = map[string]struct{}{
 	// 键统一小写存储，unknownUpdatePayloadKeys 对用户键 ToLower 后比较
-	// （N-08 与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
+	// （与 task 族 EqualFold 语义对齐，大小写变体不误拒）。
 	"id": {}, "title": {}, "type": {}, "typename": {}, "teachername": {},
 	"partnername": {}, "role": {}, "rolename": {}, "remark": {}, "content": {},
 	"level": {}, "levelname": {}, "attachmentid": {}, "attachmentname": {},
 }
 
 // typicalCaseAddAllowedKeys 是 typical-case submit payload 顶层 JSON 的全部
-// 允许键（AddTypicalCasePayload 出站 json 键全集）。N-07：submit 此前按 struct
+// 允许键（AddTypicalCasePayload 出站 json 键全集）。：submit 此前按 struct
 // 反序列化静默丢弃未知顶层键，拼错键名（如 titlee）服务端忽略零字段——
 // 与 update 同款拒绝（400/exit3）。
 var typicalCaseAddAllowedKeys = map[string]struct{}{

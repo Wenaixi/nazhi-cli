@@ -9,7 +9,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// C-04：honor list / typical-case list 的 --page-size 无上钳。
+// honor list / typical-case list 的 --page-size 无上钳。
 // 现状：两只命令仅校验 >0 无上界；pkg/client/request.go:73 实测服务端
 // pageSize 上限 500。CLI 直接透传超限值让服务端静默截断为 500，分页脚本
 // 以错误的 pageSize 计算页数，拿到截断数据却不自知。
@@ -71,7 +71,7 @@ func swapListGlobals(t *testing.T) {
 	})
 }
 
-// TestHonorList_PageSizeCappedAt500 锁定 C-04：honor list --page-size=501 拒绝，500 放行。
+// TestHonorList_PageSizeCappedAt500 锁定：honor list --page-size=501 拒绝，500 放行。
 func TestHonorList_PageSizeCappedAt500(t *testing.T) {
 	t.Run("page-size 501 拒绝", func(t *testing.T) {
 		cmd := pageSizeListTestCmd(t, "http://127.0.0.1:1", "501")
@@ -100,7 +100,7 @@ func TestHonorList_PageSizeCappedAt500(t *testing.T) {
 	})
 }
 
-// TestTypicalCaseList_PageSizeCappedAt500 锁定 C-04：typical-case list 同款钳制。
+// TestTypicalCaseList_PageSizeCappedAt500 锁定：typical-case list 同款钳制。
 func TestTypicalCaseList_PageSizeCappedAt500(t *testing.T) {
 	t.Run("page-size 501 拒绝", func(t *testing.T) {
 		cmd := pageSizeListTestCmd(t, "http://127.0.0.1:1", "501")

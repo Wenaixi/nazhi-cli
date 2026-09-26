@@ -154,9 +154,9 @@ func TestUserUpdateCmd_InvalidGender(t *testing.T) {
 	}
 }
 
-// TestUserUpdateCmd_UnknownTopLevelKey_Rejects 锁定 19 轮审计 user-info P2-3：
+// TestUserUpdateCmd_UnknownTopLevelKey_Rejects 锁定 user-info
 // CLI user update --payload 的未知顶层键被 json.Unmarshal 静默丢弃，
-// 全零命中 USER-1 no-op 分支（uc/user_update.go:99）→ 输出 204 成功但服务端零修改。
+// 全零命中 no-op 分支（uc/user_update.go:99）→ 输出 204 成功但服务端零修改。
 func TestUserUpdateCmd_UnknownTopLevelKey_Rejects(t *testing.T) {
 	requestHit := false
 

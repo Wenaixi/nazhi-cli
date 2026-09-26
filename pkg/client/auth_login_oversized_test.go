@@ -12,7 +12,7 @@ import (
 	"github.com/Wenaixi/nazhi-cli/pkg/types"
 )
 
-// TestLogin_ValidateOversizedBody_Rejects 锁定 http-infra 域 19 轮审计 P2-1：
+// TestLogin_ValidateOversizedBody_Rejects 锁定 http-infra 域
 // Login validate 端点响应体 io.ReadAll 无上限（auth.go:168），与全仓限读纪律
 // （httpDo 1MB / file.go 64KB+1MB / doGetMenu 100B）不符。异常/被劫持 SSO 塞超大
 // body 时无条件全读入内存。修复后：超限归 ErrLoginRejected（与 200 分支既有哨兵一致）。

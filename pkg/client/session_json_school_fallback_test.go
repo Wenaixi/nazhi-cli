@@ -9,7 +9,7 @@ import (
 	"time"
 )
 
-// TestActivateSessionJSON_SchoolFallback 锁定 AUTH-1 契约：
+// TestActivateSessionJSON_SchoolFallback 锁定 契约
 // ActivateSessionJSON 的 godoc 承诺"包含学校信息 SSO 降级补全"，
 // 直接调 sm.Activate 后 Marshal 的实现不会触发 postProcessSchoolFallback，
 // 输出 JSON 中 schoolId/schoolName 缺失——与 godoc 失实。
@@ -64,7 +64,7 @@ func TestActivateSessionJSON_SchoolFallback(t *testing.T) {
 	if err := json.Unmarshal(raw, &out); err != nil {
 		t.Fatalf("输出非合法 JSON: %v", err)
 	}
-	// AUTH-1 红线：学校信息必须被补全（godoc 承诺）
+	// 红线：学校信息必须被补全（godoc 承诺）
 	if sid, _ := out["schoolId"].(float64); sid != 1 {
 		t.Errorf("schoolId 未补全，期望 1 实际 %v", out["schoolId"])
 	}

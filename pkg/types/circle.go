@@ -19,7 +19,7 @@ type PageBean struct {
 // Go 字段名保持驼峰惯例。日期字段为 string（保留服务端原始格式）；
 // Level/CheckResult 为 int；camelCase 与 snake_case 混用以真实 API 为准。
 //
-// 明确不建模（18 轮审计裁决，HAR .claude/我分别执行了….har:238/:494 实证存在于服务端响应、
+// 明确不建模（裁决：HAR .claude/我分别执行了….har:238/:494 实证存在于服务端响应、
 // 但前端写实卡片零消费）：score（计分）、term_id、last_auditor、last_audit_time、last_auditor_name
 // 五个审核/计分元数据字段。维持不建模符合「不建模未展示字段」纪律——扩字段反增 DecodeDataList
 // 全灭风险面（FlexFloat/int64 对形态违约零容错）；需要原始字节请走 *JSON 透传方法族。
@@ -37,13 +37,13 @@ type CircleRecord struct {
 	Approved   FlexBool `json:"approved"`
 	CircleDate string   `json:"circle_date"`
 	// Hours 为数值（平台返回 number，前端模板字符串拼接展示「X小时」）；
-	// 空值语义请用 Hours==0 判定，不要做字符串空串判断（19 轮审计 P2-1 披露）。
+	// 空值语义请用 Hours==0 判定，不要做字符串空串判断。
 	Hours          float64       `json:"hours"`
 	ImgList        []CircleImage `json:"imgList"`
 	ImgPreViewList []string      `json:"imgPreViewList"`
 	Remark         string        `json:"remark"`
 
-	// 类型与状态编号（19 轮审计 P2-2 披露语义，防历史误读复发）：
+	// 类型与状态编号（ 披露语义，防历史误读复发）
 	// Type = 前端 tab：1 公示 / 2 教师写实 / 3 我发布 / 4 被撤回（getStudentCircle 的 type 参数）。
 	// Status：0 已发布（可编辑删除）/ 1 已锁定（不可编辑）/ 2 被撤回（配 auditRemark 红字原因）。
 	Type   int `json:"type,omitempty"`

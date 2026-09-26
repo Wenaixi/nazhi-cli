@@ -10,9 +10,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// ─── N-10：login username/password 空白串必须拒绝（TrimSpace 校验） ───
+// ─── login username/password 空白串必须拒绝（TrimSpace 校验） ───
 
-// TestLoginCmd_BlankCredentials_Rejected 锁定 N-10：
+// TestLoginCmd_BlankCredentials_Rejected 锁定
 // username/password 纯空白串（空格/Tab 等）此前通过 == "" 校验被原样上送 SSO，
 // 现在 trim 后为空必须 400/exit3 拒绝，不发任何网络请求。
 func TestLoginCmd_BlankCredentials_Rejected(t *testing.T) {
@@ -53,7 +53,7 @@ func TestLoginCmd_BlankCredentials_Rejected(t *testing.T) {
 	}
 }
 
-// ─── N-10 边界：正常凭据不被误拒（flag 值原样透传） ───
+// ─── 边界：正常凭据不被误拒（flag 值原样透传） ───
 
 func TestLoginCmd_NormalCredentials_NotTrimmed(t *testing.T) {
 	cmd := &cobra.Command{Use: "login"}
@@ -80,9 +80,9 @@ func TestLoginCmd_NormalCredentials_NotTrimmed(t *testing.T) {
 	}
 }
 
-// ─── N-06：circle images --page-size 上钳 500 ───
+// ─── circle images --page-size 上钳 500 ───
 
-// TestCircleImages_PageSizeCappedAt500 锁定 N-06：
+// TestCircleImages_PageSizeCappedAt500 锁定
 // circle images --page-size=501 走参数错误拒绝（400/exit3），不发业务请求；
 // 500 放行（对齐 honor list / typical-case list 的 maxPageSize 纪律）。
 func TestCircleImages_PageSizeCappedAt500(t *testing.T) {
@@ -153,9 +153,9 @@ func TestCircleImages_PageSizeCappedAt500(t *testing.T) {
 	})
 }
 
-// ─── N-04：rejectLoneOffset 违规参数可能是 --limit 负值，文案必须点名 ───
+// ─── rejectLoneOffset 违规参数可能是 --limit 负值，文案必须点名 ───
 
-// TestRejectLoneOffset_NegativeLimit_MessageCoversLimit 锁定 N-04：
+// TestRejectLoneOffset_NegativeLimit_MessageCoversLimit 锁定
 // --limit -1 被拒时文案不仅提 --offset（此前用户只看到 "--offset 需为非负数"
 // 却不知自己违规的是 --limit）。
 func TestRejectLoneOffset_NegativeLimit_MessageCoversLimit(t *testing.T) {
@@ -188,7 +188,7 @@ func TestRejectLoneOffset_NegativeLimit_MessageCoversLimit(t *testing.T) {
 	}
 }
 
-// ─── N-07：honor add / typical-case submit 未知键拒绝 ───
+// ─── honor add / typical-case submit 未知键拒绝 ───
 
 // makeAddPayloadTestCmd 创建带通用业务参数与 payload 的 add/submit 测试命令。
 func makeAddPayloadTestCmd(t *testing.T, baseURL, payload string) *cobra.Command {
@@ -205,10 +205,10 @@ func makeAddPayloadTestCmd(t *testing.T, baseURL, payload string) *cobra.Command
 	return cmd
 }
 
-// TestHonorAdd_UnknownTopLevelKey_Rejects 锁定 N-07：
+// TestHonorAdd_UnknownTopLevelKey_Rejects 锁定
 // honor add payload 未知键（如 evalautionAgency 拼错）此前被 struct 反序列化
 // 静默丢弃并 204 报成功但零申报，现在 400/exit3 拒绝且不发业务请求。
-// 注意：typeid 小写是 N-08 大小写不敏感语义下的合法键（与 typeId 等价），
+// 注意：typeid 小写是 大小写不敏感语义下的合法键（与 typeId 等价），
 // 测试用真正拼错的键 evalautionAgency 保证命中未知键判定。
 func TestHonorAdd_UnknownTopLevelKey_Rejects(t *testing.T) {
 	requestHit := false
@@ -245,7 +245,7 @@ func TestHonorAdd_UnknownTopLevelKey_Rejects(t *testing.T) {
 	}
 }
 
-// TestTypicalCaseSubmit_UnknownTopLevelKey_Rejects 锁定 N-07：
+// TestTypicalCaseSubmit_UnknownTopLevelKey_Rejects 锁定
 // typical-case submit payload 未知键（如 titlee 拼错）同款拒绝。
 func TestTypicalCaseSubmit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	requestHit := false
@@ -282,9 +282,9 @@ func TestTypicalCaseSubmit_UnknownTopLevelKey_Rejects(t *testing.T) {
 	}
 }
 
-// ─── N-08：未知键判定大小写不敏感（对齐 task 族 EqualFold 语义） ───
+// ─── 未知键判定大小写不敏感（对齐 task 族 EqualFold 语义） ───
 
-// TestUnknownUpdatePayloadKeys_CaseInsensitive 锁定 N-08：
+// TestUnknownUpdatePayloadKeys_CaseInsensitive 锁定
 // 允许键统一小写存储，用户键 ToLower 后比较——CERTIMGATTACHMENTID/Telephone
 // 等大小写变体不误拒，真正未知键仍拒绝。
 func TestUnknownUpdatePayloadKeys_CaseInsensitive(t *testing.T) {

@@ -78,7 +78,7 @@ func TestAssembleCirclesJSON_CapHintClamped(t *testing.T) {
 	}
 }
 
-// N-04：capAssembledSlice 对多页累积原始字节做总量预算判定——首页 4MB +
+// capAssembledSlice 对多页累积原始字节做总量预算判定——首页 4MB +
 // 每页 4MB 连续多页累积越过 64MB 预算即返回 true（防攻陷服务端报
 // 10000 页×4MB≈40GB 渐进填充进程内累积）。
 func TestCapAssembledSlice_BudgetExceeded(t *testing.T) {
@@ -90,7 +90,7 @@ func TestCapAssembledSlice_BudgetExceeded(t *testing.T) {
 		results[i] = rawResult{raw: bytes.Repeat([]byte("y"), maxResponseBodySize)}
 	}
 	if !capAssembledSlice(raw1, results, 20) {
-		t.Fatalf("累积 80MB 应越过 64MB 预算（N-04 未生效）")
+		t.Fatalf("累积 80MB 应越过 64MB 预算（预算闸未生效）")
 	}
 	if got := cumulativeSliceBytes(raw1, results, 20); got != 20*maxResponseBodySize {
 		t.Fatalf("cumulativeSliceBytes = %d, want %d", got, 20*maxResponseBodySize)
@@ -107,7 +107,7 @@ func TestCapAssembledSlice_BudgetExceeded(t *testing.T) {
 	}
 }
 
-// N-01 回归：getCirclesJSON 命中累积预算后必须传「已钳制页数」给
+// getCirclesJSON 命中累积预算后必须传「已钳制页数」给
 // assembleCirclesJSON——此前用全部声明页数拼接，Bytes.Buffer 仍无上限
 // 增长（注释声称截断实际没截）。这里白盒直接验证 getCirclesJSON 走
 // 预算分支时 assembleCirclesJSON 拿到的页数 ≤ 预算页数。

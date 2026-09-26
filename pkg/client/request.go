@@ -349,7 +349,7 @@ func (c *Client) do(ctx context.Context, method, url string, body any, headers m
 		}
 		// 检测超时错误并用 ErrTimeout 包装。
 		// 错误消息中 URL 必须经 logx.RedactBody 脱敏，userName=*** 形式保留参数名
-		// （学号是 PII）；CLAUDE.md #24 已覆盖 httpDo/状态码分支，本处补 do() 网络层失败路径。
+		// （学号是 PII）；httpDo/状态码分支已覆盖，本处补 do() 网络层失败路径。
 		if isTimeoutError(err) {
 			return nil, fmt.Errorf("%w: 请求 %s 失败: %w", ErrTimeout, logx.RedactBody(url), err)
 		}
@@ -373,7 +373,7 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 	}
 	defer drainAndClose(resp.Body)
 
-	// HTTP-2：响应体读取封顶 1MB，防异常/被劫持服务端塞超大 body 造成内存放大。
+	// 响应体读取封顶 1MB，防异常/被劫持服务端塞超大 body 造成内存放大。
 	// 与 file.go 错误体限读 64KB 的既有纪律对齐；正常平台响应 <1KB（见本文件头部注释）。
 	// io.LimitReader 读满上限即返回 EOF 错误——此时 body 已超限，归 ErrInvalidResponse（非网络故障）。
 	respBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBodySize+1))
@@ -381,13 +381,13 @@ func (c *Client) httpDo(ctx context.Context, method, url string, body any, heade
 		return nil, fmt.Errorf("%w: 读取响应体失败: %w", ErrNetwork, err)
 	}
 	if len(respBytes) > maxResponseBodySize {
-		// P2-2：超限分支直 Close 放弃 keep-alive，不再经 defer drainAndClose 无上限
+		// 超限分支直 Close 放弃 keep-alive，不再经 defer drainAndClose 无上限
 		// 消费剩余 body——恶意无限流下旧实现会持续读到 c.http.Timeout 才被总超时兜底。
 		_ = resp.Body.Close()
 		return nil, fmt.Errorf("%w: 响应体超过 %d 字节上限", ErrInvalidResponse, maxResponseBodySize)
 	}
 
-	// P1-1：先判级别再求值。logx.RedactBodyThenTruncate 对 4MB 响应体会
+	// 先判级别再求值。logx.RedactBodyThenTruncate 对 4MB 响应体会
 	// 先 string(body) 分配等大字符串再跑两遍全量正则，而默认 LevelWarn 下
 	// 这条 Info 日志永不输出——守卫把这份浪费归零。
 	if lvl := levelForStatus(resp.StatusCode); c.logEnabled(ctx, lvl) {
@@ -444,7 +444,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 	}
 	defer drainAndClose(resp.Body)
 
-	// HTTP-2 契约（P1-1，19 轮审计）：doBizGet 读响应体同样封顶
+	// doBizGet 读响应体同样封顶
 	// maxResponseBodySize（当前 4MB，2026-08-27 事故后放宽）——与 httpDo 同构，
 	// 防异常/被劫持服务端塞超大 body 造成内存放大。
 	// doBizGet 是激活步骤1（持 sm.mu 锁）/ InitSession 三处共用 helper，
@@ -476,7 +476,7 @@ func (c *Client) doBizGet(ctx context.Context, url string, headers map[string]st
 // 再交给 logx.RedactBodyThenTruncate 脱敏。目的是避免为「最终只会保留 100 字符」
 // 的摘要，对整个 4MB 响应体做 string() 分配与两遍全量正则。
 //
-// 安全性：HTTP-1 契约要求「先脱敏再截断」是为了防止敏感值跨截断边界被泄漏。
+// 安全性： 契约要求「先脱敏再截断」是为了防止敏感值跨截断边界被泄漏。
 // 这里先截断的是**原始字节的前缀**，若敏感值恰好跨越该前缀边界，其前缀部分
 // 会进入脱敏窗口——但由于截断点之后的字节根本不会进入输出，不存在「值被部分
 // 保留而正则失配」的泄漏路径。前缀窗口（4096 字节）远大于摘要上限（100 字符），

@@ -39,7 +39,7 @@ func makeSelfEvalGradSubmitStdinTestCmd(t *testing.T) *cobra.Command {
 	return cmd
 }
 
-// TestSelfEvalGradSubmitCmd_EmptyStdin_PrintsError 锁定 self-eval P2-5（19 轮审计）：
+// TestSelfEvalGradSubmitCmd_EmptyStdin_PrintsError 锁定 self-eval
 // grad-submit 空 stdin（无输入）应输出 envelope.Error(400) 并以参数错误退出码 3，
 // 与 self-eval submit 的既有契约对称（此前 grad-submit 仅 happy path 有测试）。
 func TestSelfEvalGradSubmitCmd_EmptyStdin_PrintsError(t *testing.T) {

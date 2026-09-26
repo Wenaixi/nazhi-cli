@@ -103,7 +103,7 @@ func mockFetchTasksServer(t *testing.T, dims []types.Dimension, failDimID int64)
 
 func sprintInt64(v int64) string { return strconv.FormatInt(v, 10) }
 
-// ─── L1：全维度 5xx → 汇总错误必须保留 ErrServiceUnavailable 哨兵 ───
+// ─── 全维度 5xx → 汇总错误必须保留 ErrServiceUnavailable 哨兵 ───
 
 // TestFetchTasks_AllDimsServiceUnavailable_HitsErrServiceUnavailable 锁定 L1 的 SDK 侧契约：
 // 全部维度 getCircleStatistics 返回 503 时，FetchTasks 的汇总错误除 ErrBusinessRejected 外，

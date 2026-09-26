@@ -88,7 +88,7 @@ var circleImagesCmd = &cobra.Command{
 			printParamError(fmt.Errorf("--page-size 必须为正整数"))
 			return
 		}
-		// N-06：--page-size 上钳 500（对齐 honor list / typical-case list 的
+		// --page-size 上钳 500（对齐 honor list / typical-case list 的
 		// maxPageSize 纪律——服务端单页上限 500，超限透传被静默截断会让分页
 		// 脚本以错误的 pageSize 计算页数）。
 		if pageSize > maxPageSize {

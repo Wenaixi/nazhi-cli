@@ -25,17 +25,17 @@ import (
 const perfBudgetRuns = 100
 
 // 预算常量。每个常量的值为实测基线精确值（Go 1.26.1，本机 i9-12900HX）。
-// 修复前基线见 git 历史（ba6339c）；以下为 P1-1 修复后的新基线：
+// 修复前基线见 git 历史（ba6339c）；以下为 修复后的新基线
 //   - HTTPDoSmallBody：95（修复前 119）
 //   - HTTPDoLargeBody：142（修复前 205）
 //   - 大响应体 B/op：4.7MB（修复前 15.4MB）——一次等大 string 分配的浪费已归零
 const (
 	// budgetHTTPDoSmallBody 是 httpDo 处理小响应体（<1KB）的分配次数。
-	// P1-1 修复后基线：95（Go 1.26.1，commit 待定）
+	// 修复后基线：95（Go 1.26.1，commit 待定）
 	budgetHTTPDoSmallBody = 95
 
 	// budgetHTTPDoLargeBody 是 httpDo 处理约 1.2MB 响应体的分配次数。
-	// P1-1 修复后基线：142（Go 1.26.1，commit 待定）
+	// 修复后基线：142（Go 1.26.1，commit 待定）
 	// 修复前为 205（含日志参数提前求值导致的一份等大字符串分配）。
 	budgetHTTPDoLargeBody = 142
 
@@ -49,7 +49,7 @@ const (
 	budgetActivateSessionCacheHit = 0
 
 	// budgetFetchCirclePageJSON500 是单页写实拉取（含 session 缓存命中预热后）
-	// 的分配次数。P1-2 把 dataList 校验从全量 json.Unmarshal 改为首字符判定后：
+	// 的分配次数。 把 dataList 校验从全量 json.Unmarshal 改为首字符判定后
 	//   675 → 159（-76%），B/op 2232679 → 1623844
 	// 注：其余差异来自该路径含 session 预热 + 多次内部 httpDo，非纯解码。
 	budgetFetchCirclePageJSON500 = 160
@@ -96,7 +96,7 @@ func TestPerfBudget_HTTPDoSmallBody(t *testing.T) {
 
 // TestPerfBudget_HTTPDoLargeBody 锁住大响应体的分配次数。
 //
-// 这是 P1-1 的哨兵：日志参数提前求值会让每次请求多分配一个与响应体等大的
+// 这是本项的哨兵：日志参数提前求值会让每次请求多分配一个与响应体等大的
 // 字符串。修复后预算下调，任何让该分配复活的改动都会在此 FAIL。
 func TestPerfBudget_HTTPDoLargeBody(t *testing.T) {
 	body := benchUnifiedBody(benchDataListJSON(2000), 2000, 4)
@@ -148,7 +148,7 @@ func TestPerfBudget_ActivateSessionCacheHit(t *testing.T) {
 
 // TestPerfBudget_FetchCirclePageJSON500 锁住单页写实拉取的分配次数。
 //
-// P1-2 哨兵：dataList 校验若被人改回全量 json.Unmarshal，这里立即 FAIL。
+// 哨兵：dataList 校验若被人改回全量 json.Unmarshal，这里立即 FAIL。
 func TestPerfBudget_FetchCirclePageJSON500(t *testing.T) {
 	list := benchDataListJSON(500)
 	body := benchUnifiedBody(list, 500, 1)
@@ -167,7 +167,7 @@ func TestPerfBudget_FetchCirclePageJSON500(t *testing.T) {
 	})
 }
 
-// TestPerfBudget_HTTPDoLargeBody_NoRedactAlloc 是 P1-1 的专项哨兵。
+// TestPerfBudget_HTTPDoLargeBody_NoRedactAlloc 是本项的专项哨兵。
 //
 // 契约：当日志级别未启用时，httpDo 不得为日志参数做任何与响应体等大的分配。
 //

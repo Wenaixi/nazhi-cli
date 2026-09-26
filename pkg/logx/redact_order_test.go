@@ -2,7 +2,7 @@ package logx
 
 import "testing"
 
-// TestRedactBodyThenTruncate_Order 锁定 HTTP-1 契约：
+// TestRedactBodyThenTruncate_Order 锁定 契约
 // 脱敏必须先于截断——先截断再脱敏会让跨截断边界的敏感值前缀泄漏
 // （kvRe 需要闭合引号、tokenQueryRe 需要 key= 形态，值被切腰后正则失配）。
 // 本测试只断言新函数 RedactBodyThenTruncate 的行为：敏感值不泄漏 + 输出截断。

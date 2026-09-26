@@ -210,7 +210,7 @@ func TestGetSubmittedCirclesJSON_ContextCancel(t *testing.T) {
 	defer c.Close()
 
 	// 窗口须覆盖 4 步 session 预热（/ getMenu×2 getMyInfo）往返后才轮到 page1，
-	// 且必须 < 500ms 延迟页才能触发 page2 cancel；80–100ms 在 CI 并行满负载下会被前置预热 RTT 吃掉（Cycle 97 记录的 flaky）。
+	// 且必须 < 500ms 延迟页才能触发 page2 cancel；80–100ms 在 CI 并行满负载下会被前置预热 RTT 吃掉（已记录的 flaky）。
 	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 
@@ -507,7 +507,7 @@ func TestFetchTasksJSON_PartialFailureReturnsRawBytes(t *testing.T) {
 	}
 }
 
-// CLI-1：FetchTasksJSON 无维度数上界——getDimensions 服务端声明巨量维度×单页
+// FetchTasksJSON 无维度数上界——getDimensions 服务端声明巨量维度×单页
 // 4MB 累积无预算，攻陷服务端可单请求累积上 GB。修复后钳制到
 // maxFetchTasksDims（128），merged 数组条目数不得超过该值。
 func TestFetchTasksJSON_TrimsExcessiveDimensions(t *testing.T) {
@@ -548,7 +548,7 @@ func TestFetchTasksJSON_TrimsExcessiveDimensions(t *testing.T) {
 		t.Fatalf("merged 必须是合法 JSON 数组, err=%v", jerr)
 	}
 	if len(arr) > maxFetchTasksDims {
-		t.Fatalf("merged 维度数 = %d, want ≤ %d（CLI-1：FetchTasksJSON 无维度数上界）", len(arr), maxFetchTasksDims)
+		t.Fatalf("merged 维度数 = %d, want ≤ %d（FetchTasksJSON 无维度数上界）", len(arr), maxFetchTasksDims)
 	}
 }
 

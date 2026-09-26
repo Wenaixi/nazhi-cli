@@ -32,7 +32,7 @@ var completionCmd = &cobra.Command{
 	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},
 	Args:                  cobra.MatchAll(cobra.ExactArgs(1), cobra.OnlyValidArgs),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		// N-12：先缓冲完整补全脚本，成功后再一次性写 stdout——此前直接
+		// 先缓冲完整补全脚本，成功后再一次性写 stdout——此前直接
 		// GenXxxCompletion(os.Stdout)，若中途失败 Execute 返回 error，main.go
 		// 再把 JSON 错误 envelope 追加到 stdout，与已写出的脚本碎片混流，
 		// 脚本解析器拿到「合法脚本 + 尾部 JSON」组合出错。

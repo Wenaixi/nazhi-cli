@@ -64,7 +64,7 @@ func TestFetchTasksJSON_ContextCancel_HitsErrRetryable(t *testing.T) {
 
 	// 短超时：getDimensions 可完成，但 getCircleStatistics 被 cancel 截断。
 	// 窗口须覆盖 4 步 session 预热（/ getMenu×2 getMyInfo）+ getDimensions 往返，
-	// 且小于 2s 的 stats 阻塞上限才能触发 cancel；80–100ms 在 CI 并行满负载下会被前置预热 RTT 吃掉（Cycle 97 记录的 flaky）。
+	// 且小于 2s 的 stats 阻塞上限才能触发 cancel；80–100ms 在 CI 并行满负载下会被前置预热 RTT 吃掉（已记录的 flaky）。
 	ctx, cancel := context.WithTimeout(context.Background(), 400*time.Millisecond)
 	defer cancel()
 

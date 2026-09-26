@@ -31,7 +31,7 @@ var rootCmd = &cobra.Command{
 	提供登录、任务管理、自我评价、文件上传等完整功能。
 	所有命令输出 JSON 格式，便于脚本解析。`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// SD-2：--quiet 经 recoverx.SetQuiet 传播到 pkg/client recover 路径
+		// --quiet 经 recoverx.SetQuiet 传播到 pkg/client recover 路径
 		// （fetchTasksForDimensionSafe 及其调用的 fetchTasksForDimension 无法感知 CLI flag）。
 		recoverx.SetQuiet(quiet)
 		tid := logx.NewTraceID()
@@ -48,7 +48,7 @@ var rootCmd = &cobra.Command{
 }
 
 func main() {
-	// N-01：SIGINT/SIGTERM → context 取消。cobra Execute 用 rootCmd.Context()，
+	// SIGINT/SIGTERM → context 取消。cobra Execute 用 rootCmd.Context，
 	// PersistentPreRun 从 cmd.Context() 派生——信号到达后 Run 回调内的网络
 	// 调用（含 --payload - 的 stdin 挂起）能感知 ctx.Done 提前中止，而不是
 	// Go 默认直接杀进程跳过 closeAllClients（keep-alive 泄漏）。

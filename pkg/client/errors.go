@@ -9,7 +9,7 @@ var (
 	// ErrLoginRejected 登录被拒绝（凭证无效）。
 	ErrLoginRejected = errors.New("login rejected: invalid credentials")
 
-	// ErrCookieSyncFailed 登录成功但 token 同步到 cookie jar 失败（C86-CLI#7）。
+	// ErrCookieSyncFailed 登录成功但 token 同步到 cookie jar 失败（）。
 	//
 	// 触发场景：Login 使用 HTTP client 的 Jar 不是 *cookiejar.Jar（如调用方
 	// WithHTTPClient(customClient{Jar:nil})）——Login 返回的 token 无法被后续

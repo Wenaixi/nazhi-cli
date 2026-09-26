@@ -263,7 +263,7 @@ func TestParseHours_RejectsNonFinite(t *testing.T) {
 	}
 }
 
-// I-02：parseHours 只拒绝 NaN/Inf，负数直接上 wire payload.Hours=-5。
+// parseHours 只拒绝 NaN/Inf，负数直接上 wire payload.Hours=-5。
 // 学时不可能为负，负数属于调用方输入错误，应与非法/非有限同族拒绝。
 func TestParseHours_RejectsNegative(t *testing.T) {
 	for _, input := range []string{"-1", "-0.5", "-5", "-1e3"} {

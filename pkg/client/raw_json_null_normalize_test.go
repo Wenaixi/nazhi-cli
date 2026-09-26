@@ -1,6 +1,6 @@
 // raw_json_null_normalize_test.go — 锁定原始 JSON 路径对 dataList null 形态的归一契约。
 //
-// 背景（Cycle 94 cli F1）：rawListBytes 只做 json.Valid 校验，null 形态存在漏网：
+// 背景（raw_json cli F1）：rawListBytes 只做 json.Valid 校验，null 形态存在漏网
 //   - 字面 dataList:null 在 json.Unmarshal 到 *json.RawMessage 时已变 nil 指针，
 //     走 rawListBytes 的分支 1 返回 nil（这条原本安全）；
 //   - 字符串 dataList:"null"（RawMessage 为带引号 6 字节）json.Valid 通过，

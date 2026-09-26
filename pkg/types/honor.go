@@ -31,7 +31,7 @@ type HonorType struct {
 // 设计取舍：服务端下发的 HonorRecord 携带展示用只读字段，前端 performanceM.vue
 // 荣誉表格列实际消费：student_name / class_name / type_name / level_name / score /
 // cert_img_attachment_id / get_date / evaluation_agency / ifshow / statusName（已建模，
-// 19 轮审计 P3-1 同步完整清单）；dimension_id / auditor_name / show_report_flag 等
+// 同步完整清单）；dimension_id / auditor_name / show_report_flag 等
 // 未用于提交逻辑或状态分支判断，为保持类型精简暂未映射，按需扩展。
 type HonorRecord struct {
 	ID               int64    `json:"id"`
