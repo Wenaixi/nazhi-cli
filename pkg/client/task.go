@@ -257,8 +257,15 @@ func parseHours(userInput string, metaHours float64, targetType int) (float64, e
 //   - circleTaskId/circleTypeId/dimensionId/hours(预设>0)：SDK 从 getCircleTypeByTaskId 自动填
 //   - Address/OrgName/Level/PlayRole 等：用户填什么发什么；空串原样，不发明学校名或等级「5」
 //
-// countValidImages 统计将进入 pictureList 的有效图片总数：
-// ImageIDs 中 >0 的条目 + ImagePaths 中非空白路径。须与合并/上传循环的去重口径保持一致。
+// countValidImages 统计将进入 pictureList 的有效图片条目数：
+// ImageIDs 中 >0 的条目 + ImagePaths 中非空白路径。
+//
+// 口径说明：本函数按「用户提交的条目数」计数，**不对重复 path 去重**；
+// 上传循环则用 seen map 去重（同一文件重复出现只上传一次）。二者刻意
+// 不同——预检从严（重复条目也计入上限，宁可拒绝也不让用户以为 3 个不同
+// 附件实则 1 个），上传从宽（避免同一文件产生服务端孤儿附件）。
+// 端到端行为由 TestSubmitTask_TooManyPicturesSkipsUpload 与
+// TestSubmitTask_DuplicateImagePathUploadedOnce 共同锁定。
 func countValidImages(input types.TaskInput) int {
 	n := 0
 	for _, id := range input.GetImageIDs() {
