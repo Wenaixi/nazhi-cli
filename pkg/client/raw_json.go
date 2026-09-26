@@ -34,7 +34,7 @@ import (
 
 // rawListBytes 返回 dataList 的原始字节。dataList 缺失时返回 nil。
 // 返回 []byte 而非 RawMessage 让 bytes.Buffer 直接 append，避免反复拷贝。
-// maxTotalPage 翻页上界钳制（C-F 修复）——TotalPage 来自服务端单字段声明，
+// maxTotalPage 翻页上界钳制——TotalPage 来自服务端单字段声明，
 // 恶意/异常值直接驱动 make 分配会导致单请求 OOM。10000 页 × pageSize=500 ≈ 500 万条，
 // 远超任何真实业务数据量。
 const maxTotalPage = 10000
@@ -238,7 +238,7 @@ type rawResult struct {
 // 用 first 标志控制逗号，避免 page1 为空数组时产生 leading comma 非法 JSON（[,{...}]）。
 // 对齐 assembleCirclesLimitJSON 的拼接策略。
 func assembleCirclesJSON(raw1 []byte, results []rawResult, totalPage int, partialErr error) (json.RawMessage, error) {
-	// C-F 修复：totalPage 参与预分配乘法，超钳制值会放大分配或整数溢出。
+	// totalPage 参与预分配乘法，超钳制值会放大分配或整数溢出。
 	if totalPage > maxTotalPage {
 		totalPage = maxTotalPage
 	}
@@ -307,7 +307,7 @@ func (c *Client) getCirclesJSON(ctx context.Context, token string, circleType in
 	}
 
 	// 多页：预分配索引切片 + errgroup 并发翻页，保持页号顺序
-	// C-F 修复：TotalPage 来自服务端单字段声明，恶意/异常值直接驱动 make 分配——
+	// TotalPage 来自服务端单字段声明，恶意/异常值直接驱动 make 分配——
 	// 服务端被攻陷时单请求 OOM 崩进程。超钳制值时直接截断（只返回首页），
 	// 不翻页——钳制的意义是防放大而不是真翻 10000 页。
 	// 页数下界与上界钳制统一由 derivePageBounds 负责（v1.6.4 / 84982af）：

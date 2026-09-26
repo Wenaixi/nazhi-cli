@@ -87,8 +87,9 @@ jobs:
         # 导致 cmd/nazhi 的 CLI 契约测试（envelope/退出码/参数校验）与
         # internal/recoverx 的测试在 PR 门禁中从不执行。
         # 两者均为纯本地 httptest mock，零网络零凭据，与既有范围同性质。
-        # 不含 ./test/e2e/...：其 TestMain 会构造指向真实域的 client，
-        # 需先按离线/真实两层拆分后再纳入。
+        # 仍不含 ./test/e2e/...：其真实网络出口由凭据门禁（NAZHI_USERNAME/PASSWORD）
+        # 把守，无凭据时 live 分支整体 SKIP；但真读用例会拉真实 token 缓存落盘，
+        # 纳入常规 PR 门禁会让本地状态影响 CI 结果，故与单元测试分层。
         run: go test -count=1 -race -v -timeout=15m ./pkg/... ./cmd/... ./internal/...
 
       - name: 性能门禁（allocs/op 硬门禁）

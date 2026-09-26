@@ -43,8 +43,11 @@ type CircleRecord struct {
 	ImgPreViewList []string      `json:"imgPreViewList"`
 	Remark         string        `json:"remark"`
 
-	// 类型与状态编号（ 披露语义，防历史误读复发）
-	// Type = 前端 tab：1 公示 / 2 教师写实 / 3 我发布 / 4 被撤回（getStudentCircle 的 type 参数）。
+	// 类型与状态编号（披露语义，防历史误读复发）
+	// Type 是记录自身的类型（前端 item.type==1 判是否学生本人发布的写实，
+	// 与 item.status!=1 一同决定是否显示编辑/删除按钮），不是"从哪个列表看到的"。
+	// 列表入口分类是查询参数 getStudentCircle?type= 的取值，1 公示 / 2 教师写实 /
+	// 3 我发布的 / 4 被撤回，与本字段无关，详见 pkg/client/submitted.go。
 	// Status：0 已发布（可编辑删除）/ 1 已锁定（不可编辑）/ 2 被撤回（配 auditRemark 红字原因）。
 	Type   int `json:"type,omitempty"`
 	Status int `json:"status,omitempty"`

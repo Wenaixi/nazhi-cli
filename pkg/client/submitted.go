@@ -122,7 +122,7 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	if capacity < len(page1) {
 		capacity = len(page1)
 	}
-	// C-F 修复（扩展）：capacity 也钳制——totalNum 同样来自服务端单字段声明，
+	// capacity 也钳制——totalNum 同样来自服务端单字段声明，
 	// 恶意值（如 1e9）会让 make 预分配巨大容量直接 OOM。上限 = 钳制页数 × pageSize。
 	if capacity > maxTotalPage*pageSize {
 		capacity = maxTotalPage * pageSize
@@ -140,7 +140,7 @@ func (c *Client) fetchAllCirclePages(ctx context.Context, token string, circleTy
 	copy(all, page1)
 
 	// results 按页号索引，预分配避免竞态
-	// C-F 修复：TotalPage 来自服务端单字段声明，超钳制值时直接截断（只返回
+	// TotalPage 来自服务端单字段声明，超钳制值时直接截断（只返回
 	// 首页），不翻页——防服务端异常值驱动 make 分配 OOM。
 	if declaredPages > maxTotalPage {
 		slog.Warn("submitted: totalPage 超过钳制上限，截断到首页", "total_page", declaredPages, "max", maxTotalPage)

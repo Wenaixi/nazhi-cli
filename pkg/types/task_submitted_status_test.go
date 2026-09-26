@@ -17,8 +17,8 @@ func TestSetSubmittedByStatus_SubstringMatching(t *testing.T) {
 		{"上传期 已提交", true},
 		{"已结束 已提交", true},
 		{"进行中", true},
-		// H-A 修复（2026-09-03）：空串保守视为未提交——平台不返回 status
-		// 字段时误判已提交会隐藏学生提交入口（原断言 {"", true} 固化的是缺陷）。
+		// 空串保守视为未提交——平台不返回 status 字段时误判已提交会隐藏学生提交入口
+		// （原断言 {"", true} 固化的是缺陷）。
 		{"", false},
 		{"   ", false}, // 纯空白同样视为未提交
 	}
